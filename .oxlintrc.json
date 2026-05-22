@@ -1,0 +1,19 @@
+{
+  "jsPlugins": ["./.ai/taste/oxlint-plugin/index.js"],
+  "rules": {
+    "taste/no-useeffect-in-component": "error",
+    "taste/no-useeffect-fetch": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/ban-ts-comment": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["src/shared/api/**/*.{ts,tsx}"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/ban-ts-comment": "off"
+      }
+    }
+  ]
+}

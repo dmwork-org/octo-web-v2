@@ -32,7 +32,7 @@ case "$FILE_PATH" in
   *) exit 0 ;;
 esac
 
-OUTPUT=$(vp check --no-fmt -- -c "$CLAUDE_PROJECT_DIR/.oxlintrc.json" "$FILE_PATH" 2>&1)
+OUTPUT=$(vp check --no-fmt -- "$FILE_PATH" 2>&1)
 RC=$?
 
 if [ "$RC" -eq 0 ]; then

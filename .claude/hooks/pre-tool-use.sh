@@ -48,16 +48,19 @@ case "$FILE_PATH" in
   *) exit 0 ;;
 esac
 
-# === 准备 temp 文件(匹配扩展名)===
-# K10: 必须放 project 内且不在 ignorePatterns 内,否则 vp 0.1.22 / oxlint 1.63 在 vite.config.ts 模式下:
-#   - root 外路径 → ignore crate panic (path is expected to be under the root)
-#   - 在 ignorePatterns 内(.ai/.claude/scripts/dist)→ "No files found to lint"
-TMP_DIR=$(mktemp -d "$CLAUDE_PROJECT_DIR/.tmp-hooks.XXXXXX")
-trap 'rm -rf "$TMP_DIR"' EXIT
+# === 准备 temp 文件(放原文件同目录,以便相对 import + tsconfig include 正常)===
+# 早期版本 K10 把 tmp 放 $CLAUDE_PROJECT_DIR/.tmp-hooks.XXX/,在 Edit 路径上会让 './foo' 这类
+# 相对 import 解析失败(TS2307/TS2882),误伤合法文件。
+# 实测发现 tsconfig.app.json `include: ["src"]` 默认跳过 `.` 开头隐藏文件,导致 vite-plus/client
+# 的 *.css 模块声明注入不到隐藏 tmp,误报 TS2882。所以 tmp 用非 hidden 前缀,
+# 同时在 vite.config.ts lint.ignorePatterns 里排除 *.preview-tmp.* 避免全项目扫描误抓残留。
+FILE_DIR=$(dirname "$FILE_PATH")
+FILE_BASE=$(basename "$FILE_PATH")
 case "$FILE_PATH" in
-  *.tsx) TMP_FILE="$TMP_DIR/pre.tsx" ;;
-  *)     TMP_FILE="$TMP_DIR/pre.ts"  ;;
+  *.tsx) TMP_FILE="$FILE_DIR/${FILE_BASE%.tsx}.preview-tmp-$$-$RANDOM.tsx" ;;
+  *)     TMP_FILE="$FILE_DIR/${FILE_BASE%.ts}.preview-tmp-$$-$RANDOM.ts"  ;;
 esac
+trap 'rm -f "$TMP_FILE"' EXIT
 
 STRUCT_OUT=""
 STRUCT_RC=0
@@ -79,7 +82,7 @@ if [ "$TOOL_NAME" = "Write" ]; then
   # 2. 内容级
   printf '%s' "$INPUT" | jq -r '.tool_input.content // ""' > "$TMP_FILE"
   T0=$(now_ns)
-  CONTENT_OUT=$(vp check --no-fmt -- -c "$CLAUDE_PROJECT_DIR/.oxlintrc.json" "$TMP_FILE" 2>&1)
+  CONTENT_OUT=$(vp check --no-fmt -- "$TMP_FILE" 2>&1)
   CONTENT_RC=$?
   CONTENT_MS=$(( ($(now_ns) - T0) / 1000000 ))
   CHECKS='["structure-lint","vp-check"]'
@@ -93,7 +96,7 @@ else
   fi
   printf '%s' "$PREVIEW" > "$TMP_FILE"
   T0=$(now_ns)
-  CONTENT_OUT=$(vp check --no-fmt -- -c "$CLAUDE_PROJECT_DIR/.oxlintrc.json" "$TMP_FILE" 2>&1)
+  CONTENT_OUT=$(vp check --no-fmt -- "$TMP_FILE" 2>&1)
   CONTENT_RC=$?
   CONTENT_MS=$(( ($(now_ns) - T0) / 1000000 ))
   CHECKS='["vp-check"]'

@@ -8,6 +8,7 @@ export default defineConfig({
   fmt: {},
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
+    jsPlugins: ["./.ai/taste/oxlint-plugin/index.js"],
     categories: {
       correctness: "warn",
     },
@@ -108,6 +109,8 @@ export default defineConfig({
               allowConstantExport: true,
             },
           ],
+          "taste/no-useeffect-fetch": "error",
+          "taste/no-useeffect-in-component": "error",
         },
         env: {
           browser: true,

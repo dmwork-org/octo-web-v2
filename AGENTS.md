@@ -40,20 +40,28 @@
 > 任务导向(动词粒度),单个 skill 覆盖一类任务的所有变体。10-15 个封顶。
 > 每个 skill frontmatter 必含 `description` + `paths:`,两两互斥(见 CLAUDE.md 哲学 10)。
 
-待建(Step 4 Batch 2 产出):
+已建:
 
-| Skill                                | Paths 触发             | 覆盖变体                               |
-| ------------------------------------ | ---------------------- | -------------------------------------- |
-| `implement-route-with-data-fetching` | `src/routes/**/*.tsx`  | list / detail / nested / auth-guard    |
-| `implement-mutation`                 | `src/**/mutations/**`  | optimistic / rollback / invalidation   |
-| `implement-form`                     | `src/**/forms/**`      | basic / async-validation / file-upload |
-| `implement-table`                    | `src/**/tables/**`     | sort / filter / paginate / virtual     |
-| `implement-search-and-url-state`     | `src/routes/**` + hook | useSearch / debounced                  |
-| `implement-hotkeys`                  | `src/**/hotkeys/**`    | global / scoped                        |
-| `implement-infinite-list`            | `src/**/lists/**`      | virtual + query                        |
-| `add-shadcn-component`               | `src/components/ui/**` | copy + 修                              |
-| `refactor-useeffect-to-loader`       | 存量文件               | 重构                                   |
-| `review-for-taste`                   | meta                   | 跑 taste-lint 解读                     |
+| Skill                                | Paths 触发                                                                   | 用途                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `implement-route-with-query-loader`  | `src/routes/**/*.tsx`                                                        | file-based route + loader + ensureQueryData + useSuspenseQuery                   |
+| `implement-design-spec`              | `.specify/specs/<feature>/design-url.txt` 或 `src/design-refs/**`            | shadcn registry JSON 设计稿翻译为生产代码(Phase A)                               |
+| `implement-auth-guard`               | `src/routes/_auth*`、`src/routes/login*`、`src/features/base/stores/auth.ts` | beforeLoad + throw redirect + TanStack Store auth 守卫                           |
+| `implement-ofetch-interceptor`       | `src/features/base/api/**`、`src/lib/api.ts`                                 | ofetch 单例 + 5 个独立拦截器(authToken / spaceHeader / reqId / 401 / errorToast) |
+| `implement-mutation-with-invalidate` | `src/features/**/mutations.ts`                                               | useMutation + invalidateQueries(queryKey 走 factory)                             |
+
+待建(P1-P4 pilot 驱动落地,见 `~/.claude/plans/users-nancy-desktop-workspace-octo-octo-jaunty-rabbit.md`):
+
+| Skill                             | Paths 触发                                | 覆盖变体                                  | 落地阶段 |
+| --------------------------------- | ----------------------------------------- | ----------------------------------------- | -------- |
+| `implement-typed-search-params`   | `src/routes/**/*.tsx` 含 `validateSearch` | useSearch / debounced / zod schema        | P1       |
+| `implement-im-provider`           | `src/features/base/providers/IM*`         | wukongimjssdk 适配 + Store 暴露 + Adapter | P2       |
+| `implement-virtual-list`          | 含 `useVirtualizer`                       | virtual + query / message list            | P2       |
+| `implement-form`                  | `src/features/**/components/*Form*.tsx`   | TanStack Form + async-validation          | P3       |
+| `implement-table-with-pagination` | 含 `useReactTable`                        | sort / filter / paginate                  | P3       |
+| `implement-infinite-list`         | 含 `useInfiniteQuery`                     | 历史消息分页 / 联系人无限滚动             | P3       |
+| `implement-rich-editor`           | 含 `@tiptap`                              | TipTap 封装 + slash menu                  | P4       |
+| `implement-hotkeys`               | 含 `useHotkeys`                           | global / scoped                           | P4       |
 
 ## Rules index
 

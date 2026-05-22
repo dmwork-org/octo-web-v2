@@ -1,0 +1,7 @@
+# 现阶段不需要 CI/CD,显式关掉。
+# `workflow.rules: when: never` 会覆盖 group-level / Auto DevOps 继承的配置,
+# 让任何 push / MR 都不创建 pipeline。
+# 真正要开 CI 时,删掉本文件或改 rules。
+workflow:
+  rules:
+    - when: never

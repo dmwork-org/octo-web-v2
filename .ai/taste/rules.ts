@@ -143,12 +143,12 @@ export const rules: RuleRegistry = {
     note: "隐式 any 由 tsc strict(`noImplicitAny`)抓;显式 `:any` / `as any` 由 oxlint `typescript/no-explicit-any` 抓;`@ts-ignore` 由 `typescript/ban-ts-comment` 抓。三层互补(2026-05-06 配完,原 note 虚假)",
   },
 
-  "tilde-alias-import": {
+  "at-alias-import": {
     severity: "warn",
-    mdSection: "#tilde-alias-import",
+    mdSection: "#at-alias-import",
     implementedBy: "oxlint-builtin",
     appliesTo: ["**/*.ts", "**/*.tsx"],
-    note: "可由 Oxlint import/no-relative-parent-imports 近似覆盖，确认后改 builtin",
+    note: "2026-05-22 改名:tilde-alias-import → at-alias-import,统一使用 @/(与 shadcn/Vite/tsconfig 对齐)。可由 Oxlint import/no-relative-parent-imports 近似覆盖,确认后改 builtin",
   },
 
   "theme-variables-for-colors": {

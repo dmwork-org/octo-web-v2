@@ -268,13 +268,13 @@ const foo: Foo = someMismatchedValue;
 
 ---
 
-### tilde-alias-import — `~/` 路径别名导入
+### at-alias-import — `@/` 路径别名导入
 
 **正例**
 
 ```ts
-import { Button } from "~/components/ui/button";
-import { postKeys } from "~/features/posts/keys";
+import { Button } from "@/components/ui/button";
+import { postKeys } from "@/features/posts/keys";
 ```
 
 **反例**
@@ -284,7 +284,9 @@ import { Button } from "../../../components/ui/button";
 import { postKeys } from "../../posts/keys";
 ```
 
-**例外** 同目录或兄弟目录（`./foo` / `../foo`）短距离导入。`~/` 只用于跨模块。
+**例外** 同目录或兄弟目录（`./foo` / `../foo`）短距离导入。`@/` 只用于跨模块。
+
+> 2026-05-22 第一波 P0:与 shadcn/Vite/tsconfig 三方对齐(三方都用 `@/`),从 `~/` 改为 `@/`。
 
 ---
 
@@ -318,8 +320,8 @@ import { postKeys } from "../../posts/keys";
 **正例**
 
 ```tsx
-import { Button, buttonVariants } from "~/components/ui/button";
-import { cn } from "~/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 <Button className={cn(buttonVariants({ variant: "outline" }), "mt-4")} />;
 ```
@@ -391,7 +393,7 @@ const handleClick = async () => {
 **正例**
 
 ```ts
-import { api } from "~/lib/api"; // ofetch 实例
+import { api } from "@/lib/api"; // ofetch 实例
 const posts = await api("/posts");
 ```
 

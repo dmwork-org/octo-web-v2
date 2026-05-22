@@ -1,11 +1,14 @@
 import { defineConfig } from "vite-plus";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 // https://vite.dev/config/
 export default defineConfig({
-  fmt: {},
+  fmt: {
+    ignorePatterns: ["src/routeTree.gen.ts"],
+  },
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
     jsPlugins: ["./.ai/taste/oxlint-plugin/index.js"],
@@ -15,7 +18,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", ".ai", ".claude", "scripts", ".specify", "docs", "**/*.preview-tmp-*"],
+    ignorePatterns: ["dist", ".ai", ".claude", "scripts", ".specify", "docs"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -116,13 +119,21 @@ export default defineConfig({
           browser: true,
         },
       },
+      {
+        // shadcn copy-in 组件:variants 工厂(cva)与组件同文件导出是官方约定,
+        // 不走 only-export-components(此目录已列 generatedDirs,视作生成产物)
+        files: ["src/components/ui/**/*.{ts,tsx}"],
+        rules: {
+          "react/only-export-components": "off",
+        },
+      },
     ],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

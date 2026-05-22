@@ -7,6 +7,15 @@ interface LoginViewProps {
   redirect?: string;
 }
 
+function readBackendMessage(err: unknown): string {
+  if (!err || typeof err !== "object") return "Sign in failed";
+  const e = err as { data?: { msg?: unknown; message?: unknown }; message?: string };
+  const msg = e.data?.msg ?? e.data?.message;
+  if (typeof msg === "string" && msg.length > 0) return msg;
+  if (typeof e.message === "string" && e.message.length > 0) return e.message;
+  return "Sign in failed";
+}
+
 export function LoginView({ redirect }: LoginViewProps) {
   const navigate = useNavigate();
   const mutation = useLoginMutation();
@@ -51,7 +60,7 @@ export function LoginView({ redirect }: LoginViewProps) {
           />
         </label>
         {mutation.isError && (
-          <p className="mb-3 text-xs text-red-600">{(mutation.error as Error).message}</p>
+          <p className="mb-3 text-xs text-red-600">{readBackendMessage(mutation.error)}</p>
         )}
         <button
           type="submit"

@@ -4,7 +4,7 @@ export interface EndpointState {
   baseURL: string;
 }
 
-const DEFAULT_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
+const DEFAULT_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/v1";
 const STORAGE_KEY = "octo:endpoint";
 
 function readPersisted(): EndpointState {

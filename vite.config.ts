@@ -134,6 +134,15 @@ export default defineConfig({
     },
   },
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  server: {
+    proxy: {
+      "/v1": {
+        target: "https://im-test.deepminer.com.cn",
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

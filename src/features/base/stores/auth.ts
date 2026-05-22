@@ -1,8 +1,13 @@
 import { Store } from "@tanstack/react-store";
 
 export interface AuthUser {
-  id: string;
+  uid: string;
   name: string;
+  username: string;
+  app_id?: string;
+  short_no?: string;
+  zone?: string;
+  phone?: string;
 }
 
 export interface AuthState {
@@ -17,14 +22,22 @@ function readPersisted(): AuthState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { token: null, user: null };
-    const parsed = JSON.parse(raw) as Partial<AuthState>;
-    return {
-      token: typeof parsed.token === "string" ? parsed.token : null,
-      user:
-        parsed.user && typeof parsed.user === "object"
-          ? { id: String(parsed.user.id ?? ""), name: String(parsed.user.name ?? "") }
-          : null,
-    };
+    const parsed = JSON.parse(raw) as { token?: unknown; user?: Partial<AuthUser> };
+    const token = typeof parsed.token === "string" ? parsed.token : null;
+    const u = parsed.user;
+    const user: AuthUser | null =
+      u && typeof u === "object"
+        ? {
+            uid: String(u.uid ?? ""),
+            name: String(u.name ?? ""),
+            username: String(u.username ?? ""),
+            app_id: typeof u.app_id === "string" ? u.app_id : undefined,
+            short_no: typeof u.short_no === "string" ? u.short_no : undefined,
+            zone: typeof u.zone === "string" ? u.zone : undefined,
+            phone: typeof u.phone === "string" ? u.phone : undefined,
+          }
+        : null;
+    return { token, user };
   } catch {
     return { token: null, user: null };
   }

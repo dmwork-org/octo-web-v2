@@ -15,7 +15,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", ".ai", ".claude", "scripts", ".specify", "docs"],
+    ignorePatterns: ["dist", ".ai", ".claude", "scripts", ".specify", "docs", "**/*.preview-tmp-*"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],

@@ -29,3 +29,7 @@ dist-ssr
 # Harness traces (runtime artifacts)
 .ai/traces/
 .tmp/
+
+# pre-tool-use.sh edit-preview tmp(trap 兜底,但 SIGKILL 时仍可能残留)
+src/**/*.preview-tmp-*.ts
+src/**/*.preview-tmp-*.tsx

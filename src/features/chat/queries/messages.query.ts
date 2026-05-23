@@ -29,4 +29,7 @@ export const messagesQueryOptions = (channel: Channel) =>
       return list ?? [];
     },
     staleTime: Number.POSITIVE_INFINITY,
+    // SDK Message 是 mutable 实例(content / status / reactions 等);同 conversations,
+    // 禁掉 structuralSharing 让 listener 写新 snapshot 时触发组件重渲。
+    structuralSharing: false,
   });

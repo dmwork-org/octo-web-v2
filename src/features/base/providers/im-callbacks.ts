@@ -2,15 +2,78 @@ import WKSDK, {
   Channel,
   ChannelInfo,
   Conversation,
-  type Message,
+  Message,
+  MessageStatus,
   type Subscriber,
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import {
   syncConversations,
   syncChannelMessages,
+  type MessageRaw,
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
+
+/**
+ * 把 message wire payload(JSON 对象)decode 进 SDK MessageContent 实例。
+ * 旧项目走 `WKSDK.shared().getMessageContent(type).decode(uint8(JSON))` —
+ * SDK 内部 contentManager 已注册 text(MessageContentType.text),其他类型走默认实例。
+ */
+function decodePayload(message: Message, payload: unknown): void {
+  if (!payload || typeof payload !== "object") return;
+  const obj = payload as { type?: number };
+  const contentType = typeof obj.type === "number" ? obj.type : 0;
+  const content = WKSDK.shared().getMessageContent(contentType);
+  const json = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(json);
+  content.decode(bytes);
+  message.content = content;
+}
+
+/** raw → SDK Message(对应旧项目 Convert.toMessage 的最小工作版)。 */
+function rawToMessage(raw: MessageRaw): Message {
+  const msg = new Message();
+  msg.messageID = raw.message_idstr ?? String(raw.message_id ?? "");
+  msg.channel = new Channel(raw.channel_id, raw.channel_type);
+  msg.messageSeq = raw.message_seq ?? 0;
+  msg.clientMsgNo = raw.client_msg_no ?? "";
+  msg.fromUID = raw.from_uid;
+  msg.timestamp = raw.timestamp;
+  msg.status = MessageStatus.Normal;
+  if (raw.header) msg.header.reddot = raw.header.red_dot === 1;
+  decodePayload(msg, raw.payload);
+  return msg;
+}
+
+/** raw → SDK Conversation(对应旧项目 Convert.toConversation 的最小工作版)。 */
+function rawToConversation(raw: {
+  channel_id: string;
+  channel_type: number;
+  unread?: number;
+  timestamp?: number;
+  stick?: number;
+  category_id?: string | null;
+  category_sort?: number;
+  space_unread?: number;
+  recents?: unknown[];
+}): Conversation {
+  const conv = new Conversation();
+  conv.channel = new Channel(raw.channel_id, raw.channel_type);
+  conv.unread = raw.unread ?? 0;
+  conv.timestamp = raw.timestamp ?? 0;
+  conv.extra = {
+    top: raw.stick ?? 0,
+    categoryId: raw.category_id ?? null,
+    categorySort: raw.category_sort ?? 0,
+    spaceUnread: raw.space_unread,
+  };
+  // recents[0] → lastMessage(用于列表显示最近一条 digest)
+  const lastRaw = raw.recents?.[0] as MessageRaw | undefined;
+  if (lastRaw) {
+    conv.lastMessage = rawToMessage(lastRaw);
+  }
+  return conv;
+}
 
 /**
  * 注册 SDK provider 必须的 callback(否则 conversationManager.sync /
@@ -19,6 +82,7 @@ import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
  * 第一版只覆盖让"会话列表 + 消息历史" 跑起来的最小集:
  *   - syncConversationsCallback     → POST conversation/sync,转 raw → Conversation
+ *                                     完成后批量 fetchChannelInfo 让标题显示真名
  *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
  *   - syncSubscribersCallback       → 返回空数组兜底(P3 群成员功能再补)
  *   - syncMessagesCallback          → POST message/channel/sync,转 raw → Message
@@ -34,18 +98,13 @@ export function registerImCallbacks(): void {
     const resp = await syncConversations(spaceId);
     const conversations: Conversation[] = [];
     for (const raw of resp.conversations ?? []) {
-      const conv = new Conversation();
-      conv.channel = new Channel(raw.channel_id, raw.channel_type);
-      conv.unread = raw.unread ?? 0;
-      conv.timestamp = raw.timestamp ?? 0;
-      conv.extra = {
-        top: raw.stick ?? 0,
-        categoryId: raw.category_id ?? null,
-        categorySort: raw.category_sort ?? 0,
-        spaceUnread: raw.space_unread,
-      };
-      // lastMessage / remoteExtra 转换暂略(P2-A4 补 Convert)
-      conversations.push(conv);
+      conversations.push(rawToConversation(raw));
+    }
+    // 异步批量拉 channelInfo,让列表显示真实标题(无需 await)。
+    // SDK channelManager.fetchChannelInfo 内部会去重 + 触发 channelInfoListener,
+    // useConversationsSync 收到 listener 后 setQueryData 重渲列表。
+    for (const conv of conversations) {
+      void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
     }
     return conversations;
   };
@@ -89,10 +148,11 @@ export function registerImCallbacks(): void {
       limit: opts.limit ?? 30,
       pull_mode: opts.pullMode ?? 0,
     });
-    // P2-A4 补完整 Convert.toMessage;P2-A3 第一版返回空数组让 messageList 不报错
-    // (Adapter listener 推送的实时消息仍能正常 append)
-    void resp;
-    return [];
+    const messages: Message[] = [];
+    for (const raw of resp.messages ?? []) {
+      messages.push(rawToMessage(raw));
+    }
+    return messages;
   };
 
   provider.messageReadedCallback = async () => {

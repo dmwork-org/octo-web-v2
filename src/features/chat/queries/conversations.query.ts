@@ -24,4 +24,9 @@ export const conversationsQueryOptions = () =>
       return list ?? [];
     },
     staleTime: Number.POSITIVE_INFINITY,
+    // 关键:Conversation 是 SDK 内部 mutable 实例,channelInfo / lastMessage 是 getter 跨 cache
+    // 取值。React Query 默认 structuralSharing deep-equal,会判定 [...prev] 和原 array 深度相等
+    // 而返回旧引用 — 我们 setQueryData(snapshot) 触发不了重渲。禁掉 structural sharing 让
+    // 每次写都视为"数据变了",listener 推送的 channelInfo / lastMessage 变化才能反映到 UI。
+    structuralSharing: false,
   });

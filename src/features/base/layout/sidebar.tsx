@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { useMemo } from "react";
 import { authActions, authStore } from "@/features/base/stores/auth";
 import { ConnectionBadge } from "@/features/base/layout/connection-badge";
+import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
 
 function isActive(item: MenuItem, path: string): boolean {
@@ -44,20 +45,6 @@ function UserAvatar({ initial }: { initial: string }) {
   );
 }
 
-function SpaceSwitcherPlaceholder() {
-  // P2: 接 SpaceSwitcher(NavRail 底部 34×34 圆角方块)。P1 占位。
-  return (
-    <button
-      type="button"
-      aria-label="空间切换"
-      title="空间切换"
-      className="flex h-[34px] w-[34px] items-center justify-center rounded-md bg-bg-elevated text-xs font-bold text-text-tertiary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-110"
-    >
-      S
-    </button>
-  );
-}
-
 export function Sidebar() {
   const user = useStore(authStore, (s) => s.user);
   const location = useLocation();
@@ -93,7 +80,7 @@ export function Sidebar() {
 
       <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
         <ConnectionBadge />
-        <SpaceSwitcherPlaceholder />
+        <SpaceSwitcher />
         <button
           type="button"
           aria-label="退出登录"

@@ -1,11 +1,16 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { type Conversation, ChannelTypePerson } from "wukongimjssdk";
+import { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
+
+export type ConvTab = "follow" | "recent";
 
 interface ConversationListProps {
   selectedChannelId?: string;
   onSelect?: (conversation: Conversation) => void;
+  /** "recent": 所有会话(默认);"follow": 仅 group/topic(对应旧 ChatConversationList filter="group") */
+  filter?: ConvTab;
 }
 
 function unreadBadge(unread: number): string {
@@ -119,9 +124,22 @@ function ConversationRow({
   );
 }
 
-export function ConversationList({ selectedChannelId, onSelect }: ConversationListProps) {
+export function ConversationList({
+  selectedChannelId,
+  onSelect,
+  filter = "recent",
+}: ConversationListProps) {
   useConversationsSync();
   const { data, isLoading, error } = useQuery(conversationsQueryOptions());
+
+  const filtered = useMemo(() => {
+    const all = data ?? [];
+    if (filter === "follow") {
+      return all.filter((c) => c.channel.channelType === ChannelTypeGroup);
+    }
+    // recent:全显示(P3 加 isVisibleInRecentTab 规则 — 3 天不活跃群隐藏)
+    return all;
+  }, [data, filter]);
 
   if (isLoading) {
     return (
@@ -135,8 +153,7 @@ export function ConversationList({ selectedChannelId, onSelect }: ConversationLi
       <div className="flex flex-1 items-center justify-center text-sm text-error">会话加载失败</div>
     );
   }
-  const list = data ?? [];
-  if (list.length === 0) {
+  if (filtered.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
         暂无会话
@@ -146,7 +163,7 @@ export function ConversationList({ selectedChannelId, onSelect }: ConversationLi
 
   return (
     <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto p-2">
-      {list.map((c) => (
+      {filtered.map((c) => (
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}
           conversation={c}

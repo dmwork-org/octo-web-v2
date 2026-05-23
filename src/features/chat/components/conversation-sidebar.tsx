@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useStore } from "@tanstack/react-store";
+import { useQuery } from "@tanstack/react-query";
 import { type Conversation } from "wukongimjssdk";
 import { Search, Plus } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
+import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { ConnectionStatusInline } from "@/features/chat/components/connection-status-inline";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
 
@@ -29,19 +31,33 @@ const TABS: TabDef[] = [
  *   ├ TabBar(SidebarTabBar)    │  关注 / 最近
  *   └ ConversationList(filter) ┘
  *
- * Space 名 P3-C24 接 SpaceList 后用真实空间名替换占位。
+ * Space 名:拉 GET /v1/space/my,按 spaceStore.spaceId 找匹配;无则取第一个;
+ * 列表空 fallback "默认空间"(用户首次未加入任何空间)。
+ * P3-C24 接 SpaceList 完整切换 + Space 头像 + 成员管理。
+ *
  * 搜索按钮 → P3-C11 GlobalSearch;新增按钮 → P3-C8 ChatMenusPopover。
  */
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const [activeTab, setActiveTab] = useState<ConvTab>("recent");
-  const spaceId = useStore(spaceStore, (s) => s.spaceId);
-  const spaceName = spaceId || "默认空间";
+  const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
+  const { data: spaces } = useQuery(mySpacesQueryOptions());
+
+  const currentSpaceName = (() => {
+    if (!spaces || spaces.length === 0) return "默认空间";
+    if (currentSpaceId) {
+      const found = spaces.find((s) => s.space_id === currentSpaceId);
+      if (found) return found.name;
+    }
+    return spaces[0]?.name ?? "默认空间";
+  })();
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
       <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold text-text-primary">{spaceName}</span>
+          <span className="truncate text-sm font-semibold text-text-primary">
+            {currentSpaceName}
+          </span>
           <ConnectionStatusInline />
         </div>
         <div className="flex shrink-0 items-center gap-1">

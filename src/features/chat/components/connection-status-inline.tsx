@@ -24,18 +24,19 @@ function dotColor(s: ImConnectionStatus): string {
   }
 }
 
-/** sidebar 顶部连接状态文字标签(对应旧 NavSignalBadge showText)。 */
+/**
+ * sidebar 顶部连接状态文字标签(对应旧 NavSignalBadge showText)。
+ * 常显示(含 connected),只是 connected 显示绿点 + "已连接"。
+ */
 export function ConnectionStatusInline() {
   const status = useStore(imConnectionStore, (s) => s.status);
-  const text = STATUS_TEXT[status];
-  if (status === "connected") return null; // 正常时不打扰
   return (
     <span
       role="status"
       className="inline-flex items-center gap-1 text-[11px] leading-none text-text-tertiary"
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotColor(status)}`} />
-      {text}
+      {STATUS_TEXT[status]}
     </span>
   );
 }

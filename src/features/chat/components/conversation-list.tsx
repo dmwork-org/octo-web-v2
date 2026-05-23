@@ -124,6 +124,16 @@ function ConversationRow({
   );
 }
 
+/**
+ * "最近"Tab:群聊超过 3 天无消息隐藏;DM / 子区 不过滤。
+ * 对应旧 ChatConversationList::isVisibleInRecentTab(packages/dmworkbase/.../ChatConversationList/index.tsx)。
+ */
+const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
+function isVisibleInRecentTab(c: Conversation, now: number): boolean {
+  if (c.channel.channelType !== ChannelTypeGroup) return true;
+  return now - (c.timestamp || 0) * 1000 < RECENT_INACTIVE_THRESHOLD_MS;
+}
+
 export function ConversationList({
   selectedChannelId,
   onSelect,
@@ -135,10 +145,12 @@ export function ConversationList({
   const filtered = useMemo(() => {
     const all = data ?? [];
     if (filter === "follow") {
-      return all.filter((c) => c.channel.channelType === ChannelTypeGroup);
+      // P3-C21 接 follow/分组系统前,先返回空 — 由调用方渲染 placeholder
+      return [];
     }
-    // recent:全显示(P3 加 isVisibleInRecentTab 规则 — 3 天不活跃群隐藏)
-    return all;
+    // recent: 全部按时间倒序 + 3 天不活跃群聊过滤
+    const now = Date.now();
+    return all.filter((c) => isVisibleInRecentTab(c, now));
   }, [data, filter]);
 
   if (isLoading) {
@@ -154,9 +166,10 @@ export function ConversationList({
     );
   }
   if (filtered.length === 0) {
+    const emptyText = filter === "follow" ? "P3-C21 接入分组系统" : "暂无会话";
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        暂无会话
+        {emptyText}
       </div>
     );
   }

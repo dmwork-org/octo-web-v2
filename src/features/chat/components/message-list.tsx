@@ -1,28 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { type Channel, type Message, MessageContentType } from "wukongimjssdk";
+import { type Channel, type Message } from "wukongimjssdk";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
-import { TextRenderer } from "@/features/chat/message-renderers/text-renderer";
+import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 
 interface MessageListProps {
   channel: Channel;
-}
-
-function MessageRow({ message }: { message: Message }) {
-  switch (message.contentType) {
-    case MessageContentType.text:
-      return <TextRenderer message={message} />;
-    default:
-      // P2-B3 / B4 / B5 / 系统类未覆盖前,占位避免渲染崩
-      return (
-        <div className="flex justify-center">
-          <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
-            [不支持的消息类型 {message.contentType}]
-          </span>
-        </div>
-      );
-  }
 }
 
 /** 列表更新后自动滚到底(仅当用户已在底部附近) — 拉旧不滚。 */
@@ -127,7 +111,7 @@ export function MessageList({ channel }: MessageListProps) {
         </div>
       )}
       {messages.map((m) => (
-        <MessageRow key={m.clientMsgNo || m.messageID} message={m} />
+        <MessageDispatch key={m.clientMsgNo || m.messageID} message={m} />
       ))}
     </div>
   );

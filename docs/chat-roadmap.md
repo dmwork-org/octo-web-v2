@@ -25,9 +25,13 @@
 
 ## P2-B(W5 后半)— IM 主路径补完(必做,plan 验收"双 tab ≤500ms")
 
+> ⚠️ **P2-B1 虚拟滚动**:用户拍板延后(实现难度大,业务必要性低)。
+> 默认普通滚动撑当前规模(单会话 30 条历史+实时增量),性能压力出现再回头做。
+> 进 P4 backlog,不阻塞 P2-B 其他 11 项。
+
 | ID     | 任务                                                                      | 旧项目对照                                                 | 验收                       |
 | ------ | ------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------- |
-| P2-B1  | 虚拟滚动 MessageList(`@tanstack/react-virtual`)                           | `Components/Conversation/MessageList`                      | 5000 条流畅 60fps          |
+| P2-B1  | ~~虚拟滚动 MessageList~~ **延后到 P4 backlog**(用户决策 2026-05-23)         | `Components/Conversation/MessageList`                      | —                          |
 | P2-B2  | 无限滚动历史(`useInfiniteQuery` + 上拉拉旧)                               | `Conversation/vm.ts::syncMessages`                         | 翻 N 页无重复无乱序        |
 | P2-B3  | 4 类基础 renderer:Text(已)/ Image / File / System                         | `Messages/{Text,Image,File,System}`                        | 4 类气泡视觉 1:1           |
 | P2-B4  | Image renderer + 预览 + 下载                                              | `Messages/Image` + `Components/ImageToolbar`               | 缩略图 / 全屏 / 复制图片   |

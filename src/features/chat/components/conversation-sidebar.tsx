@@ -43,12 +43,11 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
   const { data: spaces } = useQuery(mySpacesQueryOptions());
 
   const currentSpaceName = (() => {
-    if (!spaces || spaces.length === 0) return "默认空间";
-    if (currentSpaceId) {
-      const found = spaces.find((s) => s.space_id === currentSpaceId);
-      if (found) return found.name;
-    }
-    return spaces[0]?.name ?? "默认空间";
+    // currentSpaceId 为空 = 用户未选 Space(全部消息模式),不自动选 spaces[0]。
+    // 对应旧项目 ChatPage::currentSpaceName 默认 WKApp.config.appName,选 Space 后才换。
+    if (!currentSpaceId) return "全部消息";
+    const found = spaces?.find((s) => s.space_id === currentSpaceId);
+    return found?.name ?? "全部消息";
   })();
 
   return (

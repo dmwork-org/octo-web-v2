@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import { Pin, BellOff } from "lucide-react";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 
@@ -44,12 +45,12 @@ function digestOf(c: Conversation): string {
 /**
  * 单行会话(对应旧 .wk-conversationlist-item)。
  *
- * 视觉(P2-C1):
- * - 行 padding 7px 8px / rounded-sm(6px) / hover bg-bg-hover / selected bg-brand-tint
- * - 头像 32×32:DM 圆形 / Group 圆角 6px
- * - 头像右上 unread badge(>=1 数字 / 静音改红点)
- * - 名字 13px / 未读 semibold / 静音 muted
- * - 第二行:digest 单行截断 + 时间 right-align
+ * 视觉(P2-C1 + 置顶/免打扰指示):
+ * - 行 padding 7px 8px / rounded-sm / hover bg-bg-hover / selected bg-brand-tint
+ * - 置顶行额外 bg-bg-elevated/30(微底色,旧项目同样区分)
+ * - 头像 32×32:DM 圆形 / Group 圆角 6px;头像右上 unread badge / 静音点
+ * - 名字行末尾:置顶 Pin icon(14px text-tertiary) + 免打扰 BellOff icon
+ * - digest 单行截断 + 时间 right-align
  */
 function ConversationRow({
   conversation,
@@ -63,6 +64,7 @@ function ConversationRow({
   const title = conversation.channelInfo?.title ?? conversation.channel.channelID;
   const isPerson = conversation.channel.channelType === ChannelTypePerson;
   const isMuted = !!conversation.channelInfo?.mute;
+  const isTop = conversation.extra?.top === 1;
   const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
 
@@ -71,7 +73,11 @@ function ConversationRow({
       type="button"
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
-        active ? "bg-brand-tint" : "hover:bg-bg-hover"
+        active
+          ? "bg-brand-tint"
+          : isTop
+            ? "bg-bg-elevated/40 hover:bg-bg-hover"
+            : "hover:bg-bg-hover"
       }`}
     >
       <div className="relative flex h-8 w-8 shrink-0">
@@ -106,9 +112,11 @@ function ConversationRow({
           >
             {title}
           </h3>
-          <span className="shrink-0 text-[11px] leading-none text-text-tertiary">
-            {timeLabel(conversation.timestamp)}
-          </span>
+          <div className="flex shrink-0 items-center gap-1 text-text-tertiary">
+            {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}
+            {isTop ? <Pin size={11} aria-label="置顶" /> : null}
+            <span className="text-[11px] leading-none">{timeLabel(conversation.timestamp)}</span>
+          </div>
         </div>
         <div className="flex items-center">
           <span
@@ -134,6 +142,19 @@ function isVisibleInRecentTab(c: Conversation, now: number): boolean {
   return now - (c.timestamp || 0) * 1000 < RECENT_INACTIVE_THRESHOLD_MS;
 }
 
+/**
+ * 排序:置顶(extra.top===1) 提到最上,其余按 timestamp 倒序。
+ * 对应旧 ChatVM::sortConversations(packages/dmworkbase/src/Pages/Chat/vm.ts:387)。
+ */
+const TOP_BOOST = 1_000_000_000_000;
+function sortConversations(list: Conversation[]): Conversation[] {
+  return [...list].sort((a, b) => {
+    const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
+    const bTop = b.extra?.top === 1 ? TOP_BOOST : 0;
+    return (b.timestamp || 0) + bTop - ((a.timestamp || 0) + aTop);
+  });
+}
+
 export function ConversationList({
   selectedChannelId,
   onSelect,
@@ -148,9 +169,9 @@ export function ConversationList({
       // P3-C21 接 follow/分组系统前,先返回空 — 由调用方渲染 placeholder
       return [];
     }
-    // recent: 全部按时间倒序 + 3 天不活跃群聊过滤
+    // recent: 按时间倒序(置顶提到最上) + 3 天不活跃群聊过滤
     const now = Date.now();
-    return all.filter((c) => isVisibleInRecentTab(c, now));
+    return sortConversations(all.filter((c) => isVisibleInRecentTab(c, now)));
   }, [data, filter]);
 
   if (isLoading) {

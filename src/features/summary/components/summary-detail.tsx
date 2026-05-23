@@ -1,10 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { RefreshCcw, Trash2, X as XIcon } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
-import { deleteSummary } from "@/features/summary/api/summary.api";
-import { summaryDetailQueryOptions } from "@/features/summary/queries/summaries.query";
+import {
+  cancelSummary,
+  deleteSummary,
+  regenerateSummary,
+} from "@/features/summary/api/summary.api";
+import {
+  summaryDetailQueryKey,
+  summaryDetailQueryOptions,
+} from "@/features/summary/queries/summaries.query";
 import { SummaryStatusBadge } from "@/features/summary/components/summary-status-badge";
+import { SummaryContent } from "@/features/summary/components/summary-content";
 import { TaskStatus } from "@/features/summary/types/summary.types";
 
 interface SummaryDetailProps {
@@ -18,15 +26,41 @@ function formatTime(iso: string): string {
 }
 
 /**
- * 总结详情面板(Wave 1 简版):
- * - 顶部:task_no + 状态 + 删除
- * - 主体:title + 时间范围 + 来源 + 参与者 + result.content(markdown 渲染 Wave 2)
+ * 总结详情面板:
+ * - 顶部:task_no + 状态 + 重新生成 / 取消 / 删除(根据 status 智能显示)
+ * - 主体:title + 元数据 + result.content(markdown)
+ * - 状态轮询由 summaryDetailQueryOptions 内部 refetchInterval 处理
  *
- * 不做(Wave 2+):citations 引用面板、重新生成、编辑、参与者状态轮询、个人模式。
+ * Wave 3 加:citations 引用面板、编辑 result。
  */
 export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery(summaryDetailQueryOptions(taskId));
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["summary", "list"] });
+    if (taskId !== null) {
+      void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
+    }
+  };
+
+  const regenMu = useMutation({
+    mutationFn: () => regenerateSummary(taskId!),
+    onSuccess: () => {
+      invalidate();
+      toast.success("已触发重新生成");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "重新生成失败"),
+  });
+
+  const cancelMu = useMutation({
+    mutationFn: () => cancelSummary(taskId!),
+    onSuccess: () => {
+      invalidate();
+      toast.success("已取消");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "取消失败"),
+  });
 
   const deleteMu = useMutation({
     mutationFn: () => deleteSummary(taskId!),
@@ -61,7 +95,13 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   }
 
   const isFailed = data.status === TaskStatus.FAILED;
-  const isProcessing = data.status === TaskStatus.PROCESSING || data.status === TaskStatus.PENDING;
+  const isCompleted = data.status === TaskStatus.COMPLETED;
+  const isProcessing =
+    data.status === TaskStatus.PROCESSING ||
+    data.status === TaskStatus.PENDING ||
+    data.status === TaskStatus.WAITING_CONFIRM;
+  const canRegen = isCompleted || isFailed;
+  const canCancel = isProcessing;
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden">
@@ -70,18 +110,44 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
           <span className="font-mono text-xs text-text-tertiary">{data.task_no}</span>
           <SummaryStatusBadge status={data.status} size="md" />
         </div>
-        <Button
-          type="danger"
-          theme="borderless"
-          size="small"
-          iconOnly
-          loading={deleteMu.isPending}
-          onClick={() => {
-            if (window.confirm("确认删除该总结?")) deleteMu.mutate();
-          }}
-        >
-          <Trash2 size={14} />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {canRegen ? (
+            <Button
+              type="tertiary"
+              theme="borderless"
+              size="small"
+              loading={regenMu.isPending}
+              onClick={() => regenMu.mutate()}
+            >
+              <RefreshCcw size={13} />
+              重新生成
+            </Button>
+          ) : null}
+          {canCancel ? (
+            <Button
+              type="tertiary"
+              theme="borderless"
+              size="small"
+              loading={cancelMu.isPending}
+              onClick={() => cancelMu.mutate()}
+            >
+              <XIcon size={13} />
+              取消任务
+            </Button>
+          ) : null}
+          <Button
+            type="danger"
+            theme="borderless"
+            size="small"
+            iconOnly
+            loading={deleteMu.isPending}
+            onClick={() => {
+              if (window.confirm("确认删除该总结?")) deleteMu.mutate();
+            }}
+          >
+            <Trash2 size={14} />
+          </Button>
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
@@ -111,13 +177,11 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         <div className="border-t border-border-subtle pt-4">
           <h2 className="mb-2 text-sm font-semibold text-text-secondary">总结内容</h2>
           {isProcessing ? (
-            <p className="text-sm italic text-text-tertiary">总结生成中,稍后刷新查看…</p>
+            <p className="text-sm italic text-text-tertiary">总结生成中,自动刷新…</p>
           ) : isFailed ? (
             <p className="text-sm text-error">{data.error_message ?? "生成失败"}</p>
           ) : data.result ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-primary">
-              {data.result.content}
-            </p>
+            <SummaryContent content={data.result.content} />
           ) : (
             <p className="text-sm italic text-text-tertiary">暂无内容</p>
           )}

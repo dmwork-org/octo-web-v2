@@ -94,6 +94,21 @@ export interface SummaryDetail {
 
 // ─── 请求 ─────────────────────────────────────────────────
 
+export interface TimeRange {
+  start: string;
+  end: string;
+}
+
+export interface CreateSummaryParams {
+  topic: string;
+  title: string;
+  summary_mode?: SummaryModeType;
+  time_range?: TimeRange;
+  sources?: SourceItem[];
+  participants?: { user_id: string }[];
+  confirm_timeout_hours?: number;
+}
+
 export interface ListSummariesParams {
   page?: number;
   page_size?: number;

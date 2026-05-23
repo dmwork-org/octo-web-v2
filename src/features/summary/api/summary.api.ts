@@ -2,6 +2,7 @@ import { ofetch } from "ofetch";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import type {
+  CreateSummaryParams,
   ListSummariesParams,
   ListSummariesResponse,
   SummaryDetail,
@@ -54,6 +55,18 @@ export async function getSummaryDetail(taskId: number): Promise<SummaryDetail> {
   return summaryApi<SummaryDetail>(`/summaries/${taskId}`);
 }
 
+export async function createSummary(params: CreateSummaryParams): Promise<{ task_id: number }> {
+  return summaryApi<{ task_id: number }>("/summaries", { method: "POST", body: params });
+}
+
 export async function deleteSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}`, { method: "DELETE" });
+}
+
+export async function regenerateSummary(taskId: number): Promise<{ task_id: number }> {
+  return summaryApi<{ task_id: number }>(`/summaries/${taskId}/regenerate`, { method: "POST" });
+}
+
+export async function cancelSummary(taskId: number): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
 }

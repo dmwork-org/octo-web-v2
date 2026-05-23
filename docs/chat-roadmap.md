@@ -28,6 +28,11 @@
 > ⚠️ **P2-B1 虚拟滚动**:用户拍板延后(实现难度大,业务必要性低)。
 > 默认普通滚动撑当前规模(单会话 30 条历史+实时增量),性能压力出现再回头做。
 > 进 P4 backlog,不阻塞 P2-B 其他 11 项。
+>
+> ⚠️ **P2-B10 MessageStream**:延后到 P3 AI bot 业务起步时实现。
+> 原因:SDK 1.3.5 原生不支持 streamFlag/streams 字段(旧项目用 `as any` 强 patch
+> 后端 wire 协议字段名不明,需要业务驱动时跟后端对齐契约后再做。
+> P3 标记 `P3-C-stream`。
 
 | ID     | 任务                                                                      | 旧项目对照                                                 | 验收                       |
 | ------ | ------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------- |
@@ -40,7 +45,7 @@
 | P2-B7  | 消息状态(发送中/失败/重发) + ChatManager taskListener                     | `module.tsx::taskManager.addListener` 489-512              | 失败小红点 + 点击重发      |
 | P2-B8  | 消息撤回(`message/revoke` + remoteExtra.revoke)                           | `Messages/Revoke` + `ContextMenus.revoke`                  | "你撤回了一条消息"         |
 | P2-B9  | Reactions(消息表情回复)                                                   | `Message.reactions`                                        | 长按表情条 + 计数聚合      |
-| P2-B10 | MessageStream(AI 流式输出)                                                | `MessageStream` SDK 类                                     | 字符流式追加               |
+| P2-B10 | ~~MessageStream(AI 流式输出)~~ **延后到 P3 AI bot 起步**(2026-05-23)      | `MessageStream` SDK 类                                     | —                          |
 | P2-B11 | Convert 完整版(extra/外部群字段/MessageExtra/Reaction)                    | `Service/Convert.ts`                                       | 旧消息字段对齐             |
 | P2-B12 | 已读未读 + messageReadedCallback                                          | `MessageRead` + `messageReadedCallback`                    | 群消息已读人数             |
 

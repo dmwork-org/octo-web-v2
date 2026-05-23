@@ -3,6 +3,7 @@ import { useStore } from "@tanstack/react-store";
 import { LogOut } from "lucide-react";
 import { useMemo } from "react";
 import { authActions, authStore } from "@/features/base/stores/auth";
+import { ConnectionBadge } from "@/features/base/layout/connection-badge";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
 
 function isActive(item: MenuItem, path: string): boolean {
@@ -91,6 +92,7 @@ export function Sidebar() {
       <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
       <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
+        <ConnectionBadge />
         <SpaceSwitcherPlaceholder />
         <button
           type="button"

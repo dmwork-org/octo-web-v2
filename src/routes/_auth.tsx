@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { authStore } from "@/features/base/stores/auth";
 import { AppShell } from "@/features/base/layout/app-shell";
+import { IMProvider } from "@/features/base/providers/im-provider";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: ({ location }) => {
@@ -10,8 +11,10 @@ export const Route = createFileRoute("/_auth")({
     }
   },
   component: () => (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <IMProvider>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </IMProvider>
   ),
 });

@@ -9,20 +9,51 @@ function isActive(item: MenuItem, path: string): boolean {
   return item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
 }
 
-function NavRow({ item, active }: { item: MenuItem; active: boolean }) {
+function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   return (
     <Link
       to={item.to}
-      className={`group flex flex-col items-center justify-center rounded-md py-2 text-[11px] transition-colors ${
-        active ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-100"
-      }`}
       title={item.title}
+      aria-label={item.title}
+      className={`relative flex h-11 w-14 items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
+        active
+          ? "text-brand"
+          : "text-text-tertiary/70 hover:bg-brand-tint hover:text-text-secondary"
+      }`}
     >
-      <span className={active ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"}>
-        {renderMenuIcon(item.icon)}
-      </span>
-      <span className="mt-1 leading-tight">{item.title}</span>
+      {renderMenuIcon(item.icon, 20)}
     </Link>
+  );
+}
+
+function UserAvatar({ initial }: { initial: string }) {
+  return (
+    <div className="relative">
+      <div
+        className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary"
+        aria-hidden
+      >
+        <div className="flex h-full w-full items-center justify-center">{initial}</div>
+      </div>
+      <div
+        className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-online ring-2 ring-bg-navrail"
+        aria-label="在线"
+      />
+    </div>
+  );
+}
+
+function SpaceSwitcherPlaceholder() {
+  // P2: 接 SpaceSwitcher(NavRail 底部 34×34 圆角方块)。P1 占位。
+  return (
+    <button
+      type="button"
+      aria-label="空间切换"
+      title="空间切换"
+      className="flex h-[34px] w-[34px] items-center justify-center rounded-md bg-bg-elevated text-xs font-bold text-text-tertiary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-110"
+    >
+      S
+    </button>
   );
 }
 
@@ -33,6 +64,7 @@ export function Sidebar() {
   const router = useRouter();
   const path = location.pathname;
   const items = useMemo(() => collectMenuItems(router), [router]);
+  const initial = (user?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase();
 
   const handleSignOut = () => {
     authActions.signOut();
@@ -42,34 +74,32 @@ export function Sidebar() {
   return (
     <nav
       aria-label="主导航"
-      className="flex h-screen w-16 flex-col items-stretch border-r border-gray-200 bg-white py-3"
+      className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
     >
-      <div className="flex flex-col items-center gap-1 px-2">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-600"
-          title={user?.name ?? user?.username ?? "anonymous"}
-        >
-          {(user?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
-        </div>
+      <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">
+        <UserAvatar initial={initial} />
       </div>
 
-      <div className="my-3 h-px self-stretch bg-gray-200" />
+      <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
-      <div className="flex flex-1 flex-col items-stretch gap-1 px-2">
+      <div className="flex flex-1 flex-col items-center gap-0 py-2">
         {items.map((item) => (
-          <NavRow key={item.to} item={item} active={isActive(item, path)} />
+          <NavItem key={item.to} item={item} active={isActive(item, path)} />
         ))}
       </div>
 
-      <div className="flex flex-col items-stretch gap-1 px-2">
+      <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
+
+      <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
+        <SpaceSwitcherPlaceholder />
         <button
           type="button"
           aria-label="退出登录"
           title="退出登录"
           onClick={handleSignOut}
-          className="flex flex-col items-center justify-center rounded-md py-2 text-gray-500 hover:bg-gray-100"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-text-tertiary/70 transition-colors hover:bg-brand-tint hover:text-text-secondary"
         >
-          <LogOut size={20} />
+          <LogOut size={18} />
         </button>
       </div>
     </nav>

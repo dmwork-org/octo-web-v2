@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { authActions } from "@/features/base/stores/auth";
 import { useLoginMutation } from "@/features/login/mutations";
+import { Button } from "@/components/semi-bridge/button";
 
 interface LoginViewProps {
   redirect?: string;
@@ -30,29 +31,29 @@ export function LoginView({ redirect }: LoginViewProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-bg-base">
       <form
         onSubmit={onSubmit}
-        className="w-80 rounded-lg border bg-white p-6 shadow-sm"
+        className="w-80 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm"
         aria-label="login form"
       >
-        <h1 className="mb-4 text-xl font-semibold">Sign in</h1>
-        <label className="mb-3 block text-sm">
-          Username
+        <h1 className="mb-4 text-xl font-semibold text-text-primary">登录</h1>
+        <label className="mb-3 block text-sm text-text-secondary">
+          用户名
           <input
             type="text"
-            className="mt-1 w-full rounded border px-2 py-1.5"
+            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
             autoComplete="username"
           />
         </label>
-        <label className="mb-4 block text-sm">
-          Password
+        <label className="mb-4 block text-sm text-text-secondary">
+          密码
           <input
             type="password"
-            className="mt-1 w-full rounded border px-2 py-1.5"
+            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -60,15 +61,17 @@ export function LoginView({ redirect }: LoginViewProps) {
           />
         </label>
         {mutation.isError && (
-          <p className="mb-3 text-xs text-red-600">{readBackendMessage(mutation.error)}</p>
+          <p className="mb-3 text-xs text-error">{readBackendMessage(mutation.error)}</p>
         )}
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+        <Button
+          htmlType="submit"
+          type="primary"
+          theme="solid"
+          loading={mutation.isPending}
+          className="w-full"
         >
-          {mutation.isPending ? "Signing in…" : "Sign in"}
-        </button>
+          {mutation.isPending ? "登录中…" : "登录"}
+        </Button>
       </form>
     </div>
   );

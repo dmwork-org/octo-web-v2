@@ -67,16 +67,22 @@ export async function uploadUserAvatar(uid: string, file: File): Promise<void> {
 /**
  * OctoPush 上报状态(对应旧 AgentCardService::getReportStatus)。
  * GET /v1/agent-cards/{botId}/report-status
- * 响应:`{ code, message, data: { reported: boolean } }` — code !== 0 throw。
+ * 响应:`{ code, message, data: { reported: boolean } }`
+ *
+ * **静默失败**:对齐旧 BotDetailModal.loadReportStatus 行为,接口不存在 / 网络
+ * 错误 / code !== 0 时返 `null`(不报 toast,不冒泡 error,UI 不显示 chip)。
+ * 这个接口部署在独立 agent-card-server 上,测试环境可能没接入,这是预期场景。
  */
-export async function getAgentReportStatus(botUid: string): Promise<boolean> {
-  const resp = await api<{
-    code: number;
-    message: string;
-    data: { reported: boolean };
-  }>(`agent-cards/${encodeURIComponent(botUid)}/report-status`);
-  if (resp.code !== 0) {
-    throw new Error(resp.message || "Failed to fetch report status");
+export async function getAgentReportStatus(botUid: string): Promise<boolean | null> {
+  try {
+    const resp = await api<{
+      code?: number;
+      message?: string;
+      data?: { reported: boolean };
+    }>(`agent-cards/${encodeURIComponent(botUid)}/report-status`);
+    if (resp.code !== 0) return null;
+    return resp.data?.reported ?? null;
+  } catch {
+    return null;
   }
-  return resp.data?.reported ?? false;
 }

@@ -31,7 +31,7 @@
 
 | ID     | 任务                                                                      | 旧项目对照                                                 | 验收                       |
 | ------ | ------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------- |
-| P2-B1  | ~~虚拟滚动 MessageList~~ **延后到 P4 backlog**(用户决策 2026-05-23)         | `Components/Conversation/MessageList`                      | —                          |
+| P2-B1  | ~~虚拟滚动 MessageList~~ **延后到 P4 backlog**(用户决策 2026-05-23)       | `Components/Conversation/MessageList`                      | —                          |
 | P2-B2  | 无限滚动历史(`useInfiniteQuery` + 上拉拉旧)                               | `Conversation/vm.ts::syncMessages`                         | 翻 N 页无重复无乱序        |
 | P2-B3  | 4 类基础 renderer:Text(已)/ Image / File / System                         | `Messages/{Text,Image,File,System}`                        | 4 类气泡视觉 1:1           |
 | P2-B4  | Image renderer + 预览 + 下载                                              | `Messages/Image` + `Components/ImageToolbar`               | 缩略图 / 全屏 / 复制图片   |

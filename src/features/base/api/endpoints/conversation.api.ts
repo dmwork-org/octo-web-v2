@@ -60,10 +60,28 @@ export interface SyncMessagesReq {
   pull_mode: number;
 }
 
+export interface MessageExtraRaw {
+  message_id?: number | string;
+  message_id_str?: string;
+  message_seq?: number;
+  readed?: number;
+  readed_at?: number;
+  readed_count?: number;
+  unread_count?: number;
+  revoke?: number;
+  revoker?: string;
+  extra_version?: number;
+  edited_at?: number;
+  content_edit?: { type?: number } & Record<string, unknown>;
+  is_edit?: number;
+  extra?: unknown;
+}
+
 export interface MessageRaw {
   message_id?: string | number;
   message_idstr?: string;
   message_seq?: number;
+  client_seq?: number;
   client_msg_no?: string;
   channel_id: string;
   channel_type: number;
@@ -73,7 +91,13 @@ export interface MessageRaw {
   setting?: number;
   header?: { red_dot?: number };
   revoke?: number;
-  message_extra?: unknown;
+  is_deleted?: number;
+  message_extra?: MessageExtraRaw;
+  // 外部群成员消息来源字段(dmwork-web#1069)
+  from_is_external?: number;
+  from_source_space_name?: string;
+  from_home_space_id?: string;
+  from_home_space_name?: string;
 }
 
 export interface SyncMessagesResp {

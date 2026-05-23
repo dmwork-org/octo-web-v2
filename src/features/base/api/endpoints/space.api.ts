@@ -25,3 +25,28 @@ export async function getMySpaces(): Promise<SpaceResp[]> {
   const resp = await api<SpaceResp[]>("space/my");
   return resp ?? [];
 }
+
+/**
+ * Space 成员(人 + AI 混合,robot=0/1 区分)。
+ * GET /v1/space/{spaceId}/members?page=&limit=
+ */
+
+export interface SpaceMember {
+  uid: string;
+  name: string;
+  avatar?: string;
+  role: number; // 1: owner, 2: admin, 3: member
+  robot: number; // 0: user, 1: bot
+  created_at?: string;
+}
+
+export async function getSpaceMembers(
+  spaceId: string,
+  page = 1,
+  limit = 10000,
+): Promise<SpaceMember[]> {
+  const resp = await api<SpaceMember[]>(`space/${spaceId}/members`, {
+    query: { page, limit },
+  });
+  return resp ?? [];
+}

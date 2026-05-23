@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { friendsQueryOptions } from "@/features/contacts/queries/friends.query";
 import type { Friend } from "@/features/contacts/types/friend.types";
 
@@ -124,17 +124,15 @@ export function FriendList({ friends, onOpenChat }: FriendListProps) {
   );
 }
 
-/** 顶层 ContactsView 内同时管理 query + open chat 跳转。 */
+/**
+ * 顶层 ContactsView 内同时管理 query + 点击行为。
+ * 点联系人 → 写 chatSelectedStore,触发右侧 ChatMain 进对话(不再 navigate 跳路由)。
+ */
 export function FriendListContainer() {
-  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery(friendsQueryOptions());
 
   const onOpenChat = (uid: string) => {
-    // P3 加:点联系人主动打开聊天(把 uid 的 conversation 推到栈 / 跳 /);
-    // 这里先 fetchChannelInfo 让 sidebar 有 channelInfo,然后跳到首页 chat,
-    // 由 ChatView 用户手选(P3 加 deep link openChannel 参数)。
-    void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
-    void navigate({ href: "/" });
+    chatSelectedActions.select(new Channel(uid, ChannelTypePerson));
   };
 
   if (isLoading) {

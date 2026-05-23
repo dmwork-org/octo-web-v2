@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import WKSDK, { type Conversation, Channel, ChannelTypeGroup } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { MoreHorizontal, Search } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 
 interface ChatHeaderProps {
-  conversation: Conversation;
+  channel: Channel;
 }
 
 /** 子区(thread)channelID 解析:`{groupNo}@{shortId}` 形如旧 parseThreadChannelId。 */
@@ -17,8 +17,30 @@ function parseThreadChannelId(channelId: string): { groupNo: string; shortId: st
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 未导出常量,旧项目 hardcode 7。 */
 const CHANNEL_TYPE_THREAD = 7;
 
-function isThreadChannel(c: Conversation): boolean {
-  return c.channel.channelType === CHANNEL_TYPE_THREAD;
+function isThread(c: Channel): boolean {
+  return c.channelType === CHANNEL_TYPE_THREAD;
+}
+
+/**
+ * channelInfo 不在 conversation 上时(从 contacts 直接选人进 chat),
+ * 主动 fetch + 订阅 channelManager 变化,info 到位后强制重渲。
+ */
+function useChannelInfoLive(channel: Channel) {
+  const [, force] = useState(0);
+
+  useEffect(() => {
+    const mgr = WKSDK.shared().channelManager;
+    if (!mgr.getChannelInfo(channel)) {
+      void mgr.fetchChannelInfo(channel);
+    }
+    const listener = () => force((v) => v + 1);
+    mgr.addListener(listener);
+    return () => {
+      mgr.removeListener(listener);
+    };
+  }, [channel]);
+
+  return WKSDK.shared().channelManager.getChannelInfo(channel);
 }
 
 /**
@@ -31,13 +53,12 @@ function isThreadChannel(c: Conversation): boolean {
  * - 名字:displayName(remark || name);子区显示"父群 › 子区"面包屑
  * - 右侧:搜索(P3-C11) + More(P3-C12 ChannelSetting)
  *
- * P3 接:更多右侧 endpoints 注册项(channelHeaderRightItems,如子区列表按钮)。
+ * 接受 channel 而非 conversation:contacts 选人也共用此 header。
  */
-export function ChatHeader({ conversation }: ChatHeaderProps) {
-  const channel = conversation.channel;
-  const channelInfo = conversation.channelInfo;
-  const isThread = isThreadChannel(conversation);
-  const parsed = isThread ? parseThreadChannelId(channel.channelID) : null;
+export function ChatHeader({ channel }: ChatHeaderProps) {
+  const channelInfo = useChannelInfoLive(channel);
+  const isThreadCh = isThread(channel);
+  const parsed = isThreadCh ? parseThreadChannelId(channel.channelID) : null;
   const displayName =
     (channelInfo?.orgData as { displayName?: string } | undefined)?.displayName ||
     channelInfo?.title ||
@@ -48,7 +69,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        {isThread ? (
+        {isThreadCh ? (
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-text-secondary">
             #
           </div>
@@ -56,7 +77,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
           <ChannelAvatar channel={channel} size={28} title={displayName} />
         )}
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-tight text-text-primary">
-          {isThread && parsed ? (
+          {isThreadCh && parsed ? (
             <>
               <span className="text-text-secondary">{parentGroupTitle || parsed.groupNo}</span>
               <span className="mx-2 text-text-tertiary">›</span>

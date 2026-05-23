@@ -1,9 +1,12 @@
-import WKSDK, { type Message } from "wukongimjssdk";
+import WKSDK, { type Message, type MessageText } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useState, type MouseEvent } from "react";
+import { Copy } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
+import { toast } from "@/components/semi-bridge/toast";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
+import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 
 interface MessageRowProps {
   message: Message;
@@ -31,26 +34,53 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+/** 文本消息提取纯文本;非文本消息 fallback 到 conversationDigest。 */
+function extractText(message: Message): string {
+  if (message.contentType === 1) {
+    return (message.content as MessageText).text ?? "";
+  }
+  const digest = (message.content as { conversationDigest?: string } | undefined)
+    ?.conversationDigest;
+  return digest ?? "";
+}
+
 /**
  * 单条消息行(Slack 风格,对应旧 packages/dmworkbase/src/ui/message/MessageRow):
  *   [头像 36×36] [sender + timestamp]
  *               [body]                [self 状态徽标]
  *
  * 连续消息(continueWithPrev):头像/header 折叠,只渲染 body,hover 显示 timestamp。
- * Hover 整行加 brand-tint 背景,微交互 transition 150ms ease-emphasized。
- * 右键 onContextMenu placeholder(P3-C8 接完整 ContextMenu)。
+ * 右键 → ContextMenu(H3 仅"复制",撤回 / 删除 / 转发 / 引用 H4+)。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menu, setMenu] = useState<{ open: boolean; x: number; y: number }>({
+    open: false,
+    x: 0,
+    y: 0,
+  });
 
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
-    setMenuOpen(true);
-    // 占位:P3-C8 接真正 ContextMenu 组件
-    window.setTimeout(() => setMenuOpen(false), 1200);
+    setMenu({ open: true, x: e.clientX, y: e.clientY });
   };
+
+  const items: ContextMenuItem[] = [
+    {
+      label: "复制",
+      icon: <Copy size={13} />,
+      disabled: !extractText(message),
+      onClick: () => {
+        const text = extractText(message);
+        if (!text) return;
+        void navigator.clipboard
+          .writeText(text)
+          .then(() => toast.success("已复制"))
+          .catch(() => toast.error("复制失败"));
+      },
+    },
+  ];
 
   if (bare) {
     return (
@@ -62,6 +92,16 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   const wrapperClass =
     "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40";
+
+  const ctxMenu = (
+    <ContextMenu
+      open={menu.open}
+      x={menu.x}
+      y={menu.y}
+      items={items}
+      onClose={() => setMenu((m) => ({ ...m, open: false }))}
+    />
+  );
 
   if (continueWithPrev) {
     return (
@@ -77,7 +117,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
             </div>
           ) : null}
         </div>
-        {menuOpen ? <ContextMenuPlaceholder /> : null}
+        {ctxMenu}
       </div>
     );
   }
@@ -104,19 +144,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           </div>
         ) : null}
       </div>
-      {menuOpen ? <ContextMenuPlaceholder /> : null}
-    </div>
-  );
-}
-
-/** P3-C8 ContextMenus 接入前的占位提示(避免静默,告诉用户功能在 P3)。 */
-function ContextMenuPlaceholder() {
-  return (
-    <div
-      role="status"
-      className="pointer-events-none absolute top-1 right-2 z-10 rounded-md bg-bg-surface px-3 py-1.5 text-[11px] text-text-secondary shadow-md ring-1 ring-border-default"
-    >
-      右键菜单(复制/转发/回复/撤回)将在 P3-C8 接入
+      {ctxMenu}
     </div>
   );
 }

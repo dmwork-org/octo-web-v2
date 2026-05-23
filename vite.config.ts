@@ -143,6 +143,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      // Summary service — 同路由策略,nginx 转发到 summary service。
+      "/summary/api/v1": {
+        target: "https://im-test.deepminer.com.cn",
+        changeOrigin: true,
+        secure: true,
+      },
       "/v1": {
         target: "https://im-test.deepminer.com.cn",
         changeOrigin: true,

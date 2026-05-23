@@ -12,19 +12,21 @@ import {
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
 import { rawToConversation, rawToMessage } from "@/features/base/im/convert";
+import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
 
 /**
  * 注册 SDK provider 必须的 callback(否则 conversationManager.sync /
  * chatManager.syncMessages 等会抛 TypeError)。
  *
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
- * 第一版覆盖让"会话列表 + 消息历史 + 上传 + 已读" 跑起来的集合:
+ * 覆盖让"会话列表 + 消息历史 + 上传 + 已读" 跑起来的集合:
  *   - syncConversationsCallback     → POST conversation/sync,转 raw → Conversation
  *                                     完成后批量 fetchChannelInfo 让标题显示真名
  *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
  *   - syncSubscribersCallback       → 返回空数组兜底(P3 群成员功能再补)
  *   - syncMessagesCallback          → POST message/channel/sync,转 raw → Message(完整版)
  *   - messageReadedCallback         → no-op,P2-B12 接 POST message/readed
+ *   - messageUploadTaskCallback     → MediaMessageUploadTask(P2-B6,COS 直传)
  *
  * 幂等:多次调安全(SDK 内部直接覆盖 callback)。在 IMProvider mount 时调一次。
  */
@@ -89,4 +91,6 @@ export function registerImCallbacks(): void {
   provider.messageReadedCallback = async () => {
     // P2-B12 接 POST message/readed
   };
+
+  provider.messageUploadTaskCallback = (msg: Message) => new MediaMessageUploadTask(msg);
 }

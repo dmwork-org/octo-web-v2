@@ -4,16 +4,21 @@ import { TextRenderer } from "@/features/chat/message-renderers/text-renderer";
 import { SystemRenderer } from "@/features/chat/message-renderers/system-renderer";
 import { ImageRenderer } from "@/features/chat/message-renderers/image-renderer";
 import { FileRenderer } from "@/features/chat/message-renderers/file-renderer";
+import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-renderer";
 
 /**
  * 按 contentType 分发到具体 renderer。
  *
- * 命中规则:
- * - 精确 contentType(text/image/file/...)
- * - 1000 ≤ contentType ≤ 2000 走 SystemRenderer(对应旧项目 module.tsx 388-391)
- * - 兜底 UnsupportedRenderer 占位,避免渲染崩
+ * 优先级:
+ * 1. remoteExtra.revoke → RevokedRenderer("xxx 撤回了一条消息",P2-B8)
+ * 2. 1000 ≤ contentType ≤ 2000 → SystemRenderer(旧项目 module.tsx 388-391)
+ * 3. 精确 contentType(text/image/file/...)
+ * 4. 兜底 [不支持的消息类型 X]
  */
 export function MessageDispatch({ message }: { message: Message }) {
+  if (message.remoteExtra?.revoke) {
+    return <RevokedRenderer message={message} />;
+  }
   const ct = message.contentType;
   if (ct >= 1000 && ct <= 2000) {
     return <SystemRenderer message={message} />;

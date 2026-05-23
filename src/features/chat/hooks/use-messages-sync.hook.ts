@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import WKSDK, {
   type Channel,
+  type CMDContent,
   type Message,
   MessageStatus,
   type SendackPacket,
@@ -18,6 +19,8 @@ type TaskWithMessage = Task & { message?: Message };
  * - 新消息推送(messageListener)— append 到 InfiniteData.pages[0]
  * - 发送 ack(messageStatusListener)— 找 clientSeq 对应消息,更新 messageID/messageSeq/status
  * - 上传任务失败(taskManager.addListener)— 把 sendingQueue 内对应消息标 Fail
+ * - CMD messageRevoke(chatManager.addCMDListener)— 把 cache 内对应 message
+ *   remoteExtra.revoke=true,RevokedRenderer 接管渲染
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
  */
@@ -92,12 +95,30 @@ export function useMessagesSync(channel: Channel | null) {
       );
     };
 
+    const cmdListener = (cmdMessage: Message) => {
+      const cmd = cmdMessage.content as CMDContent;
+      if (cmd.cmd !== "messageRevoke") return;
+      const param = cmd.param as { message_id?: string };
+      if (!param?.message_id) return;
+      if (!cmdMessage.channel.isEqual(channel)) return;
+      // 旧项目 module.tsx::cmdListener:撤回 CMD 推送时,fromUID 是撤回操作者
+      updateInPlace(
+        (m) => m.messageID === param.message_id,
+        (m) => {
+          m.remoteExtra.revoke = true;
+          m.remoteExtra.revoker = cmdMessage.fromUID;
+        },
+      );
+    };
+
     WKSDK.shared().chatManager.addMessageListener(messageListener);
     WKSDK.shared().chatManager.addMessageStatusListener(statusListener);
+    WKSDK.shared().chatManager.addCMDListener(cmdListener);
     WKSDK.shared().taskManager.addListener(taskListener);
     return () => {
       WKSDK.shared().chatManager.removeMessageListener(messageListener);
       WKSDK.shared().chatManager.removeMessageStatusListener(statusListener);
+      WKSDK.shared().chatManager.removeCMDListener(cmdListener);
       WKSDK.shared().taskManager.removeListener(taskListener);
     };
   }, [channel, qc]);

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type Conversation } from "wukongimjssdk";
+import { type Conversation, ChannelTypePerson } from "wukongimjssdk";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 
@@ -24,7 +24,9 @@ function timeLabel(ts: number): string {
   if (sameDay) {
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  if (sameYear) return `${d.getMonth() + 1}/${d.getDate()}`;
+  return `${d.getFullYear() % 100}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 function digestOf(c: Conversation): string {
@@ -34,6 +36,16 @@ function digestOf(c: Conversation): string {
   return digest ?? "";
 }
 
+/**
+ * 单行会话(对应旧 .wk-conversationlist-item)。
+ *
+ * 视觉(P2-C1):
+ * - 行 padding 7px 8px / rounded-sm(6px) / hover bg-bg-hover / selected bg-brand-tint
+ * - 头像 32×32:DM 圆形 / Group 圆角 6px
+ * - 头像右上 unread badge(>=1 数字 / 静音改红点)
+ * - 名字 13px / 未读 semibold / 静音 muted
+ * - 第二行:digest 单行截断 + 时间 right-align
+ */
 function ConversationRow({
   conversation,
   active,
@@ -44,33 +56,63 @@ function ConversationRow({
   onClick: () => void;
 }) {
   const title = conversation.channelInfo?.title ?? conversation.channel.channelID;
+  const isPerson = conversation.channel.channelType === ChannelTypePerson;
+  const isMuted = !!conversation.channelInfo?.mute;
+  const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
-        active ? "bg-bg-selected" : "hover:bg-bg-hover"
+      className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
+        active ? "bg-brand-tint" : "hover:bg-bg-hover"
       }`}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-sm font-medium text-text-secondary">
-        {title.slice(0, 1).toUpperCase()}
+      <div className="relative flex h-8 w-8 shrink-0">
+        <div
+          className={`flex h-8 w-8 items-center justify-center ${
+            isPerson ? "rounded-full" : "rounded-sm"
+          } bg-bg-elevated text-xs font-medium text-text-secondary`}
+        >
+          {title.slice(0, 1).toUpperCase()}
+        </div>
+        {hasUnread &&
+          (isMuted ? (
+            <span
+              aria-hidden
+              className="absolute -top-[2px] -right-[2px] h-[9px] w-[9px] rounded-full bg-error ring-2 ring-bg-base"
+            />
+          ) : (
+            <span
+              aria-label={`${conversation.unread} 条未读`}
+              className="absolute -top-[6px] -right-[6px] inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse ring-2 ring-bg-base"
+            >
+              {unread}
+            </span>
+          ))}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-baseline justify-between">
-          <span className="truncate text-sm font-medium text-text-primary">{title}</span>
-          <span className="ml-2 shrink-0 text-[11px] text-text-tertiary">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <h3
+            className={`min-w-0 flex-1 truncate text-[13px] leading-tight ${
+              hasUnread && !isMuted ? "font-semibold" : "font-medium"
+            } ${isMuted ? "text-text-tertiary" : "text-text-primary"}`}
+          >
+            {title}
+          </h3>
+          <span className="shrink-0 text-[11px] leading-none text-text-tertiary">
             {timeLabel(conversation.timestamp)}
           </span>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="truncate text-xs text-text-secondary">{digestOf(conversation)}</span>
-          {unread && (
-            <span className="ml-2 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse">
-              {unread}
-            </span>
-          )}
+        <div className="flex items-center">
+          <span
+            className={`truncate text-xs leading-tight ${
+              isMuted ? "text-text-tertiary" : "text-text-secondary"
+            }`}
+          >
+            {digestOf(conversation)}
+          </span>
         </div>
       </div>
     </button>
@@ -103,7 +145,7 @@ export function ConversationList({ selectedChannelId, onSelect }: ConversationLi
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto p-2">
       {list.map((c) => (
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}

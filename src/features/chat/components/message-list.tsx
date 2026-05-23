@@ -4,8 +4,8 @@ import { type Channel, type Message } from "wukongimjssdk";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
-import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
-import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
+import { MessageRow } from "@/features/chat/components/message-row";
+import { TimeDivider } from "@/features/chat/components/time-divider";
 
 interface MessageListProps {
   channel: Channel;
@@ -28,7 +28,6 @@ function useScrollToBottomOnNewMessages(
     if (isAppend && isNearBottom) {
       el.scrollTop = el.scrollHeight;
     }
-    // 首次加载强制到底
     if (lastLengthRef.current === 0 && messages.length > 0) {
       el.scrollTop = el.scrollHeight;
     }
@@ -60,16 +59,35 @@ function useLoadMoreOnTopReached(
   }, [sentinelRef, enabled, onLoadMore]);
 }
 
-/** 单行 wrapper:渲染 dispatcher + 自己消息的状态徽标(右下,绝对定位)。 */
-function MessageRow({ message }: { message: Message }) {
-  return (
-    <div className="relative">
-      <MessageDispatch message={message} />
-      <div className="pointer-events-auto absolute right-0 -bottom-1 flex justify-end pr-1">
-        <MessageStatusBadge message={message} />
-      </div>
-    </div>
-  );
+/** 系统消息 / 撤回消息 不渲染头像 + sender。 */
+function shouldRenderBare(m: Message): boolean {
+  if (m.remoteExtra?.revoke) return true;
+  const ct = m.contentType;
+  if (ct >= 1000 && ct <= 2000) return true;
+  return false;
+}
+
+const CONTINUE_GAP_SEC = 5 * 60;
+const TIME_DIVIDER_GAP_SEC = 5 * 60;
+
+/** 与上一条同发送者 + 5 分钟内 = 连续(对应旧 wk-msg-row--continue)。 */
+function isContinue(curr: Message, prev: Message | undefined): boolean {
+  if (!prev) return false;
+  if (shouldRenderBare(prev) || shouldRenderBare(curr)) return false;
+  if (prev.fromUID !== curr.fromUID) return false;
+  return Math.abs((curr.timestamp || 0) - (prev.timestamp || 0)) < CONTINUE_GAP_SEC;
+}
+
+/** 跨 5 分钟 / 跨日 → 在当前消息前插入 TimeDivider。 */
+function shouldInsertDivider(curr: Message, prev: Message | undefined): boolean {
+  if (!prev) return true;
+  const gap = Math.abs((curr.timestamp || 0) - (prev.timestamp || 0));
+  if (gap >= TIME_DIVIDER_GAP_SEC) return true;
+  // 跨日(本地时区)
+  const a = new Date((prev.timestamp || 0) * 1000);
+  const b = new Date((curr.timestamp || 0) * 1000);
+  if (a.toDateString() !== b.toDateString()) return true;
+  return false;
 }
 
 export function MessageList({ channel }: MessageListProps) {
@@ -81,8 +99,6 @@ export function MessageList({ channel }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // 把所有页 flat 后按 messageSeq 升序(顶部最旧,底部最新);
-  // messageSeq=0 的新发送中消息追到末尾(它们 server-acked 后会拿到 seq)。
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
     return [...all].sort((a, b) => {
@@ -118,16 +134,25 @@ export function MessageList({ channel }: MessageListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
+    <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto py-3">
       <div ref={sentinelRef} className="h-1" aria-hidden />
       {hasNextPage && (
         <div className="flex justify-center py-2 text-xs text-text-tertiary">
           {isFetchingNextPage ? "加载更早消息…" : "上拉加载更多"}
         </div>
       )}
-      {messages.map((m) => (
-        <MessageRow key={m.clientMsgNo || m.messageID} message={m} />
-      ))}
+      {messages.map((m, i) => {
+        const prev = messages[i - 1];
+        const bare = shouldRenderBare(m);
+        const continueWithPrev = !bare && isContinue(m, prev);
+        const showDivider = shouldInsertDivider(m, prev);
+        return (
+          <div key={m.clientMsgNo || m.messageID}>
+            {showDivider && <TimeDivider timestamp={m.timestamp} />}
+            <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
+          </div>
+        );
+      })}
     </div>
   );
 }

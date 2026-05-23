@@ -19,8 +19,8 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
   const isSelf = me !== null && revoker === me;
   const label = isSelf ? "你撤回了一条消息" : `${revoker} 撤回了一条消息`;
   return (
-    <div className="flex justify-center">
-      <span className="rounded bg-bg-elevated px-3 py-1 text-[11px] text-text-tertiary">
+    <div className="flex justify-center py-1">
+      <span className="rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
         {label}
       </span>
     </div>

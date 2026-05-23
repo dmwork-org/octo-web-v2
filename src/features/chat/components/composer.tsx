@@ -32,13 +32,13 @@ function extOf(name: string): string {
 }
 
 /**
- * 纯文本 + 图片 + 文件 Composer(P2-B6 task callback 自动接管上传)。
+ * Composer(对应旧 .wk-messageinput-card):
+ * - 外 padding 0 16px 8px,内 card rounded-xl border + bg-surface + focus-within:border-brand
+ * - 顶部 textarea(可滚,无背景),底部 actionbox(图片/文件 + 发送)
+ * - Enter 发送 / Shift+Enter 换行
+ * - 图片选择 → MessageImage,文件选择 → FileContent,P2-B6 task callback 接管上传
  *
- * - Enter 发送文本,Shift+Enter 换行
- * - Image 按钮:选图片 → MessageImage(file, w, h) → SDK send → 上传 → ack
- * - Paperclip 按钮:选文件 → FileContent(file, name, ext, size) → SDK send → 上传 → ack
- *
- * P3 加:富文本(TipTap) / 截屏 / @ / 表情 / 草稿 / 引用回复 / 多选转发。
+ * P3 加:TipTap 富文本 / @ / 表情 / 截屏 / 草稿 / 引用回复 / 多选转发。
  */
 export function Composer({ channel }: ComposerProps) {
   const [text, setText] = useState("");
@@ -104,63 +104,63 @@ export function Composer({ channel }: ComposerProps) {
   };
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex shrink-0 items-end gap-2 border-t border-border-subtle bg-bg-surface p-3"
-    >
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={onImageChange}
-      />
-      <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
+    <div className="shrink-0 px-4 pt-2 pb-3">
+      <form
+        onSubmit={onSubmit}
+        className="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface p-3 transition-colors focus-within:border-brand"
+      >
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onImageChange}
+        />
+        <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-      <Button
-        htmlType="button"
-        type="tertiary"
-        theme="borderless"
-        size="default"
-        iconOnly
-        onClick={() => imageInputRef.current?.click()}
-        aria-label="发送图片"
-        title="发送图片"
-      >
-        <ImageIcon size={18} />
-      </Button>
-      <Button
-        htmlType="button"
-        type="tertiary"
-        theme="borderless"
-        size="default"
-        iconOnly
-        onClick={() => fileInputRef.current?.click()}
-        aria-label="发送文件"
-        title="发送文件"
-      >
-        <Paperclip size={18} />
-      </Button>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          rows={2}
+          placeholder="说点什么...(Enter 发送, Shift+Enter 换行)"
+          className="w-full resize-none border-0 bg-transparent px-1 text-sm leading-snug text-text-primary placeholder:text-text-tertiary focus:outline-none"
+        />
 
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onKeyDown}
-        rows={2}
-        placeholder="说点什么...(Enter 发送, Shift+Enter 换行)"
-        className="flex-1 resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-      />
-      <Button
-        htmlType="submit"
-        type="primary"
-        theme="solid"
-        size="default"
-        loading={sending}
-        disabled={!text.trim()}
-      >
-        <Send size={16} />
-        发送
-      </Button>
-    </form>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              aria-label="发送图片"
+              title="发送图片"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <ImageIcon size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="发送文件"
+              title="发送文件"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <Paperclip size={18} />
+            </button>
+          </div>
+          <Button
+            htmlType="submit"
+            type="primary"
+            theme="solid"
+            size="default"
+            loading={sending}
+            disabled={!text.trim()}
+          >
+            <Send size={14} />
+            发送
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

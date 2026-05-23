@@ -16,8 +16,8 @@ export function SystemRenderer({ message }: SystemRendererProps) {
   const text =
     content?.displayText && content.displayText !== "" ? content.displayText : "[系统消息]";
   return (
-    <div className="flex justify-center">
-      <span className="rounded bg-bg-elevated px-3 py-1 text-[11px] text-text-tertiary">
+    <div className="flex justify-center py-1">
+      <span className="rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
         {text}
       </span>
     </div>

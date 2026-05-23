@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import { Pin, BellOff } from "lucide-react";
+import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 
@@ -160,8 +162,13 @@ export function ConversationList({
   onSelect,
   filter = "recent",
 }: ConversationListProps) {
+  // spaceId 进 query key — Space 切换时 react-query 当新 query 自动 fetch,
+  // 同时 SDK conversationManager.sync 内部 syncConversationsCallback 用最新 spaceId
+  // 拉取 + 完整替换 conversations 数组(SDK sync 内部直接赋值,不 merge),
+  // 所以前端不再做二次过滤(对齐旧项目"后端按 space_id 过滤"的策略)。
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   useConversationsSync();
-  const { data, isLoading, error } = useQuery(conversationsQueryOptions());
+  const { data, isLoading, error } = useQuery(conversationsQueryOptions(spaceId));
 
   const filtered = useMemo(() => {
     const all = data ?? [];

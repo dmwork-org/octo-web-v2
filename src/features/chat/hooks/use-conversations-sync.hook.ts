@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import WKSDK, { type ChannelInfo, type Conversation, type ConversationAction } from "wukongimjssdk";
+import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 
 /**
@@ -15,16 +17,19 @@ import { conversationsQueryKey } from "@/features/chat/queries/conversations.que
  *   - channelInfoListener:  channelInfo.title 异步拉到后让列表显示真名
  *                           (Conversation.channelInfo 是 getter,从 channelManager 取)
  *
+ * **spaceId 绑定**:setQueryData 时用当前 spaceId 拼 key,与 ConversationList useQuery
+ * 拼的 key 必须一致;Space 切换时 useEffect deps 变更重挂 listener。
+ *
  * 必须在 IMProvider mount 之后挂(对应 `_auth` 子树,SDK 已 connect)。
- * unmount 时移除 listener。
  */
 export function useConversationsSync() {
   const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
 
   useEffect(() => {
     const writeSnapshot = () => {
       const snapshot = [...WKSDK.shared().conversationManager.conversations];
-      qc.setQueryData(conversationsQueryKey, snapshot);
+      qc.setQueryData(conversationsQueryKey(spaceId), snapshot);
     };
 
     const convListener = (_conversation: Conversation, _action: ConversationAction) => {
@@ -41,5 +46,5 @@ export function useConversationsSync() {
       WKSDK.shared().conversationManager.removeConversationListener(convListener);
       WKSDK.shared().channelManager.removeListener(channelInfoListener);
     };
-  }, [qc]);
+  }, [qc, spaceId]);
 }

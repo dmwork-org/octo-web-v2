@@ -1,0 +1,31 @@
+import { useMemo } from "react";
+import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import type { AppBotInfo } from "@/features/appbot/types/app-bot.types";
+
+interface BotRowProps {
+  bot: AppBotInfo;
+  selected: boolean;
+  onClick: () => void;
+}
+
+export function BotRow({ bot, selected, onClick }: BotRowProps) {
+  const channel = useMemo(() => new Channel(bot.uid, ChannelTypePerson), [bot.uid]);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors duration-150 ease-(--ease-emphasized) ${
+        selected ? "bg-brand-tint" : "hover:bg-bg-hover"
+      }`}
+    >
+      <ChannelAvatar channel={channel} size={36} title={bot.display_name} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-sm font-medium text-text-primary">{bot.display_name}</span>
+        <span className="truncate text-[11px] text-text-tertiary">
+          {bot.description || "应用 Bot"}
+        </span>
+      </div>
+    </button>
+  );
+}

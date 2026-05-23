@@ -58,3 +58,22 @@ export async function applyFriend(req: {
     },
   });
 }
+
+/**
+ * 设置好友备注(对应旧 CommonDataSource::userRemark)。
+ * PUT /v1/friend/remark { uid, remark }
+ */
+export async function setUserRemark(uid: string, remark: string): Promise<void> {
+  await api("friend/remark", {
+    method: "PUT",
+    body: { uid, remark },
+  });
+}
+
+/**
+ * 解除好友关系(对应旧 CommonDataSource::deleteFriend)。
+ * DELETE /v1/friends/{uid}
+ */
+export async function deleteFriend(uid: string): Promise<void> {
+  await api(`friends/${encodeURIComponent(uid)}`, { method: "DELETE" });
+}

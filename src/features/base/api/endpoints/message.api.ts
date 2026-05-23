@@ -80,3 +80,21 @@ export async function syncReactions(args: {
   });
   return resp ?? [];
 }
+
+/**
+ * 批量删除消息(对应旧 dmworkdatasource/conversation.ts::deleteMessages)。
+ * DELETE /v1/message body: [{ message_id, channel_id, channel_type, message_seq }]
+ *
+ * 注意:DELETE 带 body 是旧 API 的特殊设计;ofetch 支持(method+body 同时存在)。
+ */
+export interface DeleteMessageItem {
+  message_id: string;
+  channel_id: string;
+  channel_type: number;
+  message_seq: number;
+}
+
+export async function deleteMessages(items: DeleteMessageItem[]): Promise<void> {
+  if (items.length === 0) return;
+  await api("message", { method: "DELETE", body: items });
+}

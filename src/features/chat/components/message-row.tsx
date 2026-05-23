@@ -1,12 +1,27 @@
-import WKSDK, { type Message, type MessageText } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  MessageContentType,
+  type Message,
+  type MessageImage,
+  type MessageText,
+} from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useState, type MouseEvent } from "react";
-import { Copy } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Copy, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
+import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import {
+  deleteMessages as deleteMessagesApi,
+  revokeMessage,
+} from "@/features/base/api/endpoints/message.api";
+import { messagesQueryKey } from "@/features/chat/queries/messages.query";
+import { copyImageToClipboard } from "@/features/base/lib/copy-image";
 
 interface MessageRowProps {
   message: Message;
@@ -36,12 +51,43 @@ function formatTime(ts: number): string {
 
 /** 文本消息提取纯文本;非文本消息 fallback 到 conversationDigest。 */
 function extractText(message: Message): string {
-  if (message.contentType === 1) {
+  if (message.contentType === MessageContentType.text) {
     return (message.content as MessageText).text ?? "";
   }
   const digest = (message.content as { conversationDigest?: string } | undefined)
     ?.conversationDigest;
   return digest ?? "";
+}
+
+/** 撤回时间窗(秒),对齐旧 WKApp.remoteConfig.revokeSecond 默认值。 */
+const REVOKE_SECONDS = 120;
+
+/**
+ * 撤回权限判定(对齐旧 module.tsx::registerMessageContextMenus contextmenus.revoke):
+ *
+ * 1) Bot 创建者豁免:from 是 robot 且 bot_creator_uid === myUid → 可撤
+ * 2) 普通用户:必须 message.send(自己发的)且在 revokeSecond 内
+ *
+ * 群管理员豁免(GroupRole.manager/owner)P4 等接群成员管理后再加。
+ */
+function canRevoke(message: Message, myUid: string): boolean {
+  if (!message.messageID) return false;
+
+  // Bot 创建者豁免
+  const fromChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(message.fromUID, ChannelTypePerson),
+  );
+  const fromOrgData = fromChannelInfo?.orgData as
+    | { robot?: number; bot_creator_uid?: string }
+    | undefined;
+  if (fromOrgData?.robot === 1 && fromOrgData.bot_creator_uid === myUid) {
+    return true;
+  }
+
+  // 普通用户:自己发的 + 时间窗内
+  if (!message.send) return false;
+  const elapsed = new Date().getTime() / 1000 - message.timestamp;
+  return elapsed <= REVOKE_SECONDS;
 }
 
 /**
@@ -50,9 +96,17 @@ function extractText(message: Message): string {
  *               [body]                [self 状态徽标]
  *
  * 连续消息(continueWithPrev):头像/header 折叠,只渲染 body,hover 显示 timestamp。
- * 右键 → ContextMenu(H3 仅"复制",撤回 / 删除 / 转发 / 引用 H4+)。
+ *
+ * 右键 → ContextMenu(F-4 集合):
+ *   - 复制(文本/digest)
+ *   - 复制图片(image only)
+ *   - 撤回(canRevoke 通过时显示)
+ *   - 删除(总是显示,ConfirmModal 二次确认)
+ *
+ * 转发 / 回复 / 多选 / 分享名片 / 翻译 / 标记 / 创建子区 F-5 / F-6 后续接。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
+  const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number }>({
@@ -60,27 +114,101 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     x: 0,
     y: 0,
   });
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     setMenu({ open: true, x: e.clientX, y: e.clientY });
   };
 
-  const items: ContextMenuItem[] = [
-    {
+  const removeFromCache = () => {
+    qc.setQueriesData<{ pages: Message[][]; pageParams: unknown[] }>(
+      { queryKey: messagesQueryKey(message.channel.channelID, message.channel.channelType) },
+      (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => p.filter((m) => m.clientMsgNo !== message.clientMsgNo)),
+        };
+      },
+    );
+  };
+
+  const revokeMu = useMutation({
+    mutationFn: () =>
+      revokeMessage({
+        channel: message.channel,
+        messageId: message.messageID,
+        clientMsgNo: message.clientMsgNo,
+      }),
+    onSuccess: () => {
+      toast.success("已撤回");
+      // 服务端会通过 IM CMD messageRevoke 推送给各端,
+      // useMessagesSync 内 cmdListener 接收后把 message.remoteExtra.revoke=true
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "撤回失败"),
+  });
+
+  const deleteMu = useMutation({
+    mutationFn: () =>
+      deleteMessagesApi([
+        {
+          message_id: message.messageID,
+          channel_id: message.channel.channelID,
+          channel_type: message.channel.channelType,
+          message_seq: message.messageSeq,
+        },
+      ]),
+    onSuccess: () => {
+      removeFromCache();
+      toast.success("已删除");
+      setDeleteOpen(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
+  });
+
+  const isImage = message.contentType === MessageContentType.image;
+  const imageUrl = isImage ? (message.content as MessageImage).url : "";
+  const revokeAllowed = me ? canRevoke(message, me) : false;
+
+  const items: ContextMenuItem[] = [];
+  if (extractText(message)) {
+    items.push({
       label: "复制",
       icon: <Copy size={13} />,
-      disabled: !extractText(message),
       onClick: () => {
         const text = extractText(message);
-        if (!text) return;
         void navigator.clipboard
           .writeText(text)
           .then(() => toast.success("已复制"))
           .catch(() => toast.error("复制失败"));
       },
-    },
-  ];
+    });
+  }
+  if (isImage && imageUrl) {
+    items.push({
+      label: "复制图片",
+      icon: <ImageIcon size={13} />,
+      onClick: () => {
+        copyImageToClipboard(imageUrl)
+          .then(() => toast.success("已复制图片"))
+          .catch((err: Error) => toast.error(err.message || "复制失败"));
+      },
+    });
+  }
+  if (revokeAllowed) {
+    items.push({
+      label: "撤回",
+      icon: <RotateCcw size={13} />,
+      onClick: () => revokeMu.mutate(),
+    });
+  }
+  items.push({
+    label: "删除",
+    icon: <Trash2 size={13} />,
+    danger: true,
+    onClick: () => setDeleteOpen(true),
+  });
 
   if (bare) {
     return (
@@ -103,6 +231,18 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     />
   );
 
+  const deleteDialog = (
+    <ConfirmModal
+      open={deleteOpen}
+      content="确定删除这条消息?该操作不可恢复。"
+      okDanger
+      okText="删除"
+      okLoading={deleteMu.isPending}
+      onOk={() => deleteMu.mutate()}
+      onCancel={() => setDeleteOpen(false)}
+    />
+  );
+
   if (continueWithPrev) {
     return (
       <div className={wrapperClass} onContextMenu={onContextMenu}>
@@ -118,6 +258,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           ) : null}
         </div>
         {ctxMenu}
+        {deleteDialog}
       </div>
     );
   }
@@ -145,6 +286,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         ) : null}
       </div>
       {ctxMenu}
+      {deleteDialog}
     </div>
   );
 }

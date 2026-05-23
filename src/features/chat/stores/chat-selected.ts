@@ -1,5 +1,6 @@
 import { Store } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
+import { spaceStore } from "@/features/base/stores/space";
 
 /**
  * 全局当前选中的 chat channel。
@@ -23,3 +24,20 @@ export const chatSelectedActions = {
   select: (channel: Channel) => chatSelectedStore.setState(() => ({ channel })),
   clear: () => chatSelectedStore.setState(() => ({ channel: null })),
 };
+
+/**
+ * 跨 store 联动:Space 切换时清掉选中(对齐旧 ChatVM.spaceChangedHandler:
+ * `this.selectedConversation = undefined`)。
+ *
+ * 旧 channel 大概率不属于新 Space,继续显示会让 Composer 发到错的 Space。
+ * main.tsx 启动时调一次。
+ */
+export function wireChatSelectedResetOnSpaceChange(): void {
+  let lastSpaceId = spaceStore.state.spaceId;
+  spaceStore.subscribe(() => {
+    const next = spaceStore.state.spaceId;
+    if (next === lastSpaceId) return;
+    lastSpaceId = next;
+    chatSelectedActions.clear();
+  });
+}

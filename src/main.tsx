@@ -7,11 +7,13 @@ import { router } from "./lib/router";
 import { persistAuth } from "./features/base/stores/auth";
 import { persistSpace, spaceStore } from "./features/base/stores/space";
 import { persistEndpoint, endpointStore } from "./features/base/stores/endpoint";
+import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-selected";
 import "./index.css";
 
 persistAuth();
 persistSpace();
 persistEndpoint();
+wireChatSelectedResetOnSpaceChange();
 
 spaceStore.subscribe(() => {
   queryClient.clear();

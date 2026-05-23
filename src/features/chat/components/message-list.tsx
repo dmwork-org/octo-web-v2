@@ -4,6 +4,7 @@ import { type Channel, type Message } from "wukongimjssdk";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
+import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 
 interface MessageListProps {
   channel: Channel;
@@ -56,6 +57,18 @@ function useLoadMoreOnTopReached(
     io.observe(el);
     return () => io.disconnect();
   }, [sentinelRef, enabled, onLoadMore]);
+}
+
+/** 单行 wrapper:渲染 dispatcher + 自己消息的状态徽标(右下,绝对定位)。 */
+function MessageRow({ message }: { message: Message }) {
+  return (
+    <div className="relative">
+      <MessageDispatch message={message} />
+      <div className="pointer-events-auto absolute right-0 -bottom-1 flex justify-end pr-1">
+        <MessageStatusBadge message={message} />
+      </div>
+    </div>
+  );
 }
 
 export function MessageList({ channel }: MessageListProps) {
@@ -111,7 +124,7 @@ export function MessageList({ channel }: MessageListProps) {
         </div>
       )}
       {messages.map((m) => (
-        <MessageDispatch key={m.clientMsgNo || m.messageID} message={m} />
+        <MessageRow key={m.clientMsgNo || m.messageID} message={m} />
       ))}
     </div>
   );

@@ -107,3 +107,49 @@ export interface SyncMessagesResp {
 export async function syncChannelMessages(req: SyncMessagesReq): Promise<SyncMessagesResp> {
   return api<SyncMessagesResp>("message/channel/sync", { method: "POST", body: req });
 }
+
+/**
+ * 清空会话未读数(对应旧 dmworkdatasource/conversation.ts::markConversationUnread)。
+ *
+ * PUT /v1/conversation/clearUnread { channel_id, channel_type, unread:0 }
+ *
+ * 进入会话视图时调一次,服务端会同步给其他端 + 把会话 unread 置 0。
+ */
+export async function clearConversationUnread(args: {
+  channelId: string;
+  channelType: number;
+  unread?: number;
+}): Promise<void> {
+  await api("conversation/clearUnread", {
+    method: "PUT",
+    body: {
+      channel_id: args.channelId,
+      channel_type: args.channelType,
+      unread: args.unread && args.unread > 0 ? args.unread : 0,
+    },
+  });
+}
+
+/**
+ * 标记消息已读(对应旧 dmworkdatasource/module.ts::messageReadedCallback)。
+ *
+ * POST /v1/message/readed { channel_id, channel_type, message_ids }
+ *
+ * SDK 内部 chatManager 会把可视消息攒成批,通过 messageReadedCallback 调本端点。
+ * 服务端再触发对方端的 messageExtra readed_count 增量同步。
+ */
+export async function markMessagesReaded(args: {
+  channelId: string;
+  channelType: number;
+  messageIds: string[];
+}): Promise<void> {
+  if (!args.messageIds.length) return;
+  await api("message/readed", {
+    method: "POST",
+    body: {
+      channel_id: args.channelId,
+      channel_type: args.channelType,
+      message_ids: args.messageIds,
+    },
+  });
+}

@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { type Channel, type Message } from "wukongimjssdk";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
+import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 
@@ -73,6 +74,7 @@ function MessageRow({ message }: { message: Message }) {
 
 export function MessageList({ channel }: MessageListProps) {
   useMessagesSync(channel);
+  useClearUnreadOnEnter(channel);
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 

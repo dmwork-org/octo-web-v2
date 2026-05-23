@@ -7,6 +7,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import {
+  markMessagesReaded,
   syncConversations,
   syncChannelMessages,
 } from "@/features/base/api/endpoints/conversation.api";
@@ -25,7 +26,7 @@ import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
  *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
  *   - syncSubscribersCallback       → 返回空数组兜底(P3 群成员功能再补)
  *   - syncMessagesCallback          → POST message/channel/sync,转 raw → Message(完整版)
- *   - messageReadedCallback         → no-op,P2-B12 接 POST message/readed
+ *   - messageReadedCallback         → POST message/readed(P2-B12,批量已读上报)
  *   - messageUploadTaskCallback     → MediaMessageUploadTask(P2-B6,COS 直传)
  *
  * 幂等:多次调安全(SDK 内部直接覆盖 callback)。在 IMProvider mount 时调一次。
@@ -88,8 +89,18 @@ export function registerImCallbacks(): void {
     return (resp.messages ?? []).map(rawToMessage);
   };
 
-  provider.messageReadedCallback = async () => {
-    // P2-B12 接 POST message/readed
+  provider.messageReadedCallback = async (channel, messages) => {
+    const messageIds = messages.map((m) => m.messageID).filter(Boolean);
+    if (messageIds.length === 0) return;
+    try {
+      await markMessagesReaded({
+        channelId: channel.channelID,
+        channelType: channel.channelType,
+        messageIds,
+      });
+    } catch {
+      // 已读上报失败不阻塞用户操作(对应旧项目 module.ts:282 .catch swallow)
+    }
   };
 
   provider.messageUploadTaskCallback = (msg: Message) => new MediaMessageUploadTask(msg);

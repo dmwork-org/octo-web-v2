@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { Plus } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
+import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
 import { mattersQueryOptions } from "@/features/matter/queries/matters.query";
 import { MatterCard } from "@/features/matter/components/matter-card";
 import { MatterDetail } from "@/features/matter/components/matter-detail";
@@ -33,9 +34,8 @@ function buildParams(tab: MatterTab, myUid: string): MatterListParams {
  *   │ 列表(MatterCard)         │ (matterId 来源 state)
  *   └                            ┘
  *
- * Space 维度:queryKey 含 params 但**不**含 spaceId,因为后端按 `token` header 内
- * 推断 Space。Space 切换时 main.tsx 的 spaceStore.subscribe → queryClient.clear()
- * 一同失效,下次进入页面再拉。
+ * Space 切换:useResetOnSpaceChange 清掉 selectedId / createOpen — 旧 matter 不属于
+ * 新 Space,继续打开会触发 detail/delete 跨 Space 403。tab 不动(用户偏好)。
  *
  * 不做(Wave 2+):分页 loadMore、归档分组折叠、SmartCreate、详情面板侧抽屉。
  */
@@ -45,6 +45,11 @@ export function MatterView() {
   const [tab, setTab] = useState<MatterTab>("mine");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  useResetOnSpaceChange(() => {
+    setSelectedId(null);
+    setCreateOpen(false);
+  });
 
   const params = useMemo(() => buildParams(tab, myUid), [tab, myUid]);
   const { data, isLoading, error } = useQuery({

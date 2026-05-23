@@ -15,7 +15,9 @@ export const withAuthToken =
     const token = store.state.token;
     if (!token) return;
     const headers = ensureHeaders(options);
-    headers.set("Authorization", `Bearer ${token}`);
+    // 后端 wkhttp 中间件读自定义 `token` header(不接 Authorization: Bearer)。
+    // 对照旧项目 packages/dmworkbase/src/Service/APIClient.ts initAxios()。
+    headers.set("token", token);
   };
 
 export const withSpaceHeader =

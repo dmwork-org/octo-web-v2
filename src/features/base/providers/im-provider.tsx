@@ -4,6 +4,7 @@ import WKSDK, { ConnectStatus, type ConnectAddrCallback } from "wukongimjssdk";
 import { authActions, authStore } from "@/features/base/stores/auth";
 import { imConnectionActions, type ImConnectionStatus } from "@/features/base/stores/im-connection";
 import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
+import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
 import { router } from "@/lib/router";
 
 /**
@@ -39,6 +40,7 @@ function handleAuthLost(reason: "kicked" | "auth-failed") {
 
 /**
  * IM 连接生命周期 hook(必须在登录后 mount):
+ * - 注册 SDK provider callbacks(sync conversation / channelInfo / sync messages 等)
  * - 设 SDK config.uid / token / connectAddrCallback
  * - 注册 status listener,把 SDK 状态映射进 imConnectionStore
  * - 立即 connect();unmount 时 disconnect + remove listener
@@ -49,6 +51,8 @@ function useImConnection(uid: string | null, token: string | null) {
   useEffect(() => {
     if (!uid || !token) return;
     const sdk = WKSDK.shared();
+
+    registerImCallbacks();
 
     sdk.config.uid = uid;
     sdk.config.token = token;

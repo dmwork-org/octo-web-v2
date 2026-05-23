@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { authStore } from "@/features/base/stores/auth";
+import { AppShell } from "@/features/base/layout/app-shell";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: ({ location }) => {
@@ -9,8 +10,8 @@ export const Route = createFileRoute("/_auth")({
     }
   },
   component: () => (
-    <div className="min-h-screen">
+    <AppShell>
       <Outlet />
-    </div>
+    </AppShell>
   ),
 });

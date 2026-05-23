@@ -15,6 +15,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { GroupCardModal } from "@/features/base/components/modals/group-card-modal";
+import { BotDetailModal } from "@/features/base/components/modals/bot-detail-modal";
 import type { SpaceMember } from "@/features/base/api/endpoints/space.api";
 import type { RobotBot } from "@/features/base/api/endpoints/robot.api";
 import type { GroupSummary } from "@/features/base/api/endpoints/group.api";
@@ -258,14 +259,9 @@ function EmptyHint({ icon, text }: { icon: React.ReactNode; text: string }) {
  *   ├ 搜索框
  *   ├ 搜索结果 OR
  *   └ 手风琴 3 段
- *       - 群聊
- *       - 已添加 AI
- *       - 全部联系人(含 filter chips + 字母索引)
- *
- * 点击行为(对齐旧 ContactsList handleContactClick / handleGroupClick):
- * - 人类联系人 → UserInfoModal
- * - 群 → GroupCardModal
- * - AI → 目前也走 UserInfoModal,Wave H2 升级为 BotDetailModal
+ *       - 群聊                         → GroupCardModal
+ *       - 已添加 AI                    → BotDetailModal
+ *       - 全部联系人(filter / 字母索引)→ 人 → UserInfoModal / AI → BotDetailModal
  */
 export function ContactsDirectory() {
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -275,6 +271,7 @@ export function ContactsDirectory() {
   const [expanded, setExpanded] = useState<SectionId | null>("allContacts");
   const [filter, setFilter] = useState<FilterMode>("all");
   const [userInfoUid, setUserInfoUid] = useState<string | null>(null);
+  const [botDetailUid, setBotDetailUid] = useState<string | null>(null);
   const [groupCardNo, setGroupCardNo] = useState<string | null>(null);
   const [groupCardFallback, setGroupCardFallback] = useState<{
     name?: string;
@@ -318,7 +315,10 @@ export function ContactsDirectory() {
     return myGroups.filter((g) => (g.name ?? "").toLowerCase().includes(kw));
   }, [myGroups, kw, searching]);
 
-  const handleContactClick = (uid: string) => setUserInfoUid(uid);
+  const handleContactClick = (item: { uid: string; isBot: boolean }) => {
+    if (item.isBot) setBotDetailUid(item.uid);
+    else setUserInfoUid(item.uid);
+  };
   const handleGroupClick = (group: GroupSummary) => {
     setGroupCardFallback({ name: group.name, memberCount: group.member_count });
     setGroupCardNo(group.group_no);
@@ -370,7 +370,7 @@ export function ContactsDirectory() {
                     联系人
                   </header>
                   {searchContacts.map((c) => (
-                    <ContactRow key={c.uid} item={c} onClick={() => handleContactClick(c.uid)} />
+                    <ContactRow key={c.uid} item={c} onClick={() => handleContactClick(c)} />
                   ))}
                 </section>
               ) : null}
@@ -426,7 +426,7 @@ export function ContactsDirectory() {
                       <ContactRow
                         key={b.uid}
                         item={{ uid: b.uid, name: b.name || b.uid, avatar: b.avatar, isBot: true }}
-                        onClick={() => handleContactClick(b.uid)}
+                        onClick={() => handleContactClick({ uid: b.uid, isBot: true })}
                       />
                     ))}
                   </div>
@@ -458,7 +458,7 @@ export function ContactsDirectory() {
                             <ContactRow
                               key={item.uid}
                               item={item}
-                              onClick={() => handleContactClick(item.uid)}
+                              onClick={() => handleContactClick(item)}
                             />
                           ))}
                         </div>
@@ -473,6 +473,7 @@ export function ContactsDirectory() {
       </div>
 
       <UserInfoModal uid={userInfoUid} onClose={() => setUserInfoUid(null)} />
+      <BotDetailModal uid={botDetailUid} onClose={() => setBotDetailUid(null)} />
       <GroupCardModal
         groupNo={groupCardNo}
         fallbackName={groupCardFallback.name}

@@ -41,6 +41,11 @@ export interface UserDetail {
   category?: string;
   home_space_id?: string;
   home_space_name?: string;
+  // Bot 专用字段(robot=1 时填充,对应旧 BotDetailModal 读取的)
+  bot_description?: string;
+  bot_creator_uid?: string;
+  bot_creator_name?: string;
+  bot_commands?: string;
 }
 
 export async function getUserDetail(uid: string, groupNo?: string): Promise<UserDetail> {

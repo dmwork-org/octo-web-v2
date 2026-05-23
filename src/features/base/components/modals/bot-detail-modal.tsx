@@ -143,12 +143,25 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
     onClose();
   };
 
-  // OctoPush chip:reported=true 绿 / reported=false 橙 / undefined 不显示
+  // OctoPush chip(对齐旧 BotDetailModal.render JSX 行 410-437):
+  //   reported=true  → 绿 chip ✅ "已上报 Agent 信息"
+  //   reported=false → 灰 chip 🔌 "未上报 Agent 信息" + ? 帮助按钮
+  //   reported=null  → 不显示(接口失败 / 未接入 OctoPush)
   const chip =
     reported === true
-      ? { cls: "bg-[rgba(34,197,94,0.1)] text-[#16a34a]", icon: "✓", text: "已上报" }
+      ? {
+          cls: "bg-[rgba(34,197,94,0.1)] text-[#16a34a]",
+          icon: "✅",
+          text: "已上报 Agent 信息",
+          showHelp: false,
+        }
       : reported === false
-        ? { cls: "bg-[rgba(245,158,11,0.12)] text-[#b45309]", icon: "!", text: "未上报" }
+        ? {
+            cls: "bg-[rgba(148,163,184,0.15)] text-[#64748b]",
+            icon: "🔌",
+            text: "未上报 Agent 信息",
+            showHelp: true,
+          }
         : null;
 
   return (
@@ -216,6 +229,17 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                 >
                   <span className="text-[11px] leading-none">{chip.icon}</span>
                   {chip.text}
+                  {chip.showHelp ? (
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      title="请在 OctoPush 中打开该 Agent 的「上报机器信息」开关。"
+                      aria-label="帮助"
+                      className="ml-1 inline-flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-semibold leading-none text-[#64748b] hover:bg-white"
+                    >
+                      ?
+                    </button>
+                  ) : null}
                 </span>
               ) : null}
             </div>

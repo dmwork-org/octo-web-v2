@@ -71,17 +71,25 @@ export async function uploadUserAvatar(uid: string, file: File): Promise<void> {
  *
  * **静默失败**:对齐旧 BotDetailModal.loadReportStatus 行为,接口不存在 / 网络
  * 错误 / code !== 0 时返 `null`(不报 toast,不冒泡 error,UI 不显示 chip)。
- * 这个接口部署在独立 agent-card-server 上,测试环境可能没接入,这是预期场景。
+ *
+ * 这个接口部署在独立 agent-card-server,测试环境通常没接入,404 是预期场景。
+ * **故意绕过 base/api/client** 的全局 withErrorToast 拦截器,用裸 fetch + 手动
+ * 注入 token(同 uploadUserAvatar 思路)。
  */
 export async function getAgentReportStatus(botUid: string): Promise<boolean | null> {
   try {
-    const resp = await api<{
+    const token = authStore.state.token ?? "";
+    const resp = await fetch(`/v1/agent-cards/${encodeURIComponent(botUid)}/report-status`, {
+      headers: { token },
+    });
+    if (!resp.ok) return null;
+    const body = (await resp.json()) as {
       code?: number;
       message?: string;
       data?: { reported: boolean };
-    }>(`agent-cards/${encodeURIComponent(botUid)}/report-status`);
-    if (resp.code !== 0) return null;
-    return resp.data?.reported ?? null;
+    };
+    if (body.code !== 0) return null;
+    return body.data?.reported ?? null;
   } catch {
     return null;
   }

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { type Conversation } from "wukongimjssdk";
 import { ConversationList } from "@/features/chat/components/conversation-list";
+import { MessageList } from "@/features/chat/components/message-list";
+import { Composer } from "@/features/chat/components/composer";
 
 export function ChatView() {
   const [selected, setSelected] = useState<Conversation | null>(null);
@@ -13,17 +15,19 @@ export function ChatView() {
         </header>
         <ConversationList selectedChannelId={selected?.channel.channelID} onSelect={setSelected} />
       </aside>
-      <section className="flex flex-1 flex-col items-center justify-center text-text-tertiary">
+      <section className="flex flex-1 flex-col overflow-hidden">
         {selected ? (
-          <div className="text-sm">
-            已选会话:{" "}
-            <span className="font-mono text-text-secondary">
+          <>
+            <header className="flex h-12 shrink-0 items-center border-b border-border-subtle bg-bg-surface px-4 text-sm font-semibold text-text-primary">
               {selected.channelInfo?.title ?? selected.channel.channelID}
-            </span>
-            <p className="mt-2 text-xs">P2-A3 阶段接入消息流(MessageList + Composer)</p>
-          </div>
+            </header>
+            <MessageList channel={selected.channel} />
+            <Composer channel={selected.channel} />
+          </>
         ) : (
-          <div className="text-sm">从左侧选一个会话(P2-A3 接入消息流)</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+            从左侧选一个会话
+          </div>
         )}
       </section>
     </div>

@@ -1,6 +1,6 @@
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import WKSDK, { type Channel, MessageText } from "wukongimjssdk";
-import { Send } from "lucide-react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import WKSDK, { type Channel, MessageImage, MessageText } from "wukongimjssdk";
+import { Image as ImageIcon, Send } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 
@@ -8,21 +8,39 @@ interface ComposerProps {
   channel: Channel;
 }
 
+/** 读图片文件的自然宽高(便于发送时回填到 MessageImage)。 */
+function readImageSize(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: 0, height: 0 });
+    };
+    img.src = url;
+  });
+}
+
 /**
- * 纯文本发送 Composer(P2-A3 最小版)。
+ * 纯文本发送 Composer + 图片上传(P2-B6 task callback 自动接管上传)。
  *
  * 行为:
- * - Enter 发送,Shift+Enter 换行
- * - 调 `chatManager.send(new MessageText(text), channel)` 发送
- * - SDK 把消息也广播给 messageListener,UI 通过 useMessagesSync 拿到回显
+ * - Enter 发送文本,Shift+Enter 换行
+ * - Image 图标按钮选图 → new MessageImage(file, w, h) → SDK send
+ *   → messageUploadTaskCallback → MediaMessageUploadTask 上传 → 服务端 ack → listener 推送回显
  *
- * P3 加:富文本 / 图片 / 文件 / @ / 表情 / 草稿持久化(extra.draft)。
+ * P3 加:富文本 / 文件 / 截屏 / @ / 表情 / 草稿 / 引用回复 / 多选转发。
  */
 export function Composer({ channel }: ComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const send = async () => {
+  const sendText = async () => {
     const value = text.trim();
     if (!value || sending) return;
     setSending(true);
@@ -36,16 +54,32 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
+  const sendImage = async (file: File) => {
+    try {
+      const { width, height } = await readImageSize(file);
+      const image = new MessageImage(file, width, height);
+      await WKSDK.shared().chatManager.send(image, channel);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "图片发送失败");
+    }
+  };
+
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    void send();
+    void sendText();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void send();
+      void sendText();
     }
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 同一张图允许再次选
+    if (file) void sendImage(file);
   };
 
   return (
@@ -53,6 +87,26 @@ export function Composer({ channel }: ComposerProps) {
       onSubmit={onSubmit}
       className="flex shrink-0 items-end gap-2 border-t border-border-subtle bg-bg-surface p-3"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onFileChange}
+      />
+      <Button
+        htmlType="button"
+        type="tertiary"
+        theme="borderless"
+        size="default"
+        iconOnly
+        onClick={() => fileInputRef.current?.click()}
+        aria-label="发送图片"
+        title="发送图片"
+      >
+        <ImageIcon size={18} />
+      </Button>
+
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

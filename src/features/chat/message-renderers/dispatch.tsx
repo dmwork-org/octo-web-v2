@@ -1,6 +1,7 @@
 import { type Message, MessageContentType } from "wukongimjssdk";
 import { TextRenderer } from "@/features/chat/message-renderers/text-renderer";
 import { SystemRenderer } from "@/features/chat/message-renderers/system-renderer";
+import { ImageRenderer } from "@/features/chat/message-renderers/image-renderer";
 
 /**
  * 按 contentType 分发到具体 renderer。
@@ -18,6 +19,8 @@ export function MessageDispatch({ message }: { message: Message }) {
   switch (ct) {
     case MessageContentType.text:
       return <TextRenderer message={message} />;
+    case MessageContentType.image:
+      return <ImageRenderer message={message} />;
     default:
       return (
         <div className="flex justify-center">

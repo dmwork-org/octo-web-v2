@@ -1,12 +1,22 @@
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Check, MessageCircle, Plus, X } from "lucide-react";
+import { useStore } from "@tanstack/react-store";
+import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Camera, Check, Edit2, MessageCircle, Plus, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { authStore } from "@/features/base/stores/auth";
+import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
-import { userDetailQueryOptions, userDetailQueryKey } from "@/features/base/queries/user.query";
+import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { applyFriend } from "@/features/contacts/api/friends.api";
+import {
+  getAgentReportStatus,
+  setBotDescription,
+  uploadUserAvatar,
+} from "@/features/base/api/endpoints/robot.api";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 
 interface BotDetailModalProps {
   uid: string | null;
@@ -14,47 +24,136 @@ interface BotDetailModalProps {
 }
 
 /**
- * AI bot 名片弹窗(对应旧 dmworkbase Components/BotDetailModal):
+ * AI bot 名片弹窗(对应旧 dmworkbase Components/BotDetailModal),1:1 复刻:
  *
- * - 顶部:头像 + name + username + 关闭
- * - 主体:bot_description(优先) + 创建者 + commands(若有)
+ * - 头部:头像(Owner hover 显 camera overlay,click 上传) + name + AiBadge +
+ *   @username + **OctoPush 上报状态 chip**(Owner 才显示)
+ * - 简介:Owner hover 显 ✏️ inline 编辑,TextArea + 保存/取消
+ * - 创建者 / 命令(若有)
  * - 底部:
- *     - 已添加(follow=1): "发消息"按钮 → chatSelectedActions.select
- *     - 未添加: "添加"按钮 → POST /v1/friend/apply { to_uid, vercode } → invalidate
+ *   - 已加好友:已添加 + 发消息
+ *   - 未加好友:点"添加"开 inline applyRemark Input,提交 POST /friend/apply
  *
- * 数据源跟 UserInfoModal 都是 GET /v1/users/{uid},响应中 bot_description /
- * bot_creator_name / bot_commands 是 robot=1 时才有的字段。
+ * 不实现(P3 后续 wave):ClawInfoModal(龙虾按钮),AgentCard 详细信息。
  */
 export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
   const qc = useQueryClient();
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { data, isLoading } = useQuery(userDetailQueryOptions(uid));
+
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
+  const [showApplyInput, setShowApplyInput] = useState(false);
+  const [applyRemark, setApplyRemark] = useState("");
+
+  const invalidate = () => {
+    if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
+  };
+
+  const isOwner = !!data?.bot_creator_uid && !!myUid && data.bot_creator_uid === myUid;
+
+  // OctoPush 上报状态(仅 Owner 拉取)
+  const { data: reported } = useQuery({
+    queryKey: ["agent-card", "report-status", uid ?? "_"],
+    queryFn: () => getAgentReportStatus(uid!),
+    enabled: !!uid && isOwner,
+    staleTime: 30 * 1000,
+  });
+
+  const uploadAvatarMu = useMutation({
+    mutationFn: (file: File) => uploadUserAvatar(uid!, file),
+    onSuccess: () => {
+      // 触发 SDK channelInfoListener 让其他组件刷新头像
+      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid!, ChannelTypePerson));
+      invalidate();
+      toast.success("头像已更新");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "头像上传失败,请重试"),
+  });
+
+  const updateDescMu = useMutation({
+    mutationFn: (desc: string) => setBotDescription(uid!, desc),
+    onSuccess: () => {
+      invalidate();
+      toast.success("简介已更新");
+      setEditingDesc(false);
+      setDescDraft("");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "简介更新失败"),
+  });
 
   const applyMu = useMutation({
     mutationFn: () =>
-      applyFriend({ to_uid: uid!, vercode: data?.vercode ?? "", remark: data?.name ?? "" }),
+      applyFriend({
+        to_uid: uid!,
+        remark: applyRemark.trim(),
+        vercode: data?.vercode ?? "",
+      }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid!) });
-      void qc.invalidateQueries({ queryKey: ["contacts"] });
-      toast.success("已发送添加请求");
+      invalidate();
+      toast.success("好友申请已发送");
+      setShowApplyInput(false);
+      setApplyRemark("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "添加失败"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "申请失败"),
   });
 
   if (!uid) return null;
 
   const channel = new Channel(uid, ChannelTypePerson);
-  const display = data?.name || uid;
-  const desc = data?.bot_description || data?.description || data?.bio || "暂无简介";
+  const name = data?.name || uid;
+  const username = data?.username;
+  const description = data?.bot_description || data?.description || data?.bio || "暂无简介";
   const isFriend = data?.follow === 1;
+
+  const handleAvatarClick = () => {
+    if (!isOwner || uploadAvatarMu.isPending) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) uploadAvatarMu.mutate(file);
+  };
+
+  const handleStartEditDesc = () => {
+    if (!isOwner) return;
+    setDescDraft(description === "暂无简介" ? "" : description);
+    setEditingDesc(true);
+  };
+
+  const handleShowApply = () => {
+    setApplyRemark(`我想使用${name}`);
+    setShowApplyInput(true);
+  };
+
+  const handleSubmitApply = () => {
+    if (applyRemark.trim() && !applyMu.isPending) {
+      applyMu.mutate();
+    }
+  };
+  void currentSpaceId; // 旧版申请会携带 space_id,新版 ofetch 端可在拦截器加,这里 reserved
 
   const handleMessage = () => {
     chatSelectedActions.select(channel);
     onClose();
   };
 
+  // OctoPush chip:reported=true 绿 / reported=false 橙 / undefined 不显示
+  const chip =
+    reported === true
+      ? { cls: "bg-[rgba(34,197,94,0.1)] text-[#16a34a]", icon: "✓", text: "已上报" }
+      : reported === false
+        ? { cls: "bg-[rgba(245,158,11,0.12)] text-[#b45309]", icon: "!", text: "未上报" }
+        : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-end border-b border-border-subtle px-3 py-2">
           <button
             type="button"
@@ -73,23 +172,106 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
         ) : (
           <>
             <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-4">
-              <ChannelAvatar channel={channel} size={64} title={display} />
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-text-primary">{display}</h2>
-                <span className="rounded-sm bg-accent/10 px-1.5 text-[10px] font-semibold text-accent">
-                  AI
-                </span>
+              <div
+                role={isOwner ? "button" : undefined}
+                tabIndex={isOwner ? 0 : undefined}
+                onClick={handleAvatarClick}
+                onKeyDown={(e) => {
+                  if (isOwner && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    handleAvatarClick();
+                  }
+                }}
+                className={`group relative ${isOwner ? "cursor-pointer" : ""}`}
+              >
+                <ChannelAvatar channel={channel} size={64} title={name} />
+                {isOwner ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
+                    {uploadAvatarMu.isPending ? (
+                      <span className="text-xs text-white">上传中…</span>
+                    ) : (
+                      <Camera size={20} className="text-white" />
+                    )}
+                  </div>
+                ) : null}
               </div>
-              {data?.username ? (
-                <span className="font-mono text-xs text-text-tertiary">@{data.username}</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
+                onClick={(e) => ((e.target as HTMLInputElement).value = "")}
+              />
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-text-primary">{name}</h2>
+                <AiBadge size="small" />
+              </div>
+              {username ? (
+                <span className="font-mono text-xs text-text-tertiary">@{username}</span>
+              ) : null}
+              {isOwner && chip ? (
+                <span
+                  className={`mt-1.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-[0.3px] ${chip.cls}`}
+                >
+                  <span className="text-[11px] leading-none">{chip.icon}</span>
+                  {chip.text}
+                </span>
               ) : null}
             </div>
 
             <div className="border-t border-border-subtle px-6 py-4">
-              <h3 className="mb-1 text-xs font-medium text-text-tertiary">简介</h3>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-primary">
-                {desc}
-              </p>
+              <div className="mb-1 flex items-center justify-between">
+                <h3 className="text-xs font-medium text-text-tertiary">简介</h3>
+                {isOwner && !editingDesc ? (
+                  <button
+                    type="button"
+                    onClick={handleStartEditDesc}
+                    aria-label="编辑简介"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                ) : null}
+              </div>
+              {editingDesc ? (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    autoFocus
+                    value={descDraft}
+                    onChange={(e) => setDescDraft(e.target.value)}
+                    rows={4}
+                    placeholder="为这个 bot 写一段简介"
+                    className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="tertiary"
+                      theme="borderless"
+                      size="small"
+                      onClick={() => {
+                        setEditingDesc(false);
+                        setDescDraft("");
+                      }}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="primary"
+                      theme="solid"
+                      size="small"
+                      loading={updateDescMu.isPending}
+                      onClick={() => updateDescMu.mutate(descDraft)}
+                    >
+                      保存
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-primary">
+                  {description}
+                </p>
+              )}
             </div>
 
             {data?.bot_creator_name || data?.bot_commands ? (
@@ -111,9 +293,9 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
               </dl>
             ) : null}
 
-            <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border-subtle px-6 py-4">
+            <div className="flex shrink-0 flex-col gap-2 border-t border-border-subtle px-6 py-4">
               {isFriend ? (
-                <>
+                <div className="flex items-center justify-center gap-2">
                   <Button type="tertiary" theme="borderless" disabled>
                     <Check size={14} />
                     已添加
@@ -122,17 +304,47 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                     <MessageCircle size={14} />
                     发消息
                   </Button>
-                </>
+                </div>
+              ) : showApplyInput ? (
+                <div className="flex flex-col gap-2">
+                  <input
+                    autoFocus
+                    value={applyRemark}
+                    onChange={(e) => setApplyRemark(e.target.value)}
+                    placeholder="请输入申请备注"
+                    className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="tertiary"
+                      theme="borderless"
+                      size="small"
+                      onClick={() => {
+                        setShowApplyInput(false);
+                        setApplyRemark("");
+                      }}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="primary"
+                      theme="solid"
+                      size="small"
+                      loading={applyMu.isPending}
+                      disabled={!applyRemark.trim()}
+                      onClick={handleSubmitApply}
+                    >
+                      发送申请
+                    </Button>
+                  </div>
+                </div>
               ) : (
-                <Button
-                  type="primary"
-                  theme="solid"
-                  loading={applyMu.isPending}
-                  onClick={() => applyMu.mutate()}
-                >
-                  <Plus size={14} />
-                  添加
-                </Button>
+                <div className="flex items-center justify-center">
+                  <Button type="primary" theme="solid" onClick={handleShowApply}>
+                    <Plus size={14} />
+                    添加
+                  </Button>
+                </div>
               )}
             </div>
           </>

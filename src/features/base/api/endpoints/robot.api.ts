@@ -1,10 +1,14 @@
 import { api } from "@/features/base/api/client";
+import { authStore } from "@/features/base/stores/auth";
 
 /**
  * Robot(AI bot)相关 endpoints。
  *
- * - GET /v1/robot/my_bots?space_id  → 我已添加的 AI 列表
- * - GET /v1/robot/space_bots?space_id → 当前 Space 内可见的所有 AI(可加可不加)
+ * - GET    /v1/robot/my_bots?space_id     → 我已添加的 AI 列表
+ * - GET    /v1/robot/space_bots?space_id  → 当前 Space 内可见的所有 AI
+ * - PUT    /v1/robot/{uid}/description    → 更新 bot 简介(仅 owner)
+ * - POST   /v1/users/{uid}/avatar         → multipart 上传头像(仅 owner)
+ * - GET    /v1/agent-cards/{uid}/report-status → OctoPush 上报状态(envelope unwrap)
  *
  * Bot.status:"added" | "pending" | "not_added";前端基于此渲染加号 / 转圈 / 已添加。
  */
@@ -31,4 +35,48 @@ export async function getSpaceBots(spaceId: string): Promise<RobotBot[]> {
     query: { space_id: spaceId },
   });
   return resp ?? [];
+}
+
+/** 更新 bot 简介(只有 bot 创建者能调,后端鉴权)。 */
+export async function setBotDescription(uid: string, description: string): Promise<void> {
+  await api(`robot/${encodeURIComponent(uid)}/description`, {
+    method: "PUT",
+    body: { description },
+  });
+}
+
+/**
+ * 上传 bot 头像(也用于普通用户头像)。
+ * **不**走 ofetch 默认 JSON 序列化 — 用 fetch+FormData,token 直接读 authStore。
+ * 路径前缀对齐 base client(走 vite proxy /v1)。
+ */
+export async function uploadUserAvatar(uid: string, file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = authStore.state.token ?? "";
+  const resp = await fetch(`/v1/users/${encodeURIComponent(uid)}/avatar`, {
+    method: "POST",
+    headers: { token },
+    body: form,
+  });
+  if (!resp.ok) {
+    throw new Error("头像上传失败");
+  }
+}
+
+/**
+ * OctoPush 上报状态(对应旧 AgentCardService::getReportStatus)。
+ * GET /v1/agent-cards/{botId}/report-status
+ * 响应:`{ code, message, data: { reported: boolean } }` — code !== 0 throw。
+ */
+export async function getAgentReportStatus(botUid: string): Promise<boolean> {
+  const resp = await api<{
+    code: number;
+    message: string;
+    data: { reported: boolean };
+  }>(`agent-cards/${encodeURIComponent(botUid)}/report-status`);
+  if (resp.code !== 0) {
+    throw new Error(resp.message || "Failed to fetch report status");
+  }
+  return resp.data?.reported ?? false;
 }

@@ -41,6 +41,12 @@ export interface UserDetail {
   category?: string;
   home_space_id?: string;
   home_space_name?: string;
+  is_external?: number;
+  source_space_name?: string;
+  source_desc?: string;
+  // OCTO 实名认证(对应 displayName / RealnameVerifiedBadge 消费)
+  real_name?: string;
+  realname_verified?: boolean | number | string;
   // Bot 专用字段(robot=1 时填充,对应旧 BotDetailModal 读取的)
   bot_description?: string;
   bot_creator_uid?: string;

@@ -139,18 +139,18 @@ export default defineConfig({
       // Matter service — 旧项目 dev 默认 fallback 到主网关 nginx,
       // nginx 内部把 /matter/api/v1/* 路由到 todos service。新项目同行为。
       "/matter/api/v1": {
-        target: "https://im-test.deepminer.com.cn",
+        target: "https://im.deepminer.com.cn",
         changeOrigin: true,
         secure: true,
       },
       // Summary service — 同路由策略,nginx 转发到 summary service。
       "/summary/api/v1": {
-        target: "https://im-test.deepminer.com.cn",
+        target: "https://im.deepminer.com.cn",
         changeOrigin: true,
         secure: true,
       },
       "/v1": {
-        target: "https://im-test.deepminer.com.cn",
+        target: "https://im.deepminer.com.cn",
         changeOrigin: true,
         secure: true,
       },

@@ -90,7 +90,9 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
         channelType: channel?.channelType,
         onlyMessage: inChannel,
       }),
-    enabled: open && keyword.trim().length > 0,
+    // 对齐旧 GlobalSearchVM.didMount:空 keyword 也调,后端返默认列表
+    // (联系人 = 全量好友 / 群组 = 我加入的群 / 文件 = 最近文件)。
+    enabled: open,
     staleTime: 30 * 1000,
   });
 
@@ -170,13 +172,9 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
         </nav>
 
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {keyword.trim().length === 0 ? (
+          {isFetching && !data ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              输入关键字开始搜索
-            </div>
-          ) : isFetching && !data ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              搜索中…
+              {keyword.trim().length === 0 ? "加载默认列表…" : "搜索中…"}
             </div>
           ) : (
             <SearchResultBody tab={tab} data={data} onClose={onClose} inChannel={inChannel} />

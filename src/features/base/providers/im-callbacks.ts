@@ -5,20 +5,26 @@ import WKSDK, {
   ChannelTypePerson,
   Subscriber,
   type Conversation,
+  type ConversationExtra,
   type Message,
+  type MessageExtra,
 } from "wukongimjssdk";
 import { channelSpaceKey, channelSpaceMap, spaceStore } from "@/features/base/stores/space";
 import {
   markMessagesReaded,
-  syncConversations,
   syncChannelMessages,
+  syncConversationExtras,
+  syncConversations,
+  syncMessageExtras,
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
 import { syncGroupMembers, type GroupMemberRaw } from "@/features/base/api/endpoints/group.api";
 import {
   groupToChannelInfo,
   rawToConversation,
+  rawToConversationExtra,
   rawToMessage,
+  rawToMessageExtra,
   userToChannelInfo,
 } from "@/features/base/im/convert";
 import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
@@ -78,20 +84,15 @@ function sortByRole(members: Subscriber[]): Subscriber[] {
  * chatManager.syncMessages 等会抛 TypeError)。
  *
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
- * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员" 跑起来的集合:
- *   - syncConversationsCallback     → POST conversation/sync,转 raw → Conversation
- *                                     用 users[]/groups[] 预热 channelInfo 缓存(立刻显示真名),
- *                                     Space 防 stale 响应,channelSpaceMap 反查表
- *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
- *                                     person 缺失 robot 时从群成员缓存兜底;
- *                                     group 字段(forbidden/has_group_md/...)透传;
- *                                     category=system/visitor 加 identity icon
- *   - syncSubscribersCallback       → GET groups/{groupNo}/membersync,
- *                                     按 role 排序,robot=1 反向同步到 person cache
- *                                     (子区走父群 ID)
- *   - syncMessagesCallback          → POST message/channel/sync,转 raw → Message
- *   - messageReadedCallback         → POST message/readed(批量已读上报)
- *   - messageUploadTaskCallback     → MediaMessageUploadTask(COS 直传)
+ * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员 + extras 同步" 跑起来的集合:
+ *   - syncConversationsCallback        users[]/groups[] 预热,Space 防 stale,channelSpaceMap
+ *   - syncConversationExtrasCallback   keep_msg_seq / draft 跨设备同步
+ *   - channelInfoCallback              robot 兜底 / group 字段 / identity icon
+ *   - syncSubscribersCallback          group/membersync(子区走父群)+ robot 反向写 person cache
+ *   - syncMessagesCallback             message/channel/sync
+ *   - syncMessageExtraCallback         message/extra/sync(已读数 / 撤回增量)
+ *   - messageReadedCallback            message/readed 批量上报
+ *   - messageUploadTaskCallback        MediaMessageUploadTask COS 直传
  *
  * 幂等:多次调安全(SDK 内部直接覆盖 callback)。在 IMProvider mount 时调一次。
  */
@@ -121,6 +122,18 @@ export function registerImCallbacks(): void {
       cm.setChannleInfoForCache(groupToChannelInfo(g));
     }
     return conversations;
+  };
+
+  provider.syncConversationExtrasCallback = async (
+    version: number,
+  ): Promise<ConversationExtra[]> => {
+    let raws;
+    try {
+      raws = await syncConversationExtras(version);
+    } catch {
+      return [];
+    }
+    return raws.map(rawToConversationExtra);
   };
 
   provider.channelInfoCallback = async (channel: Channel): Promise<ChannelInfo> => {
@@ -252,6 +265,25 @@ export function registerImCallbacks(): void {
       pull_mode: opts.pullMode ?? 0,
     });
     return (resp.messages ?? []).map(rawToMessage);
+  };
+
+  provider.syncMessageExtraCallback = async (
+    channel: Channel,
+    extraVersion: number,
+    limit: number,
+  ): Promise<MessageExtra[]> => {
+    let raws;
+    try {
+      raws = await syncMessageExtras({
+        channel_id: channel.channelID,
+        channel_type: channel.channelType,
+        extra_version: extraVersion,
+        limit,
+      });
+    } catch {
+      return [];
+    }
+    return raws.map(rawToMessageExtra);
   };
 
   provider.messageReadedCallback = async (channel, messages) => {

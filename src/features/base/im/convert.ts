@@ -4,12 +4,14 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
   Conversation,
+  ConversationExtra,
   Message,
   MessageExtra,
   MessageStatus,
   Setting,
 } from "wukongimjssdk";
 import type {
+  ConversationExtraRaw,
   ConversationRaw,
   MessageExtraRaw,
   MessageRaw,
@@ -130,6 +132,18 @@ export function rawToConversation(raw: ConversationRaw): Conversation {
   return conv;
 }
 
+/** raw → SDK ConversationExtra(K-3 跨设备同步用)。 */
+export function rawToConversationExtra(raw: ConversationExtraRaw): ConversationExtra {
+  const ce = new ConversationExtra();
+  ce.channel = new Channel(raw.channel_id, raw.channel_type);
+  ce.browseTo = raw.browse_to ?? 0;
+  ce.keepMessageSeq = raw.keep_message_seq ?? 0;
+  ce.keepOffsetY = raw.keep_offset_y ?? 0;
+  ce.draft = raw.draft;
+  ce.version = raw.version ?? 0;
+  return ce;
+}
+
 /**
  * SyncedUserRaw → SDK ChannelInfo(对应旧 Convert.userToChannelInfo)。
  *
@@ -144,7 +158,7 @@ export function userToChannelInfo(data: SyncedUserRaw): ChannelInfo {
   info.top = data.top === 1;
   info.online = data.online === 1;
   info.lastOffline = data.last_offline ?? 0;
-  const orgData: Record<string, unknown> = { ...(data.extra ?? {}), ...data };
+  const orgData: Record<string, unknown> = { ...data.extra, ...data };
   orgData.remark = data.remark ?? "";
   const verified = data.realname_verified === true || data.realname_verified === 1 ? 1 : 0;
   orgData.realname_verified = verified;
@@ -183,7 +197,7 @@ export function groupToChannelInfo(data: SyncedGroupRaw): ChannelInfo {
   info.top = data.top === 1;
   info.online = data.online === 1;
   info.lastOffline = data.last_offline ?? 0;
-  const orgData: Record<string, unknown> = { ...(data.extra ?? {}), ...data };
+  const orgData: Record<string, unknown> = { ...data.extra, ...data };
   orgData.remark = data.remark ?? "";
   orgData.displayName = data.remark && data.remark !== "" ? data.remark : info.title;
   orgData.forbidden = data.forbidden;

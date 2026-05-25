@@ -13,7 +13,7 @@
  *                             types → .types.ts     hooks → .hook.ts(x)
  *                             views → .view.tsx     forms → .form.tsx
  *   [manifest-required]       每个 src/features/FEAT/ 必须有 MANIFEST.md (仅全扫模式)
- *   [components-only-ui]      src/components 下只允许 ui/ + README.md
+ *   [components-only-ui]      src/components 下只允许 ui / semi-bridge / rich / media / data + README.md
  *   [no-index-outside-routes] src 下除 routes 外禁止 index.ts(x)
  *
  * 生成物豁免(工具无关):
@@ -120,6 +120,11 @@ function checkSubdirSuffix(file: string, srcDir: string, rootDir: string, issues
   if (parts[0] !== "features" || parts.length < 4) return;
   const kind = parts[2];
   if (!kind) return;
+  // api/ 特例:client.ts / interceptors/** 不强制 .api.ts;
+  // 仅 features/<x>/api/endpoints/** 才需要 .api.ts 后缀
+  if (kind === "api") {
+    if (parts[3] !== "endpoints") return;
+  }
   const expected = SUBDIR_SUFFIX[kind];
   if (!expected) return;
   const base = basename(file);
@@ -149,6 +154,8 @@ function checkNoIndexOutsideRoutes(
   });
 }
 
+const ALLOWED_COMPONENTS_SUBDIRS = new Set(["ui", "semi-bridge", "rich", "media", "data"]);
+
 function checkComponentsOnlyUi(
   file: string,
   srcDir: string,
@@ -159,13 +166,13 @@ function checkComponentsOnlyUi(
   const parts = rel.split(sep);
   if (parts[0] !== "components") return;
   if (parts.length < 2) return;
-  // 允许:components/ui/** + components/README.md
-  if (parts[1] === "ui") return;
+  // 允许:components/{ui,semi-bridge,rich,media,data}/** + components/README.md
+  if (ALLOWED_COMPONENTS_SUBDIRS.has(parts[1] ?? "")) return;
   if (parts.length === 2 && parts[1] === "README.md") return;
   issues.push({
     rule: "components-only-ui",
     file: relative(rootDir, file),
-    reason: `src/components/ 下只允许 ui/ + README.md,'${parts.slice(1).join(sep)}' 违规`,
+    reason: `src/components/ 下只允许 ${[...ALLOWED_COMPONENTS_SUBDIRS].join("/")} + README.md,'${parts.slice(1).join(sep)}' 违规`,
   });
 }
 
@@ -192,18 +199,18 @@ function checkComponentsDirLevel(srcDir: string, rootDir: string, issues: Issue[
   for (const entry of readdirSync(componentsDir)) {
     const full = join(componentsDir, entry);
     const isDir = statSync(full).isDirectory();
-    if (isDir && entry !== "ui") {
+    if (isDir && !ALLOWED_COMPONENTS_SUBDIRS.has(entry)) {
       issues.push({
         rule: "components-only-ui",
         file: relative(rootDir, full),
-        reason: `components/ 下只允许 ui/ 子目录,'${entry}/' 违规`,
+        reason: `components/ 下只允许 ${[...ALLOWED_COMPONENTS_SUBDIRS].join("/")} 子目录,'${entry}/' 违规`,
       });
     }
     if (!isDir && entry !== "README.md") {
       issues.push({
         rule: "components-only-ui",
         file: relative(rootDir, full),
-        reason: `components/ 下只允许 ui/ 和 README.md,文件 '${entry}' 违规`,
+        reason: `components/ 下只允许子目录和 README.md,文件 '${entry}' 违规`,
       });
     }
   }

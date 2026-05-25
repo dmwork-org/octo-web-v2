@@ -1,1 +1,76 @@
 @import "tailwindcss";
+
+/*
+ * Theme tokens — Light only (P1)
+ * 取自旧项目 packages/dmworkbase/src/theme/{primitive,semantic}.css(2026-04-20 Figma 提取)
+ * 精简:去 Dark / Space avatar / AI 专属 / 调色板分层,只留语义层。
+ * 命名遵循 Tailwind v4 @theme 约定 — utility 自动生成 (bg-bg-base / text-text-primary / rounded-md ...)
+ */
+@theme {
+  /* ── Background ── */
+  --color-bg-base: #f5f6f7; /* 页面/侧边栏 */
+  --color-bg-surface: #ffffff; /* 内容卡 */
+  --color-bg-elevated: #f2f3f4; /* Tag/系统消息 */
+  --color-bg-hover: rgb(46 50 56 / 0.09);
+  --color-bg-selected: rgb(127 59 245 / 0.06);
+  --color-bg-navrail: #f5f6f7;
+
+  /* ── Text ── */
+  --color-text-primary: #1f2329;
+  --color-text-secondary: #555b61;
+  --color-text-tertiary: #6b7075;
+  --color-text-disabled: #d9d9d9;
+  --color-text-accent: #7f3bf5;
+  --color-text-inverse: #ffffff;
+
+  /* ── Border ── */
+  --color-border-subtle: rgb(0 0 0 / 0.05);
+  --color-border-default: rgb(0 0 0 / 0.08);
+  --color-border-strong: rgb(0 0 0 / 0.14);
+
+  /* ── Brand & status ── */
+  --color-brand: #1c1c23;
+  --color-brand-hover: #2a2a33;
+  --color-brand-tint: rgb(28 28 35 / 0.08);
+  --color-online: #52c41a;
+  --color-success: #41cd59;
+  --color-warning: #fc8800;
+  --color-error: #f54a45;
+  --color-info: #0077fa;
+  --color-accent: #7f3bf5;
+
+  /* ── Radius (Figma) ── */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* ── Shadow ── */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.12);
+  --shadow-dropdown: 0 12px 32px rgb(0 0 0 / 0.12);
+
+  /* ── Font ── */
+  --font-sans:
+    "PingFang SC", "Inter", -apple-system, BlinkMacSystemFont, "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  /* ── Motion ── */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Layout ── */
+  --spacing-nav: 56px; /* NavRail 宽 (旧 --wk-nav-w) */
+  --spacing-sidebar: 240px; /* 二级 sidebar 默认宽 */
+  --spacing-task-rail: 320px;
+}
+
+/* Body default — apply font / bg / text */
+html,
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+}

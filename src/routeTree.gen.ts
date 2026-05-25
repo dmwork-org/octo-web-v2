@@ -9,50 +9,171 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as AuthIndexRouteImport } from './routes/_auth.index'
+import { Route as AuthSummaryRouteImport } from './routes/_auth.summary'
+import { Route as AuthMatterRouteImport } from './routes/_auth.matter'
+import { Route as AuthContactsRouteImport } from './routes/_auth.contacts'
+import { Route as AuthAppbotRouteImport } from './routes/_auth.appbot'
 
-const IndexRoute = IndexRouteImport.update({
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthIndexRoute = AuthIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSummaryRoute = AuthSummaryRouteImport.update({
+  id: '/summary',
+  path: '/summary',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthMatterRoute = AuthMatterRouteImport.update({
+  id: '/matter',
+  path: '/matter',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthContactsRoute = AuthContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppbotRoute = AuthAppbotRouteImport.update({
+  id: '/appbot',
+  path: '/appbot',
+  getParentRoute: () => AuthRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AuthIndexRoute
+  '/login': typeof LoginRoute
+  '/appbot': typeof AuthAppbotRoute
+  '/contacts': typeof AuthContactsRoute
+  '/matter': typeof AuthMatterRoute
+  '/summary': typeof AuthSummaryRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/appbot': typeof AuthAppbotRoute
+  '/contacts': typeof AuthContactsRoute
+  '/matter': typeof AuthMatterRoute
+  '/summary': typeof AuthSummaryRoute
+  '/': typeof AuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_auth': typeof AuthRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_auth/appbot': typeof AuthAppbotRoute
+  '/_auth/contacts': typeof AuthContactsRoute
+  '/_auth/matter': typeof AuthMatterRoute
+  '/_auth/summary': typeof AuthSummaryRoute
+  '/_auth/': typeof AuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/login' | '/appbot' | '/contacts' | '/matter' | '/summary'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/login' | '/appbot' | '/contacts' | '/matter' | '/summary' | '/'
+  id:
+    | '__root__'
+    | '/_auth'
+    | '/login'
+    | '/_auth/appbot'
+    | '/_auth/contacts'
+    | '/_auth/matter'
+    | '/_auth/summary'
+    | '/_auth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth/': {
+      id: '/_auth/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/summary': {
+      id: '/_auth/summary'
+      path: '/summary'
+      fullPath: '/summary'
+      preLoaderRoute: typeof AuthSummaryRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/matter': {
+      id: '/_auth/matter'
+      path: '/matter'
+      fullPath: '/matter'
+      preLoaderRoute: typeof AuthMatterRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/contacts': {
+      id: '/_auth/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof AuthContactsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/appbot': {
+      id: '/_auth/appbot'
+      path: '/appbot'
+      fullPath: '/appbot'
+      preLoaderRoute: typeof AuthAppbotRouteImport
+      parentRoute: typeof AuthRoute
     }
   }
 }
 
+interface AuthRouteChildren {
+  AuthAppbotRoute: typeof AuthAppbotRoute
+  AuthContactsRoute: typeof AuthContactsRoute
+  AuthMatterRoute: typeof AuthMatterRoute
+  AuthSummaryRoute: typeof AuthSummaryRoute
+  AuthIndexRoute: typeof AuthIndexRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthAppbotRoute: AuthAppbotRoute,
+  AuthContactsRoute: AuthContactsRoute,
+  AuthMatterRoute: AuthMatterRoute,
+  AuthSummaryRoute: AuthSummaryRoute,
+  AuthIndexRoute: AuthIndexRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AuthRoute: AuthRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

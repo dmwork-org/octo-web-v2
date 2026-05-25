@@ -1,8 +1,5 @@
-import { ofetch } from "ofetch";
-
-export const api = ofetch.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
-  onResponseError({ response }) {
-    console.error("[api] response error", response.status, response._data);
-  },
-});
+/**
+ * 兼容旧 import 的薄壳。新代码请直接:
+ *   import { api } from "@/features/base/api/client";
+ */
+export { api } from "@/features/base/api/client";

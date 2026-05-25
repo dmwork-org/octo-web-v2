@@ -134,6 +134,28 @@ export default defineConfig({
     },
   },
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  server: {
+    proxy: {
+      // Matter service — 旧项目 dev 默认 fallback 到主网关 nginx,
+      // nginx 内部把 /matter/api/v1/* 路由到 todos service。新项目同行为。
+      "/matter/api/v1": {
+        target: "https://im.deepminer.com.cn",
+        changeOrigin: true,
+        secure: true,
+      },
+      // Summary service — 同路由策略,nginx 转发到 summary service。
+      "/summary/api/v1": {
+        target: "https://im.deepminer.com.cn",
+        changeOrigin: true,
+        secure: true,
+      },
+      "/v1": {
+        target: "https://im.deepminer.com.cn",
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

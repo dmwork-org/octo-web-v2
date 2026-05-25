@@ -7,6 +7,7 @@ import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { ConnectionStatusInline } from "@/features/chat/components/connection-status-inline";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
+import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 
 interface ConversationSidebarProps {
   selectedChannelId?: string;
@@ -27,24 +28,23 @@ const TABS: TabDef[] = [
  * 会话 sidebar 容器(对应旧 .wk-chat-content-left):
  *   ┌ Header(.wk-chat-search) ┐
  *   │ Space 名  · 连接状态     │
- *   │            🔍   ➕      │  ← actions: 搜索 / 新增(P3 弹 popover)
+ *   │            🔍   ➕      │  ← 搜索 → GlobalSearchModal / 新增 P3+ popover
  *   ├ TabBar(SidebarTabBar)    │  关注 / 最近
  *   └ ConversationList(filter) ┘
  *
  * Space 名:拉 GET /v1/space/my,按 spaceStore.spaceId 找匹配;无则取第一个;
  * 列表空 fallback "默认空间"(用户首次未加入任何空间)。
- * P3-C24 接 SpaceList 完整切换 + Space 头像 + 成员管理。
  *
- * 搜索按钮 → P3-C11 GlobalSearch;新增按钮 → P3-C8 ChatMenusPopover。
+ * 🔍 触发 GlobalSearchModal(全局,联系人/群组/文件 3 tab)。
+ * ➕ 新增按钮(发起群聊 / 创建分组)P3+ wave。
  */
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const [activeTab, setActiveTab] = useState<ConvTab>("recent");
+  const [searchOpen, setSearchOpen] = useState(false);
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
 
   const currentSpaceName = (() => {
-    // currentSpaceId 为空 = 用户未选 Space(全部消息模式),不自动选 spaces[0]。
-    // 对应旧项目 ChatPage::currentSpaceName 默认 WKApp.config.appName,选 Space 后才换。
     if (!currentSpaceId) return "全部消息";
     const found = spaces?.find((s) => s.space_id === currentSpaceId);
     return found?.name ?? "全部消息";
@@ -63,7 +63,8 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
           <button
             type="button"
             aria-label="搜索"
-            title="搜索(P3-C11)"
+            title="全局搜索"
+            onClick={() => setSearchOpen(true)}
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <Search size={16} />
@@ -71,7 +72,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
           <button
             type="button"
             aria-label="新增"
-            title="发起群聊 / 创建分组(P3-C8)"
+            title="发起群聊 / 创建分组(P3+)"
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <Plus size={16} />
@@ -101,6 +102,8 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
         onSelect={onSelect}
         filter={activeTab}
       />
+
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </aside>
   );
 }

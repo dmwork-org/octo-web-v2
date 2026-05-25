@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { MoreHorizontal, Search } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 
 interface ChatHeaderProps {
   channel: Channel;
@@ -51,7 +52,8 @@ function useChannelInfoLive(channel: Channel) {
  * - 高度 56px / bg-surface / border-bottom
  * - 头像:DM 圆 / Group 圆角 6px / 子区 # icon 占位
  * - 名字:displayName(remark || name);子区显示"父群 › 子区"面包屑
- * - 右侧:搜索(P3-C11) + More(P3-C12 ChannelSetting)
+ * - 🔍 搜索:打开 GlobalSearchModal 带 channel(channel 内搜索 mode)
+ * - ⋯ 更多:ChannelSetting(P3-G2 接入)
  *
  * 接受 channel 而非 conversation:contacts 选人也共用此 header。
  */
@@ -65,6 +67,7 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
     channel.channelID;
 
   const parentGroupTitle = useParentGroupTitle(parsed?.groupNo ?? null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-5">
@@ -92,7 +95,8 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
         <button
           type="button"
           aria-label="搜索聊天内容"
-          title="搜索聊天内容(P3-C11)"
+          title="搜索聊天内容"
+          onClick={() => setSearchOpen(true)}
           className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <Search size={18} />
@@ -100,12 +104,14 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
         <button
           type="button"
           aria-label="更多"
-          title="频道设置(P3-C12)"
+          title="频道设置(P3-G2)"
           className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <MoreHorizontal size={18} />
         </button>
       </div>
+
+      <GlobalSearchModal open={searchOpen} channel={channel} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

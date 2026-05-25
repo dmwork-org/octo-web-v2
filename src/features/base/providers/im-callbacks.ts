@@ -8,6 +8,7 @@ import WKSDK, {
   type ConversationExtra,
   type Message,
   type MessageExtra,
+  type Reminder,
 } from "wukongimjssdk";
 import { channelSpaceKey, channelSpaceMap, spaceStore } from "@/features/base/stores/space";
 import {
@@ -19,12 +20,14 @@ import {
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
 import { syncGroupMembers, type GroupMemberRaw } from "@/features/base/api/endpoints/group.api";
+import { markRemindersDone, syncReminders } from "@/features/base/api/endpoints/reminder.api";
 import {
   groupToChannelInfo,
   rawToConversation,
   rawToConversationExtra,
   rawToMessage,
   rawToMessageExtra,
+  rawToReminder,
   userToChannelInfo,
 } from "@/features/base/im/convert";
 import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
@@ -80,17 +83,41 @@ function sortByRole(members: Subscriber[]): Subscriber[] {
 }
 
 /**
+ * 收集当前会话列表里所有 group / thread 的 channel_id。
+ *
+ * reminder 同步接口要求传 channel_ids 限制范围(只关心我所在的群/子区),
+ * 后端不会扫所有 reminder 表,带宽友好。
+ */
+function collectGroupChannelIds(): string[] {
+  const ids: string[] = [];
+  const conversations = WKSDK.shared().conversationManager.conversations;
+  if (!conversations) return ids;
+  for (const c of conversations) {
+    if (
+      c.channel.channelType === ChannelTypeGroup ||
+      c.channel.channelType === CHANNEL_TYPE_THREAD
+    ) {
+      ids.push(c.channel.channelID);
+    }
+  }
+  return ids;
+}
+
+/**
  * 注册 SDK provider 必须的 callback(否则 conversationManager.sync /
  * chatManager.syncMessages 等会抛 TypeError)。
  *
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
- * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员 + extras 同步" 跑起来的集合:
+ * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员 + extras + 提醒" 跑起来的集合:
  *   - syncConversationsCallback        users[]/groups[] 预热,Space 防 stale,channelSpaceMap
  *   - syncConversationExtrasCallback   keep_msg_seq / draft 跨设备同步
  *   - channelInfoCallback              robot 兜底 / group 字段 / identity icon
  *   - syncSubscribersCallback          group/membersync(子区走父群)+ robot 反向写 person cache
  *   - syncMessagesCallback             message/channel/sync
  *   - syncMessageExtraCallback         message/extra/sync(已读数 / 撤回增量)
+ *   - syncRemindersCallback            message/reminder/sync(@我 / 入群申请),
+ *                                     channel_ids 只传当前会话列表里 group/thread
+ *   - reminderDoneCallback             message/reminder/done(用户点掉 @提醒后)
  *   - messageReadedCallback            message/readed 批量上报
  *   - messageUploadTaskCallback        MediaMessageUploadTask COS 直传
  *
@@ -284,6 +311,25 @@ export function registerImCallbacks(): void {
       return [];
     }
     return raws.map(rawToMessageExtra);
+  };
+
+  provider.syncRemindersCallback = async (version: number): Promise<Reminder[]> => {
+    const channelIds = collectGroupChannelIds();
+    let raws;
+    try {
+      raws = await syncReminders({ version, limit: 100, channel_ids: channelIds });
+    } catch {
+      return [];
+    }
+    return raws.map(rawToReminder);
+  };
+
+  provider.reminderDoneCallback = async (ids: number[]) => {
+    try {
+      await markRemindersDone(ids);
+    } catch {
+      // 同 messageReaded:done 上报失败不阻塞用户(下次 sync 仍会拉到,SDK 自己去重)
+    }
   };
 
   provider.messageReadedCallback = async (channel, messages) => {

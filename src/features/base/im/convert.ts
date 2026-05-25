@@ -8,6 +8,7 @@ import WKSDK, {
   Message,
   MessageExtra,
   MessageStatus,
+  Reminder,
   Setting,
 } from "wukongimjssdk";
 import type {
@@ -18,6 +19,7 @@ import type {
   SyncedGroupRaw,
   SyncedUserRaw,
 } from "@/features/base/api/endpoints/conversation.api";
+import type { ReminderRaw } from "@/features/base/api/endpoints/reminder.api";
 
 /**
  * raw 服务端 JSON → SDK 实例转换层(对应旧项目 packages/dmworkbase/src/Service/Convert.ts)。
@@ -31,6 +33,22 @@ import type {
  * - 外部群字段(from_is_external 等)以 snake_case 动态挂在 Message 实例上,消费方按
  *   `(message as any).from_is_external` 读;不写 TS 类型(旧项目同样做法)。
  */
+
+/** raw → SDK Reminder(K-4 @我 / 入群申请 等)。 */
+export function rawToReminder(raw: ReminderRaw): Reminder {
+  const r = new Reminder();
+  r.channel = new Channel(raw.channel_id, raw.channel_type);
+  r.messageID = raw.message_id;
+  r.messageSeq = raw.message_seq;
+  r.reminderID = raw.id;
+  r.reminderType = raw.reminder_type;
+  r.text = raw.text;
+  r.data = raw.data;
+  r.isLocate = raw.is_locate === 1;
+  r.version = raw.version;
+  r.done = raw.done === 1;
+  return r;
+}
 
 type ExternalFields = {
   from_is_external?: number;

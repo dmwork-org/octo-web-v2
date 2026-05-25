@@ -2,10 +2,13 @@ import { ofetch } from "ofetch";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import type {
+  CreateScheduleParams,
   CreateSummaryParams,
   ListSummariesParams,
   ListSummariesResponse,
+  ScheduleItem,
   SummaryDetail,
+  UpdateScheduleParams,
 } from "@/features/summary/types/summary.types";
 
 /**
@@ -69,4 +72,40 @@ export async function regenerateSummary(taskId: number): Promise<{ task_id: numb
 
 export async function cancelSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
+}
+
+// ─── Schedule CRUD(Wave 3b) ─────────────────────────────
+
+export async function listSchedules(): Promise<ScheduleItem[]> {
+  const data = await summaryApi<ScheduleItem[] | null>("/summary-schedules");
+  return data ?? [];
+}
+
+export async function getSchedule(scheduleId: number): Promise<ScheduleItem> {
+  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`);
+}
+
+export async function createSchedule(params: CreateScheduleParams): Promise<ScheduleItem> {
+  return summaryApi<ScheduleItem>("/summary-schedules", { method: "POST", body: params });
+}
+
+export async function updateSchedule(
+  scheduleId: number,
+  params: UpdateScheduleParams,
+): Promise<ScheduleItem> {
+  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`, {
+    method: "PUT",
+    body: params,
+  });
+}
+
+export async function deleteSchedule(scheduleId: number): Promise<void> {
+  await summaryApi(`/summary-schedules/${scheduleId}`, { method: "DELETE" });
+}
+
+export async function toggleSchedule(scheduleId: number, isActive: boolean): Promise<ScheduleItem> {
+  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}/toggle`, {
+    method: "PUT",
+    body: { is_active: isActive },
+  });
 }

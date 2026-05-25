@@ -148,3 +148,46 @@ export interface ListSummariesResponse {
   page: number;
   page_size: number;
 }
+
+// ─── Schedule(Wave 3b 定时任务) ───────────────────────
+
+export type TimeRangeTypeValue = 1 | 2 | 3 | 4;
+
+export const TimeRangeTypeLabel: Record<TimeRangeTypeValue, string> = {
+  1: "最近 24 小时",
+  2: "最近 7 天",
+  3: "最近 30 天",
+  4: "自上次总结以来",
+};
+
+export interface ScheduleItem {
+  schedule_id: number;
+  title: string;
+  summary_mode: SummaryModeType;
+  cron_expr: string;
+  time_range_type: TimeRangeTypeValue;
+  sources: SourceItem[];
+  participants: { user_id: string }[];
+  is_active: boolean;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateScheduleParams {
+  title: string;
+  summary_mode: SummaryModeType;
+  cron_expr: string;
+  time_range_type: TimeRangeTypeValue;
+  sources: SourceItem[];
+  participants?: { user_id: string }[];
+}
+
+export interface UpdateScheduleParams {
+  title?: string;
+  summary_mode?: SummaryModeType;
+  cron_expr?: string;
+  time_range_type?: TimeRangeTypeValue;
+  sources?: SourceItem[];
+  participants?: { user_id: string }[];
+}

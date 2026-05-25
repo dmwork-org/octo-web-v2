@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getSummaryDetail, listSummaries } from "@/features/summary/api/summary.api";
+import { getSummaryDetail, listSchedules, listSummaries } from "@/features/summary/api/summary.api";
 import {
   TaskStatus,
   type ListSummariesParams,
@@ -57,4 +57,18 @@ export const summaryDetailQueryOptions = (taskId: number | null) =>
       if (!data) return false;
       return shouldPoll(data.status) ? POLL_INTERVAL : false;
     },
+  });
+
+/**
+ * Schedule 列表 query(Wave 3b)。
+ * 后端 GET /summary-schedules 不分页,直接拉全。
+ */
+
+export const schedulesQueryKey = ["summary", "schedules"] as const;
+
+export const schedulesQueryOptions = () =>
+  queryOptions({
+    queryKey: schedulesQueryKey,
+    queryFn: () => listSchedules(),
+    staleTime: 30 * 1000,
   });

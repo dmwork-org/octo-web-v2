@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Search, X } from "lucide-react";
@@ -24,12 +24,17 @@ type SearchTab = "contacts" | "groups" | "files";
 
 const FILE_CONTENT_TYPE = 4; // MessageContentType.file
 
-/** input → keyword 300ms debounce(命名 hook,符合 no-useeffect-in-component)。 */
-function useDebouncedKeyword(input: string, setKeyword: (k: string) => void) {
+/**
+ * input → keyword 300ms debounce(命名 hook,符合 no-useeffect-in-component)。
+ * 中文 composition 期间不同步 keyword(避免拼音串触发搜索),等 compositionEnd 后
+ * 下一次 input 变化触发(此时 input 已是最终汉字)。
+ */
+function useDebouncedKeyword(input: string, composing: boolean, setKeyword: (k: string) => void) {
   useEffect(() => {
+    if (composing) return;
     const t = setTimeout(() => setKeyword(input), 300);
     return () => clearTimeout(t);
-  }, [input, setKeyword]);
+  }, [input, composing, setKeyword]);
 }
 
 /** open 翻转时 reset 内部 state(命名 hook 包 useEffect)。 */
@@ -57,7 +62,8 @@ function useResetOnOpen(
  * - 联系人 / 群组 tab:展示 friends / groups,点击跳到对应 chat
  * - 文件 tab:content_type=file 过滤,展示 messages,点击跳到 channel
  *
- * 输入 debounce 300ms;中文输入法 composition 期间不触发搜索。
+ * 输入 debounce 300ms;**composing 期间 input 受控状态正常更新(显示拼音),
+ * 但 keyword 不同步**,避免拼音串触发服务端搜索。
  *
  * 点击 row:chatSelectedActions.select + onClose(简版,不做消息精确定位)。
  */
@@ -65,11 +71,11 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
   const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
   const [tab, setTab] = useState<SearchTab>("contacts");
-  const composingRef = useRef(false);
+  const [composing, setComposing] = useState(false);
 
   const inChannel = !!channel;
 
-  useDebouncedKeyword(input, setKeyword);
+  useDebouncedKeyword(input, composing, setKeyword);
   useResetOnOpen(open, inChannel, setInput, setKeyword, setTab);
 
   const contentType = tab === "files" ? [FILE_CONTENT_TYPE] : ([] as number[]);
@@ -124,15 +130,10 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
             <input
               autoFocus
               value={input}
-              onChange={(e) => {
-                if (composingRef.current) return;
-                setInput(e.target.value);
-              }}
-              onCompositionStart={() => {
-                composingRef.current = true;
-              }}
+              onChange={(e) => setInput(e.target.value)}
+              onCompositionStart={() => setComposing(true)}
               onCompositionEnd={(e) => {
-                composingRef.current = false;
+                setComposing(false);
                 setInput((e.target as HTMLInputElement).value);
               }}
               placeholder="搜索联系人 / 群 / 消息"

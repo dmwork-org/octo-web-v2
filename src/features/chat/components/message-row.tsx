@@ -9,7 +9,7 @@ import WKSDK, {
 import { useStore } from "@tanstack/react-store";
 import { useState, type MouseEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Copy, Forward, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, CornerUpLeft, Forward, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
@@ -17,6 +17,7 @@ import { MessageStatusBadge } from "@/features/chat/components/message-status-ba
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
+import { chatReplyActions } from "@/features/chat/stores/chat-reply";
 import {
   deleteMessages as deleteMessagesApi,
   revokeMessage,
@@ -103,14 +104,15 @@ function canForward(message: Message): boolean {
  *
  * 连续消息(continueWithPrev):头像/header 折叠,只渲染 body,hover 显示 timestamp。
  *
- * 右键 → ContextMenu(F-4 + F-5a 集合):
+ * 右键 → ContextMenu(F-4 + F-5 集合):
  *   - 复制(文本/digest)
  *   - 复制图片(image only)
  *   - 转发(canForward 通过,弹 ForwardModal)
+ *   - 回复(chatReplyActions.set → Composer 顶部 quoted bar)
  *   - 撤回(canRevoke 通过时显示)
  *   - 删除(总是显示,ConfirmModal 二次确认)
  *
- * 回复 / 多选(F-5b/c)+ 分享名片 / 翻译 / 标记 / 创建子区(F-6)留后续。
+ * 多选(F-5c)+ 分享名片 / 翻译 / 标记 / 创建子区(F-6)留后续。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   const qc = useQueryClient();
@@ -177,6 +179,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
   const revokeAllowed = me ? canRevoke(message, me) : false;
   const forwardAllowed = canForward(message);
+  const replyAllowed = canForward(message); // 系统/命令同样不能回复
 
   const items: ContextMenuItem[] = [];
   if (extractText(message)) {
@@ -201,6 +204,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           .then(() => toast.success("已复制图片"))
           .catch((err: Error) => toast.error(err.message || "复制失败"));
       },
+    });
+  }
+  if (replyAllowed) {
+    items.push({
+      label: "回复",
+      icon: <CornerUpLeft size={13} />,
+      onClick: () => chatReplyActions.set(message),
     });
   }
   if (forwardAllowed) {

@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import WKSDK, { type Channel, MessageImage, MessageText, Reply } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson, MessageImage, MessageText, Reply } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { Image as ImageIcon, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
@@ -35,10 +35,8 @@ function extOf(name: string): string {
 
 /** 取发送者展示名(channelInfo.title fallback fromUID)。 */
 function fromName(uid: string): string {
-  const info = WKSDK.shared().channelManager.getChannelInfo({
-    channelID: uid,
-    channelType: 1,
-  } as Channel);
+  // 必须传 SDK Channel 实例,channelManager 内部调用 channel.getChannelKey()
+  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
   return info?.title ?? uid;
 }
 

@@ -48,6 +48,33 @@ export interface Participant {
   confirmed_at?: string | null;
 }
 
+// ParticipantStatus 与旧版对齐:0 待确认 / 1 已确认 / 2 已拒绝
+export const ParticipantStatus = {
+  PENDING: 0,
+  CONFIRMED: 1,
+  DECLINED: 2,
+} as const;
+
+/** 个人模式成员状态(旧 MemberStatus,Wave 3c)。 */
+export interface MemberStatus {
+  user_id: string;
+  user_name: string;
+  status: string;
+  submitted_at: string | null;
+  content?: string;
+  citations?: CitationItem[];
+}
+
+/** 个人模式当前用户视角的总结结果(Wave 3c)。 */
+export interface PersonalResult {
+  worker_status: 0 | 1 | 2 | 3;
+  content: string;
+  citations?: CitationItem[];
+  submitted_at: string | null;
+  generated_at: string | null;
+  msg_count: number;
+}
+
 export interface SummaryResult {
   content: string;
   total_msg_count: number;

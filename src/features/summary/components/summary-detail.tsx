@@ -14,7 +14,8 @@ import {
 import { SummaryStatusBadge } from "@/features/summary/components/summary-status-badge";
 import { SummaryContent } from "@/features/summary/components/summary-content";
 import { CitationText } from "@/features/summary/components/citation-text";
-import { TaskStatus } from "@/features/summary/types/summary.types";
+import { PersonalSection } from "@/features/summary/components/personal-section";
+import { SummaryMode, TaskStatus } from "@/features/summary/types/summary.types";
 
 interface SummaryDetailProps {
   taskId: number | null;
@@ -33,6 +34,8 @@ function formatTime(iso: string): string {
  * - 状态轮询由 summaryDetailQueryOptions 内部 refetchInterval 处理
  *
  * Wave 3a:result.citations 存在时切到 CitationText(支持 [N] 引用 popover + 跳转原文)。
+ * Wave 3c:summary_mode === BY_PERSON 时主体替换为 PersonalSection,展示我的部分 +
+ *   参与者状态 + ConfirmStep(被邀请且未确认时)。
  */
 export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const qc = useQueryClient();
@@ -105,6 +108,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const canCancel = isProcessing;
   const citations = data.result?.citations;
   const hasCitations = !!citations && citations.length > 0;
+  const isPersonalMode = data.summary_mode === SummaryMode.BY_PERSON;
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden">
@@ -112,6 +116,11 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         <div className="flex min-w-0 items-center gap-3">
           <span className="font-mono text-xs text-text-tertiary">{data.task_no}</span>
           <SummaryStatusBadge status={data.status} size="md" />
+          {isPersonalMode ? (
+            <span className="rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+              按人
+            </span>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {canRegen ? (
@@ -179,7 +188,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
 
         <div className="border-t border-border-subtle pt-4">
           <h2 className="mb-2 text-sm font-semibold text-text-secondary">
-            总结内容
+            {isPersonalMode ? "汇总结果" : "总结内容"}
             {hasCitations ? (
               <span className="ml-2 text-xs font-normal text-text-tertiary">
                 ({citations!.length} 条引用)
@@ -187,7 +196,9 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
             ) : null}
           </h2>
           {isProcessing ? (
-            <p className="text-sm italic text-text-tertiary">总结生成中,自动刷新…</p>
+            <p className="text-sm italic text-text-tertiary">
+              {isPersonalMode ? "等待参与者提交后汇总…" : "总结生成中,自动刷新…"}
+            </p>
           ) : isFailed ? (
             <p className="text-sm text-error">{data.error_message ?? "生成失败"}</p>
           ) : data.result ? (
@@ -196,10 +207,12 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
             ) : (
               <SummaryContent content={data.result.content} />
             )
-          ) : (
+          ) : !isPersonalMode ? (
             <p className="text-sm italic text-text-tertiary">暂无内容</p>
-          )}
+          ) : null}
         </div>
+
+        {isPersonalMode ? <PersonalSection detail={data} /> : null}
       </div>
     </section>
   );

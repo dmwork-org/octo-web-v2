@@ -6,7 +6,10 @@ import type {
   CreateSummaryParams,
   ListSummariesParams,
   ListSummariesResponse,
+  MemberStatus,
+  PersonalResult,
   ScheduleItem,
+  SourceItem,
   SummaryDetail,
   UpdateScheduleParams,
 } from "@/features/summary/types/summary.types";
@@ -108,4 +111,39 @@ export async function toggleSchedule(scheduleId: number, isActive: boolean): Pro
     method: "PUT",
     body: { is_active: isActive },
   });
+}
+
+// ─── BY_PERSON / Personal Mode(Wave 3c) ────────────────
+
+/** 个人模式被邀请用户确认参与 + 选定参与来源 */
+export async function confirmParticipation(taskId: number, sources: SourceItem[]): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/confirm`, {
+    method: "POST",
+    body: {
+      sources: sources.map((s) => ({ source_type: s.source_type, source_id: s.source_id })),
+    },
+  });
+}
+
+/** 个人模式拒绝参与 */
+export async function declineParticipation(taskId: number): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/decline`, { method: "POST" });
+}
+
+/** 当前用户在个人模式下的总结结果 */
+export async function getPersonalResult(taskId: number): Promise<PersonalResult> {
+  return summaryApi<PersonalResult>(`/summaries/${taskId}/personal`);
+}
+
+/** 提交个人总结(从 pending 转 submitted) */
+export async function submitPersonalResult(taskId: number): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/submit`, { method: "POST" });
+}
+
+/** 所有成员状态(创建人视角看每个 participant 的提交进度) */
+export async function getMembers(taskId: number): Promise<MemberStatus[]> {
+  const data = await summaryApi<{ members?: MemberStatus[] } | null>(
+    `/summaries/${taskId}/members`,
+  );
+  return data?.members ?? [];
 }

@@ -1,7 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import {
   matterDetailQueryOptions,
   matterDetailQueryKey,
@@ -9,6 +12,7 @@ import {
 import { deleteMatter, transitionMatter } from "@/features/matter/api/matter.api";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
+import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 
 interface MatterDetailProps {
   matterId: string | null;
@@ -27,15 +31,19 @@ function formatTime(iso: string): string {
 }
 
 /**
- * Matter 右列详情面板(Wave 1 简版):
+ * Matter 右列详情面板:
  * - 顶部:M-{seq_no} + 状态 badge + 三个状态切换按钮 + 删除
- * - 主体:title (大字) + description + 元数据(deadline / creator_id / created_at)
+ * - 主体:title + description + 元数据 + **受理人头像列表(可编辑,K-1)**
  *
- * 旧 DetailPanel 含:Assignee 编辑器、关联会话、时间线、Activities、评论附件 — 全 Wave 2+。
+ * Wave 2 K-1 集成:受理人 row 显示头像列表 + 编辑笔形按钮 → AssigneePicker 弹窗
+ * (空间成员 multi-select,提交 diff 后 batch addAssignee/removeAssignee)。
+ *
+ * 旧 DetailPanel 后续 wave 加:关联会话(K-2)、时间线(K-3)、Activities、评论附件。
  */
 export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery(matterDetailQueryOptions(matterId));
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const transitionMu = useMutation({
     mutationFn: (status: MatterStatus) => transitionMatter(matterId!, status),
@@ -55,6 +63,8 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
   });
+
+  const assigneeUids = useMemo(() => (data?.assignees ?? []).map((a) => a.user_id), [data]);
 
   if (!matterId) {
     return (
@@ -131,9 +141,33 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
           <dd className="text-text-primary">{data.source_name ?? "—"}</dd>
           <dt className="text-text-tertiary">创建人</dt>
           <dd className="font-mono text-text-primary">{data.creator_id}</dd>
-          <dt className="text-text-tertiary">负责人</dt>
-          <dd className="text-text-primary">
-            {data.assignees.length > 0 ? data.assignees.map((a) => a.user_id).join(", ") : "—"}
+          <dt className="self-start pt-1 text-text-tertiary">负责人</dt>
+          <dd className="flex flex-wrap items-center gap-1.5">
+            {assigneeUids.length > 0 ? (
+              assigneeUids.map((uid) => (
+                <span
+                  key={uid}
+                  className="inline-flex items-center gap-1 rounded-full bg-bg-elevated py-0.5 pr-2 pl-0.5 text-text-primary"
+                >
+                  <ChannelAvatar
+                    channel={new Channel(uid, ChannelTypePerson)}
+                    size={20}
+                    title={uid}
+                  />
+                  <span className="truncate text-[12px]">{uid}</span>
+                </span>
+              ))
+            ) : (
+              <span className="text-text-tertiary">—</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              aria-label="编辑受理人"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <Pencil size={12} />
+            </button>
           </dd>
           <dt className="text-text-tertiary">创建时间</dt>
           <dd className="text-text-primary">{formatTime(data.created_at)}</dd>
@@ -141,6 +175,13 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
           <dd className="text-text-primary">{formatTime(data.updated_at)}</dd>
         </dl>
       </div>
+
+      <AssigneePicker
+        open={pickerOpen}
+        matterId={matterId}
+        currentAssigneeUids={assigneeUids}
+        onClose={() => setPickerOpen(false)}
+      />
     </section>
   );
 }

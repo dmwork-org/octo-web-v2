@@ -70,3 +70,20 @@ export async function transitionMatter(
 export async function deleteMatter(matterId: string): Promise<void> {
   await matterApi(`/matters/${matterId}`, { method: "DELETE" });
 }
+
+// ─── Assignees ────────────────────────────────────────────
+
+/** 添加受理人:POST /matters/{id}/assignees { user_id } */
+export async function addAssignee(matterId: string, userId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/assignees`, {
+    method: "POST",
+    body: { user_id: userId },
+  });
+}
+
+/** 移除受理人:DELETE /matters/{id}/assignees/{user_id} */
+export async function removeAssignee(matterId: string, userId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/assignees/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+  });
+}

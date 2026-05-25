@@ -13,6 +13,7 @@ import {
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { bucketLetter, sortLetters } from "@/features/base/lib/pinyin-bucket";
+import { VirtualizedLetterList } from "@/components/data/virtualized-letter-list";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { GroupCardModal } from "@/features/base/components/modals/group-card-modal";
@@ -29,6 +30,9 @@ import {
 
 type FilterMode = "all" | "bots" | "humans";
 type SectionId = "groups" | "myBots" | "allContacts";
+
+/** 联系人列表超过这个阈值,allContacts 段切到虚拟列表(对齐旧 dmworkcontacts 100)。 */
+const VIRTUAL_THRESHOLD = 100;
 
 /**
  * 联合 contact 项(人/AI 在主列表里同形渲染),
@@ -249,6 +253,10 @@ function EmptyHint({ icon, text }: { icon: React.ReactNode; text: string }) {
  *       - 群聊                         → GroupCardModal
  *       - 已添加 AI                    → BotDetailModal
  *       - 全部联系人(filter / 字母索引)→ 人 → UserInfoModal / AI → BotDetailModal
+ *
+ * **全部联系人段虚拟化**(对齐旧 VirtualContactList):items > 100 启用
+ * VirtualizedLetterList(useVirtualizer 按估高 44px 行 + 24px header 渲染);
+ * <= 100 用普通 map 避免无谓开销 + 保 sticky letter header 视觉。
  */
 export function ContactsDirectory() {
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -320,6 +328,7 @@ export function ContactsDirectory() {
   }
 
   const toggle = (id: SectionId) => setExpanded((prev) => (prev === id ? null : id));
+  const useVirtual = contacts.length > VIRTUAL_THRESHOLD;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -421,7 +430,9 @@ export function ContactsDirectory() {
               ) : null}
             </section>
 
-            <section className="flex flex-col">
+            <section
+              className={`flex flex-col ${useVirtual && expanded === "allContacts" ? "min-h-0 flex-1" : ""}`}
+            >
               <AccordionHeader
                 icon={<Users size={16} />}
                 label="全部联系人"
@@ -434,6 +445,18 @@ export function ContactsDirectory() {
                   <FilterChips value={filter} onChange={setFilter} counts={filterCounts} />
                   {contacts.length === 0 ? (
                     <EmptyHint icon={<Users size={24} />} text="当前 Space 还没有成员" />
+                  ) : useVirtual ? (
+                    <div className="flex min-h-0 flex-1">
+                      <VirtualizedLetterList
+                        groups={grouped}
+                        renderRow={(item) => (
+                          <ContactRow item={item} onClick={() => handleContactClick(item)} />
+                        )}
+                        rowHeight={44}
+                        headerHeight={24}
+                        className="h-full w-full"
+                      />
+                    </div>
                   ) : (
                     <div className="flex flex-col pb-2">
                       {grouped.map(({ letter, items }) => (

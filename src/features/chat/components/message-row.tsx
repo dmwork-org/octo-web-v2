@@ -9,7 +9,16 @@ import WKSDK, {
 import { useStore } from "@tanstack/react-store";
 import { useState, type MouseEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Copy, CornerUpLeft, Forward, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
+import {
+  Check,
+  CheckSquare,
+  Copy,
+  CornerUpLeft,
+  Forward,
+  Image as ImageIcon,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
@@ -18,6 +27,7 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { chatReplyActions } from "@/features/chat/stores/chat-reply";
+import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import {
   deleteMessages as deleteMessagesApi,
   revokeMessage,
@@ -33,7 +43,6 @@ interface MessageRowProps {
   bare?: boolean;
 }
 
-/** 取发送者首字母(P3-C18 接 group subscribers 拿真名 + ChannelInfo 拿头像 url)。 */
 function senderInitial(message: Message): string {
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(message.channel);
   const name = channelInfo?.title || message.fromUID;
@@ -41,7 +50,6 @@ function senderInitial(message: Message): string {
 }
 
 function senderDisplay(message: Message): string {
-  // P3 接 group subscribers 拿群昵称;暂用 fromUID
   return message.fromUID;
 }
 
@@ -51,7 +59,6 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** 文本消息提取纯文本;非文本消息 fallback 到 conversationDigest。 */
 function extractText(message: Message): string {
   if (message.contentType === MessageContentType.text) {
     return (message.content as MessageText).text ?? "";
@@ -61,20 +68,10 @@ function extractText(message: Message): string {
   return digest ?? "";
 }
 
-/** 撤回时间窗(秒),对齐旧 WKApp.remoteConfig.revokeSecond 默认值。 */
 const REVOKE_SECONDS = 120;
 
-/**
- * 撤回权限判定(对齐旧 module.tsx::registerMessageContextMenus contextmenus.revoke):
- *
- * 1) Bot 创建者豁免:from 是 robot 且 bot_creator_uid === myUid → 可撤
- * 2) 普通用户:必须 message.send(自己发的)且在 revokeSecond 内
- *
- * 群管理员豁免(GroupRole.manager/owner)P4 等接群成员管理后再加。
- */
 function canRevoke(message: Message, myUid: string): boolean {
   if (!message.messageID) return false;
-
   const fromChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
     new Channel(message.fromUID, ChannelTypePerson),
   );
@@ -84,15 +81,13 @@ function canRevoke(message: Message, myUid: string): boolean {
   if (fromOrgData?.robot === 1 && fromOrgData.bot_creator_uid === myUid) {
     return true;
   }
-
   if (!message.send) return false;
   const elapsed = new Date().getTime() / 1000 - message.timestamp;
   return elapsed <= REVOKE_SECONDS;
 }
 
-/** 转发是否支持(对齐旧 notSupportForward,简版:系统消息 / 命令消息 不支持) */
 function canForward(message: Message): boolean {
-  if (message.contentType >= 1000 && message.contentType < 2000) return false; // 系统
+  if (message.contentType >= 1000 && message.contentType < 2000) return false;
   if (message.contentType === MessageContentType.cmd) return false;
   return true;
 }
@@ -102,22 +97,20 @@ function canForward(message: Message): boolean {
  *   [头像 36×36] [sender + timestamp]
  *               [body]                [self 状态徽标]
  *
- * 连续消息(continueWithPrev):头像/header 折叠,只渲染 body,hover 显示 timestamp。
+ * 多选模式(chatSelectionStore.active)行为:
+ * - 左侧渲染 checkbox(替代头像 hover 区域)
+ * - 整行 click 切换 selection,不触发 ContextMenu
  *
- * 右键 → ContextMenu(F-4 + F-5 集合):
- *   - 复制(文本/digest)
- *   - 复制图片(image only)
- *   - 转发(canForward 通过,弹 ForwardModal)
- *   - 回复(chatReplyActions.set → Composer 顶部 quoted bar)
- *   - 撤回(canRevoke 通过时显示)
- *   - 删除(总是显示,ConfirmModal 二次确认)
- *
- * 多选(F-5c)+ 分享名片 / 翻译 / 标记 / 创建子区(F-6)留后续。
+ * 右键 → ContextMenu(F-4 + F-5):
+ *   - 复制 / 复制图片 / 回复 / 转发 / 多选 / 撤回 / 删除
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
+  const selectionActive = useStore(chatSelectionStore, (s) => s.active);
+  const selectionIds = useStore(chatSelectionStore, (s) => s.ids);
+  const isSelected = selectionIds.has(message.clientMsgNo);
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number }>({
     open: false,
     x: 0,
@@ -127,8 +120,14 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const [forwardOpen, setForwardOpen] = useState(false);
 
   const onContextMenu = (e: MouseEvent) => {
+    if (selectionActive) return; // 多选模式下不弹右键菜单
     e.preventDefault();
     setMenu({ open: true, x: e.clientX, y: e.clientY });
+  };
+
+  const onRowClick = () => {
+    if (!selectionActive) return;
+    chatSelectionActions.toggle(message.clientMsgNo);
   };
 
   const removeFromCache = () => {
@@ -151,9 +150,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         messageId: message.messageID,
         clientMsgNo: message.clientMsgNo,
       }),
-    onSuccess: () => {
-      toast.success("已撤回");
-    },
+    onSuccess: () => toast.success("已撤回"),
     onError: (err) => toast.error(err instanceof Error ? err.message : "撤回失败"),
   });
 
@@ -179,7 +176,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
   const revokeAllowed = me ? canRevoke(message, me) : false;
   const forwardAllowed = canForward(message);
-  const replyAllowed = canForward(message); // 系统/命令同样不能回复
+  const replyAllowed = canForward(message);
 
   const items: ContextMenuItem[] = [];
   if (extractText(message)) {
@@ -220,6 +217,14 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       onClick: () => setForwardOpen(true),
     });
   }
+  items.push({
+    label: "多选",
+    icon: <CheckSquare size={13} />,
+    onClick: () => {
+      chatSelectionActions.enter();
+      chatSelectionActions.toggle(message.clientMsgNo);
+    },
+  });
   if (revokeAllowed) {
     items.push({
       label: "撤回",
@@ -242,8 +247,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     );
   }
 
-  const wrapperClass =
-    "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40";
+  const wrapperBase =
+    "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
+  const wrapperHover = selectionActive ? "" : "hover:bg-brand-tint/40";
+  const wrapperSelected = selectionActive && isSelected ? "bg-brand-tint/60" : "";
+  const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${
+    selectionActive ? "cursor-pointer" : ""
+  }`;
 
   const ctxMenu = (
     <ContextMenu
@@ -271,9 +281,23 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     <ForwardModal open={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
   );
 
+  const checkbox = selectionActive ? (
+    <div className="flex w-6 shrink-0 items-center justify-center self-stretch">
+      <span
+        className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
+          isSelected ? "border-brand bg-brand text-white" : "border-border-default bg-bg-base"
+        }`}
+        aria-hidden
+      >
+        {isSelected ? <Check size={12} strokeWidth={3} /> : null}
+      </span>
+    </div>
+  ) : null;
+
   if (continueWithPrev) {
     return (
-      <div className={wrapperClass} onContextMenu={onContextMenu}>
+      <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
+        {checkbox}
         <div className="w-9 shrink-0 self-stretch text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
         </div>
@@ -293,7 +317,8 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   }
 
   return (
-    <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu}>
+    <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
+      {checkbox}
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-sm font-medium text-text-secondary"
         aria-hidden

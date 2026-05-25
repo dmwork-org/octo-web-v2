@@ -9,6 +9,7 @@ import { persistSpace, spaceStore } from "./features/base/stores/space";
 import { persistEndpoint, endpointStore } from "./features/base/stores/endpoint";
 import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-selected";
 import { wireChatReplyResetOnChannelChange } from "./features/chat/stores/chat-reply";
+import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
 import "./index.css";
 
 persistAuth();
@@ -16,6 +17,7 @@ persistSpace();
 persistEndpoint();
 wireChatSelectedResetOnSpaceChange();
 wireChatReplyResetOnChannelChange();
+wireChatSelectionResetOnChannelChange();
 
 spaceStore.subscribe(() => {
   queryClient.clear();

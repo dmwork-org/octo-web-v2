@@ -31,6 +31,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "ofetch": "^1.5.1",
+    "pinyin-pro": "^3.28.1",
     "radix-ui": "^1.4.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

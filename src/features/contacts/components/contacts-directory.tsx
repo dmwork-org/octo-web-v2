@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
+import { bucketLetter, sortLetters } from "@/features/base/lib/pinyin-bucket";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { GroupCardModal } from "@/features/base/components/modals/group-card-modal";
@@ -42,20 +43,6 @@ interface ContactItem {
 }
 
 const ROLE_LABELS: Record<number, string> = { 1: "创建者", 2: "管理员" };
-
-/** 中文/数字一律归 #;英文按首字母分。简化版,P3 后续接 pinyin 库。 */
-function bucketLetter(name: string): string {
-  if (!name) return "#";
-  const ch = name.charAt(0).toUpperCase();
-  if (/^[A-Z]$/.test(ch)) return ch;
-  return "#";
-}
-
-function sortLetters(a: string, b: string): number {
-  if (a === "#") return 1;
-  if (b === "#") return -1;
-  return a.localeCompare(b);
-}
 
 /** 组合 spaceMembers + spaceBots(去自己 / 按 filter 派生)。 */
 function buildContacts(

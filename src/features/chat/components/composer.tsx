@@ -4,14 +4,17 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
   Mention,
+  MessageContentType,
   MessageImage,
   MessageText,
   Reply,
+  type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { Image as ImageIcon, Paperclip, Send, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Mic, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { FileContent } from "@/features/base/im/file-content";
 import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
 import { MentionPopover, type MentionCandidate } from "@/features/chat/components/mention-popover";
@@ -46,6 +49,24 @@ function extOf(name: string): string {
 function fromName(uid: string): string {
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
   return info?.title ?? uid;
+}
+
+/**
+ * 引用消息类型缩略 — 返回 { icon, hint }。文本返回 null icon,
+ * 由调用方直接展示 digest。其它类型给个小图标 + 类型文案。
+ *
+ * FileContent.contentType = 6(项目内约定),Voice = 3(SDK 未导出常量)。
+ */
+function quotedTypeMeta(content: MessageContent | undefined): {
+  Icon: typeof ImageIcon | null;
+  hint: string;
+} {
+  const ct = (content as { contentType?: number } | undefined)?.contentType;
+  if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: "[图片]" };
+  if (ct === MessageContentType.text) return { Icon: null, hint: "" };
+  if (ct === 6) return { Icon: FileText, hint: "[文件]" };
+  if (ct === 3) return { Icon: Mic, hint: "[语音]" };
+  return { Icon: null, hint: "" };
 }
 
 interface MentionState {
@@ -108,19 +129,16 @@ function getCaretViewportPos(
 /**
  * Composer(对应旧 .wk-messageinput-card):
  * - 外 padding 0 16px 8px,内 card rounded-xl border + bg-surface + focus-within:border-brand
- * - **顶部 quoted bar**(reply mode):"回复 {fromName}: {digest}" + ✕ 关闭
+ * - **顶部 quoted bar**(reply mode):头像 + 发送者名 + 类型 icon + 两行 clamp digest + ✕
  * - textarea(可滚,无背景),底部 actionbox(图片/文件 + 发送)
  * - Enter 发送 / Shift+Enter 换行
  * - @ 触发 MentionPopover(仅群聊),↑↓ 选,Enter 确认插入 @name
  *
- * @mention 流程:
- * 1. 输入 `@`(前一字符是空白/标点)→ detectMentionTrigger 标记当前 trigger
- * 2. MentionPopover 显示候选(空 keyword 显示全列表;有 keyword 按 lowercase 过滤)
- * 3. ↑↓ 改 activeIndex;Enter / Tab / 鼠标 click → 插入 `@name `,uid 记入 mentionUids
- *    (`@all` 则置 mentionAll=true)
- * 4. 发送时把 mention 信息 attach 到 MessageText.mention(SDK Mention { all, uids })
+ * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
+ *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
  *
- * 仅在 ChannelTypeGroup 启用 @ trigger(私聊无群成员上下文)。
+ * @mention 流程:输入 `@` 触发 → MentionPopover 候选 → Enter 选中插入 `@name ` →
+ *   发送时 attach SDK Mention { all, uids } 到 MessageText.mention(仅群聊)
  */
 export function Composer({ channel }: ComposerProps) {
   const [text, setText] = useState("");
@@ -307,6 +325,7 @@ export function Composer({ channel }: ComposerProps) {
       "")
     : "";
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
+  const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
   const onCandidatesChange = useMemo(() => {
     return (list: MentionCandidate[]) => {
@@ -321,15 +340,30 @@ export function Composer({ channel }: ComposerProps) {
         className="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface p-3 transition-colors focus-within:border-brand"
       >
         {replyingTo ? (
-          <div className="flex items-center gap-2 rounded-md bg-bg-elevated px-2 py-1.5 text-[12px]">
-            <span className="shrink-0 text-text-tertiary">回复</span>
-            <span className="shrink-0 font-semibold text-text-primary">{replySender}:</span>
-            <span className="min-w-0 flex-1 truncate text-text-secondary">{replyDigest}</span>
+          <div className="flex items-start gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-2 text-[12px]">
+            <ChannelAvatar
+              channel={new Channel(replyingTo.fromUID, ChannelTypePerson)}
+              size={28}
+              title={replySender}
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 text-text-tertiary">回复</span>
+                <span className="truncate font-semibold text-text-primary">{replySender}</span>
+              </div>
+              <div className="flex items-center gap-1 text-text-secondary">
+                {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
+                <span className="line-clamp-2 break-words leading-snug">
+                  {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
+                  {replyDigest}
+                </span>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => chatReplyActions.clear()}
               aria-label="取消回复"
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
             >
               <X size={12} />
             </button>
@@ -367,7 +401,6 @@ export function Composer({ channel }: ComposerProps) {
             }
           }}
           onBlur={() => {
-            // 短延迟,让 popover onMouseDown 先于 blur 触发
             setTimeout(() => setTrigger(null), 100);
           }}
           onKeyDown={onKeyDown}

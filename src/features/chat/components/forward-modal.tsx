@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
+  MessageText,
   type Conversation,
   type Message,
 } from "wukongimjssdk";
@@ -33,19 +34,16 @@ const TYPE_LABEL: Record<number, string> = {
  * 转发弹窗(对应旧 dmworkbase Components/ForwardModal 精简版):
  *
  * - 多选当前 Space 的会话(从 conversationsQueryOptions 拿,包含群聊 / DM / 子区)
- * - 提交 → 遍历 selected → chatManager.send(message.content, target) batch
- * - SDK 自动触发 conv listener,目标会话 lastMessage 更新
+ * - 底部 textarea 输入"留言"(可选)
+ * - 提交流程:对每个 target 先 send(message.content),如有留言再 send(MessageText)
  *
- * 旧版完整功能(留 P3+ wave):
- * - 联系人列表 friend tab
- * - 群聊补全(getMyGroups 合并去重)
- * - 搜索 debounce + group search API
- * - 输入留言文本(发送时附加一条文本消息)
- * - 懒加载 channelInfo VisibilityTrigger
+ * 旧版完整功能(留 P3+ wave):联系人列表 friend tab、群聊补全合并、搜索 debounce、
+ * 懒加载 channelInfo VisibilityTrigger。
  */
 export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [leaveMessage, setLeaveMessage] = useState("");
 
   const { data: conversations } = useQuery({
     ...conversationsQueryOptions(spaceId),
@@ -67,13 +65,19 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
         .filter((c) => selectedIds.has(c.channel.channelID))
         .map((c) => c.channel);
       const chat = WKSDK.shared().chatManager;
+      const note = leaveMessage.trim();
       for (const target of targets) {
         await chat.send(message.content, target);
+        if (note) {
+          await chat.send(new MessageText(note), target);
+        }
       }
     },
     onSuccess: () => {
-      toast.success(`已转发到 ${selectedIds.size} 个会话`);
+      const noteSent = leaveMessage.trim().length > 0;
+      toast.success(`已转发到 ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
       setSelectedIds(new Set());
+      setLeaveMessage("");
       onClose();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "转发失败"),
@@ -150,6 +154,16 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
                 );
               })
             )}
+          </div>
+
+          <div className="shrink-0 border-t border-border-subtle px-5 py-3">
+            <textarea
+              value={leaveMessage}
+              onChange={(e) => setLeaveMessage(e.target.value.slice(0, 500))}
+              rows={2}
+              placeholder="留言(可选,会作为一条独立消息发送)"
+              className="w-full resize-none rounded-md border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+            />
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">

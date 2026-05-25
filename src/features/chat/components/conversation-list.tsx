@@ -1,11 +1,21 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, type MouseEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
-import { Pin, BellOff } from "lucide-react";
+import WKSDK, { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import { BellOff, BellRing, Eye, Pin, PinOff, Trash2, X } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
+import { toast } from "@/components/semi-bridge/toast";
+import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
+import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import {
+  clearChannelMessages,
+  clearConversationUnread,
+  deleteConversation,
+} from "@/features/base/api/endpoints/conversation.api";
+import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
+import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 
 export type ConvTab = "follow" | "recent";
 
@@ -45,23 +55,22 @@ function digestOf(c: Conversation): string {
 }
 
 /**
- * 单行会话(对应旧 .wk-conversationlist-item)。
- *
- * 视觉(P2-C1 + 置顶/免打扰指示):
+ * 单行会话(对应旧 .wk-conversationlist-item):
  * - 行 padding 7px 8px / rounded-sm / hover bg-bg-hover / selected bg-brand-tint
- * - 置顶行额外 bg-bg-elevated/30(微底色,旧项目同样区分)
- * - 头像 32×32:DM 圆形 / Group 圆角 6px;头像右上 unread badge / 静音点
- * - 名字行末尾:置顶 Pin icon(14px text-tertiary) + 免打扰 BellOff icon
- * - digest 单行截断 + 时间 right-align
+ * - 置顶行额外 bg-bg-elevated/30 / 头像 32×32 / 头像右上 unread badge
+ * - 名字行末尾:置顶 Pin icon + 免打扰 BellOff icon
+ * - 右键 onContextMenu → 父层 onContextMenu(打开 ContextMenu)
  */
 function ConversationRow({
   conversation,
   active,
   onClick,
+  onContextMenu,
 }: {
   conversation: Conversation;
   active: boolean;
   onClick: () => void;
+  onContextMenu: (e: MouseEvent) => void;
 }) {
   const title = conversation.channelInfo?.title ?? conversation.channel.channelID;
   const isPerson = conversation.channel.channelType === ChannelTypePerson;
@@ -74,6 +83,7 @@ function ConversationRow({
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
         active
           ? "bg-brand-tint"
@@ -134,20 +144,12 @@ function ConversationRow({
   );
 }
 
-/**
- * "最近"Tab:群聊超过 3 天无消息隐藏;DM / 子区 不过滤。
- * 对应旧 ChatConversationList::isVisibleInRecentTab(packages/dmworkbase/.../ChatConversationList/index.tsx)。
- */
 const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 function isVisibleInRecentTab(c: Conversation, now: number): boolean {
   if (c.channel.channelType !== ChannelTypeGroup) return true;
   return now - (c.timestamp || 0) * 1000 < RECENT_INACTIVE_THRESHOLD_MS;
 }
 
-/**
- * 排序:置顶(extra.top===1) 提到最上,其余按 timestamp 倒序。
- * 对应旧 ChatVM::sortConversations(packages/dmworkbase/src/Pages/Chat/vm.ts:387)。
- */
 const TOP_BOOST = 1_000_000_000_000;
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
@@ -157,29 +159,168 @@ function sortConversations(list: Conversation[]): Conversation[] {
   });
 }
 
+/**
+ * 会话列表(对应旧 ConversationList,**含 F-7 右键菜单**)。
+ *
+ * 右键菜单(对齐旧 ConversationList::menus):
+ *   - 标为已读(unread > 0 时)
+ *   - 置顶 / 取消置顶
+ *   - 开启 / 关闭免打扰
+ *   - 清空聊天记录(danger,Confirm)
+ *   - 关闭聊天窗口(从列表移除该会话,Confirm)
+ *
+ * 后端调用走 channel-setting / conversation 两个 endpoint;成功后由 SDK 推送
+ * channelInfo / conversation 变更触发 listener,useConversationsSync 自动写
+ * setQueryData 刷新列表。
+ */
 export function ConversationList({
   selectedChannelId,
   onSelect,
   filter = "recent",
 }: ConversationListProps) {
-  // spaceId 进 query key — Space 切换时 react-query 当新 query 自动 fetch,
-  // 同时 SDK conversationManager.sync 内部 syncConversationsCallback 用最新 spaceId
-  // 拉取 + 完整替换 conversations 数组(SDK sync 内部直接赋值,不 merge),
-  // 所以前端不再做二次过滤(对齐旧项目"后端按 space_id 过滤"的策略)。
+  const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   useConversationsSync();
   const { data, isLoading, error } = useQuery(conversationsQueryOptions(spaceId));
 
+  const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; conv?: Conversation }>({
+    open: false,
+    x: 0,
+    y: 0,
+  });
+  const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
+  const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
+
   const filtered = useMemo(() => {
     const all = data ?? [];
-    if (filter === "follow") {
-      // P3-C21 接 follow/分组系统前,先返回空 — 由调用方渲染 placeholder
-      return [];
-    }
-    // recent: 按时间倒序(置顶提到最上) + 3 天不活跃群聊过滤
+    if (filter === "follow") return [];
     const now = Date.now();
     return sortConversations(all.filter((c) => isVisibleInRecentTab(c, now)));
   }, [data, filter]);
+
+  // ─── Mutations ─────────────────────────────────────────
+
+  const refreshChannelInfo = (conv: Conversation) => {
+    void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
+  };
+
+  const topMu = useMutation({
+    mutationFn: (args: { conv: Conversation; top: boolean }) =>
+      setChannelTop(args.conv.channel, args.top),
+    onSuccess: (_void, args) => {
+      refreshChannelInfo(args.conv);
+      toast.success(args.top ? "已置顶" : "已取消置顶");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+  });
+
+  const muteMu = useMutation({
+    mutationFn: (args: { conv: Conversation; mute: boolean }) =>
+      setChannelMute(args.conv.channel, args.mute),
+    onSuccess: (_void, args) => {
+      refreshChannelInfo(args.conv);
+      toast.success(args.mute ? "已开启免打扰" : "已关闭免打扰");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+  });
+
+  const clearUnreadMu = useMutation({
+    mutationFn: (conv: Conversation) =>
+      clearConversationUnread({
+        channelId: conv.channel.channelID,
+        channelType: conv.channel.channelType,
+      }),
+    onSuccess: (_void, conv) => {
+      // 本地立即把 unread 置 0,SDK 推送会再次确认
+      conv.unread = 0;
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "标记已读失败"),
+  });
+
+  const clearMessagesMu = useMutation({
+    mutationFn: (conv: Conversation) =>
+      clearChannelMessages({
+        channelId: conv.channel.channelID,
+        channelType: conv.channel.channelType,
+        messageSeq: conv.lastMessage?.messageSeq ?? 0,
+      }),
+    onSuccess: (_void, conv) => {
+      // 清空本地 messages query cache
+      qc.setQueryData(["chat", "messages", conv.channel.channelType, conv.channel.channelID], {
+        pages: [[]],
+        pageParams: [0],
+      });
+      toast.success("已清空聊天记录");
+      setConfirmClear(null);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "清空失败"),
+  });
+
+  const closeChatMu = useMutation({
+    mutationFn: (conv: Conversation) =>
+      deleteConversation({
+        channelId: conv.channel.channelID,
+        channelType: conv.channel.channelType,
+      }),
+    onSuccess: (_void, conv) => {
+      // 本地从 SDK conversations 数组移除并刷 snapshot
+      WKSDK.shared().conversationManager.removeConversation(conv.channel);
+      const snapshot = [...WKSDK.shared().conversationManager.conversations];
+      qc.setQueryData(["chat", "conversations", spaceId ?? "_"], snapshot);
+      // 如果当前 selected 是这个会话,清空 selected
+      if (chatSelectedStore.state.channel?.channelID === conv.channel.channelID) {
+        chatSelectedActions.clear();
+      }
+      toast.success("已关闭聊天");
+      setConfirmClose(null);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "关闭失败"),
+  });
+
+  // ─── Right-click menu ──────────────────────────────────
+
+  const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
+    e.preventDefault();
+    setMenu({ open: true, x: e.clientX, y: e.clientY, conv });
+  };
+
+  const buildMenuItems = (conv: Conversation): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    const isMuted = !!conv.channelInfo?.mute;
+    const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
+
+    if (conv.unread > 0) {
+      items.push({
+        label: "标为已读",
+        icon: <Eye size={13} />,
+        onClick: () => clearUnreadMu.mutate(conv),
+      });
+    }
+    items.push({
+      label: isTop ? "取消置顶" : "置顶聊天",
+      icon: isTop ? <PinOff size={13} /> : <Pin size={13} />,
+      onClick: () => topMu.mutate({ conv, top: !isTop }),
+    });
+    items.push({
+      label: isMuted ? "关闭免打扰" : "开启免打扰",
+      icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
+      onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
+    });
+    items.push({ separator: true });
+    items.push({
+      label: "清空聊天记录",
+      icon: <Trash2 size={13} />,
+      danger: true,
+      onClick: () => setConfirmClear(conv),
+    });
+    items.push({
+      label: "关闭聊天窗口",
+      icon: <X size={13} />,
+      onClick: () => setConfirmClose(conv),
+    });
+    return items;
+  };
 
   if (isLoading) {
     return (
@@ -210,8 +351,38 @@ export function ConversationList({
           conversation={c}
           active={c.channel.channelID === selectedChannelId}
           onClick={() => onSelect?.(c)}
+          onContextMenu={onRowContextMenu(c)}
         />
       ))}
+
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        items={menu.conv ? buildMenuItems(menu.conv) : []}
+        onClose={() => setMenu((m) => ({ ...m, open: false }))}
+      />
+
+      <ConfirmModal
+        open={!!confirmClear}
+        title="确认清空"
+        content="确定要清空所有聊天记录吗?该操作不可撤销。"
+        okDanger
+        okText="清空"
+        okLoading={clearMessagesMu.isPending}
+        onOk={() => confirmClear && clearMessagesMu.mutate(confirmClear)}
+        onCancel={() => setConfirmClear(null)}
+      />
+
+      <ConfirmModal
+        open={!!confirmClose}
+        title="确认关闭"
+        content="确定要关闭此聊天窗口吗?"
+        okText="关闭"
+        okLoading={closeChatMu.isPending}
+        onOk={() => confirmClose && closeChatMu.mutate(confirmClose)}
+        onCancel={() => setConfirmClose(null)}
+      />
     </div>
   );
 }

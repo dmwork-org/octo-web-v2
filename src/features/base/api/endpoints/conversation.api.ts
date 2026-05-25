@@ -153,3 +153,41 @@ export async function markMessagesReaded(args: {
     },
   });
 }
+
+/**
+ * 关闭/删除会话(对应旧 ConversationProvider::deleteConversation)。
+ * DELETE /v1/conversations/{channelID}/{channelType}
+ *
+ * 服务端把这条会话从我端 sync 列表中移除(其他端不受影响)。
+ * 旧版"关闭聊天窗口"右键 + Bot 重置 / 会话清理流程都走这里。
+ */
+export async function deleteConversation(args: {
+  channelId: string;
+  channelType: number;
+}): Promise<void> {
+  await api(`conversations/${encodeURIComponent(args.channelId)}/${args.channelType}`, {
+    method: "DELETE",
+  });
+}
+
+/**
+ * 清空指定 channel 的聊天记录(对应旧 ConversationProvider::clearConversationMessages)。
+ * POST /v1/message/offset { channel_id, channel_type, message_seq }
+ *
+ * 后端把 channel 内 message_seq <= 入参的消息从我视角"切掉",其他端不受影响。
+ * 入参通常传 lastMessage.messageSeq,意为"清空到当前最新一条之前"。
+ */
+export async function clearChannelMessages(args: {
+  channelId: string;
+  channelType: number;
+  messageSeq: number;
+}): Promise<void> {
+  await api("message/offset", {
+    method: "POST",
+    body: {
+      channel_id: args.channelId,
+      channel_type: args.channelType,
+      message_seq: args.messageSeq,
+    },
+  });
+}

@@ -111,7 +111,7 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[10vh]">
-      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
+      <div className="flex h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-5 py-3">
           <h2 className="text-sm font-semibold text-text-primary">
             {inChannel ? "聊天内搜索" : "全局搜索"}

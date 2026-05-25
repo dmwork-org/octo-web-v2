@@ -92,3 +92,42 @@ export async function createThread(
     body: req,
   });
 }
+
+/**
+ * 子区(thread)详情(对应旧 datasource.ts::threadGet)。
+ *
+ * GET /v1/groups/{groupNo}/threads/{shortId}
+ *
+ * channelInfoCallback 在 channel.channelType === ChannelTypeCommunityTopic 时调用,
+ * 用来填充子区 channel 的 title / orgData.thread / mute / has_thread_md 等字段。
+ *
+ * mute tri-state:null = 未设置(继承父群);0 = 显式不静音;1 = 显式静音。
+ */
+export interface ThreadRaw {
+  short_id: string;
+  name: string;
+  creator_uid?: string;
+  creator_name?: string;
+  source_message_id?: number | string;
+  status?: number;
+  created_at?: string;
+  updated_at?: string;
+  is_member?: number;
+  member_count?: number;
+  message_count?: number;
+  unread_count?: number;
+  last_message_content?: string;
+  last_message_sender_name?: string;
+  has_thread_md?: number | boolean;
+  thread_md_version?: number;
+  thread_md_updated_at?: string | null;
+  group_name?: string;
+  last_message_at?: string;
+  mute?: number | null; // tri-state
+}
+
+export async function getThread(groupNo: string, shortId: string): Promise<ThreadRaw> {
+  return api<ThreadRaw>(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`,
+  );
+}

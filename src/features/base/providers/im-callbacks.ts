@@ -19,7 +19,12 @@ import {
   syncMessageExtras,
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
-import { syncGroupMembers, type GroupMemberRaw } from "@/features/base/api/endpoints/group.api";
+import {
+  getThread,
+  syncGroupMembers,
+  type GroupMemberRaw,
+  type ThreadRaw,
+} from "@/features/base/api/endpoints/group.api";
 import { markRemindersDone, syncReminders } from "@/features/base/api/endpoints/reminder.api";
 import {
   groupToChannelInfo,
@@ -104,6 +109,50 @@ function collectGroupChannelIds(): string[] {
 }
 
 /**
+ * 子区 channelInfo 分支(K-5):channelType === CHANNEL_TYPE_THREAD 时不走
+ * channels/{id}/{type},而是 parseThreadChannelId + GET groups/{groupNo}/threads/{shortId}。
+ *
+ * - title = thread.name
+ * - logo = 父群头像 `groups/{groupNo}/avatar`
+ * - mute = thread.mute === 1(tri-state:null = 继承父群,0 = 显式不静音,1 = 显式静音;
+ *   只把 ===1 当 true,其它都 false,SDK listener 触发重渲使用此值。
+ *   有效 mute 状态(effectiveMute)由消费方从 orgData.thread.mute 自取原始 tri-state)
+ * - orgData 透传 thread 全量 + parentGroupNo + has_thread_md / thread_md_version 等
+ *
+ * 解析失败 / 接口失败 → 返回 title=channelID 占位的兜底 ChannelInfo,不抛。
+ */
+async function buildThreadChannelInfo(channel: Channel): Promise<ChannelInfo> {
+  const info = new ChannelInfo();
+  info.channel = channel;
+  const parsed = parseThreadChannelId(channel.channelID);
+  if (!parsed) {
+    info.title = channel.channelID;
+    info.orgData = {};
+    return info;
+  }
+  let thread: ThreadRaw;
+  try {
+    thread = await getThread(parsed.groupNo, parsed.shortId);
+  } catch {
+    info.title = channel.channelID;
+    info.orgData = {};
+    return info;
+  }
+  info.title = thread.name;
+  info.logo = `groups/${parsed.groupNo}/avatar`;
+  info.mute = thread.mute === 1;
+  info.orgData = {
+    displayName: thread.name,
+    thread,
+    parentGroupNo: parsed.groupNo,
+    has_thread_md: !!thread.has_thread_md,
+    thread_md_version: thread.thread_md_version ?? 0,
+    thread_md_updated_at: thread.thread_md_updated_at ?? null,
+  };
+  return info;
+}
+
+/**
  * 注册 SDK provider 必须的 callback(否则 conversationManager.sync /
  * chatManager.syncMessages 等会抛 TypeError)。
  *
@@ -111,7 +160,8 @@ function collectGroupChannelIds(): string[] {
  * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员 + extras + 提醒" 跑起来的集合:
  *   - syncConversationsCallback        users[]/groups[] 预热,Space 防 stale,channelSpaceMap
  *   - syncConversationExtrasCallback   keep_msg_seq / draft 跨设备同步
- *   - channelInfoCallback              robot 兜底 / group 字段 / identity icon
+ *   - channelInfoCallback              robot 兜底 / group 字段 / identity icon /
+ *                                     子区分支(GET groups/{}/threads/{}, 父群头像继承)
  *   - syncSubscribersCallback          group/membersync(子区走父群)+ robot 反向写 person cache
  *   - syncMessagesCallback             message/channel/sync
  *   - syncMessageExtraCallback         message/extra/sync(已读数 / 撤回增量)
@@ -164,6 +214,10 @@ export function registerImCallbacks(): void {
   };
 
   provider.channelInfoCallback = async (channel: Channel): Promise<ChannelInfo> => {
+    // 子区分支:走 groups/{}/threads/{} 拿父群头像 + thread 元数据
+    if (channel.channelType === CHANNEL_TYPE_THREAD) {
+      return buildThreadChannelInfo(channel);
+    }
     const info = new ChannelInfo();
     info.channel = channel;
     try {

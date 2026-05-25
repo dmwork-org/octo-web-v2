@@ -1,5 +1,6 @@
 import { api } from "@/features/base/api/client";
 import { type Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /**
  * Channel 设置(对应旧 dmworkbase Service/ChannelSetting + dmworkdatasource
@@ -28,13 +29,6 @@ export type ChannelSettingBody = Partial<{
   allow_view_history_msg: 0 | 1;
   allow_member_pinned_message: 0 | 1;
 }>;
-
-/** 子区 channelID 形如 `{groupNo}@{shortId}`,旧 parseThreadChannelId 同语义。 */
-function parseThreadChannelId(channelId: string): { groupNo: string; shortId: string } | null {
-  const at = channelId.indexOf("@");
-  if (at <= 0) return null;
-  return { groupNo: channelId.substring(0, at), shortId: channelId.substring(at + 1) };
-}
 
 export async function updateChannelSetting(
   channel: Channel,

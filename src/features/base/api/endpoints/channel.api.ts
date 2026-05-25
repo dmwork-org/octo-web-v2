@@ -28,6 +28,22 @@ export interface ChannelInfoRaw {
   last_offline?: number;
   notice?: string;
   extra?: Record<string, unknown>;
+  // 业务字段(后端透传,大部分可选;im-callbacks 兜底解析)
+  robot?: number;
+  receipt?: number;
+  status?: number;
+  follow?: number;
+  category?: string;
+  be_deleted?: number;
+  be_blacklist?: number;
+  forbidden?: number;
+  invite?: number;
+  save?: number;
+  has_group_md?: number | boolean;
+  group_md_version?: number;
+  group_md_updated_at?: string | null;
+  can_edit_group_md?: number | boolean;
+  can_manage_bot_admin?: number | boolean;
 }
 
 export async function getChannelInfoRaw(

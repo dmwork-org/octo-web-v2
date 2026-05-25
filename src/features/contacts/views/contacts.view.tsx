@@ -1,36 +1,71 @@
 import { useState } from "react";
-import { UserPlus, Users } from "lucide-react";
+import { Ban, Bookmark, UserPlus, Users } from "lucide-react";
 import { BotfatherBanner } from "@/features/contacts/components/botfather-banner";
 import { ContactsDirectory } from "@/features/contacts/components/contacts-directory";
 import { FriendApplies } from "@/features/contacts/components/friend-applies";
 import { FriendAdd } from "@/features/contacts/components/friend-add";
+import { BlacklistPage } from "@/features/contacts/components/blacklist";
+import { SavedGroupsPage } from "@/features/contacts/components/saved-groups";
 import { ChatMain } from "@/features/chat/components/chat-main";
 
-type SubPage = "directory" | "applies" | "add";
+type SubPage = "directory" | "applies" | "add" | "blacklist" | "saved-groups";
+
+const PAGE_TITLE: Record<SubPage, string> = {
+  directory: "通讯录",
+  applies: "新朋友",
+  add: "加好友",
+  blacklist: "黑名单",
+  "saved-groups": "保存的群",
+};
 
 /**
  * 通讯录主视图(3 列 layout 中的中 + 右):
  *
  *   ┌ 中列 (320)                ┌ 右列 (flex-1)
- *   │ Header(通讯录 + 顶部入口) │
- *   │ BotFather 引荐卡          │
- *   │ 搜索 + 手风琴 3 段        │ ChatMain
- *   │   - 群聊                  │ (chatSelectedStore)
- *   │   - 已添加 AI             │
- *   │   - 全部联系人 (filter)   │
- *   └ 子页:新朋友 / 加好友 ───── ┘
+ *   │ Header(标题 + 顶部入口)  │
+ *   │ Directory:               │ ChatMain
+ *   │   BotFather 引荐卡       │ (chatSelectedStore)
+ *   │   搜索 + 手风琴 3 段     │
+ *   │   - 群聊                 │
+ *   │   - 已添加 AI            │
+ *   │   - 全部联系人           │
+ *   │ 子页:                    │
+ *   │   - 新朋友 / 加好友      │
+ *   │   - 黑名单 / 保存的群    │
+ *   └                            ┘
  *
- * 子页(新朋友 / 加好友)P3 后续 wave 升级为侧边推屏;当前用同区域切换实现最小可用。
+ * 顶部入口 4 个 icon:新朋友(Users)/ 加好友(UserPlus)/ 黑名单(Ban)/
+ * 保存的群(Bookmark)。子页内左上"返回"回 directory。
  */
 export function ContactsView() {
   const [page, setPage] = useState<SubPage>("directory");
+
+  const renderBody = () => {
+    switch (page) {
+      case "directory":
+        return (
+          <>
+            <BotfatherBanner />
+            <ContactsDirectory />
+          </>
+        );
+      case "applies":
+        return <FriendApplies />;
+      case "add":
+        return <FriendAdd />;
+      case "blacklist":
+        return <BlacklistPage />;
+      case "saved-groups":
+        return <SavedGroupsPage />;
+    }
+  };
 
   return (
     <div className="flex flex-1 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
           <span className="truncate text-base font-semibold text-text-primary">
-            {page === "directory" ? "通讯录" : page === "applies" ? "新朋友" : "加好友"}
+            {PAGE_TITLE[page]}
           </span>
           {page === "directory" ? (
             <div className="flex shrink-0 items-center gap-1">
@@ -52,6 +87,24 @@ export function ContactsView() {
               >
                 <UserPlus size={16} />
               </button>
+              <button
+                type="button"
+                aria-label="黑名单"
+                title="黑名单"
+                onClick={() => setPage("blacklist")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Ban size={16} />
+              </button>
+              <button
+                type="button"
+                aria-label="保存的群"
+                title="保存的群"
+                onClick={() => setPage("saved-groups")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Bookmark size={16} />
+              </button>
             </div>
           ) : (
             <button
@@ -64,16 +117,7 @@ export function ContactsView() {
           )}
         </header>
 
-        {page === "directory" ? (
-          <>
-            <BotfatherBanner />
-            <ContactsDirectory />
-          </>
-        ) : page === "applies" ? (
-          <FriendApplies />
-        ) : (
-          <FriendAdd />
-        )}
+        {renderBody()}
       </aside>
       <ChatMain />
     </div>

@@ -9,13 +9,14 @@ import WKSDK, {
 import { useStore } from "@tanstack/react-store";
 import { useState, type MouseEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Copy, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Forward, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ForwardModal } from "@/features/chat/components/forward-modal";
 import {
   deleteMessages as deleteMessagesApi,
   revokeMessage,
@@ -73,7 +74,6 @@ const REVOKE_SECONDS = 120;
 function canRevoke(message: Message, myUid: string): boolean {
   if (!message.messageID) return false;
 
-  // Bot 创建者豁免
   const fromChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
     new Channel(message.fromUID, ChannelTypePerson),
   );
@@ -84,10 +84,16 @@ function canRevoke(message: Message, myUid: string): boolean {
     return true;
   }
 
-  // 普通用户:自己发的 + 时间窗内
   if (!message.send) return false;
   const elapsed = new Date().getTime() / 1000 - message.timestamp;
   return elapsed <= REVOKE_SECONDS;
+}
+
+/** 转发是否支持(对齐旧 notSupportForward,简版:系统消息 / 命令消息 不支持) */
+function canForward(message: Message): boolean {
+  if (message.contentType >= 1000 && message.contentType < 2000) return false; // 系统
+  if (message.contentType === MessageContentType.cmd) return false;
+  return true;
 }
 
 /**
@@ -97,13 +103,14 @@ function canRevoke(message: Message, myUid: string): boolean {
  *
  * 连续消息(continueWithPrev):头像/header 折叠,只渲染 body,hover 显示 timestamp。
  *
- * 右键 → ContextMenu(F-4 集合):
+ * 右键 → ContextMenu(F-4 + F-5a 集合):
  *   - 复制(文本/digest)
  *   - 复制图片(image only)
+ *   - 转发(canForward 通过,弹 ForwardModal)
  *   - 撤回(canRevoke 通过时显示)
  *   - 删除(总是显示,ConfirmModal 二次确认)
  *
- * 转发 / 回复 / 多选 / 分享名片 / 翻译 / 标记 / 创建子区 F-5 / F-6 后续接。
+ * 回复 / 多选(F-5b/c)+ 分享名片 / 翻译 / 标记 / 创建子区(F-6)留后续。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   const qc = useQueryClient();
@@ -115,6 +122,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     y: 0,
   });
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
 
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -143,8 +151,6 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       }),
     onSuccess: () => {
       toast.success("已撤回");
-      // 服务端会通过 IM CMD messageRevoke 推送给各端,
-      // useMessagesSync 内 cmdListener 接收后把 message.remoteExtra.revoke=true
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "撤回失败"),
   });
@@ -170,6 +176,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const isImage = message.contentType === MessageContentType.image;
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
   const revokeAllowed = me ? canRevoke(message, me) : false;
+  const forwardAllowed = canForward(message);
 
   const items: ContextMenuItem[] = [];
   if (extractText(message)) {
@@ -194,6 +201,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           .then(() => toast.success("已复制图片"))
           .catch((err: Error) => toast.error(err.message || "复制失败"));
       },
+    });
+  }
+  if (forwardAllowed) {
+    items.push({
+      label: "转发",
+      icon: <Forward size={13} />,
+      onClick: () => setForwardOpen(true),
     });
   }
   if (revokeAllowed) {
@@ -243,6 +257,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     />
   );
 
+  const forwardDialog = (
+    <ForwardModal open={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
+  );
+
   if (continueWithPrev) {
     return (
       <div className={wrapperClass} onContextMenu={onContextMenu}>
@@ -259,6 +277,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         </div>
         {ctxMenu}
         {deleteDialog}
+        {forwardDialog}
       </div>
     );
   }
@@ -287,6 +306,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       </div>
       {ctxMenu}
       {deleteDialog}
+      {forwardDialog}
     </div>
   );
 }

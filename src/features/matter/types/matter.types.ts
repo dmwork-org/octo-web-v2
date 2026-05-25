@@ -96,3 +96,38 @@ export interface UpdateMatterReq {
   deadline?: string | null;
   remind_at?: string | null;
 }
+
+// ─── Timeline ─────────────────────────────────────────────
+
+export interface TimelineAttachment {
+  id: string;
+  entry_id: string;
+  file_url: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  created_at: string;
+}
+
+export interface TimelineEntry {
+  id: string;
+  matter_id: string;
+  user_id: string;
+  content: string | null;
+  channel_id?: string;
+  channel_type?: number;
+  source_channel_id?: string;
+  related_uids?: string[];
+  created_at: string;
+  attachments?: TimelineAttachment[];
+}
+
+export interface AddTimelineReq {
+  content?: string;
+  attachments?: {
+    file_url: string;
+    file_name?: string;
+    file_size?: number;
+    mime_type?: string;
+  }[];
+}

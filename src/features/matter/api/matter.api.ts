@@ -2,12 +2,14 @@ import { ofetch } from "ofetch";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import type {
+  AddTimelineReq,
   CreateMatterReq,
   Matter,
   MatterDetail,
   MatterListParams,
   MatterStatus,
   PaginatedList,
+  TimelineEntry,
   UpdateMatterReq,
 } from "@/features/matter/types/matter.types";
 
@@ -104,6 +106,36 @@ export async function linkChannel(matterId: string, req: LinkChannelReq): Promis
 /** 解除关联:DELETE /matters/{id}/channels/{channel_id} */
 export async function unlinkChannel(matterId: string, channelId: string): Promise<void> {
   await matterApi(`/matters/${matterId}/channels/${encodeURIComponent(channelId)}`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Timeline(评论 / 时间线) ─────────────────────────
+
+/** 列表:GET /matters/{id}/timeline?source_channel_id&limit&cursor */
+export async function listTimeline(
+  matterId: string,
+  params?: { source_channel_id?: string; limit?: number; cursor?: string },
+): Promise<PaginatedList<TimelineEntry>> {
+  return matterApi<PaginatedList<TimelineEntry>>(`/matters/${matterId}/timeline`, {
+    query: params,
+  });
+}
+
+/** 添加:POST /matters/{id}/timeline { content, attachments? } */
+export async function addTimelineEntry(
+  matterId: string,
+  req: AddTimelineReq,
+): Promise<TimelineEntry> {
+  return matterApi<TimelineEntry>(`/matters/${matterId}/timeline`, {
+    method: "POST",
+    body: req,
+  });
+}
+
+/** 删除:DELETE /matters/{id}/timeline/{entry_id} */
+export async function deleteTimelineEntry(matterId: string, entryId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/timeline/${encodeURIComponent(entryId)}`, {
     method: "DELETE",
   });
 }

@@ -15,6 +15,7 @@ import type { MatterStatus, MatterChannel } from "@/features/matter/types/matter
 import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { ChannelPicker } from "@/features/matter/components/channel-picker";
+import { TimelineSection } from "@/features/matter/components/timeline-section";
 
 interface MatterDetailProps {
   matterId: string | null;
@@ -44,13 +45,12 @@ function formatTime(iso: string): string {
 /**
  * Matter 右列详情面板:
  * - 顶部:M-{seq_no} + 状态 badge + 三个状态切换按钮 + 删除
- * - 主体:title + description + 元数据 + **受理人 (K-1)** + **关联会话 (K-2)**
+ * - 主体:title + description + 元数据 + **受理人 (K-1)** + **关联会话 (K-2)** + **时间线 (K-3)**
  *
  * K-1:受理人头像列表 + 编辑笔形 → AssigneePicker
  * K-2:关联会话 chip 列表(头像+名+类型 tag) + 编辑笔形 → ChannelPicker;
  *      chip 点击直接跳转该会话(chatSelectedActions.select)
- *
- * 旧 DetailPanel 后续 wave 加:时间线(K-3)、Activities、评论附件。
+ * K-3:时间线评论(平铺列表 + 输入框,旧版分群展开 / 附件后续 wave)
  */
 export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
   const qc = useQueryClient();
@@ -231,6 +231,8 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
           <dt className="text-text-tertiary">更新时间</dt>
           <dd className="text-text-primary">{formatTime(data.updated_at)}</dd>
         </dl>
+
+        <TimelineSection matterId={matterId} />
       </div>
 
       <AssigneePicker

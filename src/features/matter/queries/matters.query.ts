@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getMatter, listMatters } from "@/features/matter/api/matter.api";
+import { getMatter, listMatters, listTimeline } from "@/features/matter/api/matter.api";
 import type { MatterListParams } from "@/features/matter/types/matter.types";
 
 /**
@@ -32,4 +32,19 @@ export const matterDetailQueryOptions = (matterId: string | null, sourceChannelI
     queryFn: () => getMatter(matterId!, sourceChannelId),
     enabled: !!matterId,
     staleTime: 30 * 1000,
+  });
+
+/**
+ * Matter Timeline query。enabled by matterId(K-3 评论/时间线)。
+ * 不带 cursor 拿首页 limit=50;后续 wave 接 useInfiniteQuery。
+ */
+
+export const timelineQueryKey = (matterId: string) => ["matter", "timeline", matterId] as const;
+
+export const timelineQueryOptions = (matterId: string | null) =>
+  queryOptions({
+    queryKey: timelineQueryKey(matterId ?? "_"),
+    queryFn: () => listTimeline(matterId!, { limit: 50 }),
+    enabled: !!matterId,
+    staleTime: 15 * 1000,
   });

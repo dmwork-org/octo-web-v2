@@ -87,3 +87,23 @@ export async function removeAssignee(matterId: string, userId: string): Promise<
     method: "DELETE",
   });
 }
+
+// ─── Channels(关联会话) ─────────────────────────────────
+
+export interface LinkChannelReq {
+  channel_id: string;
+  channel_type: number;
+  channel_name?: string;
+}
+
+/** 关联会话:POST /matters/{id}/channels { channel_id, channel_type, channel_name } */
+export async function linkChannel(matterId: string, req: LinkChannelReq): Promise<void> {
+  await matterApi(`/matters/${matterId}/channels`, { method: "POST", body: req });
+}
+
+/** 解除关联:DELETE /matters/{id}/channels/{channel_id} */
+export async function unlinkChannel(matterId: string, channelId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/channels/${encodeURIComponent(channelId)}`, {
+    method: "DELETE",
+  });
+}

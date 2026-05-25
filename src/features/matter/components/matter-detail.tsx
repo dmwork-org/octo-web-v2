@@ -1,23 +1,34 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import {
   matterDetailQueryOptions,
   matterDetailQueryKey,
 } from "@/features/matter/queries/matters.query";
 import { deleteMatter, transitionMatter } from "@/features/matter/api/matter.api";
-import type { MatterStatus } from "@/features/matter/types/matter.types";
+import type { MatterStatus, MatterChannel } from "@/features/matter/types/matter.types";
 import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
+import { ChannelPicker } from "@/features/matter/components/channel-picker";
 
 interface MatterDetailProps {
   matterId: string | null;
   onDeleted: () => void;
 }
+
+/** ChannelType 7 = ChannelTypeCommunityTopic */
+const CHANNEL_TYPE_THREAD = 7;
+
+const CHANNEL_TYPE_LABEL: Record<number, string> = {
+  [ChannelTypePerson]: "私",
+  [ChannelTypeGroup]: "群",
+  [CHANNEL_TYPE_THREAD]: "子区",
+};
 
 const STATUS_OPTIONS: { id: MatterStatus; label: string }[] = [
   { id: "open", label: "进行中" },
@@ -33,17 +44,19 @@ function formatTime(iso: string): string {
 /**
  * Matter 右列详情面板:
  * - 顶部:M-{seq_no} + 状态 badge + 三个状态切换按钮 + 删除
- * - 主体:title + description + 元数据 + **受理人头像列表(可编辑,K-1)**
+ * - 主体:title + description + 元数据 + **受理人 (K-1)** + **关联会话 (K-2)**
  *
- * Wave 2 K-1 集成:受理人 row 显示头像列表 + 编辑笔形按钮 → AssigneePicker 弹窗
- * (空间成员 multi-select,提交 diff 后 batch addAssignee/removeAssignee)。
+ * K-1:受理人头像列表 + 编辑笔形 → AssigneePicker
+ * K-2:关联会话 chip 列表(头像+名+类型 tag) + 编辑笔形 → ChannelPicker;
+ *      chip 点击直接跳转该会话(chatSelectedActions.select)
  *
- * 旧 DetailPanel 后续 wave 加:关联会话(K-2)、时间线(K-3)、Activities、评论附件。
+ * 旧 DetailPanel 后续 wave 加:时间线(K-3)、Activities、评论附件。
  */
 export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery(matterDetailQueryOptions(matterId));
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
+  const [channelPickerOpen, setChannelPickerOpen] = useState(false);
 
   const transitionMu = useMutation({
     mutationFn: (status: MatterStatus) => transitionMatter(matterId!, status),
@@ -65,6 +78,8 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
   });
 
   const assigneeUids = useMemo(() => (data?.assignees ?? []).map((a) => a.user_id), [data]);
+  const linkedChannels = useMemo(() => data?.channels ?? [], [data]);
+  const linkedChannelIds = useMemo(() => linkedChannels.map((c) => c.channel_id), [linkedChannels]);
 
   if (!matterId) {
     return (
@@ -87,6 +102,10 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
       </section>
     );
   }
+
+  const handleChannelChipClick = (c: MatterChannel) => {
+    chatSelectedActions.select(new Channel(c.channel_id, c.channel_type));
+  };
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden">
@@ -141,6 +160,7 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
           <dd className="text-text-primary">{data.source_name ?? "—"}</dd>
           <dt className="text-text-tertiary">创建人</dt>
           <dd className="font-mono text-text-primary">{data.creator_id}</dd>
+
           <dt className="self-start pt-1 text-text-tertiary">负责人</dt>
           <dd className="flex flex-wrap items-center gap-1.5">
             {assigneeUids.length > 0 ? (
@@ -162,13 +182,50 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
             )}
             <button
               type="button"
-              onClick={() => setPickerOpen(true)}
+              onClick={() => setAssigneePickerOpen(true)}
               aria-label="编辑受理人"
               className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <Pencil size={12} />
             </button>
           </dd>
+
+          <dt className="self-start pt-1 text-text-tertiary">关联会话</dt>
+          <dd className="flex flex-wrap items-center gap-1.5">
+            {linkedChannels.length > 0 ? (
+              linkedChannels.map((c) => {
+                const ch = new Channel(c.channel_id, c.channel_type);
+                const name = c.channel_name ?? c.channel_id;
+                const typeLabel = CHANNEL_TYPE_LABEL[c.channel_type] ?? "";
+                return (
+                  <button
+                    key={c.channel_id}
+                    type="button"
+                    onClick={() => handleChannelChipClick(c)}
+                    title="进入会话"
+                    className="inline-flex items-center gap-1 rounded-full bg-bg-elevated py-0.5 pr-2 pl-0.5 text-text-primary transition-colors hover:bg-bg-hover"
+                  >
+                    <ChannelAvatar channel={ch} size={20} title={name} />
+                    <span className="truncate text-[12px]">{name}</span>
+                    {typeLabel ? (
+                      <span className="shrink-0 text-[10px] text-text-tertiary">{typeLabel}</span>
+                    ) : null}
+                  </button>
+                );
+              })
+            ) : (
+              <span className="text-text-tertiary">—</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setChannelPickerOpen(true)}
+              aria-label="编辑关联会话"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <Pencil size={12} />
+            </button>
+          </dd>
+
           <dt className="text-text-tertiary">创建时间</dt>
           <dd className="text-text-primary">{formatTime(data.created_at)}</dd>
           <dt className="text-text-tertiary">更新时间</dt>
@@ -177,10 +234,16 @@ export function MatterDetail({ matterId, onDeleted }: MatterDetailProps) {
       </div>
 
       <AssigneePicker
-        open={pickerOpen}
+        open={assigneePickerOpen}
         matterId={matterId}
         currentAssigneeUids={assigneeUids}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => setAssigneePickerOpen(false)}
+      />
+      <ChannelPicker
+        open={channelPickerOpen}
+        matterId={matterId}
+        currentChannelIds={linkedChannelIds}
+        onClose={() => setChannelPickerOpen(false)}
       />
     </section>
   );

@@ -25,12 +25,49 @@ export interface ConversationRaw {
   space_unread?: number;
   recents?: unknown[];
   extra?: unknown;
+  space_id?: string;
+}
+
+/** sync 响应里的 user 项(用于 channelInfo 缓存预热)。 */
+export interface SyncedUserRaw {
+  uid: string;
+  name?: string;
+  remark?: string;
+  mute?: number;
+  top?: number;
+  online?: number;
+  last_offline?: number;
+  logo?: string;
+  category?: string;
+  short_no?: string;
+  realname_verified?: boolean | number;
+  real_name?: string;
+  extra?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** sync 响应里的 group 项。 */
+export interface SyncedGroupRaw {
+  group_no: string;
+  name?: string;
+  remark?: string;
+  mute?: number;
+  top?: number;
+  online?: number;
+  last_offline?: number;
+  logo?: string;
+  forbidden?: number;
+  invite?: number;
+  forbidden_add_friend?: number;
+  save?: number;
+  extra?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface SyncConversationsResp {
   conversations?: ConversationRaw[];
-  users?: unknown[];
-  groups?: unknown[];
+  users?: SyncedUserRaw[];
+  groups?: SyncedGroupRaw[];
 }
 
 export async function syncConversations(spaceId?: string): Promise<SyncConversationsResp> {

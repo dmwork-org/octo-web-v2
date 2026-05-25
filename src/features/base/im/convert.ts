@@ -1,5 +1,8 @@
 import WKSDK, {
   Channel,
+  ChannelInfo,
+  ChannelTypeGroup,
+  ChannelTypePerson,
   Conversation,
   Message,
   MessageExtra,
@@ -10,6 +13,8 @@ import type {
   ConversationRaw,
   MessageExtraRaw,
   MessageRaw,
+  SyncedGroupRaw,
+  SyncedUserRaw,
 } from "@/features/base/api/endpoints/conversation.api";
 
 /**
@@ -123,4 +128,69 @@ export function rawToConversation(raw: ConversationRaw): Conversation {
   const lastRaw = raw.recents?.[0] as MessageRaw | undefined;
   if (lastRaw) conv.lastMessage = rawToMessage(lastRaw);
   return conv;
+}
+
+/**
+ * SyncedUserRaw → SDK ChannelInfo(对应旧 Convert.userToChannelInfo)。
+ *
+ * 用于 syncConversations 响应里 users[] 预热 — 避免 conversation list 每行都
+ * 各自再 fetchChannelInfo。 displayName 优先级:remark > realname (verified) > name。
+ */
+export function userToChannelInfo(data: SyncedUserRaw): ChannelInfo {
+  const info = new ChannelInfo();
+  info.channel = new Channel(data.uid, ChannelTypePerson);
+  info.title = data.name ?? "";
+  info.mute = data.mute === 1;
+  info.top = data.top === 1;
+  info.online = data.online === 1;
+  info.lastOffline = data.last_offline ?? 0;
+  const orgData: Record<string, unknown> = { ...(data.extra ?? {}), ...data };
+  orgData.remark = data.remark ?? "";
+  const verified = data.realname_verified === true || data.realname_verified === 1 ? 1 : 0;
+  orgData.realname_verified = verified;
+  const realName = typeof data.real_name === "string" ? data.real_name : "";
+  orgData.real_name = realName;
+  // displayName 解析(旧 resolveDisplayName 同口径):remark > real_name(verified)> name
+  let display: string;
+  if (data.remark && data.remark !== "") display = data.remark;
+  else if (verified && realName) display = realName;
+  else display = info.title;
+  orgData.displayName = display || info.title;
+  orgData.shortNo = data.short_no ?? "";
+  info.logo = data.logo && data.logo !== "" ? data.logo : `users/${data.uid}/avatar`;
+  if (data.category === "system" || data.category === "customerService") {
+    orgData.identityIcon = "./identity_icon/official.png";
+    orgData.identitySize = { width: "18px", height: "18px" };
+  } else if (data.category === "visitor") {
+    orgData.identityIcon = "./identity_icon/visitor.png";
+    orgData.identitySize = { width: "48px", height: "24px" };
+  }
+  info.orgData = orgData;
+  return info;
+}
+
+/**
+ * SyncedGroupRaw → SDK ChannelInfo(对应旧 Convert.groupToChannelInfo)。
+ *
+ * group 字段的子集:forbidden / invite / forbidden_add_friend / save。
+ * group_md_* 字段 syncConversations 不返回,只在 channelInfoCallback 显式拉取时才有。
+ */
+export function groupToChannelInfo(data: SyncedGroupRaw): ChannelInfo {
+  const info = new ChannelInfo();
+  info.channel = new Channel(data.group_no, ChannelTypeGroup);
+  info.title = data.name ?? "";
+  info.mute = data.mute === 1;
+  info.top = data.top === 1;
+  info.online = data.online === 1;
+  info.lastOffline = data.last_offline ?? 0;
+  const orgData: Record<string, unknown> = { ...(data.extra ?? {}), ...data };
+  orgData.remark = data.remark ?? "";
+  orgData.displayName = data.remark && data.remark !== "" ? data.remark : info.title;
+  orgData.forbidden = data.forbidden;
+  orgData.invite = data.invite;
+  orgData.forbiddenAddFriend = data.forbidden_add_friend;
+  orgData.save = data.save;
+  info.logo = data.logo && data.logo !== "" ? data.logo : `groups/${data.group_no}/avatar`;
+  info.orgData = orgData;
+  return info;
 }

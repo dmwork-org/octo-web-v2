@@ -7,7 +7,7 @@ import WKSDK, {
   type Conversation,
   type Message,
 } from "wukongimjssdk";
-import { spaceStore } from "@/features/base/stores/space";
+import { channelSpaceKey, channelSpaceMap, spaceStore } from "@/features/base/stores/space";
 import {
   markMessagesReaded,
   syncConversations,
@@ -15,7 +15,12 @@ import {
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
 import { syncGroupMembers, type GroupMemberRaw } from "@/features/base/api/endpoints/group.api";
-import { rawToConversation, rawToMessage } from "@/features/base/im/convert";
+import {
+  groupToChannelInfo,
+  rawToConversation,
+  rawToMessage,
+  userToChannelInfo,
+} from "@/features/base/im/convert";
 import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
@@ -75,7 +80,8 @@ function sortByRole(members: Subscriber[]): Subscriber[] {
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
  * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员" 跑起来的集合:
  *   - syncConversationsCallback     → POST conversation/sync,转 raw → Conversation
- *                                     完成后批量 fetchChannelInfo 让标题显示真名
+ *                                     用 users[]/groups[] 预热 channelInfo 缓存(立刻显示真名),
+ *                                     Space 防 stale 响应,channelSpaceMap 反查表
  *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
  *                                     person 缺失 robot 时从群成员缓存兜底;
  *                                     group 字段(forbidden/has_group_md/...)透传;
@@ -95,12 +101,24 @@ export function registerImCallbacks(): void {
   provider.syncConversationsCallback = async () => {
     const spaceId = spaceStore.state.spaceId || undefined;
     const resp = await syncConversations(spaceId);
+    // Space 防 stale:发请求后用户切换了 Space,旧响应不入缓存(旧 module.ts:296 同语义)
+    if (spaceId && spaceStore.state.spaceId !== spaceId) {
+      return [];
+    }
     const conversations: Conversation[] = (resp.conversations ?? []).map(rawToConversation);
-    // 异步批量拉 channelInfo,让列表显示真实标题(无需 await)。
-    // SDK channelManager.fetchChannelInfo 内部会去重 + 触发 channelInfoListener,
-    // useConversationsSync 收到 listener 后 setQueryData 重渲列表。
-    for (const conv of conversations) {
-      void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
+    // channelSpaceMap 反查表 — conversation 带 space_id 时写一份(跨 Space 跳转用)
+    for (const c of resp.conversations ?? []) {
+      if (c.space_id) {
+        channelSpaceMap.set(channelSpaceKey(c.channel_id, c.channel_type), c.space_id);
+      }
+    }
+    // users / groups 预热到 channelInfo 缓存 — 列表立刻能显示真名,不用每行单独拉
+    const cm = WKSDK.shared().channelManager;
+    for (const u of resp.users ?? []) {
+      cm.setChannleInfoForCache(userToChannelInfo(u));
+    }
+    for (const g of resp.groups ?? []) {
+      cm.setChannleInfoForCache(groupToChannelInfo(g));
     }
     return conversations;
   };

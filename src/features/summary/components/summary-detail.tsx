@@ -13,6 +13,7 @@ import {
 } from "@/features/summary/queries/summaries.query";
 import { SummaryStatusBadge } from "@/features/summary/components/summary-status-badge";
 import { SummaryContent } from "@/features/summary/components/summary-content";
+import { CitationText } from "@/features/summary/components/citation-text";
 import { TaskStatus } from "@/features/summary/types/summary.types";
 
 interface SummaryDetailProps {
@@ -28,10 +29,10 @@ function formatTime(iso: string): string {
 /**
  * 总结详情面板:
  * - 顶部:task_no + 状态 + 重新生成 / 取消 / 删除(根据 status 智能显示)
- * - 主体:title + 元数据 + result.content(markdown)
+ * - 主体:title + 元数据 + result.content(markdown,有 citations 则 CitationText)
  * - 状态轮询由 summaryDetailQueryOptions 内部 refetchInterval 处理
  *
- * Wave 3 加:citations 引用面板、编辑 result。
+ * Wave 3a:result.citations 存在时切到 CitationText(支持 [N] 引用 popover + 跳转原文)。
  */
 export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const qc = useQueryClient();
@@ -102,6 +103,8 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     data.status === TaskStatus.WAITING_CONFIRM;
   const canRegen = isCompleted || isFailed;
   const canCancel = isProcessing;
+  const citations = data.result?.citations;
+  const hasCitations = !!citations && citations.length > 0;
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden">
@@ -175,13 +178,24 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         </dl>
 
         <div className="border-t border-border-subtle pt-4">
-          <h2 className="mb-2 text-sm font-semibold text-text-secondary">总结内容</h2>
+          <h2 className="mb-2 text-sm font-semibold text-text-secondary">
+            总结内容
+            {hasCitations ? (
+              <span className="ml-2 text-xs font-normal text-text-tertiary">
+                ({citations!.length} 条引用)
+              </span>
+            ) : null}
+          </h2>
           {isProcessing ? (
             <p className="text-sm italic text-text-tertiary">总结生成中,自动刷新…</p>
           ) : isFailed ? (
             <p className="text-sm text-error">{data.error_message ?? "生成失败"}</p>
           ) : data.result ? (
-            <SummaryContent content={data.result.content} />
+            hasCitations ? (
+              <CitationText content={data.result.content} citations={citations!} />
+            ) : (
+              <SummaryContent content={data.result.content} />
+            )
           ) : (
             <p className="text-sm italic text-text-tertiary">暂无内容</p>
           )}

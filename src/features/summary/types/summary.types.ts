@@ -55,6 +55,29 @@ export interface SummaryResult {
   model_version: string;
   version: number;
   generated_at: string | null;
+  citations?: CitationItem[];
+}
+
+// ─── Citation(Wave 3a) ───────────────────────────────────
+
+export interface CitationContextMessage {
+  sender: string;
+  content: string;
+  sent_at: string;
+  message_seq?: number;
+}
+
+export interface CitationItem {
+  index: number;
+  sender: string;
+  content: string;
+  sent_at: string;
+  source: string;
+  channel_id?: string;
+  message_seq?: number;
+  channel_type?: number;
+  context_before?: CitationContextMessage[];
+  context_after?: CitationContextMessage[];
 }
 
 export interface SummaryListItem {

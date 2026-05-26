@@ -3,12 +3,13 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
   MessageContentType,
+  type ChannelInfoListener,
   type Message,
   type MessageImage,
   type MessageText,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -48,17 +50,53 @@ interface MessageRowProps {
   bare?: boolean;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic(子区),SDK 未导出常量。 */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+/** ChannelType 5 = ChannelTypeCommunityTopic(子区,SDK 1.3.5 未导出常量,对齐旧 dmworkbase Const.ts)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
-function senderInitial(message: Message): string {
-  const channelInfo = WKSDK.shared().channelManager.getChannelInfo(message.channel);
-  const name = channelInfo?.title || message.fromUID;
-  return (name || "?").slice(0, 1).toUpperCase();
+/**
+ * 取消息发送者的展示名:
+ * - 走 fromUID + ChannelTypePerson 拿对应用户的 channelInfo.title;不是 message.channel
+ *   (会话频道,group 时是群名,会渲染成"村长群" 而不是发送人名)。
+ * - bot:bot 在 IM 里也是 ChannelTypePerson,channelInfo.title 同样适用。
+ *
+ * 注意:这里只读 SDK 缓存,首次渲染可能没缓存。组件需要配合 useSenderInfoLive 主动
+ * 拉取 + 监听更新,触发重渲。
+ */
+function senderDisplay(message: Message): string {
+  const personChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(message.fromUID, ChannelTypePerson),
+  );
+  return personChannelInfo?.title || message.fromUID;
 }
 
-function senderDisplay(message: Message): string {
-  return message.fromUID;
+/**
+ * 主动确保 sender 的 ChannelInfo 已拉取并保持最新(对应旧 dmworkbase
+ * MessageCell.componentDidMount 同款两件事):
+ *
+ *   1. 缓存里没有 → 主动 fetchChannelInfo(发送者 Person 频道)
+ *   2. 注册 channelInfoListener,sender 信息到达后 force rerender
+ *
+ * 普通群成员通常已经走 syncSubscribers 拿到名字,但 **bot** 没在群成员里(订阅
+ * 表只列人类成员),需要这条路径单独把 bot 的 channelInfo 拉过来才能显示昵称。
+ */
+function useSenderInfoLive(fromUID: string): void {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!fromUID) return;
+    const mgr = WKSDK.shared().channelManager;
+    const ch = new Channel(fromUID, ChannelTypePerson);
+    if (!mgr.getChannelInfo(ch)) {
+      void mgr.fetchChannelInfo(ch);
+    }
+    const listener: ChannelInfoListener = (info) => {
+      const c = info?.channel;
+      if (c?.channelID === fromUID && c?.channelType === ChannelTypePerson) {
+        force((v) => v + 1);
+      }
+    };
+    mgr.addListener(listener);
+    return () => mgr.removeListener(listener);
+  }, [fromUID]);
 }
 
 function formatTime(ts: number): string {
@@ -131,6 +169,7 @@ function canCreateThread(message: Message): boolean {
  *   - 复制 / 复制图片 / 回复 / 转发 / 多选 / 撤回 / 创建子区(群消息)/ 删除
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
+  useSenderInfoLive(message.fromUID);
   const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
@@ -396,20 +435,15 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     );
   }
 
+  const senderTitle = senderDisplay(message);
+  const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-sm font-medium text-text-secondary"
-        aria-hidden
-      >
-        {senderInitial(message)}
-      </div>
+      <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-baseline gap-2 leading-[22px]">
-          <span className="truncate text-sm font-semibold text-text-primary">
-            {senderDisplay(message)}
-          </span>
+          <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
           <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
         </header>
         <MessageDispatch message={message} />

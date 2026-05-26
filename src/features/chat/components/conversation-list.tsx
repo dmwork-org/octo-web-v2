@@ -1,23 +1,28 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { type Conversation, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, Pin, PinOff, Trash2, X } from "lucide-react";
+import WKSDK, { Channel, type Conversation, ChannelTypeGroup } from "wukongimjssdk";
+import { BellOff, BellRing, Eye, Hash, Pin, PinOff, Trash2, X } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   clearChannelMessages,
   clearConversationUnread,
   deleteConversation,
 } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 
 export type ConvTab = "follow" | "recent";
+
+/** ChannelType 5 = ChannelTypeCommunityTopic(子区,SDK 1.3.5 未导出常量,对齐旧 dmworkbase Const.ts)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 interface ConversationListProps {
   selectedChannelId?: string;
@@ -55,10 +60,13 @@ function digestOf(c: Conversation): string {
 }
 
 /**
- * 单行会话(对应旧 .wk-conversationlist-item):
+ * 单行会话(对应旧 dmworkbase ConversationList::conversationItem):
+ *
  * - 行 padding 7px 8px / rounded-sm / hover bg-bg-hover / selected bg-brand-tint
  * - 置顶行额外 bg-bg-elevated/30 / 头像 32×32 / 头像右上 unread badge
  * - 名字行末尾:置顶 Pin icon + 免打扰 BellOff icon
+ * - 子区(ChannelTypeCommunityTopic)左侧头像取**父群**头像、名字前加 # 图标、
+ *   名字上方一行小字面包屑显示父群名(对齐旧 .wk-conv-breadcrumb)
  * - 右键 onContextMenu → 父层 onContextMenu(打开 ContextMenu)
  */
 function ConversationRow({
@@ -72,12 +80,27 @@ function ConversationRow({
   onClick: () => void;
   onContextMenu: (e: MouseEvent) => void;
 }) {
-  const title = conversation.channelInfo?.title ?? conversation.channel.channelID;
-  const isPerson = conversation.channel.channelType === ChannelTypePerson;
+  const channel = conversation.channel;
+  const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
+  const title = conversation.channelInfo?.title ?? channel.channelID;
   const isMuted = !!conversation.channelInfo?.mute;
   const isTop = conversation.extra?.top === 1;
   const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
+
+  // 子区:头像走父群、面包屑显示父群名(对齐旧版 design v3.1 扁平时间序)
+  const parentGroupNo = isThread ? parseThreadChannelId(channel.channelID)?.groupNo : undefined;
+  const parentChannel = parentGroupNo ? new Channel(parentGroupNo, ChannelTypeGroup) : undefined;
+  const parentChannelInfo = parentChannel
+    ? WKSDK.shared().channelManager.getChannelInfo(parentChannel)
+    : undefined;
+  // 父群 channelInfo 还没拉到 → 主动 fetch,channelInfoListener 会触发重渲(SDK 自带 dedupe)
+  if (parentChannel && !parentChannelInfo) {
+    void WKSDK.shared().channelManager.fetchChannelInfo(parentChannel);
+  }
+  const avatarChannel = isThread && parentChannel ? parentChannel : channel;
+  const avatarTitle = isThread ? (parentChannelInfo?.title ?? title) : title;
+  const breadcrumb = isThread ? parentChannelInfo?.title : undefined;
 
   return (
     <button
@@ -93,13 +116,7 @@ function ConversationRow({
       }`}
     >
       <div className="relative flex h-8 w-8 shrink-0">
-        <div
-          className={`flex h-8 w-8 items-center justify-center ${
-            isPerson ? "rounded-full" : "rounded-sm"
-          } bg-bg-elevated text-xs font-medium text-text-secondary`}
-        >
-          {title.slice(0, 1).toUpperCase()}
-        </div>
+        <ChannelAvatar channel={avatarChannel} size={32} title={avatarTitle} />
         {hasUnread &&
           (isMuted ? (
             <span
@@ -116,13 +133,19 @@ function ConversationRow({
           ))}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {breadcrumb ? (
+          <span className="truncate text-[10px] leading-tight text-text-tertiary">
+            {breadcrumb}
+          </span>
+        ) : null}
         <div className="flex items-center justify-between gap-2">
           <h3
-            className={`min-w-0 flex-1 truncate text-[13px] leading-tight ${
+            className={`flex min-w-0 flex-1 items-center gap-0.5 truncate text-[13px] leading-tight ${
               hasUnread && !isMuted ? "font-semibold" : "font-medium"
             } ${isMuted ? "text-text-tertiary" : "text-text-primary"}`}
           >
-            {title}
+            {isThread ? <Hash size={12} className="shrink-0 text-text-tertiary" /> : null}
+            <span className="truncate">{title}</span>
           </h3>
           <div className="flex shrink-0 items-center gap-1 text-text-tertiary">
             {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}

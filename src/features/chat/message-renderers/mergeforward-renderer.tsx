@@ -1,8 +1,8 @@
 import { type Message } from "wukongimjssdk";
-import { ChevronRight } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import {
   MergeforwardContent,
+  type MergeforwardInnerMsg,
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
 
@@ -10,76 +10,97 @@ interface MergeforwardRendererProps {
   message: Message;
 }
 
-/** 嵌套 message 的预览行(name: 内容)。content 可能是 SDK Message 也可能是 plain object。 */
-interface InnerMsgLite {
-  fromUID?: string;
-  content?: { conversationDigest?: string; text?: string } | string;
+/** ChannelType 2 = group;对齐 SDK ChannelTypeGroup。 */
+const CHANNEL_TYPE_GROUP = 2;
+
+/**
+ * Title 计算(对应旧 MergeforwardCell.getTitle):
+ *   - group → "群的聊天记录"
+ *   - person → "NAME1、NAME2 的聊天记录"
+ *   - users 空 fallback → "聊天记录"
+ */
+function buildTitle(content: MergeforwardContent): string {
+  if (content.channelType === CHANNEL_TYPE_GROUP) {
+    return "群的聊天记录";
+  }
+  const names = (content.users ?? []).map((u) => u.name).filter(Boolean);
+  if (names.length === 0) return "聊天记录";
+  return `${names.join("、")}的聊天记录`;
 }
 
-function digestOfInner(m: InnerMsgLite, users: MergeforwardUser[]): string {
-  const fromUID = m.fromUID ?? "";
-  const sender = users.find((u) => u.uid === fromUID)?.name ?? fromUID;
-  const c = m.content;
-  let body = "";
-  if (typeof c === "string") {
-    body = c;
-  } else if (c && typeof c === "object") {
-    body = c.conversationDigest ?? c.text ?? "";
-  }
-  return sender ? `${sender}:${body}` : body;
+/**
+ * 嵌套消息 digest(根据 payload.type 推:1=text 取 content/text,其他类型回 [类型])。
+ * 对齐旧 conversationDigest 各 MessageContent 的实现 — 这里集中查表避免依赖 SDK
+ * Message 实例化。
+ */
+function digestOfInnerPayload(m: MergeforwardInnerMsg): string {
+  const t = m.payload?.type;
+  if (t === 1) return (m.payload?.content as string) || (m.payload?.text as string) || "";
+  if (t === 2) return "[图片]";
+  if (t === 3) return "[动图]";
+  if (t === 4) return "[语音]";
+  if (t === 5) return "[小视频]";
+  if (t === 6) return "[位置]";
+  if (t === 7) return "[名片]";
+  if (t === 8) return "[文件]";
+  if (t === 11) return "[聊天记录]";
+  if (t === 12 || t === 13) return "[贴纸]";
+  return "[消息]";
+}
+
+function senderNameOf(fromUID: string | undefined, users: MergeforwardUser[]): string {
+  if (!fromUID) return "";
+  return users.find((u) => u.uid === fromUID)?.name ?? fromUID;
 }
 
 /**
  * 合并转发卡片(对应旧 dmworkbase Messages/Mergeforward MergeforwardCell):
  *
- *   ┌─────────────────────────────┐
- *   │ 📋 聊天记录                ›│  ← 顶部:title + 右箭头
- *   │ ────────────────────────── │
- *   │ AoLi:今天开会的结论是…       │
- *   │ Thomas AI:需要先对齐一下…   │  ← 前 4 条预览
- *   │ AoLi:好的,明天上午十点      │
- *   │ ...                          │  ← 总数提示
- *   │ ────────────────────────── │
- *   │ 共 8 条消息                  │
- *   └─────────────────────────────┘
+ *   ┌──────────────────────────────────┐
+ *   │ 群的聊天记录                       │  ← 加粗标题(无右箭头,无顶部分隔线)
+ *   │                                    │
+ *   │ 王宜林:@Octo 产品管家               │
+ *   │ 王宜林:「最近」升级后,时间排序…       │  ← 前 4 条预览(name:digest)
+ *   │ 王宜林:[图片]                       │
+ *   │ 王宜林:第二个 bug:                  │
+ *   │ ─────────────────────────────── │
+ *   │ 聊天记录                           │  ← footer 灰字"聊天记录"(不显示数量)
+ *   └──────────────────────────────────┘
  *
  * 简化(P3+ 完善):
- * - 点击卡片 → 旧版打开全屏 dialog 看完整聊天记录;本期 toast 占位
- * - 嵌套 mergeForward(转发了一条转发) — 显示数字徽标 / 在 dialog 内继续展开
+ * - 点击卡片 → 旧版打开 WKModal 看完整聊天记录;本期 toast 占位
  */
 export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
   const content = message.content as MergeforwardContent;
-  const total = content.msgs?.length ?? 0;
-  const preview = (content.msgs ?? []).slice(0, 4) as unknown as InnerMsgLite[];
+  const title = buildTitle(content);
+  const users = content.users ?? [];
+  const preview = (content.msgs ?? []).slice(0, 4);
 
   return (
     <button
       type="button"
       onClick={() => toast.info("展开聊天记录即将接入(P3+)")}
-      className="flex w-72 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-surface text-left shadow-sm transition-colors hover:bg-bg-hover"
+      className="flex w-80 flex-col overflow-hidden rounded-md bg-bg-elevated text-left transition-colors hover:bg-bg-hover"
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2">
-        <span className="truncate text-[12px] font-semibold text-text-primary">
-          {content.title || "聊天记录"}
-        </span>
-        <ChevronRight size={14} className="shrink-0 text-text-tertiary" />
-      </header>
-      <ul className="flex flex-col gap-0.5 px-3 py-2 text-[11px] leading-snug text-text-secondary">
+      <div className="flex flex-col gap-1.5 px-4 pt-3 pb-3">
+        <div className="text-[14px] font-semibold text-text-primary">{title}</div>
         {preview.length === 0 ? (
-          <li className="text-text-tertiary">无内容</li>
+          <div className="text-[12px] text-text-tertiary">无内容</div>
         ) : (
-          preview.map((m, i) => (
-            <li key={i} className="truncate">
-              {digestOfInner(m, content.users ?? [])}
-            </li>
-          ))
+          <ul className="flex flex-col gap-1 text-[12px] leading-snug text-text-secondary">
+            {preview.map((m, i) => (
+              <li key={(m.message_id as string | undefined) ?? i} className="truncate">
+                <span className="text-text-secondary">{senderNameOf(m.from_uid, users)}</span>
+                <span className="text-text-tertiary">:</span>
+                <span className="ml-1 text-text-secondary">{digestOfInnerPayload(m)}</span>
+              </li>
+            ))}
+          </ul>
         )}
-      </ul>
-      {total > 0 ? (
-        <footer className="border-t border-border-subtle px-3 py-1.5 text-[11px] text-text-tertiary">
-          共 {total} 条消息
-        </footer>
-      ) : null}
+      </div>
+      <footer className="border-t border-border-subtle/70 px-4 py-2 text-[12px] text-text-tertiary">
+        聊天记录
+      </footer>
     </button>
   );
 }

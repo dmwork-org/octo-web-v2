@@ -1,4 +1,4 @@
-import { MessageContent, type Message } from "wukongimjssdk";
+import { MessageContent } from "wukongimjssdk";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -13,36 +13,66 @@ export interface MergeforwardUser {
 }
 
 /**
+ * 合并转发里嵌套的单条消息(后端 raw payload,snake case)。
+ *
+ * 字段对齐旧 dmworkbase mapToMessage 的源端 messageMap:
+ *   - message_id:消息 ID(可能是数字或字符串)
+ *   - from_uid:发送者 uid
+ *   - timestamp:发送时间
+ *   - payload:嵌套 content(有 type 字段 + 具体 content/text/url 等)
+ *
+ * 不实例化为 SDK Message — renderer 只用前 4 条做 digest 预览,直接读 raw 即可。
+ */
+export interface MergeforwardInnerMsg {
+  message_id?: string | number;
+  from_uid?: string;
+  timestamp?: number;
+  payload?: {
+    type?: number;
+    content?: string;
+    text?: string;
+    name?: string;
+    [k: string]: unknown;
+  };
+}
+
+/**
  * 合并转发消息 content(对应旧 dmworkbase Messages/Mergeforward):
  *
- *   - title:卡片标题,如"AoLi、Thomas AI 和其他人的聊天记录"
- *   - channelType:来源会话类型(group/person)
- *   - users:涉及的用户列表
- *   - msgs:嵌套的消息列表(SDK Message 数组 — 可能本身又是 mergeForward)
+ *   - channel_type:来源会话类型(group=2 / person=1)
+ *   - users:涉及的用户列表(用于 title 拼接 + sender 名查找)
+ *   - msgs:嵌套消息 raw payload 数组
  *
- * 简化(P3+ 完善):
- *   - 不做嵌套深度防护(MAX_DECODE_DEPTH 8)— 旧版有,新版后端控制深度后再加
- *   - 不重写 decode() — 默认 SDK 用 String.fromCharCode.apply 大 payload 会爆
- *     stack;暂时容忍,真出问题再改 TextDecoder 重写
- *   - msgs 里嵌套 Message 用 plain object 透传(decodeJSON 不递归构造 SDK Message
- *     实例),renderer 只读 `fromUID / digest / contentType` 用于卡片预览
+ * **没有 title 字段** — 旧版 title 是渲染期 derive(getTitle):
+ *   - group → 固定"群的聊天记录"
+ *   - person → "NAME1、NAME2 的聊天记录"
+ *
+ * 简化(对齐旧版差异):
+ * - 不做 decode 深度防护(MAX_DECODE_DEPTH 8)— 旧版有,后端深度可控后再加
+ * - 不重写 decode() 用 TextDecoder — 大 payload 默认 String.fromCharCode.apply
+ *   stack overflow,真出问题再改
+ * - msgs 不实例化 SDK Message — renderer 直接读 raw payload type → digest 文字
  */
 export class MergeforwardContent extends MessageContent {
-  title = "";
   channelType = 0;
   users: MergeforwardUser[] = [];
-  msgs: Message[] = [];
+  msgs: MergeforwardInnerMsg[] = [];
 
   decodeJSON(content: Record<string, unknown>): void {
-    this.title = typeof content.title === "string" ? content.title : "";
     this.channelType = typeof content.channel_type === "number" ? content.channel_type : 0;
-    this.users = Array.isArray(content.users) ? (content.users as MergeforwardUser[]) : [];
-    this.msgs = Array.isArray(content.msgs) ? (content.msgs as Message[]) : [];
+    const rawUsers = Array.isArray(content.users) ? (content.users as MergeforwardUser[]) : [];
+    // 去重(对齐旧版,后端偶发重复)
+    const seen = new Set<string>();
+    this.users = rawUsers.filter((u) => {
+      if (!u?.uid || seen.has(u.uid)) return false;
+      seen.add(u.uid);
+      return true;
+    });
+    this.msgs = Array.isArray(content.msgs) ? (content.msgs as MergeforwardInnerMsg[]) : [];
   }
 
   encodeJSON(): Record<string, unknown> {
     return {
-      title: this.title,
       channel_type: this.channelType,
       users: this.users,
       msgs: this.msgs,

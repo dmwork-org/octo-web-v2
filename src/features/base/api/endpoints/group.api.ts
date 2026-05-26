@@ -27,6 +27,36 @@ export async function getMyGroups(spaceId: string): Promise<GroupSummary[]> {
 }
 
 /**
+ * 创建群聊(对应旧 dmworkdatasource createChannel):
+ *
+ * POST /v1/group/create  body: { members: uids, space_id?, category_id? }
+ *   → { group_no }
+ *
+ * uids 含 owner 自己;后端创建群,把所有 uid 加进去,owner 是当前调用者。
+ * space_id 走 ofetch X-Space-Id 拦截器,这里也兜底显式传(对齐旧版)。
+ * category_id 是分组 ID(可选);P3+ 接入分组系统时用。
+ *
+ * 注意 endpoint 是 `group/create`(单数 group + 动词 create),不是 RESTful
+ * `POST /groups` — 后端历史路由,旧版 datasource 同款。
+ */
+export interface CreateGroupBody {
+  members: string[];
+  space_id?: string;
+  category_id?: string;
+}
+
+export interface CreateGroupResp {
+  group_no: string;
+}
+
+export async function createGroup(body: CreateGroupBody): Promise<CreateGroupResp> {
+  return api<CreateGroupResp>("group/create", {
+    method: "POST",
+    body,
+  });
+}
+
+/**
  * 群成员增量同步(对应旧 dmworkdatasource/module.ts::syncSubscribersCallback)。
  *
  * GET /v1/groups/{groupNo}/membersync?version={ver}&limit={n}

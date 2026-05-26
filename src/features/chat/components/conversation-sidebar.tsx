@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import { useQuery } from "@tanstack/react-query";
 import { type Conversation } from "wukongimjssdk";
 import { Search, Plus } from "lucide-react";
+import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { ConnectionStatusBadge } from "@/features/chat/components/connection-status-badge";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
+import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
+import { FriendAddModal } from "@/features/chat/components/friend-add-modal";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
+import { SidebarAddPopover } from "@/features/chat/components/sidebar-add-popover";
 
 interface ConversationSidebarProps {
   selectedChannelId?: string;
@@ -37,11 +41,15 @@ const TABS: TabDef[] = [
  * 连接状态:右侧 ConnectionStatusBadge(信号格 + ms),hover tooltip 看详情。
  *
  * 🔍 触发 GlobalSearchModal(全局,联系人/群组/文件 3 tab)。
- * ➕ 新增按钮(发起群聊 / 创建分组)P3+ wave。
+ * ➕ 弹出 SidebarAddPopover(发起群聊 / 添加朋友;关注 tab 下额外"创建分组")。
  */
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const [activeTab, setActiveTab] = useState<ConvTab>("recent");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [friendAddOpen, setFriendAddOpen] = useState(false);
+  const addWrapRef = useRef<HTMLDivElement>(null);
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
 
@@ -68,14 +76,30 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
           >
             <Search size={16} />
           </button>
-          <button
-            type="button"
-            aria-label="新增"
-            title="发起群聊 / 创建分组(P3+)"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <Plus size={16} />
-          </button>
+          <div ref={addWrapRef} className="relative">
+            <button
+              type="button"
+              aria-label="新增"
+              title="发起群聊 / 添加朋友"
+              onClick={() => setAddOpen((v) => !v)}
+              className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                addOpen
+                  ? "bg-bg-hover text-text-primary"
+                  : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              }`}
+            >
+              <Plus size={16} />
+            </button>
+            <SidebarAddPopover
+              containerRef={addWrapRef}
+              open={addOpen}
+              showCreateCategory={activeTab === "follow"}
+              onClose={() => setAddOpen(false)}
+              onStartGroup={() => setCreateGroupOpen(true)}
+              onAddFriend={() => setFriendAddOpen(true)}
+              onCreateCategory={() => toast.info("分组功能即将推出")}
+            />
+          </div>
         </div>
       </header>
 
@@ -103,6 +127,8 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       />
 
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <CreateGroupModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} />
+      <FriendAddModal open={friendAddOpen} onClose={() => setFriendAddOpen(false)} />
     </aside>
   );
 }

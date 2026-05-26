@@ -21,7 +21,9 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
+import { VoiceRecordingBar } from "@/features/chat/components/voice-recording-bar";
 import { FileContent } from "@/features/base/im/file-content";
+import { VoiceContent } from "@/features/base/im/voice-content";
 import { authStore } from "@/features/base/stores/auth";
 import {
   chatReplyActions,
@@ -32,9 +34,13 @@ import { createMentionSuggestion } from "@/features/chat/components/mention-sugg
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+
+/** 录音上限(秒)— 对齐旧 PRD。 */
+const VOICE_MAX_DURATION = 60;
 
 interface ComposerProps {
   channel: Channel;
@@ -74,7 +80,7 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: "[图片]" };
   if (ct === MessageContentType.text) return { Icon: null, hint: "" };
   if (ct === 6) return { Icon: FileText, hint: "[文件]" };
-  if (ct === 3) return { Icon: Mic, hint: "[语音]" };
+  if (ct === 4) return { Icon: Mic, hint: "[语音]" };
   return { Icon: null, hint: "" };
 }
 
@@ -162,7 +168,7 @@ function extractFromEditor(editor: Editor): ExtractedText {
 }
 
 /**
- * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿):
+ * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强):
  *
  * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(群 / 子区启用)
  * - Mention 候选 = 当前**群成员**(SDK getSubscribes,K-1 接的 membersync),不是
@@ -171,12 +177,13 @@ function extractFromEditor(editor: Editor): ExtractedText {
  *   `@所有人` 特殊化为 SDK Mention.all=true
  * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
  *
- * 增强(对齐旧 ChatToolbar):
- * - Emoji 面板:点 😀 弹 emoji-mart picker,选中 native unicode 插入 editor
- * - 粘贴上传:Ctrl+V 粘贴含图片 → 直接走 sendImage,prevent editor 自带 paste 把图
- *   片当 base64 文本插入
+ * 媒体增强(对齐旧 ChatToolbar):
+ * - Emoji 面板:点 😀 弹 emoji 网格 picker(EmojiPickerPopover,1:1 旧 EmojiPanel)
+ * - 粘贴上传:Ctrl+V 粘贴含图片 → 直接走 sendImage,prevent editor 把图片当 base64 文本插
  * - 拖拽上传:文件拖到 form 区域 → 图片走 sendImage、其他走 sendFile;dragover 必须
  *   preventDefault 否则 drop 不触发
+ * - 语音录音:点 🎤 进录音模式(VoiceRecordingBar 替代输入区),录完发送 / 取消;
+ *   走 VoiceContent + MediaMessageUploadTask 直传
  *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
@@ -348,6 +355,38 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
+  const sendVoice = async (file: File, duration: number) => {
+    try {
+      const content = new VoiceContent(file, duration);
+      const reply = buildReply();
+      if (reply) content.reply = reply;
+      await WKSDK.shared().chatManager.send(content, channel);
+      chatReplyActions.clear(channel);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "语音发送失败");
+    }
+  };
+
+  const voiceRec = useVoiceRecorder({
+    maxDuration: VOICE_MAX_DURATION,
+    onError: (e) => toast.error(e.message || "录音失败"),
+  });
+
+  const onClickMic = async () => {
+    if (voiceRec.isRecording) return;
+    await voiceRec.start();
+  };
+
+  const onCancelVoice = () => {
+    void voiceRec.stop(true);
+  };
+
+  const onSendVoice = async () => {
+    const dur = voiceRec.duration;
+    const file = await voiceRec.stop(false);
+    if (file && dur > 0) void sendVoice(file, dur);
+  };
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (editor) void sendText(editor);
@@ -468,62 +507,82 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        <EditorContent editor={editor} />
+        {voiceRec.isRecording ? (
+          <VoiceRecordingBar
+            duration={voiceRec.duration}
+            maxDuration={VOICE_MAX_DURATION}
+            onCancel={onCancelVoice}
+            onSend={onSendVoice}
+          />
+        ) : (
+          <>
+            <EditorContent editor={editor} />
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            <div ref={emojiWrapRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setEmojiOpen((v) => !v)}
-                aria-label="表情"
-                title="表情"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                  emojiOpen
-                    ? "bg-bg-hover text-text-primary"
-                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-                }`}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <div ref={emojiWrapRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setEmojiOpen((v) => !v)}
+                    aria-label="表情"
+                    title="表情"
+                    className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                      emojiOpen
+                        ? "bg-bg-hover text-text-primary"
+                        : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                    }`}
+                  >
+                    <Smile size={18} />
+                  </button>
+                  <EmojiPickerPopover
+                    open={emojiOpen}
+                    containerRef={emojiWrapRef}
+                    onSelect={insertEmoji}
+                    onClose={() => setEmojiOpen(false)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  aria-label="发送图片"
+                  title="发送图片"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <ImageIcon size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="发送文件"
+                  title="发送文件"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <Paperclip size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onClickMic()}
+                  aria-label="录音"
+                  title="录音"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <Mic size={18} />
+                </button>
+              </div>
+              <Button
+                htmlType="submit"
+                type="primary"
+                theme="solid"
+                size="default"
+                loading={sending}
+                disabled={!hasContent}
               >
-                <Smile size={18} />
-              </button>
-              <EmojiPickerPopover
-                open={emojiOpen}
-                containerRef={emojiWrapRef}
-                onSelect={insertEmoji}
-                onClose={() => setEmojiOpen(false)}
-              />
+                <Send size={14} />
+                发送
+              </Button>
             </div>
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="发送图片"
-              title="发送图片"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            >
-              <ImageIcon size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="发送文件"
-              title="发送文件"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            >
-              <Paperclip size={18} />
-            </button>
-          </div>
-          <Button
-            htmlType="submit"
-            type="primary"
-            theme="solid"
-            size="default"
-            loading={sending}
-            disabled={!hasContent}
-          >
-            <Send size={14} />
-            发送
-          </Button>
-        </div>
+          </>
+        )}
       </form>
     </div>
   );

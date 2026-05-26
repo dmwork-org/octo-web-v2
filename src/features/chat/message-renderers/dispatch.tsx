@@ -4,6 +4,7 @@ import { TextRenderer } from "@/features/chat/message-renderers/text-renderer";
 import { SystemRenderer } from "@/features/chat/message-renderers/system-renderer";
 import { ImageRenderer } from "@/features/chat/message-renderers/image-renderer";
 import { FileRenderer } from "@/features/chat/message-renderers/file-renderer";
+import { VoiceRenderer } from "@/features/chat/message-renderers/voice-renderer";
 import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-renderer";
 
 /**
@@ -12,7 +13,7 @@ import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-rende
  * 优先级:
  * 1. remoteExtra.revoke → RevokedRenderer("xxx 撤回了一条消息",P2-B8)
  * 2. 1000 ≤ contentType ≤ 2000 → SystemRenderer(旧项目 module.tsx 388-391)
- * 3. 精确 contentType(text/image/file/...)
+ * 3. 精确 contentType(text/image/file/voice/...)
  * 4. 兜底 [不支持的消息类型 X]
  */
 export function MessageDispatch({ message }: { message: Message }) {
@@ -30,6 +31,8 @@ export function MessageDispatch({ message }: { message: Message }) {
       return <ImageRenderer message={message} />;
     case MessageContentTypeConst.file:
       return <FileRenderer message={message} />;
+    case MessageContentTypeConst.voice:
+      return <VoiceRenderer message={message} />;
     default:
       return (
         <div className="flex justify-center">

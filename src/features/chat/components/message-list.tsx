@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { type Channel, type Message } from "wukongimjssdk";
+import { authStore } from "@/features/base/stores/auth";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
@@ -70,25 +72,46 @@ function useInitialScrollToBottom(
   }, [firstReadyKey, scrollRef]);
 }
 
+interface FollowBottomKey {
+  /** 末条消息的稳定 id(clientMsgNo / messageID) */
+  id: string;
+  /** 是否自己发出 */
+  mine: boolean;
+}
+
 /**
- * 新消息到达时:如果用户在底部附近就自动跟到底,否则不动(用户可能在看历史,
- * 强行跳底体验差;旧版有"返回最新"按钮,本期暂不补)。
+ * 新消息到达时分两种情况:
+ * - 自己发出 → **无条件**滚到底(对齐 IM 主流体验:用户刚 Enter 完应该看到自己的消息)
+ * - 别人发出 → 仅当用户在底部附近(< 200px)时跟到底,否则不动(用户可能在看历史)
  *
- * 触发器:lastMessage id 变化(append) + 当前位置离底部 < NEAR_BOTTOM_THRESHOLD。
+ * useLayoutEffect:在 paint 前同步设 scrollTop,新消息 mount 后立即到位,无闪烁。
+ *
+ * 双 RAF tick:某些 message renderer(图片 / 代码块)mount 后 height 是异步算的,
+ * 第一次 setScrollTop 拿到的 scrollHeight 可能还不是最终值;再追一帧 RAF 兜底
+ * (体感:发送图片消息时不会"掉出"视口底)。
  */
 function useFollowBottomOnNewMessages(
   scrollRef: React.RefObject<HTMLDivElement | null>,
-  lastMessageKey: string,
+  key: FollowBottomKey,
 ) {
   const lastIdRef = useRef("");
-  useEffect(() => {
-    if (!lastMessageKey || lastIdRef.current === lastMessageKey) return;
+  useLayoutEffect(() => {
+    if (!key.id || lastIdRef.current === key.id) return;
     const el = scrollRef.current;
-    if (el && distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD) {
-      el.scrollTop = el.scrollHeight;
+    if (!el) {
+      lastIdRef.current = key.id;
+      return;
     }
-    lastIdRef.current = lastMessageKey;
-  }, [lastMessageKey, scrollRef]);
+    const shouldFollow = key.mine || distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
+    if (shouldFollow) {
+      el.scrollTop = el.scrollHeight;
+      // 异步 layout(图片/代码块/markdown)兜底
+      requestAnimationFrame(() => {
+        if (el.isConnected) el.scrollTop = el.scrollHeight;
+      });
+    }
+    lastIdRef.current = key.id;
+  }, [key.id, key.mine, scrollRef]);
 }
 
 /**
@@ -151,6 +174,7 @@ function usePulldownToLoadHistory(
 export function MessageList({ channel }: MessageListProps) {
   useMessagesSync(channel);
   useClearUnreadOnEnter(channel);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 
@@ -169,13 +193,17 @@ export function MessageList({ channel }: MessageListProps) {
     () => (messages[0] ? messages[0].clientMsgNo || messages[0].messageID || "" : ""),
     [messages],
   );
-  const lastMessageKey = useMemo(() => {
+  const followKey = useMemo<FollowBottomKey>(() => {
     const last = messages[messages.length - 1];
-    return last ? last.clientMsgNo || last.messageID || "" : "";
-  }, [messages]);
+    if (!last) return { id: "", mine: false };
+    return {
+      id: last.clientMsgNo || last.messageID || "",
+      mine: !!myUid && last.fromUID === myUid,
+    };
+  }, [messages, myUid]);
 
   useInitialScrollToBottom(scrollRef, firstReadyKey);
-  useFollowBottomOnNewMessages(scrollRef, lastMessageKey);
+  useFollowBottomOnNewMessages(scrollRef, followKey);
   usePulldownToLoadHistory(
     scrollRef,
     data?.pages.length ?? 0,

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, Pin, PinOff, Trash2, X } from "lucide-react";
+import { BellOff, BellRing, ChevronRight, Eye, Pin, PinOff, Trash2, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import {
   clearChannelMessages,
@@ -18,8 +19,8 @@ interface ChannelSettingModalProps {
   onClose: () => void;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+/** ChannelType 5 = ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 /**
  * Modal 打开时主动 syncSubscribes,把群成员拉到 SDK cache。
@@ -67,10 +68,10 @@ function SectionRow({
       >
         {title}
       </span>
-      {right ? <span className="shrink-0">{right}</span> : null}
       {subTitle ? (
         <span className="shrink-0 truncate text-[12px] text-text-tertiary">{subTitle}</span>
       ) : null}
+      {right ? <span className="shrink-0">{right}</span> : null}
     </button>
   );
 }
@@ -87,16 +88,17 @@ function SectionGroup({ children }: { children: React.ReactNode }) {
  * 频道设置弹窗(对应旧 dmworkbase Components/ChannelSetting 精简版):
  *
  *   ┌ Header(头像 + 名 + 群标识 + close)
- *   ├ Section: 成员数(进入时主动 syncSubscribes,从 cache 读真实数)/ 公告(只读)
+ *   ├ Section: 成员行(可点击 → ChannelMembersModal)/ 公告(只读)
  *   ├ Section: 置顶 / 免打扰(toggle row,直接调 channel-setting.api)
  *   └ Section: 清空聊天记录 / 关闭聊天窗口
  *
- * 不做(P3+ wave):成员列表展开 / 子区列表 / 群文档 / 群权限 / 成员管理 / 退群。
+ * 不做(P3+ wave):子区列表 / 群文档 / 群权限 / 退群 / 转让群主。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const qc = useQueryClient();
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   // tick 让 syncSubscribes 完成后强制重渲(SDK subscribeCacheMap 写入不会主动通知 React)
   const [subscribesTick, setSubscribesTick] = useState(0);
 
@@ -223,7 +225,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           {(isGroup || isThread) && (typeof memberCount === "number" || notice) ? (
             <SectionGroup>
               {typeof memberCount === "number" ? (
-                <SectionRow title="成员" subTitle={`${memberCount} 人`} />
+                <SectionRow
+                  title="成员"
+                  subTitle={`${memberCount} 人`}
+                  right={<ChevronRight size={14} className="text-text-tertiary" />}
+                  onClick={() => setMembersOpen(true)}
+                />
               ) : null}
               {notice ? <SectionRow title="群公告" subTitle={notice} /> : null}
             </SectionGroup>
@@ -270,6 +277,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           </SectionGroup>
         </div>
       </div>
+
+      <ChannelMembersModal
+        open={membersOpen}
+        channel={channel}
+        onClose={() => setMembersOpen(false)}
+      />
 
       <ConfirmModal
         open={confirmClear}

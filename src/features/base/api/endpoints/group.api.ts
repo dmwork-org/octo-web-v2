@@ -131,3 +131,51 @@ export async function getThread(groupNo: string, shortId: string): Promise<Threa
     `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`,
   );
 }
+
+/**
+ * 群成员增删 / 管理员晋升降级(对应旧 dmworkdatasource/datasource.ts)。
+ *
+ * - POST /v1/groups/{groupNo}/members  body: { members: string[] }
+ *   → 邀请加群(成员发现自己被加进群,有可能弹 ApproveGroupMember 申请确认)
+ * - DELETE /v1/groups/{groupNo}/members  body: { members: string[] }
+ *   → 踢人(只有 owner / manager 能调,后端按权限校验)
+ * - POST /v1/groups/{groupNo}/managers  body: string[]   // 直接是 uids 数组!
+ *   → 把若干普通成员晋升为管理员(只有 owner 能调)
+ * - DELETE /v1/groups/{groupNo}/managers  body: string[] // 同上
+ *   → 撤销管理员(只有 owner 能调)
+ *
+ * managers 端点 body 是 raw uids 数组(对齐旧 datasource 实现);members 端点 body
+ * 是 { members: uids } 对象包装。后端这两套不一致是历史问题,新项目对齐保留。
+ */
+
+export async function addGroupMembers(groupNo: string, uids: string[]): Promise<void> {
+  if (uids.length === 0) return;
+  await api(`groups/${encodeURIComponent(groupNo)}/members`, {
+    method: "POST",
+    body: { members: uids },
+  });
+}
+
+export async function removeGroupMembers(groupNo: string, uids: string[]): Promise<void> {
+  if (uids.length === 0) return;
+  await api(`groups/${encodeURIComponent(groupNo)}/members`, {
+    method: "DELETE",
+    body: { members: uids },
+  });
+}
+
+export async function addGroupManagers(groupNo: string, uids: string[]): Promise<void> {
+  if (uids.length === 0) return;
+  await api(`groups/${encodeURIComponent(groupNo)}/managers`, {
+    method: "POST",
+    body: uids,
+  });
+}
+
+export async function removeGroupManagers(groupNo: string, uids: string[]): Promise<void> {
+  if (uids.length === 0) return;
+  await api(`groups/${encodeURIComponent(groupNo)}/managers`, {
+    method: "DELETE",
+    body: uids,
+  });
+}

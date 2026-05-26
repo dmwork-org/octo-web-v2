@@ -31,15 +31,20 @@ function useClickOutside(
 /**
  * Emoji 面板(对应旧 dmworkbase Components/EmojiToolbar EmojiPanel,1:1 复刻):
  *
- * - 数据 = EMOJI_LIST(152 个 unicode + 3 个自家 custom token,从旧 EmojiService 平移)
- * - 资源 = `/emoji/${name}.png`(225 个 png 整目录从旧 web/public/emoji/ 拷过来)
- * - 网格 8 列,每格 36×36,内嵌 28×28 png(对齐旧 wk-emojipanel-content > ul > li)
- * - 滚动:max-height 240px(约 6 行)
- * - 点击 → onSelect 回调 emoji.key(unicode 或 [xxx] token),由 Composer 插入到 editor
+ * 旧版 css 关键尺寸(EmojiToolbar/index.css):
+ *   .wk-emojitoolbar-emojipanel: max-width 460px / height 372px / radius 0.75rem
+ *   .wk-emojipanel-tab: height 40px(底部 tab 条)
+ *   .wk-emojipanel-content: 余下 332px,overflow-y auto
+ *   .wk-emojipanel-content ul: flex-wrap + padding 13px + margin-left 8px(无固定列数)
+ *   li: padding 6px 4px;img: 28×28
  *
- * 不做(P3+ 补):
- * - sticker 分类 tab(`tgs-player` Lottie 表情,需后端 API + lottie 渲染)
- * - 最近使用(localStorage 维护)
+ * 数据 = EMOJI_LIST(152 unicode + 3 自家 custom token,顺序对齐旧 EmojiService.ts);
+ * 资源 = `/emoji/${name}.png`(225 个 png 整目录从旧 web/public/emoji/ 拷过来)。
+ *
+ * tab 区:目前只有 emoji 一个 tab(选中态白底),sticker 分类 P3+ 接 commonDataSource
+ * .userStickerCategory 时再补,占位保持视觉一致。
+ *
+ * 不做(P3+):sticker 分类 / 最近使用 / custom token 在消息体内替换回 png(走 renderer)。
  */
 export function EmojiPickerPopover({
   open,
@@ -51,36 +56,58 @@ export function EmojiPickerPopover({
 
   if (!open) return null;
   return (
-    <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-md border border-border-subtle bg-bg-surface p-2 shadow-lg">
-      <ul
-        role="listbox"
-        aria-label="表情"
-        className="grid max-h-60 grid-cols-8 gap-0.5 overflow-y-auto"
+    <div
+      className="absolute bottom-full left-0 z-50 mb-2 flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-lg"
+      style={{ width: 460, height: 372 }}
+    >
+      {/* emoji 网格区(372 - 40 = 332px) */}
+      <div className="flex-1 overflow-y-auto">
+        <ul
+          role="listbox"
+          aria-label="表情"
+          className="flex flex-wrap"
+          style={{ padding: "13px", marginLeft: "8px" }}
+        >
+          {EMOJI_LIST.map((emoji) => (
+            <li key={emoji.name} style={{ padding: "6px 4px" }}>
+              <button
+                type="button"
+                title={emoji.key}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(emoji.key);
+                }}
+                className="cursor-pointer rounded-md transition-transform hover:scale-110"
+              >
+                <img
+                  src={emojiImageUrl(emoji.name)}
+                  alt={emoji.key}
+                  width={28}
+                  height={28}
+                  style={{ width: 28, height: 28, objectFit: "contain", display: "block" }}
+                  loading="lazy"
+                  draggable={false}
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* tab 条 — 当前只有 emoji,选中态白底(对齐旧 .wk-emojipanel-tab-item-selected) */}
+      <div
+        className="flex shrink-0 overflow-x-auto overflow-y-hidden border-t border-border-subtle bg-bg-elevated"
+        style={{ height: 40 }}
       >
-        {EMOJI_LIST.map((emoji) => (
-          <li key={emoji.name}>
-            <button
-              type="button"
-              title={emoji.key}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(emoji.key);
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-bg-hover"
-            >
-              <img
-                src={emojiImageUrl(emoji.name)}
-                alt={emoji.key}
-                width={28}
-                height={28}
-                style={{ width: 28, height: 28, objectFit: "contain" }}
-                loading="lazy"
-                draggable={false}
-              />
-            </button>
-          </li>
-        ))}
-      </ul>
+        <div
+          className="flex shrink-0 items-center justify-center bg-bg-surface"
+          style={{ width: 60, height: 40 }}
+          aria-label="表情"
+          aria-selected
+        >
+          <img src={emojiImageUrl("0_0")} alt="" width={20} height={20} draggable={false} />
+        </div>
+      </div>
     </div>
   );
 }

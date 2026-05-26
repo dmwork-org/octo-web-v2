@@ -3,7 +3,7 @@ import WKSDK, { Channel, ChannelTypeGroup, type Subscriber } from "wukongimjssdk
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;SDK 未导出常量。 */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 /**
  * 当前群(或子区父群)的成员订阅列表 hook。

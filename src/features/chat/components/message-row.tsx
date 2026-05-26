@@ -49,7 +49,7 @@ interface MessageRowProps {
 }
 
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区),SDK 未导出常量。 */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 function senderInitial(message: Message): string {
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(message.channel);

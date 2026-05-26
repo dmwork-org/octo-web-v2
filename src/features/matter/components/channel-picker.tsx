@@ -12,7 +12,7 @@ import { matterDetailQueryKey } from "@/features/matter/queries/matters.query";
 import { linkChannel, unlinkChannel } from "@/features/matter/api/matter.api";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区),SDK 未导出常量 */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 const TYPE_LABEL: Record<number, string> = {
   [ChannelTypePerson]: "私聊",

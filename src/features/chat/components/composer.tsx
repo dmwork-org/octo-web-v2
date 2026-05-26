@@ -33,7 +33,7 @@ import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook"
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 interface ComposerProps {
   channel: Channel;

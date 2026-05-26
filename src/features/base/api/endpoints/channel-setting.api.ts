@@ -15,7 +15,7 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
  *     receipt: 0|1, forbidden: 0|1, allow_view_history_msg: 0|1, ... }
  */
 
-const CHANNEL_TYPE_THREAD = 7; // ChannelTypeCommunityTopic
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区 // ChannelTypeCommunityTopic
 
 export type ChannelSettingBody = Partial<{
   top: 0 | 1;

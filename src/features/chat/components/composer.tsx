@@ -45,6 +45,7 @@ import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
+import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
@@ -55,6 +56,10 @@ const VOICE_MAX_DURATION = 60;
 /** Mac 上 Option/Alt 显示 ⌥,其他平台显示 Alt(对齐旧 ALT_KEY)。 */
 const ALT_KEY =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌥" : "Alt";
+
+/** Mac 上 Cmd 显示 ⌘,其他平台显示 Ctrl(对齐旧 useVoiceInput shortcut tooltip)。 */
+const META_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘" : "Ctrl";
 
 interface ComposerProps {
   channel: Channel;
@@ -212,13 +217,14 @@ function formatRecordTime(sec: number): string {
  *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务
  *
  * 媒体增强:
- * - Emoji 面板:点 😀 弹 emoji 网格 picker(picker 相对 form 左对齐,
- *   不是相对 emoji 按钮 — 旧版同样从输入框左侧弹出)
+ * - Emoji 面板:点 😀 弹 emoji 网格 picker(picker 相对 form 左对齐)
  * - @ 提及:点 @ 直接 insert "@" 触发 mention picker(仅群/子区)
  * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
  * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
  * - **语音输入**:点 🎤 录音 → POST /voice/transcribe → 文本插入 editor;
  *   ▼ 下拉(P3+ 选 voice mode);**不发送语音消息**
+ * - **语音快捷键**:Shift + ⌘/Ctrl + Space 按住录音,松开任一 modifier 停 + 转写;
+ *   Esc 录音中取消(对齐旧 VoiceInputIndicator)
  * - ✓ 任务、⤢ 展开:旧 dmworktodo / dmworkbase 接 — 占位 toast,P3+ 真做
  *
  * Reply 流程(per-channel):
@@ -425,6 +431,20 @@ export function Composer({ channel }: ComposerProps) {
     },
   });
 
+  // 全局快捷键 Shift + ⌘/Ctrl + Space:开始录音;松开任一 modifier → 停录 + 转写;Esc 取消
+  useVoiceShortcut(
+    voiceRec.isRecording,
+    transcribing,
+    () => void voiceRec.start(),
+    () => {
+      void (async () => {
+        const file = await voiceRec.stop(false);
+        if (file) await transcribeAndInsert(file);
+      })();
+    },
+    () => void voiceRec.stop(true),
+  );
+
   /**
    * mic 按钮点击:
    *   idle → start 录音
@@ -521,7 +541,7 @@ export function Composer({ channel }: ComposerProps) {
     ? "正在听写..."
     : micRecording
       ? `录音中 ${formatRecordTime(voiceRec.duration)}`
-      : "语音输入";
+      : `语音输入(Shift+${META_KEY}+Space)`;
 
   return (
     <div className="shrink-0 px-4 pb-2">

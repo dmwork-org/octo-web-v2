@@ -212,7 +212,8 @@ function formatRecordTime(sec: number): string {
  *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务
  *
  * 媒体增强:
- * - Emoji 面板:点 😀 弹 emoji 网格 picker
+ * - Emoji 面板:点 😀 弹 emoji 网格 picker(picker 相对 form 左对齐,
+ *   不是相对 emoji 按钮 — 旧版同样从输入框左侧弹出)
  * - @ 提及:点 @ 直接 insert "@" 触发 mention picker(仅群/子区)
  * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
  * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
@@ -232,7 +233,8 @@ export function Composer({ channel }: ComposerProps) {
   const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const emojiWrapRef = useRef<HTMLDivElement>(null);
+  // form ref:供 EmojiPicker 做 click-outside 判定 + absolute 定位的 relative 锚点
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isGroup = channel.channelType === ChannelTypeGroup;
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
@@ -524,11 +526,12 @@ export function Composer({ channel }: ComposerProps) {
   return (
     <div className="shrink-0 px-4 pb-2">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
+        className="relative flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
       >
         {/* Reply 引用条 — 对齐旧 .wk-replyview-new */}
         {replyingTo ? (
@@ -571,25 +574,17 @@ export function Composer({ channel }: ComposerProps) {
 
           {/* actionbox — 全部图标靠右 24×24 muted hover→primary */}
           <div className="flex shrink-0 items-center gap-2">
-            <div ref={emojiWrapRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setEmojiOpen((v) => !v)}
-                aria-label="表情"
-                title="表情"
-                className={`flex h-6 w-6 items-center justify-center transition-colors ${
-                  emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
-                }`}
-              >
-                <Smile size={20} />
-              </button>
-              <EmojiPickerPopover
-                open={emojiOpen}
-                containerRef={emojiWrapRef}
-                onSelect={insertEmoji}
-                onClose={() => setEmojiOpen(false)}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setEmojiOpen((v) => !v)}
+              aria-label="表情"
+              title="表情"
+              className={`flex h-6 w-6 items-center justify-center transition-colors ${
+                emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              <Smile size={20} />
+            </button>
             {/* @ 提及(仅群/子区) */}
             {isMentionable ? (
               <button
@@ -674,6 +669,17 @@ export function Composer({ channel }: ComposerProps) {
             </button>
           </div>
         </div>
+
+        {/* Emoji picker — 放在 form 直接子级,absolute 相对 form left-0 弹出
+            (而不是相对右上角的 emoji 按钮),与输入框左边对齐,对齐旧 EmojiToolbar 视觉位置。
+            click outside 监听 form 整体:点 form 内任何位置(含 emoji 按钮)都不关
+            picker,点 form 外才关。*/}
+        <EmojiPickerPopover
+          open={emojiOpen}
+          containerRef={formRef}
+          onSelect={insertEmoji}
+          onClose={() => setEmojiOpen(false)}
+        />
       </form>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { Users, Columns2 } from "lucide-react";
+import { Users, Columns2, UserPlus } from "lucide-react";
 
 interface PopoverItemProps {
   icon: ReactNode;
@@ -51,6 +51,7 @@ interface SidebarAddPopoverProps {
   showCreateCategory: boolean;
   onClose: () => void;
   onStartGroup: () => void;
+  onAddFriend: () => void;
   onCreateCategory: () => void;
 }
 
@@ -59,7 +60,8 @@ interface SidebarAddPopoverProps {
  * `wk-chat-popover` + ChatMenusPopover):
  *
  *   ┌ [ 创建分组 ]    ← 仅 follow tab(关注)
- *   └ [ 发起群聊 ]    ← 通用
+ *   ├ [ 发起群聊 ]    ← 旧 chatmenus.startchat
+ *   └ [ 添加朋友 ]    ← 旧 chatmenus.addfriend(dmworkcontacts/module.tsx)
  *
  * - 锚定 add 按钮下方右对齐,absolute 定位在 containerRef 内
  * - mousedown 落在容器外 → 关闭(useClickOutside)
@@ -73,6 +75,7 @@ export function SidebarAddPopover({
   showCreateCategory,
   onClose,
   onStartGroup,
+  onAddFriend,
   onCreateCategory,
 }: SidebarAddPopoverProps) {
   useClickOutside(containerRef, onClose, open);
@@ -95,6 +98,14 @@ export function SidebarAddPopover({
         onClick={() => {
           onClose();
           onStartGroup();
+        }}
+      />
+      <PopoverItem
+        icon={<UserPlus size={14} />}
+        label="添加朋友"
+        onClick={() => {
+          onClose();
+          onAddFriend();
         }}
       />
     </div>

@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import Mention from "@tiptap/extension-mention";
 import { Extension } from "@tiptap/core";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
+  Mention as ImMention,
   MessageContentType,
   MessageImage,
   MessageText,
@@ -14,18 +16,23 @@ import WKSDK, {
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
+import { useQuery } from "@tanstack/react-query";
 import { FileText, Image as ImageIcon, Mic, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { FileContent } from "@/features/base/im/file-content";
+import { authStore } from "@/features/base/stores/auth";
+import { spaceStore } from "@/features/base/stores/space";
+import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
+import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
+import type { MentionItem } from "@/features/chat/components/mention-list";
 
 interface ComposerProps {
   channel: Channel;
 }
 
-/** 读图片文件的自然宽高(便于发送时回填到 MessageImage)。 */
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -47,18 +54,11 @@ function extOf(name: string): string {
   return i >= 0 ? name.substring(i + 1).toLowerCase() : "";
 }
 
-/** 取发送者展示名(channelInfo.title fallback fromUID)。 */
 function fromName(uid: string): string {
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
   return info?.title ?? uid;
 }
 
-/**
- * 引用消息类型缩略 — 返回 { icon, hint }。文本返回 null icon,
- * 由调用方直接展示 digest。其它类型给个小图标 + 类型文案。
- *
- * FileContent.contentType = 6(项目内约定),Voice = 3(SDK 未导出常量)。
- */
 function quotedTypeMeta(content: MessageContent | undefined): {
   Icon: typeof ImageIcon | null;
   hint: string;
@@ -72,11 +72,8 @@ function quotedTypeMeta(content: MessageContent | undefined): {
 }
 
 /**
- * Enter / Shift+Enter / Mod+Enter keymap 扩展:
- * - Enter        → 触发 onSubmit prop(发送)
- * - Shift+Enter  → 默认 hardBreak(换行)
- *
- * 用 Extension 注入 prosemirror keymap,比 onKeyDown DOM listener 更靠谱(IME 不会误触)。
+ * Enter / Shift+Enter keymap 扩展。Mention popover 打开时它的 onKeyDown(suggestion
+ * plugin 在 keymap 上层注入)优先消费 Enter,本扩展不会被触发。
  */
 function createSubmitOnEnter(onSubmit: () => void) {
   return Extension.create({
@@ -99,21 +96,74 @@ function createSubmitOnEnter(onSubmit: () => void) {
   });
 }
 
+interface ExtractedText {
+  text: string;
+  /** 普通成员 uids(不含 @所有人) */
+  uids: string[];
+  /** 是否含 @所有人 */
+  all: boolean;
+}
+
+function appendToLastLine(lines: string[], chunk: string): void {
+  if (lines.length === 0) lines.push("");
+  lines[lines.length - 1] += chunk;
+}
+
 /**
- * Composer(对应旧 .wk-messageinput-card,P3-K1 升级到 TipTap):
+ * 从 Editor 里提取发送用文本 + mention 信息。
  *
- * - 外 padding 0 16px 8px,内 card rounded-xl border + bg-surface + focus-within:border-brand
- * - **顶部 quoted bar**(reply mode):头像 + 发送者名 + 类型 icon + 两行 clamp digest + ✕
- * - TipTap Editor(StarterKit 精简 + Placeholder + 自定义 SubmitOnEnter)
- * - 底部 actionbox(图片/文件 + 发送)
- * - Enter 发送 / Shift+Enter 换行(走 prosemirror keymap,IME 安全)
- * - **K-2 之后**:接 @tiptap/extension-mention,这里暂时只发纯文本;
- *   旧手写 mention popover 已移除
+ * Mention node 自身渲染 `@${label}` 并挂 data-id / data-label;`editor.getText()` 默认
+ * 会 skip Mention node。我们手动遍历 doc:遇到 mention 就拼 `@label` 并把 id push 到
+ * uids(`@all` 特殊化为 mention.all=true)。
+ *
+ * 段落之间用 `\n` 分隔,与旧 textarea.value 等价。
+ */
+function extractFromEditor(editor: Editor): ExtractedText {
+  const uids: string[] = [];
+  let all = false;
+  const lines: string[] = [];
+
+  editor.state.doc.descendants((node, _pos, parent) => {
+    if (node.type.name === "mention") {
+      const id = (node.attrs as { id?: string }).id;
+      const label = (node.attrs as { label?: string }).label ?? id ?? "";
+      if (id === "@all") {
+        all = true;
+        appendToLastLine(lines, "@所有人");
+      } else if (id) {
+        uids.push(id);
+        appendToLastLine(lines, `@${label}`);
+      }
+      return false;
+    }
+    if (node.isText) {
+      appendToLastLine(lines, node.text ?? "");
+      return false;
+    }
+    if (node.type.name === "paragraph" && parent && parent.type.name === "doc") {
+      lines.push("");
+      return undefined;
+    }
+    if (node.type.name === "hardBreak") {
+      appendToLastLine(lines, "\n");
+      return false;
+    }
+    return undefined;
+  });
+
+  return { text: lines.join("\n").trim(), uids, all };
+}
+
+/**
+ * Composer(P3-K2 接 TipTap Mention extension):
+ *
+ * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(仅群聊启用)
+ * - Mention extension 走 @tiptap/suggestion + tippy.js popover,候选从 spaceMembers 拉
+ * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
+ *   `@所有人` 特殊化为 SDK Mention.all=true
  *
  * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
  *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
- *
- * Editor.getText() 取纯文本提取(段落间换行用 \n),与旧 Composer textarea.value 等价语义。
  */
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
@@ -121,17 +171,34 @@ export function Composer({ channel }: ComposerProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * sendText 在 useEffect / SubmitOnEnter 闭包里被调,要保证总是最新引用 —
-   * 用 ref 把闭包指针稳定住(对齐 React 18 Concurrent 模式不变)。
-   */
+  const isGroup = channel.channelType === ChannelTypeGroup;
+
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const { data: members } = useQuery({
+    ...spaceMembersQueryOptions(spaceId),
+    enabled: isGroup && !!spaceId,
+  });
+  const memberCandidates = useMemo<MentionItem[]>(() => {
+    if (!isGroup) return [];
+    const all: MentionItem = { id: "@all", label: "所有人" };
+    return [
+      all,
+      ...(members ?? [])
+        .filter((m) => m.uid !== myUid && m.robot !== 1)
+        .map((m) => ({ id: m.uid, label: m.name || m.uid })),
+    ];
+  }, [members, myUid, isGroup]);
+
   const sendTextRef = useRef<() => void>(() => {});
+
+  // Mention items 也要 ref 稳定(useEditor 只跑一次,suggestion 闭包拿到的得是最新候选)
+  const candidatesRef = useRef<MentionItem[]>([]);
+  candidatesRef.current = memberCandidates;
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // 关闭一堆富文本块(标题 / 列表 / 引用块 / 代码块 / 水平线),只保留段落 + 软换行 +
-        // 文本 / 加粗斜体下划线删除线;聊天场景不需要 H1/H2/列表/引用块 / blockquote
         heading: false,
         bulletList: false,
         orderedList: false,
@@ -141,15 +208,43 @@ export function Composer({ channel }: ComposerProps) {
         horizontalRule: false,
       }),
       Placeholder.configure({
-        placeholder: "说点什么...(Enter 发送, Shift+Enter 换行)",
+        placeholder: isGroup
+          ? "说点什么...(Enter 发送, Shift+Enter 换行, @ 提及)"
+          : "说点什么...(Enter 发送, Shift+Enter 换行)",
       }),
+      ...(isGroup
+        ? [
+            Mention.configure({
+              HTMLAttributes: {
+                class: "mx-0.5 inline-block rounded-sm bg-brand-tint px-1 font-medium text-brand",
+              },
+              renderText: ({ node }) => {
+                const label = (node.attrs as { label?: string; id?: string }).label;
+                const id = (node.attrs as { id?: string }).id;
+                if (id === "@all") return "@所有人";
+                return `@${label ?? id ?? ""}`;
+              },
+              // TipTap MentionNodeAttrs.id 是 `string | null`,我的 MentionItem.id 是 string —
+              // subtype 上完全兼容,但 TS 因变性报错。安全地用 `as never` 跨过类型噪音(运行时一致)。
+              suggestion: createMentionSuggestion((query) => {
+                const kw = query.toLowerCase();
+                const list = candidatesRef.current;
+                if (!kw) return list.slice(0, 8);
+                return list
+                  .filter(
+                    (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
+                  )
+                  .slice(0, 8);
+              }) as never,
+            }),
+          ]
+        : []),
       createSubmitOnEnter(() => sendTextRef.current()),
     ],
     editorProps: {
       attributes: {
         class:
           "min-h-[2.5rem] max-h-[12rem] overflow-y-auto px-1 py-1 text-sm leading-snug text-text-primary outline-none",
-        // ProseMirror 的 placeholder 通过 css :empty + data-placeholder 渲染;Tailwind 兜底
       },
     },
   });
@@ -169,13 +264,19 @@ export function Composer({ channel }: ComposerProps) {
   );
 
   const sendText = async (ed: Editor) => {
-    const value = ed.getText().trim();
-    if (!value || sending) return;
+    const { text, uids, all } = extractFromEditor(ed);
+    if (!text || sending) return;
     setSending(true);
     try {
-      const content = new MessageText(value);
+      const content = new MessageText(text);
       const reply = buildReply();
       if (reply) content.reply = reply;
+      if (isGroup && (all || uids.length > 0)) {
+        const m = new ImMention();
+        if (all) m.all = true;
+        if (uids.length > 0) m.uids = uids;
+        content.mention = m;
+      }
       await WKSDK.shared().chatManager.send(content, channel);
       ed.commands.clearContent();
       chatReplyActions.clear();
@@ -186,7 +287,6 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
-  // 同步 ref:editor 改变时重指 sendTextRef,SubmitOnEnter Extension 闭包永远拿到最新发送函数
   useSyncSendTextRef(editor, sendText, sendTextRef);
 
   const sendImage = async (file: File) => {
@@ -239,8 +339,7 @@ export function Composer({ channel }: ComposerProps) {
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
   // 是否有正文(决定发送按钮 disabled)
-  const hasContent = !!editor && editor.getText().trim().length > 0;
-  const isGroup = channel.channelType === ChannelTypeGroup;
+  const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
 
   return (
     <div className="shrink-0 px-4 pt-2 pb-3">
@@ -310,8 +409,6 @@ export function Composer({ channel }: ComposerProps) {
             >
               <Paperclip size={18} />
             </button>
-            {/* @mention 按钮在 K-2 接入 TipTap suggestion 后再加;群聊场景预留位 */}
-            {isGroup ? <span className="hidden" /> : null}
           </div>
           <Button
             htmlType="submit"

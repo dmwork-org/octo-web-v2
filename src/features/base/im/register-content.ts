@@ -1,6 +1,10 @@
 import WKSDK from "wukongimjssdk";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { FileContent } from "@/features/base/im/file-content";
+import { GifContent } from "@/features/base/im/gif-content";
+import { MergeforwardContent } from "@/features/base/im/mergeforward-content";
+import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
+import { VideoContent } from "@/features/base/im/video-content";
 import { VoiceContent } from "@/features/base/im/voice-content";
 
 /**
@@ -9,13 +13,16 @@ import { VoiceContent } from "@/features/base/im/voice-content";
  * 对应旧项目 packages/dmworkbase/src/module.tsx::init() 中的 WKSDK.shared().register(...)
  * 长 List。这里按 P 阶段渐进式注册:
  *   - P2-B5: file
- *   - P2-B*: voice(VoiceContent — Composer 录音消息)
- *   - P3-C4: gif / video
- *   - P4-E*: card / lottieSticker / location / mergeForward / screenshot / summaryCard / ...
+ *   - P2-B*: voice / gif / smallVideo / mergeForward / threadCreated
+ *   - P3+: card / lottieSticker / location / screenshot / summaryCard / ...
  *
  * 幂等:SDK register 直接覆盖 contentMap[contentType]。
  */
 export function registerContentTypes(): void {
   WKSDK.shared().register(MessageContentTypeConst.file, () => new FileContent());
   WKSDK.shared().register(MessageContentTypeConst.voice, () => new VoiceContent());
+  WKSDK.shared().register(MessageContentTypeConst.gif, () => new GifContent());
+  WKSDK.shared().register(MessageContentTypeConst.smallVideo, () => new VideoContent());
+  WKSDK.shared().register(MessageContentTypeConst.mergeForward, () => new MergeforwardContent());
+  WKSDK.shared().register(MessageContentTypeConst.threadCreated, () => new ThreadCreatedContent());
 }

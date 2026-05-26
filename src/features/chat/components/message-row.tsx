@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
+import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
@@ -54,19 +55,43 @@ interface MessageRowProps {
 const CHANNEL_TYPE_THREAD = 5;
 
 /**
+ * 拿"实际渲染用"的发送者 uid。
+ *
+ * threadCreated(=1100,系统消息但有真实创建人)的 message.fromUID 通常是后端
+ * 系统/IM uid,真正的创建人 uid 在 content.from_uid。对齐旧
+ * dmworkbase ThreadCreated `WKApp.shared.avatarUser(content.from_uid || message.fromUID)`。
+ *
+ * 其他消息直接返回 message.fromUID。
+ */
+function effectiveFromUID(message: Message): string {
+  if (message.contentType === MessageContentTypeConst.threadCreated) {
+    const c = message.content as { from_uid?: string } | undefined;
+    if (c?.from_uid) return c.from_uid;
+  }
+  return message.fromUID;
+}
+
+/**
  * 取消息发送者的展示名:
- * - 走 fromUID + ChannelTypePerson 拿对应用户的 channelInfo.title;不是 message.channel
- *   (会话频道,group 时是群名,会渲染成"村长群" 而不是发送人名)。
- * - bot:bot 在 IM 里也是 ChannelTypePerson,channelInfo.title 同样适用。
+ * - threadCreated:优先 content.from_name(后端拼好,fallback 走 channelInfo)
+ * - 其他:走 fromUID + ChannelTypePerson 拿 channelInfo.title;不是 message.channel
+ *   (会话频道,group 时是群名,会渲染成"村长群" 而不是发送人名)
+ *
+ * bot:bot 在 IM 里也是 ChannelTypePerson,channelInfo.title 同样适用。
  *
  * 注意:这里只读 SDK 缓存,首次渲染可能没缓存。组件需要配合 useSenderInfoLive 主动
  * 拉取 + 监听更新,触发重渲。
  */
 function senderDisplay(message: Message): string {
+  if (message.contentType === MessageContentTypeConst.threadCreated) {
+    const c = message.content as { from_name?: string } | undefined;
+    if (c?.from_name) return c.from_name;
+  }
+  const uid = effectiveFromUID(message);
   const personChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
-    new Channel(message.fromUID, ChannelTypePerson),
+    new Channel(uid, ChannelTypePerson),
   );
-  return personChannelInfo?.title || message.fromUID;
+  return personChannelInfo?.title || uid;
 }
 
 /**
@@ -169,7 +194,7 @@ function canCreateThread(message: Message): boolean {
  *   - 复制 / 复制图片 / 回复 / 转发 / 多选 / 撤回 / 创建子区(群消息)/ 删除
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
-  useSenderInfoLive(message.fromUID);
+  useSenderInfoLive(effectiveFromUID(message));
   const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
@@ -436,7 +461,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   }
 
   const senderTitle = senderDisplay(message);
-  const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
+  const senderChannel = new Channel(effectiveFromUID(message), ChannelTypePerson);
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}

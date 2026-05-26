@@ -7,6 +7,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   clearChannelMessages,
   deleteConversation,
@@ -23,21 +24,19 @@ interface ChannelSettingModalProps {
 const CHANNEL_TYPE_THREAD = 5;
 
 /**
- * Modal 打开时主动 syncSubscribes,把群成员拉到 SDK cache。
- *
- * SDK syncSubscribes 走 syncSubscribersCallback(K-1 已接 GET groups/{}/membersync),
- * 完成后写到 channelManager.subscribeCacheMap。返回 token 触发 setVer 让组件重渲拿数。
+ * open 翻转后下一帧 entered=true 触发 transition,与 ChannelMembersModal 同款。
  */
-function useSyncSubscribesOnOpen(
-  open: boolean,
-  channel: Channel,
-  enabled: boolean,
-  onDone: () => void,
-) {
+function useEnterTransition(open: boolean) {
+  const [entered, setEntered] = useState(false);
   useEffect(() => {
-    if (!open || !enabled) return;
-    void WKSDK.shared().channelManager.syncSubscribes(channel).then(onDone, onDone);
-  }, [open, channel, enabled, onDone]);
+    if (!open) {
+      setEntered(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+  return entered;
 }
 
 function SectionRow({
@@ -85,22 +84,32 @@ function SectionGroup({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * 频道设置弹窗(对应旧 dmworkbase Components/ChannelSetting 精简版):
+ * 频道设置抽屉(对应旧 dmworkbase Components/ChannelSetting,右侧滑入):
  *
- *   ┌ Header(头像 + 名 + 群标识 + close)
+ *   ┌ Header(标题 + 关闭)
+ *   ├ 头像 + 名 + 类型 badge
  *   ├ Section: 成员行(可点击 → ChannelMembersModal)/ 公告(只读)
- *   ├ Section: 置顶 / 免打扰(toggle row,直接调 channel-setting.api)
+ *   ├ Section: 置顶 / 免打扰
  *   └ Section: 清空聊天记录 / 关闭聊天窗口
  *
- * 不做(P3+ wave):子区列表 / 群文档 / 群权限 / 退群 / 转让群主。
+ * 形态:fixed 右侧抽屉 + backdrop 半透明可点关闭(对齐 ChannelMembersModal)。
+ *
+ * 数据:
+ * - channelInfo 走 SDK channelManager.getChannelInfo(同步,缓存命中即返)
+ * - 成员数走 useGroupSubscribers(自带 syncSubscribes + listener,与 ChannelMembersModal
+ *   共用,SDK cache 命中省 RTT)
+ *
+ * 设计取舍 — 之前自己写 useSyncSubscribesOnOpen + subscribesTick state 触发重渲,onDone
+ * 是箭头函数每次重渲新引用,被 useEffect 依赖 → setSubscribesTick → 重渲生新 onDone
+ * → useEffect 又跑 → 死循环。改用 useGroupSubscribers 直接消费 subscribers 数组,
+ * hook 内部 listener 自管 setState,React 闭包稳定无死循环。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const qc = useQueryClient();
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  // tick 让 syncSubscribes 完成后强制重渲(SDK subscribeCacheMap 写入不会主动通知 React)
-  const [subscribesTick, setSubscribesTick] = useState(0);
+  const entered = useEnterTransition(open);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -112,19 +121,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const orgData = channelInfo?.orgData as { member_count?: number; notice?: string } | undefined;
   const notice = orgData?.notice;
 
-  useSyncSubscribesOnOpen(open, channel, isGroup || isThread, () =>
-    setSubscribesTick((v) => v + 1),
-  );
-
-  // 真实成员数:SDK cache 里的 subscribers.length 优先,fallback 到 orgData.member_count
+  const subscribers = useGroupSubscribers(channel, open && (isGroup || isThread));
   const memberCount = useMemo(() => {
     if (!isGroup && !isThread) return undefined;
-    // subscribesTick 入依赖,让 syncSubscribes done 后重算
-    void subscribesTick;
-    const subs = WKSDK.shared().channelManager.getSubscribes(channel);
-    if (subs && subs.length > 0) return subs.length;
+    if (subscribers.length > 0) return subscribers.length;
     return orgData?.member_count;
-  }, [isGroup, isThread, channel, subscribesTick, orgData?.member_count]);
+  }, [isGroup, isThread, subscribers.length, orgData?.member_count]);
 
   const refreshChannelInfo = () => {
     void WKSDK.shared().channelManager.fetchChannelInfo(channel);
@@ -193,8 +195,20 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const headerCount = isGroup || isThread ? (memberCount ?? 0) : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
+    <div className="fixed inset-0 z-50">
+      {/* backdrop */}
+      <div
+        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
+          entered ? "opacity-100" : "opacity-0"
+        }`}
+        onClick={onClose}
+      />
+      {/* drawer panel — 右侧滑入(对齐旧 dmworkbase ChannelSetting transform 滑入) */}
+      <aside
+        className={`absolute top-0 right-0 flex h-full w-full max-w-md transform flex-col overflow-hidden border-l border-border-default bg-bg-surface shadow-xl transition-transform duration-300 ease-out ${
+          entered ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
           <h2 className="text-sm font-semibold text-text-primary">
             {typeof headerCount === "number" ? `聊天信息(${headerCount})` : "聊天信息"}
@@ -276,7 +290,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             />
           </SectionGroup>
         </div>
-      </div>
+      </aside>
 
       <ChannelMembersModal
         open={membersOpen}
@@ -284,26 +298,30 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         onClose={() => setMembersOpen(false)}
       />
 
-      <ConfirmModal
-        open={confirmClear}
-        title="确认清空"
-        content="确定要清空所有聊天记录吗?该操作不可撤销。"
-        okDanger
-        okText="清空"
-        okLoading={clearMu.isPending}
-        onOk={() => clearMu.mutate()}
-        onCancel={() => setConfirmClear(false)}
-      />
+      {confirmClear ? (
+        <ConfirmModal
+          open
+          title="确认清空"
+          content="确定要清空所有聊天记录吗?该操作不可撤销。"
+          okDanger
+          okText="清空"
+          okLoading={clearMu.isPending}
+          onOk={() => clearMu.mutate()}
+          onCancel={() => setConfirmClear(false)}
+        />
+      ) : null}
 
-      <ConfirmModal
-        open={confirmClose}
-        title="确认关闭"
-        content="确定要关闭此聊天窗口吗?"
-        okText="关闭"
-        okLoading={closeMu.isPending}
-        onOk={() => closeMu.mutate()}
-        onCancel={() => setConfirmClose(false)}
-      />
+      {confirmClose ? (
+        <ConfirmModal
+          open
+          title="确认关闭"
+          content="确定要关闭此聊天窗口吗?"
+          okText="关闭"
+          okLoading={closeMu.isPending}
+          onOk={() => closeMu.mutate()}
+          onCancel={() => setConfirmClose(false)}
+        />
+      ) : null}
     </div>
   );
 }

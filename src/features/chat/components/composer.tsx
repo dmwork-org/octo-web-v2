@@ -1,9 +1,12 @@
-import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import { Extension } from "@tiptap/core";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
-  Mention,
   MessageContentType,
   MessageImage,
   MessageText,
@@ -17,7 +20,6 @@ import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { FileContent } from "@/features/base/im/file-content";
 import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
-import { MentionPopover, type MentionCandidate } from "@/features/chat/components/mention-popover";
 
 interface ComposerProps {
   channel: Channel;
@@ -69,183 +71,123 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   return { Icon: null, hint: "" };
 }
 
-interface MentionState {
-  uids: Set<string>;
-  all: boolean;
-}
-
-interface MentionTrigger {
-  /** @ 在 text 中的字符 index(含 @) */
-  startIndex: number;
-  /** 当前 keyword(光标前 @ 后输入的字符,不含 @) */
-  keyword: string;
-  /** 光标 viewport 坐标 */
-  caretLeft: number;
-  caretTop: number;
-}
-
 /**
- * 探测光标前最近一个能触发 mention 的 `@` 位置。
- * 规则:
- * - `@` 前一个字符是空白 / 行首 / 标点视为触发
- * - `@` 与光标之间不能含空白或换行
- * - 否则视为普通文本,返回 null
+ * Enter / Shift+Enter / Mod+Enter keymap 扩展:
+ * - Enter        → 触发 onSubmit prop(发送)
+ * - Shift+Enter  → 默认 hardBreak(换行)
+ *
+ * 用 Extension 注入 prosemirror keymap,比 onKeyDown DOM listener 更靠谱(IME 不会误触)。
  */
-function detectMentionTrigger(
-  text: string,
-  caret: number,
-): { start: number; keyword: string } | null {
-  for (let i = caret - 1; i >= 0; i--) {
-    const ch = text[i];
-    if (ch === "@") {
-      const prev = i === 0 ? " " : text[i - 1];
-      if (/\s|[.,;:!?，。;:、!?]/.test(prev) || i === 0) {
-        return { start: i, keyword: text.slice(i + 1, caret) };
-      }
-      return null;
-    }
-    if (/\s/.test(ch)) return null;
-  }
-  return null;
-}
-
-/** 估算 textarea 内字符位置在 viewport 中的坐标(用于 popover 锚点)。 */
-function getCaretViewportPos(
-  el: HTMLTextAreaElement,
-  index: number,
-): { left: number; top: number } {
-  const rect = el.getBoundingClientRect();
-  const style = window.getComputedStyle(el);
-  const lineHeight = parseFloat(style.lineHeight) || 20;
-  const text = el.value.slice(0, index);
-  const lines = text.split("\n");
-  const row = lines.length - 1;
-  return {
-    left: rect.left + 12,
-    top: rect.top - el.scrollTop + row * lineHeight + lineHeight + 4,
-  };
+function createSubmitOnEnter(onSubmit: () => void) {
+  return Extension.create({
+    name: "submitOnEnter",
+    addKeyboardShortcuts() {
+      return {
+        Enter: () => {
+          onSubmit();
+          return true;
+        },
+        "Shift-Enter": ({ editor }) =>
+          editor.commands.first(({ commands }) => [
+            () => commands.newlineInCode(),
+            () => commands.createParagraphNear(),
+            () => commands.liftEmptyBlock(),
+            () => commands.splitBlock(),
+          ]),
+      };
+    },
+  });
 }
 
 /**
- * Composer(对应旧 .wk-messageinput-card):
+ * Composer(对应旧 .wk-messageinput-card,P3-K1 升级到 TipTap):
+ *
  * - 外 padding 0 16px 8px,内 card rounded-xl border + bg-surface + focus-within:border-brand
  * - **顶部 quoted bar**(reply mode):头像 + 发送者名 + 类型 icon + 两行 clamp digest + ✕
- * - textarea(可滚,无背景),底部 actionbox(图片/文件 + 发送)
- * - Enter 发送 / Shift+Enter 换行
- * - @ 触发 MentionPopover(仅群聊),↑↓ 选,Enter 确认插入 @name
+ * - TipTap Editor(StarterKit 精简 + Placeholder + 自定义 SubmitOnEnter)
+ * - 底部 actionbox(图片/文件 + 发送)
+ * - Enter 发送 / Shift+Enter 换行(走 prosemirror keymap,IME 安全)
+ * - **K-2 之后**:接 @tiptap/extension-mention,这里暂时只发纯文本;
+ *   旧手写 mention popover 已移除
  *
  * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
  *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
  *
- * @mention 流程:输入 `@` 触发 → MentionPopover 候选 → Enter 选中插入 `@name ` →
- *   发送时 attach SDK Mention { all, uids } 到 MessageText.mention(仅群聊)
+ * Editor.getText() 取纯文本提取(段落间换行用 \n),与旧 Composer textarea.value 等价语义。
  */
 export function Composer({ channel }: ComposerProps) {
-  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const replyingTo = useStore(chatReplyStore, (s) => s.replyingTo);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // @mention state
-  const [mention, setMention] = useState<MentionState>({ uids: new Set(), all: false });
-  const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const candidatesRef = useRef<MentionCandidate[]>([]);
+  /**
+   * sendText 在 useEffect / SubmitOnEnter 闭包里被调,要保证总是最新引用 —
+   * 用 ref 把闭包指针稳定住(对齐 React 18 Concurrent 模式不变)。
+   */
+  const sendTextRef = useRef<() => void>(() => {});
 
-  const isGroup = channel.channelType === ChannelTypeGroup;
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // 关闭一堆富文本块(标题 / 列表 / 引用块 / 代码块 / 水平线),只保留段落 + 软换行 +
+        // 文本 / 加粗斜体下划线删除线;聊天场景不需要 H1/H2/列表/引用块 / blockquote
+        heading: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        blockquote: false,
+        codeBlock: false,
+        horizontalRule: false,
+      }),
+      Placeholder.configure({
+        placeholder: "说点什么...(Enter 发送, Shift+Enter 换行)",
+      }),
+      createSubmitOnEnter(() => sendTextRef.current()),
+    ],
+    editorProps: {
+      attributes: {
+        class:
+          "min-h-[2.5rem] max-h-[12rem] overflow-y-auto px-1 py-1 text-sm leading-snug text-text-primary outline-none",
+        // ProseMirror 的 placeholder 通过 css :empty + data-placeholder 渲染;Tailwind 兜底
+      },
+    },
+  });
 
-  const buildReply = () => {
-    if (!replyingTo) return undefined;
-    const r = new Reply();
-    r.messageID = replyingTo.messageID;
-    r.messageSeq = replyingTo.messageSeq;
-    r.fromUID = replyingTo.fromUID;
-    r.fromName = fromName(replyingTo.fromUID);
-    r.content = replyingTo.content;
-    return r;
-  };
+  const buildReply = useMemo(
+    () => () => {
+      if (!replyingTo) return undefined;
+      const r = new Reply();
+      r.messageID = replyingTo.messageID;
+      r.messageSeq = replyingTo.messageSeq;
+      r.fromUID = replyingTo.fromUID;
+      r.fromName = fromName(replyingTo.fromUID);
+      r.content = replyingTo.content;
+      return r;
+    },
+    [replyingTo],
+  );
 
-  /** 构造发送时的 Mention。 */
-  const buildMention = (): Mention | undefined => {
-    if (!isGroup) return undefined;
-    if (!mention.all && mention.uids.size === 0) return undefined;
-    const m = new Mention();
-    if (mention.all) m.all = true;
-    if (mention.uids.size > 0) m.uids = [...mention.uids];
-    return m;
-  };
-
-  const resetMention = () => {
-    setMention({ uids: new Set(), all: false });
-    setTrigger(null);
-  };
-
-  const onTextChange = (next: string, caret?: number | null) => {
-    setText(next);
-    if (!isGroup) return;
-    const ta = textareaRef.current;
-    const c = caret ?? ta?.selectionStart ?? next.length;
-    const t = detectMentionTrigger(next, c);
-    if (t && ta) {
-      const pos = getCaretViewportPos(ta, t.start);
-      setTrigger({
-        startIndex: t.start,
-        keyword: t.keyword,
-        caretLeft: pos.left,
-        caretTop: pos.top,
-      });
-    } else {
-      setTrigger(null);
-    }
-  };
-
-  const insertMention = (c: MentionCandidate) => {
-    if (!trigger) return;
-    const before = text.slice(0, trigger.startIndex);
-    const afterCaretIdx = trigger.startIndex + 1 + trigger.keyword.length;
-    const after = text.slice(afterCaretIdx);
-    const inserted = `@${c.name} `;
-    const next = `${before}${inserted}${after}`;
-    setText(next);
-    setMention((prev) => {
-      const u = new Set(prev.uids);
-      let all = prev.all;
-      if (c.isAll) all = true;
-      else u.add(c.uid);
-      return { uids: u, all };
-    });
-    setTrigger(null);
-    requestAnimationFrame(() => {
-      const ta = textareaRef.current;
-      if (!ta) return;
-      const pos = before.length + inserted.length;
-      ta.focus();
-      ta.setSelectionRange(pos, pos);
-    });
-  };
-
-  const sendText = async () => {
-    const value = text.trim();
+  const sendText = async (ed: Editor) => {
+    const value = ed.getText().trim();
     if (!value || sending) return;
     setSending(true);
     try {
       const content = new MessageText(value);
       const reply = buildReply();
       if (reply) content.reply = reply;
-      const m = buildMention();
-      if (m) content.mention = m;
       await WKSDK.shared().chatManager.send(content, channel);
-      setText("");
+      ed.commands.clearContent();
       chatReplyActions.clear();
-      resetMention();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "发送失败");
     } finally {
       setSending(false);
     }
   };
+
+  // 同步 ref:editor 改变时重指 sendTextRef,SubmitOnEnter Extension 闭包永远拿到最新发送函数
+  useSyncSendTextRef(editor, sendText, sendTextRef);
 
   const sendImage = async (file: File) => {
     try {
@@ -272,40 +214,9 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    void sendText();
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (trigger && candidatesRef.current.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveIndex((activeIndex + 1) % candidatesRef.current.length);
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        const len = candidatesRef.current.length;
-        setActiveIndex((activeIndex - 1 + len) % len);
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        const c = candidatesRef.current[activeIndex];
-        if (c) insertMention(c);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setTrigger(null);
-        return;
-      }
-    }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void sendText();
-    }
+    if (editor) void sendText(editor);
   };
 
   const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -327,11 +238,9 @@ export function Composer({ channel }: ComposerProps) {
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
-  const onCandidatesChange = useMemo(() => {
-    return (list: MentionCandidate[]) => {
-      candidatesRef.current = list;
-    };
-  }, []);
+  // 是否有正文(决定发送按钮 disabled)
+  const hasContent = !!editor && editor.getText().trim().length > 0;
+  const isGroup = channel.channelType === ChannelTypeGroup;
 
   return (
     <div className="shrink-0 px-4 pt-2 pb-3">
@@ -379,39 +288,7 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => onTextChange(e.target.value, e.target.selectionStart)}
-          onClick={(e) => {
-            const ta = e.currentTarget;
-            onTextChange(ta.value, ta.selectionStart);
-          }}
-          onKeyUp={(e) => {
-            if (
-              e.key === "ArrowLeft" ||
-              e.key === "ArrowRight" ||
-              e.key === "ArrowUp" ||
-              e.key === "ArrowDown" ||
-              e.key === "Home" ||
-              e.key === "End"
-            ) {
-              const ta = e.currentTarget;
-              onTextChange(ta.value, ta.selectionStart);
-            }
-          }}
-          onBlur={() => {
-            setTimeout(() => setTrigger(null), 100);
-          }}
-          onKeyDown={onKeyDown}
-          rows={2}
-          placeholder={
-            isGroup
-              ? "说点什么...(Enter 发送,Shift+Enter 换行,@ 提及)"
-              : "说点什么...(Enter 发送, Shift+Enter 换行)"
-          }
-          className="w-full resize-none border-0 bg-transparent px-1 text-sm leading-snug text-text-primary placeholder:text-text-tertiary focus:outline-none"
-        />
+        <EditorContent editor={editor} />
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
@@ -433,6 +310,8 @@ export function Composer({ channel }: ComposerProps) {
             >
               <Paperclip size={18} />
             </button>
+            {/* @mention 按钮在 K-2 接入 TipTap suggestion 后再加;群聊场景预留位 */}
+            {isGroup ? <span className="hidden" /> : null}
           </div>
           <Button
             htmlType="submit"
@@ -440,26 +319,26 @@ export function Composer({ channel }: ComposerProps) {
             theme="solid"
             size="default"
             loading={sending}
-            disabled={!text.trim()}
+            disabled={!hasContent}
           >
             <Send size={14} />
             发送
           </Button>
         </div>
       </form>
-
-      {trigger ? (
-        <MentionPopover
-          keyword={trigger.keyword}
-          anchorLeft={trigger.caretLeft}
-          anchorTop={trigger.caretTop}
-          activeIndex={activeIndex}
-          setActiveIndex={setActiveIndex}
-          onCandidatesChange={onCandidatesChange}
-          onSelect={insertMention}
-          onClose={() => setTrigger(null)}
-        />
-      ) : null}
     </div>
   );
+}
+
+/** editor / sendText 变化时重指 sendTextRef,让 keymap 闭包永远拿最新引用。 */
+function useSyncSendTextRef(
+  editor: Editor | null,
+  sendText: (ed: Editor) => Promise<void>,
+  ref: React.MutableRefObject<() => void>,
+) {
+  useEffect(() => {
+    ref.current = () => {
+      if (editor) void sendText(editor);
+    };
+  }, [editor, sendText, ref]);
 }

@@ -32,7 +32,19 @@ export function ChatMain() {
     <section className="flex flex-1 flex-col overflow-hidden">
       <ChatHeader channel={channel} />
       <MessageList channel={channel} />
-      {selectionActive ? <SelectionToolbar channel={channel} /> : <Composer channel={channel} />}
+      {/*
+        Composer 加 key={channelID_channelType}:channel 切换时 unmount/remount,
+        让 useEditor 重新创建 ProseMirror Editor 实例。Mention extension 按 isGroup ||
+        isThread 决定是否注册,只在创建时定型 — 没有 key 的话,先进私聊再进群/子区,
+        editor 永远不会有 Mention,@ 无反应。
+        草稿:useComposerDraft 按 channel localStorage 拿,unmount 时空文档不写,正常。
+        reply:已 per-channel store 化,unmount 不丢失。
+      */}
+      {selectionActive ? (
+        <SelectionToolbar channel={channel} />
+      ) : (
+        <Composer key={`${channel.channelID}_${channel.channelType}`} channel={channel} />
+      )}
     </section>
   );
 }

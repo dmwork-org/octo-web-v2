@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { type ChannelInfo, type Conversation, type ConversationAction } from "wukongimjssdk";
-import { spaceStore } from "@/features/base/stores/space";
+import { channelSpaceKey, channelSpaceMap, spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 
 /**
@@ -17,6 +17,11 @@ import { conversationsQueryKey } from "@/features/chat/queries/conversations.que
  *   - channelInfoListener:  channelInfo.title 异步拉到后让列表显示真名
  *                           (Conversation.channelInfo 是 getter,从 channelManager 取)
  *
+ * **空间隔离**:SDK conversationManager.conversations 是全局共享的,IM 推送来的会话
+ * 属于哪个 space 跟当前 spaceStore 无关 — 会有"切 Space A 但 B 的新消息蹦出来在 A
+ * 列表"的渗漏。writeSnapshot 用 channelSpaceMap(syncConversationsCallback 已预填)
+ * 过滤:已知属于其他 space 的剔除,无记录的保留(乐观,下次 sync 会矫正)。
+ *
  * **spaceId 绑定**:setQueryData 时用当前 spaceId 拼 key,与 ConversationList useQuery
  * 拼的 key 必须一致;Space 切换时 useEffect deps 变更重挂 listener。
  *
@@ -28,8 +33,17 @@ export function useConversationsSync() {
 
   useEffect(() => {
     const writeSnapshot = () => {
-      const snapshot = [...WKSDK.shared().conversationManager.conversations];
-      qc.setQueryData(conversationsQueryKey(spaceId), snapshot);
+      const all = WKSDK.shared().conversationManager.conversations;
+      const filtered = spaceId
+        ? all.filter((c) => {
+            const owner = channelSpaceMap.get(
+              channelSpaceKey(c.channel.channelID, c.channel.channelType),
+            );
+            // 无记录(新会话还没回 sync) → 乐观保留;有记录 → 必须等于当前 space
+            return owner == null || owner === spaceId;
+          })
+        : [...all];
+      qc.setQueryData(conversationsQueryKey(spaceId), filtered);
     };
 
     const convListener = (_conversation: Conversation, _action: ConversationAction) => {

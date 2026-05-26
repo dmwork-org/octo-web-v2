@@ -91,10 +91,11 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}): UseVoic
     const sec = Math.floor(elapsedMs / 1000);
     setDuration(sec);
     if (sec >= maxDuration) {
+      // 仅通知 — 父组件决定怎么停(可能要拿 file 转写)。父组件不响应时不会无限录,
+      // 因为 sec 一直递增,但 setDuration 触发频率仍是 1s 一次,影响有限。
       onAutoStop?.();
-      void stop(false);
     }
-  }, [maxDuration, onAutoStop, stop]);
+  }, [maxDuration, onAutoStop]);
 
   useTickTimer(isRecording, handleTick);
 

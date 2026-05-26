@@ -16,13 +16,22 @@ import WKSDK, {
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { FileText, Image as ImageIcon, Mic, Paperclip, Send, Smile, X } from "lucide-react";
+import {
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Mic,
+  MicOff,
+  Paperclip,
+  Send,
+  Smile,
+  X,
+} from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
-import { VoiceRecordingBar } from "@/features/chat/components/voice-recording-bar";
 import { FileContent } from "@/features/base/im/file-content";
-import { VoiceContent } from "@/features/base/im/voice-content";
 import { authStore } from "@/features/base/stores/auth";
+import { transcribeVoice } from "@/features/base/api/endpoints/voice.api";
 import {
   chatReplyActions,
   chatReplyStore,
@@ -37,7 +46,7 @@ import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook"
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
-/** 录音上限(秒)— 对齐旧 PRD。 */
+/** 录音上限(秒)— 对齐旧 PRD;到时自动 stop 触发转写。 */
 const VOICE_MAX_DURATION = 60;
 
 interface ComposerProps {
@@ -165,19 +174,27 @@ function extractFromEditor(editor: Editor): ExtractedText {
   return { text: lines.join("\n").trim(), uids, all };
 }
 
+function formatRecordTime(sec: number): string {
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
 /**
  * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强 + 1:1 旧 UI):
  *
- * 视觉对齐旧 dmworkbase Components/MessageInput/index.css(.wk-messageinput-*):
- *   - 卡片:rounded-12px / bg-surface / border 1px 浅色 / focus:border deepest text;
- *     padding 8px 16px(垂直)
- *   - Reply 引用条:水平 [✕ 14×14 灰圆] | [1×12 分隔线] | "回复 NAME:" + 单行内容
- *   - 工具栏 actionbox:24×24 muted icon,gap 8px,hover→primary
- *   - 发送按钮:28h × 32w,默认浅灰 bg-elevated / 有内容 brand,radius 2px
+ * 媒体增强(对齐旧 ChatToolbar):
+ * - Emoji 面板:点 😀 弹 emoji 网格 picker
+ * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
+ * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
+ * - **语音输入(对齐旧 useVoiceInput)**:点 🎤 开始录音,再点停 → POST /voice/transcribe
+ *   → 文本插入 editor,用户可再编辑后正常文本发送。**不发送语音消息**。
  *
- * 不同点(简化 / 现代化):
- *   - 引用条不带头像(旧版也无,只名字 + 内容)
- *   - 发送按钮去掉文字,只 SVG send icon(节省横向空间;旧版同款只 icon)
+ * 视觉对齐旧 .wk-messageinput-* CSS:
+ *   - 卡片 rounded-12 / bg-surface / focus:深色 border
+ *   - Reply 引用条 [✕ 14×14 灰圆] | [1×12 分隔] | 回复 名字: 单行内容
+ *   - 工具栏 24×24 muted icon hover→primary
+ *   - 发送按钮 28×32 浅灰 / 有内容 brand,radius-sm,只 SVG icon
  *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
@@ -187,6 +204,7 @@ function extractFromEditor(editor: Editor): ExtractedText {
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -351,36 +369,47 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
-  const sendVoice = async (file: File, duration: number) => {
+  /** 收到 audio File → POST /voice/transcribe → text 插 editor 当前光标。 */
+  const transcribeAndInsert = async (file: File) => {
+    setTranscribing(true);
     try {
-      const content = new VoiceContent(file, duration);
-      const reply = buildReply();
-      if (reply) content.reply = reply;
-      await WKSDK.shared().chatManager.send(content, channel);
-      chatReplyActions.clear(channel);
+      const { text } = await transcribeVoice(file, { channelType: channel.channelType });
+      if (text && editor) {
+        editor.chain().focus().insertContent(text).run();
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "语音发送失败");
+      toast.error(err instanceof Error ? err.message : "转写失败");
+    } finally {
+      setTranscribing(false);
     }
   };
 
   const voiceRec = useVoiceRecorder({
     maxDuration: VOICE_MAX_DURATION,
     onError: (e) => toast.error(e.message || "录音失败"),
+    // 到时自动停 — 走完整 transcribe 流程(让用户听到上限提示后仍能拿到那段文字)
+    onAutoStop: () => {
+      void (async () => {
+        const file = await voiceRec.stop(false);
+        if (file) await transcribeAndInsert(file);
+      })();
+    },
   });
 
+  /**
+   * mic 按钮点击:
+   *   idle → start 录音
+   *   recording → stop + 转写 + 插 editor
+   *   transcribing → 锁住,不响应
+   */
   const onClickMic = async () => {
-    if (voiceRec.isRecording) return;
-    await voiceRec.start();
-  };
-
-  const onCancelVoice = () => {
-    void voiceRec.stop(true);
-  };
-
-  const onSendVoice = async () => {
-    const dur = voiceRec.duration;
+    if (transcribing) return;
+    if (!voiceRec.isRecording) {
+      await voiceRec.start();
+      return;
+    }
     const file = await voiceRec.stop(false);
-    if (file && dur > 0) void sendVoice(file, dur);
+    if (file) await transcribeAndInsert(file);
   };
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -454,6 +483,14 @@ export function Composer({ channel }: ComposerProps) {
   // 是否有正文(决定发送按钮 disabled)
   const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
 
+  // mic 按钮:三态(对齐旧 useVoiceInput recording / transcribing 视觉)
+  const micRecording = voiceRec.isRecording;
+  const micTitle = transcribing
+    ? "正在听写..."
+    : micRecording
+      ? `录音中 ${formatRecordTime(voiceRec.duration)} / 还剩 ${VOICE_MAX_DURATION - voiceRec.duration} 秒,点击停止并听写`
+      : "语音输入";
+
   return (
     <div className="shrink-0 px-4 pb-2">
       <form
@@ -463,7 +500,7 @@ export function Composer({ channel }: ComposerProps) {
         onDragOver={onDragOver}
         className="flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
       >
-        {/* Reply 引用条 — 对齐旧 .wk-replyview-new:[✕ 14×14 灰圆] | [1×12 分隔] | 回复 名字: 内容(单行) */}
+        {/* Reply 引用条 — 对齐旧 .wk-replyview-new */}
         {replyingTo ? (
           <div className="mb-2 flex items-center gap-2 rounded-sm bg-bg-elevated px-3 py-1.5 text-[14px] leading-tight">
             <button
@@ -496,83 +533,90 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        {voiceRec.isRecording ? (
-          <VoiceRecordingBar
-            duration={voiceRec.duration}
-            maxDuration={VOICE_MAX_DURATION}
-            onCancel={onCancelVoice}
-            onSend={onSendVoice}
-          />
-        ) : (
-          <>
-            <EditorContent editor={editor} />
+        <EditorContent editor={editor} />
 
-            {/* actionbox — 对齐旧 .wk-messageinput-actionbox:工具按钮 24×24 muted hover→primary,
-                发送按钮 28h × 32w 默认浅灰 / 有内容 brand,radius-sm */}
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div ref={emojiWrapRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setEmojiOpen((v) => !v)}
-                    aria-label="表情"
-                    title="表情"
-                    className={`flex h-6 w-6 items-center justify-center transition-colors ${
-                      emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
-                    }`}
-                  >
-                    <Smile size={20} />
-                  </button>
-                  <EmojiPickerPopover
-                    open={emojiOpen}
-                    containerRef={emojiWrapRef}
-                    onSelect={insertEmoji}
-                    onClose={() => setEmojiOpen(false)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => imageInputRef.current?.click()}
-                  aria-label="发送图片"
-                  title="发送图片"
-                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-                >
-                  <ImageIcon size={20} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  aria-label="发送文件"
-                  title="发送文件"
-                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-                >
-                  <Paperclip size={20} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onClickMic()}
-                  aria-label="录音"
-                  title="录音"
-                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-                >
-                  <Mic size={20} />
-                </button>
-              </div>
+        {/* actionbox — 工具按钮 24×24 muted hover→primary;发送按钮 28×32 浅灰/brand */}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div ref={emojiWrapRef} className="relative">
               <button
-                type="submit"
-                aria-label="发送"
-                disabled={!hasContent || sending}
-                className={`flex h-7 w-8 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed ${
-                  hasContent
-                    ? "bg-brand text-white hover:opacity-90"
-                    : "bg-bg-elevated text-text-tertiary"
+                type="button"
+                onClick={() => setEmojiOpen((v) => !v)}
+                aria-label="表情"
+                title="表情"
+                className={`flex h-6 w-6 items-center justify-center transition-colors ${
+                  emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
                 }`}
               >
-                <Send size={14} />
+                <Smile size={20} />
               </button>
+              <EmojiPickerPopover
+                open={emojiOpen}
+                containerRef={emojiWrapRef}
+                onSelect={insertEmoji}
+                onClose={() => setEmojiOpen(false)}
+              />
             </div>
-          </>
-        )}
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              aria-label="发送图片"
+              title="发送图片"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <ImageIcon size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="发送文件"
+              title="发送文件"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <Paperclip size={20} />
+            </button>
+            {/* 语音输入按钮:三态 — idle Mic / recording 红 MicOff + 计时 / transcribing Loader */}
+            <button
+              type="button"
+              onClick={() => void onClickMic()}
+              aria-label="语音输入"
+              title={micTitle}
+              disabled={transcribing}
+              className={`flex h-6 items-center justify-center gap-1 px-1 transition-colors disabled:cursor-not-allowed ${
+                micRecording
+                  ? "text-error"
+                  : transcribing
+                    ? "text-text-tertiary"
+                    : "text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              {transcribing ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : micRecording ? (
+                <>
+                  <MicOff size={20} className="animate-pulse" />
+                  <span className="text-[11px] tabular-nums">
+                    {formatRecordTime(voiceRec.duration)}
+                  </span>
+                </>
+              ) : (
+                <Mic size={20} />
+              )}
+            </button>
+          </div>
+          <button
+            type="submit"
+            aria-label="发送"
+            disabled={!hasContent || sending}
+            className={`flex h-7 w-8 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed ${
+              hasContent
+                ? "bg-brand text-white hover:opacity-90"
+                : "bg-bg-elevated text-text-tertiary"
+            }`}
+          >
+            <Send size={14} />
+          </button>
+        </div>
       </form>
     </div>
   );

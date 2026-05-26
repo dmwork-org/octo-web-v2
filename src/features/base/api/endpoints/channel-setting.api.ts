@@ -65,3 +65,11 @@ export const setChannelTop = (channel: Channel, top: boolean) =>
 /** 免打扰 / 关闭免打扰。 */
 export const setChannelMute = (channel: Channel, mute: boolean) =>
   updateChannelSetting(channel, { mute: mute ? 1 : 0 });
+
+/** 保存到通讯录 toggle(群专用)。 */
+export const setChannelSave = (channel: Channel, save: boolean) =>
+  updateChannelSetting(channel, { save: save ? 1 : 0 });
+
+/** 设置会话备注(对应旧 ChannelSettingManager.shared.remark)。 */
+export const setChannelRemark = (channel: Channel, remark: string) =>
+  updateChannelSetting(channel, { remark });

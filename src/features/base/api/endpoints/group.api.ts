@@ -179,3 +179,47 @@ export async function removeGroupManagers(groupNo: string, uids: string[]): Prom
     body: uids,
   });
 }
+
+/**
+ * 修改群字段(对应旧 dmworkdatasource updateField + ChannelField 枚举):
+ *
+ * PUT /v1/groups/{groupNo}  body: { name?, notice?, ... }
+ *
+ * 旧版 ChannelField 枚举仅包含 channelName(=name)/notice 两个用例,这里只透出
+ * 这两个字段。其他场景(头像 url 等)走专门的 endpoint,本函数不混用。
+ */
+export interface UpdateGroupBody {
+  name?: string;
+  notice?: string;
+}
+
+export async function updateGroup(groupNo: string, body: UpdateGroupBody): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}`, {
+    method: "PUT",
+    body,
+  });
+}
+
+/**
+ * 修改群成员属性(对应旧 dmworkdatasource subscriberAttrUpdate):
+ *
+ * PUT /v1/groups/{groupNo}/members/{uid}  body: { name?, remark?, ... }
+ *
+ * 用例:改"我在本群的昵称"传 { name }(后端会把它存到 subscriber.remark 字段,
+ * 旧版直接传 name,新项目对齐)。
+ */
+export interface UpdateGroupMemberBody {
+  name?: string;
+  remark?: string;
+}
+
+export async function updateGroupMember(
+  groupNo: string,
+  uid: string,
+  body: UpdateGroupMemberBody,
+): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/members/${encodeURIComponent(uid)}`, {
+    method: "PUT",
+    body,
+  });
+}

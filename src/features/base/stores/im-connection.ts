@@ -32,6 +32,8 @@ export interface ImConnectionState {
   lastError: string | null;
   /** SDK 自动重连次数(当前会话内累计) */
   reconnectAttempts: number;
+  /** 进入 connected 那一刻的 epoch ms;null = 当前未连接(用于 tooltip 显示已连接时长) */
+  connectedSince: number | null;
 }
 
 const INITIAL: ImConnectionState = {
@@ -39,6 +41,7 @@ const INITIAL: ImConnectionState = {
   reasonCode: null,
   lastError: null,
   reconnectAttempts: 0,
+  connectedSince: null,
 };
 
 export const imConnectionStore = new Store<ImConnectionState>(INITIAL);
@@ -51,6 +54,13 @@ export const imConnectionActions = {
       reasonCode,
       reconnectAttempts:
         status === "connecting" ? prev.reconnectAttempts + 1 : prev.reconnectAttempts,
+      // 进入 connected → 记 since;离开 connected → 清(用于 tooltip 显示"已连接 N 分钟")
+      connectedSince:
+        status === "connected"
+          ? prev.status === "connected"
+            ? prev.connectedSince
+            : Date.now()
+          : null,
     })),
   setError: (lastError: string | null) =>
     imConnectionStore.setState((prev) => ({ ...prev, lastError })),

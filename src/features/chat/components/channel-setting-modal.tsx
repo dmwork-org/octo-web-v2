@@ -14,7 +14,12 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
+import { GroupAvatarModal } from "@/features/chat/components/group-avatar-modal";
+import { GroupQrcodeModal } from "@/features/chat/components/group-qrcode-modal";
+import { GroupMdModal } from "@/features/chat/components/group-md-modal";
+import { GroupManagementModal } from "@/features/chat/components/group-management-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { useDrawerEnterTransition } from "@/features/chat/hooks/use-drawer-enter-transition.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   clearChannelMessages,
@@ -39,19 +44,8 @@ const CHANNEL_TYPE_THREAD = 5;
 const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
-/** open 翻转后下一帧 entered=true 触发 transition,与 ChannelMembersModal 同款。 */
-function useEnterTransition(open: boolean) {
-  const [entered, setEntered] = useState(false);
-  useEffect(() => {
-    if (!open) {
-      setEntered(false);
-      return;
-    }
-    const id = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(id);
-  }, [open]);
-  return entered;
-}
+/** 4 个二级抽屉 token,与 NavRow → setSubpage 一一对应。 */
+type Subpage = "avatar" | "qrcode" | "md" | "manage";
 
 /** editing 由 false → true 时把 draft 同步成最新 value(避免上次编辑残留)。 */
 function useSyncDraftOnEnterEdit(editing: boolean, value: string, setDraft: (v: string) => void) {
@@ -406,8 +400,9 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
  *   ├ Section: 我在本群的昵称
  *   └ Section: 危险(清空聊天记录 / 删除并退出)
  *
- * 文本字段(群名/公告/备注/我的昵称)按用户要求改为抽屉内 inline 编辑,不再走旧版
- * 二级 InputEdit 页;头像/二维码/GROUP.md/群管理 二级页暂用 toast 占位,后续 MR 补。
+ * 文本字段(群名/公告/备注/我的昵称)按用户要求改为抽屉内 inline 编辑;
+ * 4 个二级页(群头像 / 群二维码 / GROUP.md / 群管理)走独立 z-[70] 抽屉,
+ * 对应组件:GroupAvatarModal / GroupQrcodeModal / GroupMdModal / GroupManagementModal。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const qc = useQueryClient();
@@ -417,7 +412,8 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [addOpen, setAddOpen] = useState(false);
   const [kickListOpen, setKickListOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const entered = useEnterTransition(open);
+  const [subpage, setSubpage] = useState<Subpage | null>(null);
+  const entered = useDrawerEnterTransition(open);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -434,9 +430,11 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         save?: number;
         has_group_md?: number | boolean;
         group_md_version?: number;
+        invite?: number;
       }
     | undefined;
   const isSaved = orgData?.save === 1;
+  const inviteVerifyOn = orgData?.invite === 1;
   const notice = orgData?.notice ?? "";
   const remark = orgData?.remark ?? "";
   const hasGroupMd = !!orgData?.has_group_md;
@@ -445,6 +443,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const subscribers = useGroupSubscribers(channel, open && (isGroup || isThread));
   const me = subscribers.find((s) => s.uid === myUid);
   const myRole = me?.role ?? 0;
+  const iAmOwner = myRole === ROLE_OWNER;
   const iAmOwnerOrManager = myRole === ROLE_OWNER || myRole === ROLE_MANAGER;
   const myNickname = me?.remark || me?.name || "";
 
@@ -627,12 +626,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               <NavRow
                 title="群头像"
                 right={<ChannelAvatar channel={channel} size={24} title={title} />}
-                onClick={() => toast.info("群头像编辑将在后续 MR 补充")}
+                onClick={() => setSubpage("avatar")}
               />
               <NavRow
                 title="群二维码"
                 right={<QrCode size={16} className="text-text-tertiary" />}
-                onClick={() => toast.info("群二维码将在后续 MR 补充")}
+                onClick={() => setSubpage("qrcode")}
               />
               <InlineEditRow
                 title="群公告"
@@ -651,10 +650,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               <NavRow
                 title="GROUP.md"
                 subTitle={hasGroupMd ? `已配置 v${groupMdVersion}` : "未配置"}
-                onClick={() => toast.info("GROUP.md 编辑将在后续 MR 补充")}
+                onClick={() => setSubpage("md")}
               />
               {iAmOwnerOrManager ? (
-                <NavRow title="群管理" onClick={() => toast.info("群管理将在后续 MR 补充")} />
+                <NavRow title="群管理" onClick={() => setSubpage("manage")} />
               ) : null}
               <InlineEditRow
                 title="备注"
@@ -729,6 +728,36 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       {addOpen ? (
         <AddMembersModal open channel={channel} onClose={() => setAddOpen(false)} />
       ) : null}
+
+      <GroupAvatarModal
+        open={subpage === "avatar"}
+        channel={channel}
+        channelTitle={title}
+        canEdit={iAmOwnerOrManager}
+        onClose={() => setSubpage(null)}
+      />
+
+      <GroupQrcodeModal
+        open={subpage === "qrcode"}
+        channel={channel}
+        channelTitle={title}
+        inviteVerifyOn={inviteVerifyOn}
+        onClose={() => setSubpage(null)}
+      />
+
+      <GroupMdModal
+        open={subpage === "md"}
+        channel={channel}
+        canEdit={iAmOwnerOrManager}
+        onClose={() => setSubpage(null)}
+      />
+
+      <GroupManagementModal
+        open={subpage === "manage"}
+        channel={channel}
+        isOwner={iAmOwner}
+        onClose={() => setSubpage(null)}
+      />
 
       {confirmClear ? (
         <ConfirmModal

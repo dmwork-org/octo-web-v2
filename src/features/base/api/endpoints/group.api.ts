@@ -223,3 +223,99 @@ export async function updateGroupMember(
     body,
   });
 }
+
+/**
+ * 群二维码(对应旧 dmworkdatasource qrcode):
+ *
+ * GET /v1/groups/{groupNo}/qrcode → { qrcode, expire, invite_url }
+ *   - qrcode:扫码加群链接(也是二维码生成的 value)
+ *   - expire:过期时间字符串(如 "2026-05-30 12:00:00")
+ *   - invite_url:邀请链接(可复制粘贴),后端可能不返回此字段(老 API)→ fallback 用 qrcode
+ *
+ * 后端按 7 天有效期签发,过期需重新拉。
+ */
+export interface GroupQrcodeResp {
+  qrcode: string;
+  expire: string;
+  invite_url?: string;
+}
+
+export async function getGroupQrcode(groupNo: string): Promise<GroupQrcodeResp> {
+  return api<GroupQrcodeResp>(`groups/${encodeURIComponent(groupNo)}/qrcode`);
+}
+
+/**
+ * 上传群头像(对应旧 ChannelAvatar.uploadAvatar):
+ *
+ * POST /v1/groups/{groupNo}/avatar  multipart/form-data  field: file
+ *
+ * 后端把图片存好后,channel.logo 会更新;前端调用方负责调
+ * `WKSDK.shared().channelManager.fetchChannelInfo(channel)` 触发刷新。
+ *
+ * 不做 crop(crop 依赖图片处理库,后续 components/media 补)。前端直接传原图,
+ * 大小由后端校验(通常 < 2MB / 5MB)。
+ */
+export async function uploadGroupAvatar(groupNo: string, file: File): Promise<void> {
+  const fd = new FormData();
+  fd.append("file", file);
+  await api(`groups/${encodeURIComponent(groupNo)}/avatar`, {
+    method: "POST",
+    body: fd,
+  });
+}
+
+/**
+ * GROUP.md 编辑器(对应旧 dmworkdatasource getGroupMd / updateGroupMd / deleteGroupMd):
+ *
+ * - GET    /v1/groups/{groupNo}/md → { content, version }
+ * - PUT    /v1/groups/{groupNo}/md body: { content }  resp: { version }
+ * - DELETE /v1/groups/{groupNo}/md
+ *
+ * 子区(thread)的 md endpoint 在 `groups/{groupNo}/threads/{shortId}/md`,本期
+ * 仅做群级,子区版本后续补。
+ *
+ * version 是后端递增计数,UI 用来显示 v{n}。
+ */
+export interface GroupMdContent {
+  content: string;
+  version: number;
+}
+
+export async function getGroupMd(groupNo: string): Promise<GroupMdContent> {
+  return api<GroupMdContent>(`groups/${encodeURIComponent(groupNo)}/md`);
+}
+
+export async function updateGroupMd(
+  groupNo: string,
+  content: string,
+): Promise<{ version: number }> {
+  return api<{ version: number }>(`groups/${encodeURIComponent(groupNo)}/md`, {
+    method: "PUT",
+    body: { content },
+  });
+}
+
+export async function deleteGroupMd(groupNo: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/md`, { method: "DELETE" });
+}
+
+/**
+ * Bot 管理员(对应旧 setBotAdmin / removeBotAdmin):
+ *
+ * - PUT    /v1/groups/{groupNo}/bot_admin/{uid}
+ * - DELETE /v1/groups/{groupNo}/bot_admin/{uid}
+ *
+ * 一个群里的 bot 成员可以被 owner 任命为 bot 管理员(代理 owner 管理 bot 配置),
+ * subscriber.orgData.bot_admin === 1 表示已任命。
+ */
+export async function setGroupBotAdmin(groupNo: string, uid: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/bot_admin/${encodeURIComponent(uid)}`, {
+    method: "PUT",
+  });
+}
+
+export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/bot_admin/${encodeURIComponent(uid)}`, {
+    method: "DELETE",
+  });
+}

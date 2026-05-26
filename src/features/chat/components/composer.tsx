@@ -28,6 +28,7 @@ import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.
 import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
 import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
 import type { MentionItem } from "@/features/chat/components/mention-list";
+import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 
 interface ComposerProps {
   channel: Channel;
@@ -155,12 +156,13 @@ function extractFromEditor(editor: Editor): ExtractedText {
 }
 
 /**
- * Composer(P3-K2 接 TipTap Mention extension):
+ * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿):
  *
  * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(仅群聊启用)
- * - Mention extension 走 @tiptap/suggestion + tippy.js popover,候选从 spaceMembers 拉
+ * - Mention 走 @tiptap/suggestion + tippy.js popover,候选从 spaceMembers 拉
  * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
  *   `@所有人` 特殊化为 SDK Mention.all=true
+ * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
  *
  * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
  *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
@@ -249,6 +251,9 @@ export function Composer({ channel }: ComposerProps) {
     },
   });
 
+  // K-3:草稿恢复(channel 切换 save 旧 / load 新;发送成功调用 dropDraft 清掉)
+  const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
+
   const buildReply = useMemo(
     () => () => {
       if (!replyingTo) return undefined;
@@ -280,6 +285,7 @@ export function Composer({ channel }: ComposerProps) {
       await WKSDK.shared().chatManager.send(content, channel);
       ed.commands.clearContent();
       chatReplyActions.clear();
+      dropDraft();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "发送失败");
     } finally {

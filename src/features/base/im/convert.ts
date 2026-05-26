@@ -1,16 +1,25 @@
 import WKSDK, {
   Channel,
+  ChannelInfo,
+  ChannelTypeGroup,
+  ChannelTypePerson,
   Conversation,
+  ConversationExtra,
   Message,
   MessageExtra,
   MessageStatus,
+  Reminder,
   Setting,
 } from "wukongimjssdk";
 import type {
+  ConversationExtraRaw,
   ConversationRaw,
   MessageExtraRaw,
   MessageRaw,
+  SyncedGroupRaw,
+  SyncedUserRaw,
 } from "@/features/base/api/endpoints/conversation.api";
+import type { ReminderRaw } from "@/features/base/api/endpoints/reminder.api";
 
 /**
  * raw 服务端 JSON → SDK 实例转换层(对应旧项目 packages/dmworkbase/src/Service/Convert.ts)。
@@ -24,6 +33,22 @@ import type {
  * - 外部群字段(from_is_external 等)以 snake_case 动态挂在 Message 实例上,消费方按
  *   `(message as any).from_is_external` 读;不写 TS 类型(旧项目同样做法)。
  */
+
+/** raw → SDK Reminder(K-4 @我 / 入群申请 等)。 */
+export function rawToReminder(raw: ReminderRaw): Reminder {
+  const r = new Reminder();
+  r.channel = new Channel(raw.channel_id, raw.channel_type);
+  r.messageID = raw.message_id;
+  r.messageSeq = raw.message_seq;
+  r.reminderID = raw.id;
+  r.reminderType = raw.reminder_type;
+  r.text = raw.text;
+  r.data = raw.data;
+  r.isLocate = raw.is_locate === 1;
+  r.version = raw.version;
+  r.done = raw.done === 1;
+  return r;
+}
 
 type ExternalFields = {
   from_is_external?: number;
@@ -123,4 +148,81 @@ export function rawToConversation(raw: ConversationRaw): Conversation {
   const lastRaw = raw.recents?.[0] as MessageRaw | undefined;
   if (lastRaw) conv.lastMessage = rawToMessage(lastRaw);
   return conv;
+}
+
+/** raw → SDK ConversationExtra(K-3 跨设备同步用)。 */
+export function rawToConversationExtra(raw: ConversationExtraRaw): ConversationExtra {
+  const ce = new ConversationExtra();
+  ce.channel = new Channel(raw.channel_id, raw.channel_type);
+  ce.browseTo = raw.browse_to ?? 0;
+  ce.keepMessageSeq = raw.keep_message_seq ?? 0;
+  ce.keepOffsetY = raw.keep_offset_y ?? 0;
+  ce.draft = raw.draft;
+  ce.version = raw.version ?? 0;
+  return ce;
+}
+
+/**
+ * SyncedUserRaw → SDK ChannelInfo(对应旧 Convert.userToChannelInfo)。
+ *
+ * 用于 syncConversations 响应里 users[] 预热 — 避免 conversation list 每行都
+ * 各自再 fetchChannelInfo。 displayName 优先级:remark > realname (verified) > name。
+ */
+export function userToChannelInfo(data: SyncedUserRaw): ChannelInfo {
+  const info = new ChannelInfo();
+  info.channel = new Channel(data.uid, ChannelTypePerson);
+  info.title = data.name ?? "";
+  info.mute = data.mute === 1;
+  info.top = data.top === 1;
+  info.online = data.online === 1;
+  info.lastOffline = data.last_offline ?? 0;
+  const orgData: Record<string, unknown> = { ...data.extra, ...data };
+  orgData.remark = data.remark ?? "";
+  const verified = data.realname_verified === true || data.realname_verified === 1 ? 1 : 0;
+  orgData.realname_verified = verified;
+  const realName = typeof data.real_name === "string" ? data.real_name : "";
+  orgData.real_name = realName;
+  // displayName 解析(旧 resolveDisplayName 同口径):remark > real_name(verified)> name
+  let display: string;
+  if (data.remark && data.remark !== "") display = data.remark;
+  else if (verified && realName) display = realName;
+  else display = info.title;
+  orgData.displayName = display || info.title;
+  orgData.shortNo = data.short_no ?? "";
+  info.logo = data.logo && data.logo !== "" ? data.logo : `users/${data.uid}/avatar`;
+  if (data.category === "system" || data.category === "customerService") {
+    orgData.identityIcon = "./identity_icon/official.png";
+    orgData.identitySize = { width: "18px", height: "18px" };
+  } else if (data.category === "visitor") {
+    orgData.identityIcon = "./identity_icon/visitor.png";
+    orgData.identitySize = { width: "48px", height: "24px" };
+  }
+  info.orgData = orgData;
+  return info;
+}
+
+/**
+ * SyncedGroupRaw → SDK ChannelInfo(对应旧 Convert.groupToChannelInfo)。
+ *
+ * group 字段的子集:forbidden / invite / forbidden_add_friend / save。
+ * group_md_* 字段 syncConversations 不返回,只在 channelInfoCallback 显式拉取时才有。
+ */
+export function groupToChannelInfo(data: SyncedGroupRaw): ChannelInfo {
+  const info = new ChannelInfo();
+  info.channel = new Channel(data.group_no, ChannelTypeGroup);
+  info.title = data.name ?? "";
+  info.mute = data.mute === 1;
+  info.top = data.top === 1;
+  info.online = data.online === 1;
+  info.lastOffline = data.last_offline ?? 0;
+  const orgData: Record<string, unknown> = { ...data.extra, ...data };
+  orgData.remark = data.remark ?? "";
+  orgData.displayName = data.remark && data.remark !== "" ? data.remark : info.title;
+  orgData.forbidden = data.forbidden;
+  orgData.invite = data.invite;
+  orgData.forbiddenAddFriend = data.forbidden_add_friend;
+  orgData.save = data.save;
+  info.logo = data.logo && data.logo !== "" ? data.logo : `groups/${data.group_no}/avatar`;
+  info.orgData = orgData;
+  return info;
 }

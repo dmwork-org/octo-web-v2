@@ -1,33 +1,175 @@
 import WKSDK, {
   Channel,
   ChannelInfo,
+  ChannelTypeGroup,
+  ChannelTypePerson,
+  Subscriber,
   type Conversation,
+  type ConversationExtra,
   type Message,
-  type Subscriber,
+  type MessageExtra,
+  type Reminder,
 } from "wukongimjssdk";
-import { spaceStore } from "@/features/base/stores/space";
+import { channelSpaceKey, channelSpaceMap, spaceStore } from "@/features/base/stores/space";
 import {
   markMessagesReaded,
-  syncConversations,
   syncChannelMessages,
+  syncConversationExtras,
+  syncConversations,
+  syncMessageExtras,
 } from "@/features/base/api/endpoints/conversation.api";
 import { getChannelInfoRaw } from "@/features/base/api/endpoints/channel.api";
-import { rawToConversation, rawToMessage } from "@/features/base/im/convert";
+import {
+  getThread,
+  syncGroupMembers,
+  type GroupMemberRaw,
+  type ThreadRaw,
+} from "@/features/base/api/endpoints/group.api";
+import { markRemindersDone, syncReminders } from "@/features/base/api/endpoints/reminder.api";
+import {
+  groupToChannelInfo,
+  rawToConversation,
+  rawToConversationExtra,
+  rawToMessage,
+  rawToMessageExtra,
+  rawToReminder,
+  userToChannelInfo,
+} from "@/features/base/im/convert";
 import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+
+/** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量。 */
+const CHANNEL_TYPE_THREAD = 7;
+
+/** GroupRole:对齐旧 @octo/base 常量(normal=0, owner=1, manager=2)。 */
+const ROLE_OWNER = 1;
+
+/**
+ * 从 SDK 所有群成员缓存里查 uid 是否曾被标记为 robot。
+ * 用途:channelInfoCallback 拉到 person channelInfo 时,raw.robot 可能为空,
+ * 我们从群成员缓存兜底 — 如果该 uid 在任一群里 orgData.robot===1,认定为 AI。
+ */
+function lookupRobotFromSubscriberCache(uid: string): boolean {
+  const cache = WKSDK.shared().channelManager.subscribeCacheMap;
+  for (const list of cache.values()) {
+    if (
+      list.some((s) => s.uid === uid && (s.orgData as { robot?: number } | undefined)?.robot === 1)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 把 GroupMemberRaw 转 SDK Subscriber。version / role / orgData 全量透传,
+ * 后续 ChannelSetting / GroupManagement 直接消费。
+ */
+function rawToSubscriber(m: GroupMemberRaw): Subscriber {
+  const sub = new Subscriber();
+  sub.uid = m.uid;
+  sub.name = m.name ?? "";
+  sub.remark = m.remark ?? "";
+  sub.role = m.role ?? 0;
+  sub.version = m.version ?? 0;
+  sub.isDeleted = (m.is_deleted ?? 0) === 1;
+  sub.status = m.status ?? 0;
+  sub.orgData = { ...m, bot_admin: m.bot_admin ?? 0 };
+  return sub;
+}
+
+/** 旧版排序口径:owner 升到 999,其余按 role desc(manager>normal)。 */
+function sortByRole(members: Subscriber[]): Subscriber[] {
+  return [...members].sort((a, b) => {
+    const roleA = a.role === ROLE_OWNER ? 999 : a.role;
+    const roleB = b.role === ROLE_OWNER ? 999 : b.role;
+    return roleB - roleA;
+  });
+}
+
+/**
+ * 收集当前会话列表里所有 group / thread 的 channel_id。
+ *
+ * reminder 同步接口要求传 channel_ids 限制范围(只关心我所在的群/子区),
+ * 后端不会扫所有 reminder 表,带宽友好。
+ */
+function collectGroupChannelIds(): string[] {
+  const ids: string[] = [];
+  const conversations = WKSDK.shared().conversationManager.conversations;
+  if (!conversations) return ids;
+  for (const c of conversations) {
+    if (
+      c.channel.channelType === ChannelTypeGroup ||
+      c.channel.channelType === CHANNEL_TYPE_THREAD
+    ) {
+      ids.push(c.channel.channelID);
+    }
+  }
+  return ids;
+}
+
+/**
+ * 子区 channelInfo 分支(K-5):channelType === CHANNEL_TYPE_THREAD 时不走
+ * channels/{id}/{type},而是 parseThreadChannelId + GET groups/{groupNo}/threads/{shortId}。
+ *
+ * - title = thread.name
+ * - logo = 父群头像 `groups/{groupNo}/avatar`
+ * - mute = thread.mute === 1(tri-state:null = 继承父群,0 = 显式不静音,1 = 显式静音;
+ *   只把 ===1 当 true,其它都 false,SDK listener 触发重渲使用此值。
+ *   有效 mute 状态(effectiveMute)由消费方从 orgData.thread.mute 自取原始 tri-state)
+ * - orgData 透传 thread 全量 + parentGroupNo + has_thread_md / thread_md_version 等
+ *
+ * 解析失败 / 接口失败 → 返回 title=channelID 占位的兜底 ChannelInfo,不抛。
+ */
+async function buildThreadChannelInfo(channel: Channel): Promise<ChannelInfo> {
+  const info = new ChannelInfo();
+  info.channel = channel;
+  const parsed = parseThreadChannelId(channel.channelID);
+  if (!parsed) {
+    info.title = channel.channelID;
+    info.orgData = {};
+    return info;
+  }
+  let thread: ThreadRaw;
+  try {
+    thread = await getThread(parsed.groupNo, parsed.shortId);
+  } catch {
+    info.title = channel.channelID;
+    info.orgData = {};
+    return info;
+  }
+  info.title = thread.name;
+  info.logo = `groups/${parsed.groupNo}/avatar`;
+  info.mute = thread.mute === 1;
+  info.orgData = {
+    displayName: thread.name,
+    thread,
+    parentGroupNo: parsed.groupNo,
+    has_thread_md: !!thread.has_thread_md,
+    thread_md_version: thread.thread_md_version ?? 0,
+    thread_md_updated_at: thread.thread_md_updated_at ?? null,
+  };
+  return info;
+}
 
 /**
  * 注册 SDK provider 必须的 callback(否则 conversationManager.sync /
  * chatManager.syncMessages 等会抛 TypeError)。
  *
  * 对应旧项目 `packages/dmworkdatasource/src/module.ts` 的 set*Callback 系列。
- * 覆盖让"会话列表 + 消息历史 + 上传 + 已读" 跑起来的集合:
- *   - syncConversationsCallback     → POST conversation/sync,转 raw → Conversation
- *                                     完成后批量 fetchChannelInfo 让标题显示真名
- *   - channelInfoCallback           → GET channels/{id}/{type},转 raw → ChannelInfo
- *   - syncSubscribersCallback       → 返回空数组兜底(P3 群成员功能再补)
- *   - syncMessagesCallback          → POST message/channel/sync,转 raw → Message(完整版)
- *   - messageReadedCallback         → POST message/readed(P2-B12,批量已读上报)
- *   - messageUploadTaskCallback     → MediaMessageUploadTask(P2-B6,COS 直传)
+ * 覆盖让"会话列表 + 消息历史 + 上传 + 已读 + 群成员 + extras + 提醒" 跑起来的集合:
+ *   - syncConversationsCallback        users[]/groups[] 预热,Space 防 stale,channelSpaceMap
+ *   - syncConversationExtrasCallback   keep_msg_seq / draft 跨设备同步
+ *   - channelInfoCallback              robot 兜底 / group 字段 / identity icon /
+ *                                     子区分支(GET groups/{}/threads/{}, 父群头像继承)
+ *   - syncSubscribersCallback          group/membersync(子区走父群)+ robot 反向写 person cache
+ *   - syncMessagesCallback             message/channel/sync
+ *   - syncMessageExtraCallback         message/extra/sync(已读数 / 撤回增量)
+ *   - syncRemindersCallback            message/reminder/sync(@我 / 入群申请),
+ *                                     channel_ids 只传当前会话列表里 group/thread
+ *   - reminderDoneCallback             message/reminder/done(用户点掉 @提醒后)
+ *   - messageReadedCallback            message/readed 批量上报
+ *   - messageUploadTaskCallback        MediaMessageUploadTask COS 直传
  *
  * 幂等:多次调安全(SDK 内部直接覆盖 callback)。在 IMProvider mount 时调一次。
  */
@@ -37,17 +179,51 @@ export function registerImCallbacks(): void {
   provider.syncConversationsCallback = async () => {
     const spaceId = spaceStore.state.spaceId || undefined;
     const resp = await syncConversations(spaceId);
+    // Space 防 stale:发请求后用户切换了 Space,旧响应不入缓存(旧 module.ts:296 同语义)
+    if (spaceId && spaceStore.state.spaceId !== spaceId) {
+      return [];
+    }
     const conversations: Conversation[] = (resp.conversations ?? []).map(rawToConversation);
-    // 异步批量拉 channelInfo,让列表显示真实标题(无需 await)。
-    // SDK channelManager.fetchChannelInfo 内部会去重 + 触发 channelInfoListener,
-    // useConversationsSync 收到 listener 后 setQueryData 重渲列表。
+    // channelSpaceMap 反查表 — conversation 带 space_id 时写一份(跨 Space 跳转用)
+    for (const c of resp.conversations ?? []) {
+      if (c.space_id) {
+        channelSpaceMap.set(channelSpaceKey(c.channel_id, c.channel_type), c.space_id);
+      }
+    }
+    // users / groups 预热到 channelInfo 缓存 — 列表立刻能显示真名,不用每行单独拉
+    const cm = WKSDK.shared().channelManager;
+    for (const u of resp.users ?? []) {
+      cm.setChannleInfoForCache(userToChannelInfo(u));
+    }
+    for (const g of resp.groups ?? []) {
+      cm.setChannleInfoForCache(groupToChannelInfo(g));
+    }
+    // 子区(thread)等不在 users/groups payload 里的 channel 兜底:lazy fetch。
+    // SDK fetchChannelInfo 内部去重(Map<key, Promise>),不会重复打接口;
+    // 命中缓存的 channel 直接 return,代价接近 0。
     for (const conv of conversations) {
-      void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
+      void cm.fetchChannelInfo(conv.channel);
     }
     return conversations;
   };
 
+  provider.syncConversationExtrasCallback = async (
+    version: number,
+  ): Promise<ConversationExtra[]> => {
+    let raws;
+    try {
+      raws = await syncConversationExtras(version);
+    } catch {
+      return [];
+    }
+    return raws.map(rawToConversationExtra);
+  };
+
   provider.channelInfoCallback = async (channel: Channel): Promise<ChannelInfo> => {
+    // 子区分支:走 groups/{}/threads/{} 拿父群头像 + thread 元数据
+    if (channel.channelType === CHANNEL_TYPE_THREAD) {
+      return buildThreadChannelInfo(channel);
+    }
     const info = new ChannelInfo();
     info.channel = channel;
     try {
@@ -58,12 +234,73 @@ export function registerImCallbacks(): void {
       info.online = raw.online === 1;
       info.lastOffline = raw.last_offline ?? 0;
       info.logo = raw.logo ?? "";
-      info.orgData = {
-        ...raw.extra,
+      // logo fallback:旧版逻辑 — person 走 users/{uid}/avatar,group 走 groups/{id}/avatar
+      if (!info.logo) {
+        if (channel.channelType === ChannelTypePerson) {
+          info.logo = `users/${channel.channelID}/avatar`;
+        } else if (channel.channelType === ChannelTypeGroup) {
+          info.logo = `groups/${channel.channelID}/avatar`;
+        }
+      }
+
+      const extra = raw.extra ?? {};
+      const orgData: Record<string, unknown> = {
+        ...extra,
         remark: raw.remark ?? "",
         displayName: raw.remark && raw.remark !== "" ? raw.remark : (raw.name ?? ""),
         notice: raw.notice,
+        receipt: raw.receipt,
+        status: raw.status,
+        follow: raw.follow,
+        category: raw.category,
+        be_deleted: raw.be_deleted,
+        be_blacklist: raw.be_blacklist,
+        // 透传后端可能在顶层 / extra 里的 member_count 字段(channel setting "成员" 行用)
+        member_count:
+          (raw as { member_count?: number }).member_count ??
+          (extra as { member_count?: number }).member_count,
       };
+
+      // robot 字段:raw 显式给则用,否则从群成员缓存兜底(只对 person)
+      if (raw.robot != null) {
+        orgData.robot = raw.robot;
+      } else if (channel.channelType === ChannelTypePerson) {
+        if (lookupRobotFromSubscriberCache(channel.channelID)) {
+          orgData.robot = 1;
+        }
+      }
+
+      // person 专属字段
+      if (channel.channelType === ChannelTypePerson) {
+        orgData.shortNo = (extra as { short_no?: string }).short_no ?? "";
+      } else if (channel.channelType === ChannelTypeGroup) {
+        const extraGroup = extra as Record<string, unknown>;
+        orgData.forbidden = raw.forbidden;
+        orgData.invite = raw.invite;
+        orgData.forbiddenAddFriend = extraGroup.forbidden_add_friend;
+        orgData.save = raw.save;
+        orgData.has_group_md = !!(raw.has_group_md ?? extraGroup.has_group_md);
+        orgData.group_md_version =
+          raw.group_md_version ?? (extraGroup.group_md_version as number | undefined) ?? 0;
+        orgData.group_md_updated_at =
+          raw.group_md_updated_at ?? (extraGroup.group_md_updated_at as string | undefined) ?? null;
+        orgData.can_edit_group_md = !!(raw.can_edit_group_md ?? extraGroup.can_edit_group_md);
+        orgData.can_manage_bot_admin = !!(
+          raw.can_manage_bot_admin ?? extraGroup.can_manage_bot_admin
+        );
+      }
+
+      // category=system/customerService/visitor 加 identity icon(对齐旧版静态 path)
+      const cat = orgData.category;
+      if (cat === "system" || cat === "customerService") {
+        orgData.identityIcon = "./identity_icon/official.png";
+        orgData.identitySize = { width: "18px", height: "18px" };
+      } else if (cat === "visitor") {
+        orgData.identityIcon = "./identity_icon/visitor.png";
+        orgData.identitySize = { width: "48px", height: "24px" };
+      }
+
+      info.orgData = orgData;
     } catch {
       // 404 / 无权限:返回空 title 占位,避免渲染 channelID hex
       info.title = "";
@@ -72,9 +309,41 @@ export function registerImCallbacks(): void {
     return info;
   };
 
-  provider.syncSubscribersCallback = async (): Promise<Subscriber[]> => {
-    // P3: 接 groups/{id}/membersync。P2 第一版兜底空数组,IM 主路径不需要成员列表。
-    return [];
+  provider.syncSubscribersCallback = async (
+    channel: Channel,
+    version: number,
+  ): Promise<Subscriber[]> => {
+    // 子区(ChannelTypeCommunityTopic)的成员就是父群成员,走父群 ID
+    let groupNo = channel.channelID;
+    if (channel.channelType === CHANNEL_TYPE_THREAD) {
+      const parsed = parseThreadChannelId(channel.channelID);
+      if (parsed) groupNo = parsed.groupNo;
+    }
+    let raw: GroupMemberRaw[];
+    try {
+      raw = await syncGroupMembers(groupNo, version);
+    } catch {
+      return [];
+    }
+    const members = raw.map(rawToSubscriber);
+    const sorted = sortByRole(members);
+
+    // robot 字段反向同步到 person channelInfo 缓存:消息列表 / 联系人页能立刻显示 AI 标识,
+    // 不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
+    const cm = WKSDK.shared().channelManager;
+    for (const member of sorted) {
+      if ((member.orgData as { robot?: number } | undefined)?.robot !== 1) continue;
+      const personChannel = new Channel(member.uid, ChannelTypePerson);
+      const existing = cm.getChannelInfo(personChannel);
+      if (existing) {
+        const og = (existing.orgData ?? {}) as Record<string, unknown>;
+        og.robot = 1;
+        existing.orgData = og;
+        cm.setChannleInfoForCache(existing);
+      }
+    }
+
+    return sorted;
   };
 
   provider.syncMessagesCallback = async (channel, opts): Promise<Message[]> => {
@@ -87,6 +356,44 @@ export function registerImCallbacks(): void {
       pull_mode: opts.pullMode ?? 0,
     });
     return (resp.messages ?? []).map(rawToMessage);
+  };
+
+  provider.syncMessageExtraCallback = async (
+    channel: Channel,
+    extraVersion: number,
+    limit: number,
+  ): Promise<MessageExtra[]> => {
+    let raws;
+    try {
+      raws = await syncMessageExtras({
+        channel_id: channel.channelID,
+        channel_type: channel.channelType,
+        extra_version: extraVersion,
+        limit,
+      });
+    } catch {
+      return [];
+    }
+    return raws.map(rawToMessageExtra);
+  };
+
+  provider.syncRemindersCallback = async (version: number): Promise<Reminder[]> => {
+    const channelIds = collectGroupChannelIds();
+    let raws;
+    try {
+      raws = await syncReminders({ version, limit: 100, channel_ids: channelIds });
+    } catch {
+      return [];
+    }
+    return raws.map(rawToReminder);
+  };
+
+  provider.reminderDoneCallback = async (ids: number[]) => {
+    try {
+      await markRemindersDone(ids);
+    } catch {
+      // 同 messageReaded:done 上报失败不阻塞用户(下次 sync 仍会拉到,SDK 自己去重)
+    }
   };
 
   provider.messageReadedCallback = async (channel, messages) => {

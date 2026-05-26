@@ -25,12 +25,49 @@ export interface ConversationRaw {
   space_unread?: number;
   recents?: unknown[];
   extra?: unknown;
+  space_id?: string;
+}
+
+/** sync 响应里的 user 项(用于 channelInfo 缓存预热)。 */
+export interface SyncedUserRaw {
+  uid: string;
+  name?: string;
+  remark?: string;
+  mute?: number;
+  top?: number;
+  online?: number;
+  last_offline?: number;
+  logo?: string;
+  category?: string;
+  short_no?: string;
+  realname_verified?: boolean | number;
+  real_name?: string;
+  extra?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** sync 响应里的 group 项。 */
+export interface SyncedGroupRaw {
+  group_no: string;
+  name?: string;
+  remark?: string;
+  mute?: number;
+  top?: number;
+  online?: number;
+  last_offline?: number;
+  logo?: string;
+  forbidden?: number;
+  invite?: number;
+  forbidden_add_friend?: number;
+  save?: number;
+  extra?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface SyncConversationsResp {
   conversations?: ConversationRaw[];
-  users?: unknown[];
-  groups?: unknown[];
+  users?: SyncedUserRaw[];
+  groups?: SyncedGroupRaw[];
 }
 
 export async function syncConversations(spaceId?: string): Promise<SyncConversationsResp> {
@@ -190,4 +227,57 @@ export async function clearChannelMessages(args: {
       message_seq: args.messageSeq,
     },
   });
+}
+
+/**
+ * Conversation extras 增量同步(对应旧 dmworkdatasource/module.ts::syncConversationExtrasCallback)。
+ *
+ * POST /v1/conversation/extra/sync { version }
+ *
+ * 后端按 extras 表的全局 version 增量返回 — extras 含 keep_msg_seq / draft / browse_to
+ * 等"端到端跨设备同步"的会话级元数据。SDK ConversationManager 收到后写回每个
+ * Conversation.extra,触发 listener。版本号由 SDK 自管。
+ */
+
+export interface ConversationExtraRaw {
+  channel_id: string;
+  channel_type: number;
+  browse_to?: number;
+  keep_message_seq?: number;
+  keep_offset_y?: number;
+  draft?: string;
+  draft_updated_at?: number;
+  version?: number;
+}
+
+export async function syncConversationExtras(version: number): Promise<ConversationExtraRaw[]> {
+  const resp = await api<ConversationExtraRaw[] | null>("conversation/extra/sync", {
+    method: "POST",
+    body: { version },
+  });
+  return resp ?? [];
+}
+
+/**
+ * Message extras 增量同步(对应旧 ConversationProvider::syncMessageExtras)。
+ *
+ * POST /v1/message/extra/sync { channel_id, channel_type, extra_version, limit }
+ *
+ * 后端按消息 extras 版本号返回增量(已读数 / 撤回 / 编辑等元数据变化),SDK 拿到后
+ * 写回 Message.remoteExtra,触发消息列表 listener。
+ */
+
+export interface SyncMessageExtrasReq {
+  channel_id: string;
+  channel_type: number;
+  extra_version: number;
+  limit: number;
+}
+
+export async function syncMessageExtras(req: SyncMessageExtrasReq): Promise<MessageExtraRaw[]> {
+  const resp = await api<MessageExtraRaw[] | null>("message/extra/sync", {
+    method: "POST",
+    body: req,
+  });
+  return resp ?? [];
 }

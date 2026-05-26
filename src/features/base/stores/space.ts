@@ -37,3 +37,18 @@ export function persistSpace(): void {
     }
   });
 }
+
+/**
+ * channelSpaceMap — channel(by `${channelID}_${channelType}` key)→ spaceId 反查表。
+ *
+ * 在 syncConversationsCallback 内,响应每条 conversation 都带 space_id;预填这张表后,
+ * 业务层(矩阵转发 / 跨 Space 跳转)能反查某 channel 属于哪个 Space,不用再调接口。
+ *
+ * 旧项目挂在 `WKApp.shared.channelSpaceMap`(Map<string, string>),这里用模块级
+ * 单例 Map 等价(非 react state,不需要订阅 — 业务调用方直接读)。
+ */
+export const channelSpaceMap = new Map<string, string>();
+
+export function channelSpaceKey(channelId: string, channelType: number): string {
+  return `${channelId}_${channelType}`;
+}

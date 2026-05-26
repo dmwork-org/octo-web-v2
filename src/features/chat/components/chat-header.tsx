@@ -4,16 +4,10 @@ import { MoreHorizontal, Search } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 interface ChatHeaderProps {
   channel: Channel;
-}
-
-/** 子区(thread)channelID 解析:`{groupNo}@{shortId}` 形如旧 parseThreadChannelId。 */
-function parseThreadChannelId(channelId: string): { groupNo: string; shortId: string } | null {
-  const at = channelId.indexOf("@");
-  if (at <= 0) return null;
-  return { groupNo: channelId.substring(0, at), shortId: channelId.substring(at + 1) };
 }
 
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 未导出常量,旧项目 hardcode 7。 */

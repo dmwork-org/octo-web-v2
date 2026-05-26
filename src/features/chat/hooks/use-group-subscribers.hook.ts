@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import WKSDK, { type Channel, type Subscriber } from "wukongimjssdk";
+import { useEffect, useMemo, useState } from "react";
+import WKSDK, { Channel, ChannelTypeGroup, type Subscriber } from "wukongimjssdk";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;SDK 未导出常量。 */
@@ -12,16 +12,27 @@ const CHANNEL_TYPE_THREAD = 7;
  *   把成员拉到 SDK channelManager.subscribeCacheMap
  * - addSubscriberChangeListener 监听成员变化(同步完成 / 增删成员都会触发),
  *   收到通知后 setState 重渲
- * - 子区 ChannelTypeCommunityTopic 走父群:SDK 的 getSubscribes 不会自动解析
- *   子区 → 父群,这里显式 parse,用父群 channel 拉成员(对齐 K-1 syncSubscribers
- *   的 thread→parent 逻辑,保证 cache key 一致)
+ * - 子区(ChannelTypeCommunityTopic)走父群:SDK getSubscribes 不会自动解析子区→父群,
+ *   这里显式 parse 出 parentGroupNo 用 `new Channel` 实例化父群 channel(SDK 内部
+ *   subscribeCacheMap 用 Channel 实例 key 比对,fabricate 字面量对象会命中不到)
  *
  * 用途:Composer @mention 候选 / 群管理面板 / @某人快捷搜索。
  *
  * 注意:enabled === false 时不订阅、不拉,返回空数组(私聊不需要群成员)。
  */
 export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscriber[] {
-  const effectiveChannel = useEffectiveGroupChannel(channel);
+  // 通过 useMemo 把同一组 channelID/channelType 映射到稳定 Channel 实例:
+  // - 群 / 私聊:返回原 channel 实例(stable by reference)
+  // - 子区:parse 父群 ID 后 new Channel(groupNo, ChannelTypeGroup) 用真实 SDK 实例
+  // 依赖项用原 channel 的 ID + type 字符串,避免 channel 引用每次渲染变化导致重建
+  const effectiveChannel = useMemo(() => {
+    if (channel.channelType !== CHANNEL_TYPE_THREAD) return channel;
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (!parsed) return null;
+    return new Channel(parsed.groupNo, ChannelTypeGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel.channelID, channel.channelType]);
+
   const [members, setMembers] = useState<Subscriber[]>(() =>
     enabled && effectiveChannel
       ? (WKSDK.shared().channelManager.getSubscribes(effectiveChannel) ?? [])
@@ -54,21 +65,4 @@ export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscri
   }, [effectiveChannel, enabled]);
 
   return members;
-}
-
-/**
- * 子区 → 父群解析。返回稳定的 Channel(同输入永远同输出),用作 useEffect 依赖项;
- * 私聊 / 群本身直接返回原 channel。
- */
-function useEffectiveGroupChannel(channel: Channel): Channel | null {
-  if (channel.channelType !== CHANNEL_TYPE_THREAD) return channel;
-  const parsed = parseThreadChannelId(channel.channelID);
-  if (!parsed) return null;
-  // 不 new Channel(...) — SDK 会用 channelManager 的 key 比对,而 syncSubscribes /
-  // getSubscribes 内部按 channelID/channelType 字符串比,这里直接 fabricate 个对象
-  return {
-    channelID: parsed.groupNo,
-    channelType: 2, // ChannelTypeGroup
-    getChannelKey: () => `${parsed.groupNo}-2`,
-  } as Channel;
 }

@@ -16,13 +16,25 @@ import WKSDK, {
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { FileText, Image as ImageIcon, Mic, Paperclip, Send, Smile, X } from "lucide-react";
-import { Button } from "@/components/semi-bridge/button";
+import {
+  AtSign,
+  CheckSquare,
+  ChevronDown,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Maximize2,
+  Mic,
+  MicOff,
+  Paperclip,
+  Smile,
+  X,
+} from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
 import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
+import { transcribeVoice } from "@/features/base/api/endpoints/voice.api";
 import {
   chatReplyActions,
   chatReplyStore,
@@ -32,9 +44,22 @@ import { createMentionSuggestion } from "@/features/chat/components/mention-sugg
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
+import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+
+/** 录音上限(秒)— 对齐旧 PRD;到时自动 stop 触发转写。 */
+const VOICE_MAX_DURATION = 60;
+
+/** Mac 上 Option/Alt 显示 ⌥,其他平台显示 Alt(对齐旧 ALT_KEY)。 */
+const ALT_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌥" : "Alt";
+
+/** Mac 上 Cmd 显示 ⌘,其他平台显示 Ctrl(对齐旧 useVoiceInput shortcut tooltip)。 */
+const META_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘" : "Ctrl";
 
 interface ComposerProps {
   channel: Channel;
@@ -74,8 +99,22 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: "[图片]" };
   if (ct === MessageContentType.text) return { Icon: null, hint: "" };
   if (ct === 6) return { Icon: FileText, hint: "[文件]" };
-  if (ct === 3) return { Icon: Mic, hint: "[语音]" };
+  if (ct === 4) return { Icon: Mic, hint: "[语音]" };
   return { Icon: null, hint: "" };
+}
+
+/**
+ * 占位符(对齐旧 dmworkbase MessageInput buildPlaceholder):
+ *   - person:对 NAME 发送消息  / 发送消息
+ *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务  / 输入消息...  ⌥+↵ 创建任务
+ */
+function buildPlaceholder(channel: Channel, name: string): string {
+  if (channel.channelType === ChannelTypePerson) {
+    return name ? `对 ${name} 发送消息` : "发送消息";
+  }
+  return name
+    ? `在 ${name} 中回复...  ${ALT_KEY}+↵ 创建任务`
+    : `输入消息...  ${ALT_KEY}+↵ 创建任务`;
 }
 
 /**
@@ -161,22 +200,32 @@ function extractFromEditor(editor: Editor): ExtractedText {
   return { text: lines.join("\n").trim(), uids, all };
 }
 
+function formatRecordTime(sec: number): string {
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
 /**
- * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿):
+ * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强 + 1:1 旧 UI):
  *
- * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(群 / 子区启用)
- * - Mention 候选 = 当前**群成员**(SDK getSubscribes,K-1 接的 membersync),不是
- *   整个 Space 成员;子区走父群成员(useGroupSubscribers 内 parse)
- * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
- *   `@所有人` 特殊化为 SDK Mention.all=true
- * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
+ * 工具栏布局 1:1 对齐旧 dmworkbase MessageInput(图标全靠右,无 Send 按钮,Enter 发):
+ *   [😀 表情] [@ 提及] [📎 文件] [✓ 任务] [🎤▼ 语音] [⤢ 展开]
  *
- * 增强(对齐旧 ChatToolbar):
- * - Emoji 面板:点 😀 弹 emoji-mart picker,选中 native unicode 插入 editor
- * - 粘贴上传:Ctrl+V 粘贴含图片 → 直接走 sendImage,prevent editor 自带 paste 把图
- *   片当 base64 文本插入
- * - 拖拽上传:文件拖到 form 区域 → 图片走 sendImage、其他走 sendFile;dragover 必须
- *   preventDefault 否则 drop 不触发
+ * 占位符(对齐旧 buildPlaceholder):
+ *   - person:对 NAME 发送消息
+ *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务
+ *
+ * 媒体增强:
+ * - Emoji 面板:点 😀 弹 emoji 网格 picker(picker 相对 form 左对齐)
+ * - @ 提及:点 @ 直接 insert "@" 触发 mention picker(仅群/子区)
+ * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
+ * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
+ * - **语音输入**:点 🎤 录音 → POST /voice/transcribe → 文本插入 editor;
+ *   ▼ 下拉(P3+ 选 voice mode);**不发送语音消息**
+ * - **语音快捷键**:Shift + ⌘/Ctrl + Space 按住录音,松开任一 modifier 停 + 转写;
+ *   Esc 录音中取消(对齐旧 VoiceInputIndicator)
+ * - ✓ 任务、⤢ 展开:旧 dmworktodo / dmworkbase 接 — 占位 toast,P3+ 真做
  *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
@@ -186,10 +235,12 @@ function extractFromEditor(editor: Editor): ExtractedText {
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const emojiWrapRef = useRef<HTMLDivElement>(null);
+  // form ref:供 EmojiPicker 做 click-outside 判定 + absolute 定位的 relative 锚点
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isGroup = channel.channelType === ChannelTypeGroup;
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
@@ -198,6 +249,13 @@ export function Composer({ channel }: ComposerProps) {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   // 群成员候选(子区取父群成员;syncSubscribes 异步,改变后 listener 触发重渲)
   const subscribers = useGroupSubscribers(channel, isMentionable);
+
+  // channel 名 — placeholder 用
+  const channelName = (() => {
+    const info = WKSDK.shared().channelManager.getChannelInfo(channel);
+    return info?.title ?? "";
+  })();
+  const placeholder = buildPlaceholder(channel, channelName);
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
@@ -237,16 +295,13 @@ export function Composer({ channel }: ComposerProps) {
         codeBlock: false,
         horizontalRule: false,
       }),
-      Placeholder.configure({
-        placeholder: isMentionable
-          ? "说点什么...(Enter 发送, Shift+Enter 换行, @ 提及)"
-          : "说点什么...(Enter 发送, Shift+Enter 换行)",
-      }),
+      Placeholder.configure({ placeholder }),
       ...(isMentionable
         ? [
             Mention.configure({
               HTMLAttributes: {
-                class: "mx-0.5 inline-block rounded-sm bg-brand-tint px-1 font-medium text-brand",
+                // 对齐旧 .wk-messageinput-editor .mention:brand 字色 + bold,无背景
+                class: "mx-0.5 font-semibold text-brand",
               },
               renderText: ({ node }) => {
                 const label = (node.attrs as { label?: string; id?: string }).label;
@@ -273,8 +328,9 @@ export function Composer({ channel }: ComposerProps) {
     ],
     editorProps: {
       attributes: {
+        // 对齐旧 .wk-messageinput-editor .ProseMirror:14px / line-height 20px / max-h 100px
         class:
-          "min-h-[2.5rem] max-h-[12rem] overflow-y-auto px-1 py-1 text-sm leading-snug text-text-primary outline-none",
+          "min-h-5 max-h-[100px] overflow-y-auto py-1 text-[14px] leading-5 text-text-primary outline-none",
       },
     },
   });
@@ -348,6 +404,69 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
+  /** 收到 audio File → POST /voice/transcribe → text 插 editor 当前光标。 */
+  const transcribeAndInsert = async (file: File) => {
+    setTranscribing(true);
+    try {
+      const { text } = await transcribeVoice(file, { channelType: channel.channelType });
+      if (text && editor) {
+        editor.chain().focus().insertContent(text).run();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "转写失败");
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const voiceRec = useVoiceRecorder({
+    maxDuration: VOICE_MAX_DURATION,
+    onError: (e) => toast.error(e.message || "录音失败"),
+    // 到时自动停 — 走完整 transcribe 流程(让用户听到上限提示后仍能拿到那段文字)
+    onAutoStop: () => {
+      void (async () => {
+        const file = await voiceRec.stop(false);
+        if (file) await transcribeAndInsert(file);
+      })();
+    },
+  });
+
+  // 全局快捷键 Shift + ⌘/Ctrl + Space:开始录音;松开任一 modifier → 停录 + 转写;Esc 取消
+  useVoiceShortcut(
+    voiceRec.isRecording,
+    transcribing,
+    () => void voiceRec.start(),
+    () => {
+      void (async () => {
+        const file = await voiceRec.stop(false);
+        if (file) await transcribeAndInsert(file);
+      })();
+    },
+    () => void voiceRec.stop(true),
+  );
+
+  /**
+   * mic 按钮点击:
+   *   idle → start 录音
+   *   recording → stop + 转写 + 插 editor
+   *   transcribing → 锁住,不响应
+   */
+  const onClickMic = async () => {
+    if (transcribing) return;
+    if (!voiceRec.isRecording) {
+      await voiceRec.start();
+      return;
+    }
+    const file = await voiceRec.stop(false);
+    if (file) await transcribeAndInsert(file);
+  };
+
+  /** @ 按钮:直接 insert "@",触发 mention picker(仅群/子区)。 */
+  const onClickMention = () => {
+    if (!isMentionable || !editor) return;
+    editor.chain().focus().insertContent("@").run();
+  };
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (editor) void sendText(editor);
@@ -416,46 +535,45 @@ export function Composer({ channel }: ComposerProps) {
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
-  // 是否有正文(决定发送按钮 disabled)
-  const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
+  // mic 三态(对齐旧 useVoiceInput 视觉)
+  const micRecording = voiceRec.isRecording;
+  const micTitle = transcribing
+    ? "正在听写..."
+    : micRecording
+      ? `录音中 ${formatRecordTime(voiceRec.duration)}`
+      : `语音输入(Shift+${META_KEY}+Space)`;
 
   return (
-    <div className="shrink-0 px-4 pt-2 pb-3">
+    <div className="shrink-0 px-4 pb-2">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface p-3 transition-colors focus-within:border-brand"
+        className="relative flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
       >
+        {/* Reply 引用条 — 对齐旧 .wk-replyview-new */}
         {replyingTo ? (
-          <div className="flex items-start gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-2 text-[12px]">
-            <ChannelAvatar
-              channel={new Channel(replyingTo.fromUID, ChannelTypePerson)}
-              size={28}
-              title={replySender}
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0 text-text-tertiary">回复</span>
-                <span className="truncate font-semibold text-text-primary">{replySender}</span>
-              </div>
-              <div className="flex items-center gap-1 text-text-secondary">
-                {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
-                <span className="line-clamp-2 break-words leading-snug">
-                  {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
-                  {replyDigest}
-                </span>
-              </div>
-            </div>
+          <div className="mb-2 flex items-center gap-2 rounded-sm bg-bg-elevated px-3 py-1.5 text-[14px] leading-tight">
             <button
               type="button"
               onClick={() => chatReplyActions.clear(channel)}
               aria-label="取消回复"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+              className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-text-tertiary text-bg-surface transition-colors hover:bg-text-secondary"
             >
-              <X size={12} />
+              <X size={8} strokeWidth={3} />
             </button>
+            <span className="h-3 w-px shrink-0 bg-border-default" />
+            <div className="flex min-w-0 flex-1 items-center gap-1 text-text-secondary">
+              <span className="shrink-0">回复</span>
+              <span className="shrink-0 font-medium text-text-primary">{replySender}:</span>
+              {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
+              <span className="truncate">
+                {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
+                {replyDigest}
+              </span>
+            </div>
           </div>
         ) : null}
 
@@ -468,62 +586,120 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        <EditorContent editor={editor} />
+        {/* 单行布局(对齐旧版):editor 占满,工具栏靠右。无 Send 按钮(Enter 直发) */}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <EditorContent editor={editor} />
+          </div>
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            <div ref={emojiWrapRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setEmojiOpen((v) => !v)}
-                aria-label="表情"
-                title="表情"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                  emojiOpen
-                    ? "bg-bg-hover text-text-primary"
-                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-                }`}
-              >
-                <Smile size={18} />
-              </button>
-              <EmojiPickerPopover
-                open={emojiOpen}
-                containerRef={emojiWrapRef}
-                onSelect={insertEmoji}
-                onClose={() => setEmojiOpen(false)}
-              />
-            </div>
+          {/* actionbox — 全部图标靠右 24×24 muted hover→primary */}
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="发送图片"
-              title="发送图片"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              onClick={() => setEmojiOpen((v) => !v)}
+              aria-label="表情"
+              title="表情"
+              className={`flex h-6 w-6 items-center justify-center transition-colors ${
+                emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
+              }`}
             >
-              <ImageIcon size={18} />
+              <Smile size={20} />
             </button>
+            {/* @ 提及(仅群/子区) */}
+            {isMentionable ? (
+              <button
+                type="button"
+                onClick={onClickMention}
+                aria-label="@提及"
+                title="@提及"
+                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              >
+                <AtSign size={20} />
+              </button>
+            ) : null}
+            {/* 📎 附件(图片+文件,旧版合并为一个图标) */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               aria-label="发送文件"
-              title="发送文件"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              title="发送文件 / 图片"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
-              <Paperclip size={18} />
+              <Paperclip size={20} />
+            </button>
+            {/* ✓ 创建任务(旧 dmworktodo chattoolbar.matter,占位) */}
+            <button
+              type="button"
+              onClick={() => toast.info("创建任务功能即将接入(P3+)")}
+              aria-label="创建任务"
+              title={`创建任务(${ALT_KEY}+↵)`}
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <CheckSquare size={20} />
+            </button>
+            {/* 🎤▼ 语音输入 + 模式下拉 */}
+            <div className="flex h-6 items-center text-text-tertiary">
+              <button
+                type="button"
+                onClick={() => void onClickMic()}
+                aria-label="语音输入"
+                title={micTitle}
+                disabled={transcribing}
+                className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
+                  micRecording
+                    ? "text-error"
+                    : transcribing
+                      ? "text-text-tertiary"
+                      : "text-text-tertiary hover:text-text-primary"
+                }`}
+              >
+                {transcribing ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : micRecording ? (
+                  <>
+                    <MicOff size={20} className="animate-pulse" />
+                    <span className="text-[11px] tabular-nums">
+                      {formatRecordTime(voiceRec.duration)}
+                    </span>
+                  </>
+                ) : (
+                  <Mic size={20} />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => toast.info("语音模式选择即将接入(P3+)")}
+                aria-label="语音模式"
+                title="语音模式"
+                disabled={micRecording || transcribing}
+                className="flex h-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+            {/* ⤢ 展开输入框(P3+ 全屏编辑模式,占位) */}
+            <button
+              type="button"
+              onClick={() => toast.info("展开输入框即将接入(P3+)")}
+              aria-label="展开"
+              title="展开"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <Maximize2 size={18} />
             </button>
           </div>
-          <Button
-            htmlType="submit"
-            type="primary"
-            theme="solid"
-            size="default"
-            loading={sending}
-            disabled={!hasContent}
-          >
-            <Send size={14} />
-            发送
-          </Button>
         </div>
+
+        {/* Emoji picker — 放在 form 直接子级,absolute 相对 form left-0 弹出
+            (而不是相对右上角的 emoji 按钮),与输入框左边对齐,对齐旧 EmojiToolbar 视觉位置。
+            click outside 监听 form 整体:点 form 内任何位置(含 emoji 按钮)都不关
+            picker,点 form 外才关。*/}
+        <EmojiPickerPopover
+          open={emojiOpen}
+          containerRef={formRef}
+          onSelect={insertEmoji}
+          onClose={() => setEmojiOpen(false)}
+        />
       </form>
     </div>
   );

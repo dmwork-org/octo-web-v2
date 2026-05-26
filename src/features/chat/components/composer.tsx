@@ -16,15 +16,12 @@ import WKSDK, {
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { useQuery } from "@tanstack/react-query";
 import { FileText, Image as ImageIcon, Mic, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
-import { spaceStore } from "@/features/base/stores/space";
-import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import {
   chatReplyActions,
   chatReplyStore,
@@ -33,6 +30,10 @@ import {
 import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+
+/** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
+const CHANNEL_TYPE_THREAD = 7;
 
 interface ComposerProps {
   channel: Channel;
@@ -162,8 +163,9 @@ function extractFromEditor(editor: Editor): ExtractedText {
 /**
  * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿):
  *
- * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(仅群聊启用)
- * - Mention 走 @tiptap/suggestion + tippy.js popover,候选从 spaceMembers 拉
+ * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(群 / 子区启用)
+ * - Mention 候选 = 当前**群成员**(SDK getSubscribes,K-1 接的 membersync),不是
+ *   整个 Space 成员;子区走父群成员(useGroupSubscribers 内 parse)
  * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
  *   `@所有人` 特殊化为 SDK Mention.all=true
  * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
@@ -180,23 +182,31 @@ export function Composer({ channel }: ComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isGroup = channel.channelType === ChannelTypeGroup;
+  const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
+  const isMentionable = isGroup || isThread;
 
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
-  const spaceId = useStore(spaceStore, (s) => s.spaceId);
-  const { data: members } = useQuery({
-    ...spaceMembersQueryOptions(spaceId),
-    enabled: isGroup && !!spaceId,
-  });
+  // 群成员候选(子区取父群成员;syncSubscribes 异步,改变后 listener 触发重渲)
+  const subscribers = useGroupSubscribers(channel, isMentionable);
+
   const memberCandidates = useMemo<MentionItem[]>(() => {
-    if (!isGroup) return [];
+    if (!isMentionable) return [];
     const all: MentionItem = { id: "@all", label: "所有人" };
     return [
       all,
-      ...(members ?? [])
-        .filter((m) => m.uid !== myUid && m.robot !== 1)
-        .map((m) => ({ id: m.uid, label: m.name || m.uid })),
+      ...subscribers
+        // 去掉自己 + 已删除成员 + AI 机器人(robot=1 单独走 AI 链路,不在 @ 候选里)
+        .filter((s) => {
+          if (s.uid === myUid) return false;
+          if (s.isDeleted) return false;
+          const og = s.orgData as { robot?: number } | undefined;
+          if (og?.robot === 1) return false;
+          return true;
+        })
+        // 显示名优先 remark > name > uid(对齐群里的展示口径)
+        .map((s) => ({ id: s.uid, label: s.remark || s.name || s.uid })),
     ];
-  }, [members, myUid, isGroup]);
+  }, [subscribers, myUid, isMentionable]);
 
   const sendTextRef = useRef<() => void>(() => {});
 
@@ -216,11 +226,11 @@ export function Composer({ channel }: ComposerProps) {
         horizontalRule: false,
       }),
       Placeholder.configure({
-        placeholder: isGroup
+        placeholder: isMentionable
           ? "说点什么...(Enter 发送, Shift+Enter 换行, @ 提及)"
           : "说点什么...(Enter 发送, Shift+Enter 换行)",
       }),
-      ...(isGroup
+      ...(isMentionable
         ? [
             Mention.configure({
               HTMLAttributes: {
@@ -282,7 +292,7 @@ export function Composer({ channel }: ComposerProps) {
       const content = new MessageText(text);
       const reply = buildReply();
       if (reply) content.reply = reply;
-      if (isGroup && (all || uids.length > 0)) {
+      if (isMentionable && (all || uids.length > 0)) {
         const m = new ImMention();
         if (all) m.all = true;
         if (uids.length > 0) m.uids = uids;

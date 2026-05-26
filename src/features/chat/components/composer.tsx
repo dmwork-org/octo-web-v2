@@ -25,7 +25,11 @@ import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
-import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
+import {
+  chatReplyActions,
+  chatReplyStore,
+  selectReplyForChannel,
+} from "@/features/chat/stores/chat-reply";
 import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
@@ -164,12 +168,14 @@ function extractFromEditor(editor: Editor): ExtractedText {
  *   `@所有人` 特殊化为 SDK Mention.all=true
  * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
  *
- * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
- *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
+ * Reply 流程(per-channel):
+ *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
+ *   Composer 顶部按 current channel 取 reply 显示 → 发送时 Reply attach 到 content →
+ *   成功 clear(channel) / 用户 ✕ 关掉也 clear(channel)。切走再切回 reply 状态保留。
  */
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
-  const replyingTo = useStore(chatReplyStore, (s) => s.replyingTo);
+  const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -284,7 +290,7 @@ export function Composer({ channel }: ComposerProps) {
       }
       await WKSDK.shared().chatManager.send(content, channel);
       ed.commands.clearContent();
-      chatReplyActions.clear();
+      chatReplyActions.clear(channel);
       dropDraft();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "发送失败");
@@ -302,7 +308,7 @@ export function Composer({ channel }: ComposerProps) {
       const reply = buildReply();
       if (reply) image.reply = reply;
       await WKSDK.shared().chatManager.send(image, channel);
-      chatReplyActions.clear();
+      chatReplyActions.clear(channel);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "图片发送失败");
     }
@@ -314,7 +320,7 @@ export function Composer({ channel }: ComposerProps) {
       const reply = buildReply();
       if (reply) content.reply = reply;
       await WKSDK.shared().chatManager.send(content, channel);
-      chatReplyActions.clear();
+      chatReplyActions.clear(channel);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "文件发送失败");
     }
@@ -375,7 +381,7 @@ export function Composer({ channel }: ComposerProps) {
             </div>
             <button
               type="button"
-              onClick={() => chatReplyActions.clear()}
+              onClick={() => chatReplyActions.clear(channel)}
               aria-label="取消回复"
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
             >

@@ -1,38 +1,51 @@
 import { Store } from "@tanstack/react-store";
-import type { Message } from "wukongimjssdk";
-import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import type { Channel, Message } from "wukongimjssdk";
 
 /**
- * 回复上下文 store(对应旧 ConversationVM.currentReplyMessage):
+ * 回复上下文 store(per-channel,对应旧 ConversationVM.currentReplyMessage):
  *
- * - replyingTo:用户右键"回复"选中的源消息;Composer 顶部显示 quoted bar
- * - 发送时 MessageText.reply = new Reply(messageID/messageSeq/fromUID/fromName/content)
- *   (chat-callbacks 的 chatManager.send 自动把 reply 序列化到 payload)
+ * - replies:Map<channelKey, Message>,key 是 `${channelID}_${channelType}`
+ * - 用户右键"回复"选中的源消息按 channel 维度暂存;Composer 顶部 quoted bar 渲染
+ *   时用 `useReplyForChannel(channel)` 取当前会话的 reply
+ * - 发送时 MessageText.reply 由 Composer 自己读;成功后 chatReplyActions.clear(channel)
  *
- * Channel 切换时自动清(切到其他对话不带旧 reply 上下文)。
+ * 旧版 channel 切换会自动 clear reply,实测体验差(切走再切回 reply 没了)。
+ * 本版改成持久化 — 每个会话独立保留自己的 reply 上下文,直到该会话发送成功 / 用户
+ * 显式 ✕ 关掉。
  */
 
 interface ChatReplyState {
-  replyingTo: Message | null;
+  replies: Map<string, Message>;
 }
 
-export const chatReplyStore = new Store<ChatReplyState>({ replyingTo: null });
+function channelKey(channel: Channel): string {
+  return `${channel.channelID}_${channel.channelType}`;
+}
+
+export const chatReplyStore = new Store<ChatReplyState>({ replies: new Map() });
 
 export const chatReplyActions = {
-  set: (message: Message) => chatReplyStore.setState(() => ({ replyingTo: message })),
-  clear: () => chatReplyStore.setState(() => ({ replyingTo: null })),
+  set: (channel: Channel, message: Message) =>
+    chatReplyStore.setState((s) => {
+      const next = new Map(s.replies);
+      next.set(channelKey(channel), message);
+      return { replies: next };
+    }),
+
+  clear: (channel: Channel) =>
+    chatReplyStore.setState((s) => {
+      if (!s.replies.has(channelKey(channel))) return s;
+      const next = new Map(s.replies);
+      next.delete(channelKey(channel));
+      return { replies: next };
+    }),
 };
 
-/**
- * 跨 store 联动:切换会话时清掉 reply 上下文。
- * main.tsx 启动时调一次。
- */
-export function wireChatReplyResetOnChannelChange(): void {
-  let lastChannelId = chatSelectedStore.state.channel?.channelID ?? null;
-  chatSelectedStore.subscribe(() => {
-    const next = chatSelectedStore.state.channel?.channelID ?? null;
-    if (next === lastChannelId) return;
-    lastChannelId = next;
-    chatReplyActions.clear();
-  });
+/** Composer / message-row 的 selector helper:取当前 channel 的 reply,无则 null。 */
+export function selectReplyForChannel(
+  state: ChatReplyState,
+  channel: Channel | null,
+): Message | null {
+  if (!channel) return null;
+  return state.replies.get(channelKey(channel)) ?? null;
 }

@@ -262,7 +262,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     items.push({
       label: "回复",
       icon: <CornerUpLeft size={13} />,
-      onClick: () => chatReplyActions.set(message),
+      onClick: () => chatReplyActions.set(message.channel, message),
     });
   }
   if (forwardAllowed) {

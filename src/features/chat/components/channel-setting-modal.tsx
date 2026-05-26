@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { BellOff, BellRing, Eye, Pin, PinOff, Trash2, X } from "lucide-react";
@@ -20,6 +20,24 @@ interface ChannelSettingModalProps {
 
 /** ChannelType 7 = ChannelTypeCommunityTopic */
 const CHANNEL_TYPE_THREAD = 7;
+
+/**
+ * Modal 打开时主动 syncSubscribes,把群成员拉到 SDK cache。
+ *
+ * SDK syncSubscribes 走 syncSubscribersCallback(K-1 已接 GET groups/{}/membersync),
+ * 完成后写到 channelManager.subscribeCacheMap。返回 token 触发 setVer 让组件重渲拿数。
+ */
+function useSyncSubscribesOnOpen(
+  open: boolean,
+  channel: Channel,
+  enabled: boolean,
+  onDone: () => void,
+) {
+  useEffect(() => {
+    if (!open || !enabled) return;
+    void WKSDK.shared().channelManager.syncSubscribes(channel).then(onDone, onDone);
+  }, [open, channel, enabled, onDone]);
+}
 
 function SectionRow({
   title,
@@ -69,19 +87,18 @@ function SectionGroup({ children }: { children: React.ReactNode }) {
  * 频道设置弹窗(对应旧 dmworkbase Components/ChannelSetting 精简版):
  *
  *   ┌ Header(头像 + 名 + 群标识 + close)
- *   ├ Section: 成员数(只读)/ 公告(只读)
+ *   ├ Section: 成员数(进入时主动 syncSubscribes,从 cache 读真实数)/ 公告(只读)
  *   ├ Section: 置顶 / 免打扰(toggle row,直接调 channel-setting.api)
  *   └ Section: 清空聊天记录 / 关闭聊天窗口
  *
- * 不做(P3+ wave):
- * - 成员列表(需 syncSubscribers,IMProvider 当前返空)
- * - 子区列表 / 群文档 / 群权限 / 成员管理 / 退群
- * - 群昵称 / 我的群名片 / 邀请二维码
+ * 不做(P3+ wave):成员列表展开 / 子区列表 / 群文档 / 群权限 / 成员管理 / 退群。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const qc = useQueryClient();
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  // tick 让 syncSubscribes 完成后强制重渲(SDK subscribeCacheMap 写入不会主动通知 React)
+  const [subscribesTick, setSubscribesTick] = useState(0);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -91,8 +108,21 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const isMuted = !!channelInfo?.mute;
   const isTop = !!channelInfo?.top;
   const orgData = channelInfo?.orgData as { member_count?: number; notice?: string } | undefined;
-  const memberCount = orgData?.member_count;
   const notice = orgData?.notice;
+
+  useSyncSubscribesOnOpen(open, channel, isGroup || isThread, () =>
+    setSubscribesTick((v) => v + 1),
+  );
+
+  // 真实成员数:SDK cache 里的 subscribers.length 优先,fallback 到 orgData.member_count
+  const memberCount = useMemo(() => {
+    if (!isGroup && !isThread) return undefined;
+    // subscribesTick 入依赖,让 syncSubscribes done 后重算
+    void subscribesTick;
+    const subs = WKSDK.shared().channelManager.getSubscribes(channel);
+    if (subs && subs.length > 0) return subs.length;
+    return orgData?.member_count;
+  }, [isGroup, isThread, channel, subscribesTick, orgData?.member_count]);
 
   const refreshChannelInfo = () => {
     void WKSDK.shared().channelManager.fetchChannelInfo(channel);
@@ -158,15 +188,14 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   if (!open) return null;
 
   const typeLabel = isGroup ? "群" : isThread ? "子区" : isPerson ? "私聊" : "";
+  const headerCount = isGroup || isThread ? (memberCount ?? 0) : undefined;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
           <h2 className="text-sm font-semibold text-text-primary">
-            {isGroup
-              ? `聊天信息${typeof memberCount === "number" ? `(${memberCount})` : ""}`
-              : "聊天信息"}
+            {typeof headerCount === "number" ? `聊天信息(${headerCount})` : "聊天信息"}
           </h2>
           <button
             type="button"
@@ -191,7 +220,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         </div>
 
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
-          {isGroup && (typeof memberCount === "number" || notice) ? (
+          {(isGroup || isThread) && (typeof memberCount === "number" || notice) ? (
             <SectionGroup>
               {typeof memberCount === "number" ? (
                 <SectionRow title="成员" subTitle={`${memberCount} 人`} />

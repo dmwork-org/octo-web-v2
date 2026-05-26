@@ -198,6 +198,12 @@ export function registerImCallbacks(): void {
     for (const g of resp.groups ?? []) {
       cm.setChannleInfoForCache(groupToChannelInfo(g));
     }
+    // 子区(thread)等不在 users/groups payload 里的 channel 兜底:lazy fetch。
+    // SDK fetchChannelInfo 内部去重(Map<key, Promise>),不会重复打接口;
+    // 命中缓存的 channel 直接 return,代价接近 0。
+    for (const conv of conversations) {
+      void cm.fetchChannelInfo(conv.channel);
+    }
     return conversations;
   };
 
@@ -249,6 +255,10 @@ export function registerImCallbacks(): void {
         category: raw.category,
         be_deleted: raw.be_deleted,
         be_blacklist: raw.be_blacklist,
+        // 透传后端可能在顶层 / extra 里的 member_count 字段(channel setting "成员" 行用)
+        member_count:
+          (raw as { member_count?: number }).member_count ??
+          (extra as { member_count?: number }).member_count,
       };
 
       // robot 字段:raw 显式给则用,否则从群成员缓存兜底(只对 person)

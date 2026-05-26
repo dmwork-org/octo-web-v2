@@ -238,8 +238,6 @@ export function MessageList({ channel }: MessageListProps) {
         <div className="flex justify-center py-2 text-xs text-text-tertiary">
           {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}
         </div>
-      ) : messages.length > 0 ? (
-        <div className="flex justify-center py-2 text-xs text-text-tertiary">没有更早的消息了</div>
       ) : null}
       {messages.map((m, i) => {
         const prev = messages[i - 1];

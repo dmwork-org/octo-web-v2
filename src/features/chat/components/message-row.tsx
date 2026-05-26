@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -48,17 +49,23 @@ interface MessageRowProps {
   bare?: boolean;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic(子区),SDK 未导出常量。 */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+/** ChannelType 5 = ChannelTypeCommunityTopic(子区,SDK 1.3.5 未导出常量,对齐旧 dmworkbase Const.ts)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
-function senderInitial(message: Message): string {
-  const channelInfo = WKSDK.shared().channelManager.getChannelInfo(message.channel);
-  const name = channelInfo?.title || message.fromUID;
-  return (name || "?").slice(0, 1).toUpperCase();
-}
-
+/**
+ * 取消息发送者的展示名:
+ * - 群聊:优先群成员的 remark / name(SDK syncSubscribers 写到 subscriber.orgData,
+ *   旧版叫 displayName,新版回到 channelInfo.title 兜底)
+ * - DM:发送者自己的 channelInfo.title
+ *
+ * 走 fromUID + ChannelTypePerson 拿对应用户的 channelInfo,而不是 message.channel
+ * (会话频道,group 时是群名,会渲染成"村长群" 而不是发送人名)。
+ */
 function senderDisplay(message: Message): string {
-  return message.fromUID;
+  const personChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(message.fromUID, ChannelTypePerson),
+  );
+  return personChannelInfo?.title || message.fromUID;
 }
 
 function formatTime(ts: number): string {
@@ -396,20 +403,15 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     );
   }
 
+  const senderTitle = senderDisplay(message);
+  const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-sm font-medium text-text-secondary"
-        aria-hidden
-      >
-        {senderInitial(message)}
-      </div>
+      <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-baseline gap-2 leading-[22px]">
-          <span className="truncate text-sm font-semibold text-text-primary">
-            {senderDisplay(message)}
-          </span>
+          <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
           <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
         </header>
         <MessageDispatch message={message} />

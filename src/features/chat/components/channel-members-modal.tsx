@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -31,7 +31,7 @@ const ROLE_NORMAL = 0;
 const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
-interface ChannelMembersModalProps {
+interface ChannelMembersDrawerProps {
   open: boolean;
   channel: Channel;
   onClose: () => void;
@@ -43,23 +43,41 @@ function findMyRole(members: Subscriber[], myUid: string): number {
 }
 
 /**
- * 群成员管理面板(对应旧 dmworkbase/Components/Subscribers + GroupManagement
- * 精简版):
+ * open 翻转后下一帧把 entered 置 true,触发 CSS transition;
+ * close 时立刻 reset。
  *
- *   ┌ Header(成员 N 人 + 加成员按钮 + close)
+ * 旧 dmworkbase ChannelSetting 用 `transform: translate3d(100vw,0,0) → 0` 右侧
+ * 滑入,这里用 Tailwind translate-x-full → translate-x-0 同一思路。
+ */
+function useEnterTransition(open: boolean) {
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    if (!open) {
+      setEntered(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+  return entered;
+}
+
+/**
+ * 群成员管理抽屉(对应旧 dmworkbase Subscribers + GroupManagement;旧版整体是
+ * 右侧滑入的 ChannelSetting 抽屉 + 内嵌"成员"二级页。本期简化为独立右侧抽屉):
+ *
+ *   ┌ Header(成员 N + 加成员按钮 + close)
  *   ├ 搜索框
  *   ├ 成员列表(头像 + 名 + role badge + AI 角标)
  *   │   每行右侧 hover 时显示 ⋮ → ContextMenu
- *   │     · owner 我:对 normal → 设管理员;对 manager → 取消管理员;对 owner 自己 → 无;
- *   │       对所有非自己的 → 移出群聊
- *   │     · manager 我:对 normal 非自己 → 移出群聊;对 owner / 其他 manager → 无
- *   │     · normal 我:不显示菜单(只读)
- *   └ 子区:走父群 channel(useGroupSubscribers 内部 parse);"加成员"按钮在子区
- *     场景隐藏(子区成员=父群,加人应去父群操作)
+ *   │     · owner 我:对 normal → 设管理员;对 manager → 取消管理员;非 owner → 移出
+ *   │     · manager 我:对 normal 非自己 → 移出
+ *   │     · normal 我:无菜单(只读)
+ *   └ 子区:走父群 channel(useGroupSubscribers 内部 parse);加成员按钮隐藏
  *
- * 不做(P3+ wave):role 拖拽 / 转让群主 / 邀请管理 / 申请审核。
+ * 形态:fixed 右侧抽屉,backdrop 半透明可点关闭;主 panel 用 transform 滑入。
  */
-export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersModalProps) {
+export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDrawerProps) {
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const subscribers = useGroupSubscribers(channel, open);
@@ -67,8 +85,9 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
   const [menuFor, setMenuFor] = useState<{ uid: string; x: number; y: number } | null>(null);
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const entered = useEnterTransition(open);
 
-  // 子区 → 父群 channel(用于发 mutation API)
+  // 子区 → 父群 channel(用于发 mutation API 和加成员 picker)
   const groupChannel = useMemo(() => {
     if (channel.channelType !== CHANNEL_TYPE_THREAD) return channel;
     const parsed = parseThreadChannelId(channel.channelID);
@@ -89,8 +108,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
       return name.includes(kw) || s.uid.toLowerCase().includes(kw);
     });
   }, [subscribers, keyword]);
-
-  // ─── Mutations ─────────────────────────────────────────
 
   const refreshSubs = () => {
     if (groupChannel) {
@@ -138,8 +155,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
 
   if (!open) return null;
 
-  // ─── Menu items per row ────────────────────────────────
-
   const buildMenuItems = (target: Subscriber): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     if (target.uid === myUid) return items;
@@ -155,7 +170,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
           onClick: () => demoteMu.mutate(target.uid),
         });
       }
-      // owner 不能移除其他 owner(实际只有 1 个 owner,这里防御)
       if (target.role !== ROLE_OWNER) {
         items.push({
           label: "移出群聊",
@@ -164,7 +178,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
         });
       }
     } else if (iAmManager) {
-      // manager 只能踢 normal
       if (target.role === ROLE_NORMAL) {
         items.push({
           label: "移出群聊",
@@ -177,14 +190,25 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
   };
 
   const isThreadCh = channel.channelType === CHANNEL_TYPE_THREAD;
-  // 子区不允许加成员(子区成员=父群,后端会 reject;通过父群 ChannelMembersModal 操作)
   const showAddBtn = !isThreadCh && canManage;
   const kickTarget = confirmKickUid ? subscribers.find((s) => s.uid === confirmKickUid) : undefined;
   const kickTargetName = kickTarget ? kickTarget.remark || kickTarget.name || kickTarget.uid : "";
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex h-[70vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
+    <div className="fixed inset-0 z-[60]">
+      {/* backdrop */}
+      <div
+        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
+          entered ? "opacity-100" : "opacity-0"
+        }`}
+        onClick={onClose}
+      />
+      {/* drawer panel — 右侧滑入 */}
+      <aside
+        className={`absolute top-0 right-0 flex h-full w-full max-w-md transform flex-col overflow-hidden border-l border-border-default bg-bg-surface shadow-xl transition-transform duration-300 ease-out ${
+          entered ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-5 py-3">
           <h2 className="text-sm font-semibold text-text-primary">成员({subscribers.length})</h2>
           <div className="flex shrink-0 items-center gap-2">
@@ -275,39 +299,41 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersMo
             })
           )}
         </ul>
-      </div>
+      </aside>
 
-      {/* per-row 操作菜单 */}
-      <ContextMenu
-        open={!!menuFor}
-        x={menuFor?.x ?? 0}
-        y={menuFor?.y ?? 0}
-        items={
-          menuFor
-            ? buildMenuItems(
-                subscribers.find((s) => s.uid === menuFor.uid) ??
-                  ({ uid: menuFor.uid } as Subscriber),
-              )
-            : []
-        }
-        onClose={() => setMenuFor(null)}
-      />
+      {/* per-row 操作菜单(条件渲染避免 ContextMenu 在 open=false 时仍跑副作用) */}
+      {menuFor ? (
+        <ContextMenu
+          open
+          x={menuFor.x}
+          y={menuFor.y}
+          items={buildMenuItems(
+            subscribers.find((s) => s.uid === menuFor.uid) ??
+              ({ uid: menuFor.uid, role: ROLE_NORMAL } as Subscriber),
+          )}
+          onClose={() => setMenuFor(null)}
+        />
+      ) : null}
 
-      {/* 移出群聊二次确认 */}
-      <ConfirmModal
-        open={!!confirmKickUid}
-        title="确认移出"
-        content={kickTargetName ? `确定要将 ${kickTargetName} 移出群聊吗?` : "确定要移出该成员吗?"}
-        okText="移出"
-        okDanger
-        okLoading={kickMu.isPending}
-        onOk={() => confirmKickUid && kickMu.mutate(confirmKickUid)}
-        onCancel={() => setConfirmKickUid(null)}
-      />
+      {/* 移出群聊二次确认(条件渲染) */}
+      {confirmKickUid ? (
+        <ConfirmModal
+          open
+          title="确认移出"
+          content={
+            kickTargetName ? `确定要将 ${kickTargetName} 移出群聊吗?` : "确定要移出该成员吗?"
+          }
+          okText="移出"
+          okDanger
+          okLoading={kickMu.isPending}
+          onOk={() => kickMu.mutate(confirmKickUid)}
+          onCancel={() => setConfirmKickUid(null)}
+        />
+      ) : null}
 
-      {/* 加成员 picker:子区不会进这里(showAddBtn=false),groupChannel 一定是父群 */}
-      {groupChannel ? (
-        <AddMembersModal open={addOpen} channel={groupChannel} onClose={() => setAddOpen(false)} />
+      {/* 加成员 picker:子区 showAddBtn=false 不会进这里;groupChannel 一定是父群 */}
+      {addOpen && groupChannel ? (
+        <AddMembersModal open channel={groupChannel} onClose={() => setAddOpen(false)} />
       ) : null}
     </div>
   );

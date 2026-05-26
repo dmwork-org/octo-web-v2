@@ -2,7 +2,7 @@ import { useMemo, useState, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, type Conversation, ChannelTypeGroup } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, Hash, Pin, PinOff, Trash2, X } from "lucide-react";
+import { BellOff, BellRing, Eye, Hash, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -14,7 +14,9 @@ import {
   deleteConversation,
 } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
+import { unfollowChannel } from "@/features/base/api/endpoints/follow.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { categoriesQueryKey } from "@/features/chat/queries/categories.query";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -189,12 +191,9 @@ function sortConversations(list: Conversation[]): Conversation[] {
  *   - 标为已读(unread > 0 时)
  *   - 置顶 / 取消置顶
  *   - 开启 / 关闭免打扰
+ *   - 取消关注(group only,接 /follow/channel/unfollow)
  *   - 清空聊天记录(danger,Confirm)
  *   - 关闭聊天窗口(从列表移除该会话,Confirm)
- *
- * 后端调用走 channel-setting / conversation 两个 endpoint;成功后由 SDK 推送
- * channelInfo / conversation 变更触发 listener,useConversationsSync 自动写
- * setQueryData 刷新列表。
  */
 export function ConversationList({
   selectedChannelId,
@@ -301,6 +300,18 @@ export function ConversationList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "关闭失败"),
   });
 
+  // 取消关注群(对应旧 dmworkbase FollowService.unfollowChannel)
+  const unfollowMu = useMutation({
+    mutationFn: (groupNo: string) => unfollowChannel(groupNo),
+    onSuccess: () => {
+      // categories(关注 tab)和 conversations 都可能变(关注关系移除)— 双 invalidate
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations", spaceId ?? "_"] });
+      toast.success("已取消关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "取消关注失败"),
+  });
+
   // ─── Right-click menu ──────────────────────────────────
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
@@ -312,6 +323,7 @@ export function ConversationList({
     const items: ContextMenuItem[] = [];
     const isMuted = !!conv.channelInfo?.mute;
     const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
+    const isGroup = conv.channel.channelType === ChannelTypeGroup;
 
     if (conv.unread > 0) {
       items.push({
@@ -330,6 +342,15 @@ export function ConversationList({
       icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
       onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
+    // 取消关注:仅群消息(DM/子区 follow API 不同,P3+ 一并补)
+    if (isGroup) {
+      items.push({ separator: true });
+      items.push({
+        label: "取消关注",
+        icon: <Star size={13} />,
+        onClick: () => unfollowMu.mutate(conv.channel.channelID),
+      });
+    }
     items.push({ separator: true });
     items.push({
       label: "清空聊天记录",
@@ -358,7 +379,7 @@ export function ConversationList({
     );
   }
   if (filtered.length === 0) {
-    const emptyText = filter === "follow" ? "P3-C21 接入分组系统" : "暂无会话";
+    const emptyText = filter === "follow" ? "暂未接入分组" : "暂无会话";
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
         {emptyText}

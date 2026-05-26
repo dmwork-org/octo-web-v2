@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useQuery } from "@tanstack/react-query";
 import { type Conversation } from "wukongimjssdk";
 import { Search, Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
@@ -9,9 +9,13 @@ import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { ConnectionStatusBadge } from "@/features/chat/components/connection-status-badge";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
+import { FollowList } from "@/features/chat/components/follow-list";
 import { FriendAddModal } from "@/features/chat/components/friend-add-modal";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { SidebarAddPopover } from "@/features/chat/components/sidebar-add-popover";
+import { InputModal } from "@/features/base/components/modals/input-modal";
+import { createCategory } from "@/features/base/api/endpoints/follow.api";
+import { categoriesQueryKey } from "@/features/chat/queries/categories.query";
 
 interface ConversationSidebarProps {
   selectedChannelId?: string;
@@ -33,22 +37,28 @@ const TABS: TabDef[] = [
  *   ┌ Header                                    ┐
  *   │ Space 名               ▁▃▅ 13ms 🔍 ➕    │
  *   ├ TabBar(SidebarTabBar)                     │  关注 / 最近
- *   └ ConversationList(filter)                  ┘
+ *   └ Conversation/Follow list                   ┘
  *
  * Space 名:拉 GET /v1/space/my,按 spaceStore.spaceId 找匹配;无则取第一个;
  * 列表空 fallback "默认空间"(用户首次未加入任何空间)。
  *
  * 连接状态:右侧 ConnectionStatusBadge(信号格 + ms),hover tooltip 看详情。
  *
+ * 列表切换:
+ * - 最近 → ConversationList(全量会话,按时间序)
+ * - 关注 → FollowList(分组视图,/v1/spaces/{}/categories;P3+ 拖拽 + DM/子区关注)
+ *
  * 🔍 触发 GlobalSearchModal(全局,联系人/群组/文件 3 tab)。
- * ➕ 弹出 SidebarAddPopover(发起群聊 / 添加朋友;关注 tab 下额外"创建分组")。
+ * ➕ 弹出 SidebarAddPopover(发起群聊 / 添加朋友 / 创建分组)。
  */
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
-  const [activeTab, setActiveTab] = useState<ConvTab>("recent");
+  const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<ConvTab>("follow");
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [friendAddOpen, setFriendAddOpen] = useState(false);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const addWrapRef = useRef<HTMLDivElement>(null);
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
@@ -58,6 +68,21 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
     const found = spaces?.find((s) => s.space_id === currentSpaceId);
     return found?.name ?? "全部消息";
   })();
+
+  const createCategoryMu = useMutation({
+    mutationFn: (name: string) => {
+      if (!currentSpaceId) return Promise.reject(new Error("无 spaceId"));
+      return createCategory(currentSpaceId, name.trim());
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(currentSpaceId) });
+      setCreateCategoryOpen(false);
+      // 自动切到关注 tab,让用户看到刚创建的分组
+      setActiveTab("follow");
+      toast.success("已创建分组");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
+  });
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
@@ -97,7 +122,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
               onClose={() => setAddOpen(false)}
               onStartGroup={() => setCreateGroupOpen(true)}
               onAddFriend={() => setFriendAddOpen(true)}
-              onCreateCategory={() => toast.info("分组功能即将推出")}
+              onCreateCategory={() => setCreateCategoryOpen(true)}
             />
           </div>
         </div>
@@ -120,15 +145,30 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
         ))}
       </nav>
 
-      <ConversationList
-        selectedChannelId={selectedChannelId}
-        onSelect={onSelect}
-        filter={activeTab}
-      />
+      {activeTab === "follow" ? (
+        <FollowList selectedChannelId={selectedChannelId} onSelect={onSelect} />
+      ) : (
+        <ConversationList
+          selectedChannelId={selectedChannelId}
+          onSelect={onSelect}
+          filter={activeTab}
+        />
+      )}
 
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <CreateGroupModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} />
       <FriendAddModal open={friendAddOpen} onClose={() => setFriendAddOpen(false)} />
+      {createCategoryOpen ? (
+        <InputModal
+          open
+          title="创建分组"
+          placeholder="输入分组名"
+          validate={(v) => v.trim().length > 0}
+          okLoading={createCategoryMu.isPending}
+          onOk={(v) => createCategoryMu.mutate(v)}
+          onCancel={() => setCreateCategoryOpen(false)}
+        />
+      ) : null}
     </aside>
   );
 }

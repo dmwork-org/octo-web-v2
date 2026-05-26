@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { type Channel, type Message } from "wukongimjssdk";
 import { authStore } from "@/features/base/stores/auth";
+import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
@@ -18,10 +19,17 @@ interface MessageListProps {
   channel: Channel;
 }
 
-/** 系统消息 / 撤回消息 不渲染头像 + sender。 */
+/**
+ * 系统消息 / 撤回消息 不渲染头像 + sender。
+ *
+ * 例外:threadCreated(1100,在 system 范围内)有真实创建人 — 走完整 MessageRow
+ * 显示头像 + sender,卡片本身就是 thread renderer。其他 system contentType
+ * (addMembers/removeMembers/channelUpdate/...)继续 bare。
+ */
 function shouldRenderBare(m: Message): boolean {
   if (m.remoteExtra?.revoke) return true;
   const ct = m.contentType;
+  if (ct === MessageContentTypeConst.threadCreated) return false;
   if (ct >= 1000 && ct <= 2000) return true;
   return false;
 }

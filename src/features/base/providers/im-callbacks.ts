@@ -39,7 +39,7 @@ import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量。 */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 /** GroupRole:对齐旧 @octo/base 常量(normal=0, owner=1, manager=2)。 */
 const ROLE_OWNER = 1;

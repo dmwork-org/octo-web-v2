@@ -8,7 +8,6 @@ import { persistAuth } from "./features/base/stores/auth";
 import { persistSpace, spaceStore } from "./features/base/stores/space";
 import { persistEndpoint, endpointStore } from "./features/base/stores/endpoint";
 import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-selected";
-import { wireChatReplyResetOnChannelChange } from "./features/chat/stores/chat-reply";
 import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
 import "./index.css";
 
@@ -16,7 +15,7 @@ persistAuth();
 persistSpace();
 persistEndpoint();
 wireChatSelectedResetOnSpaceChange();
-wireChatReplyResetOnChannelChange();
+// reply 已改为 per-channel 自然隔离,不再需要切换时 reset
 wireChatSelectionResetOnChannelChange();
 
 spaceStore.subscribe(() => {

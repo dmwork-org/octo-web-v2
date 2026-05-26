@@ -1,9 +1,14 @@
-import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import Mention from "@tiptap/extension-mention";
+import { Extension } from "@tiptap/core";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
-  Mention,
+  Mention as ImMention,
   MessageContentType,
   MessageImage,
   MessageText,
@@ -16,14 +21,24 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { FileContent } from "@/features/base/im/file-content";
-import { chatReplyActions, chatReplyStore } from "@/features/chat/stores/chat-reply";
-import { MentionPopover, type MentionCandidate } from "@/features/chat/components/mention-popover";
+import { authStore } from "@/features/base/stores/auth";
+import {
+  chatReplyActions,
+  chatReplyStore,
+  selectReplyForChannel,
+} from "@/features/chat/stores/chat-reply";
+import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
+import type { MentionItem } from "@/features/chat/components/mention-list";
+import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+
+/** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 interface ComposerProps {
   channel: Channel;
 }
 
-/** 读图片文件的自然宽高(便于发送时回填到 MessageImage)。 */
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -45,18 +60,11 @@ function extOf(name: string): string {
   return i >= 0 ? name.substring(i + 1).toLowerCase() : "";
 }
 
-/** 取发送者展示名(channelInfo.title fallback fromUID)。 */
 function fromName(uid: string): string {
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
   return info?.title ?? uid;
 }
 
-/**
- * 引用消息类型缩略 — 返回 { icon, hint }。文本返回 null icon,
- * 由调用方直接展示 digest。其它类型给个小图标 + 类型文案。
- *
- * FileContent.contentType = 6(项目内约定),Voice = 3(SDK 未导出常量)。
- */
 function quotedTypeMeta(content: MessageContent | undefined): {
   Icon: typeof ImageIcon | null;
   hint: string;
@@ -69,183 +77,241 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   return { Icon: null, hint: "" };
 }
 
-interface MentionState {
-  uids: Set<string>;
+/**
+ * Enter / Shift+Enter keymap 扩展。Mention popover 打开时它的 onKeyDown(suggestion
+ * plugin 在 keymap 上层注入)优先消费 Enter,本扩展不会被触发。
+ */
+function createSubmitOnEnter(onSubmit: () => void) {
+  return Extension.create({
+    name: "submitOnEnter",
+    addKeyboardShortcuts() {
+      return {
+        Enter: () => {
+          onSubmit();
+          return true;
+        },
+        "Shift-Enter": ({ editor }) =>
+          editor.commands.first(({ commands }) => [
+            () => commands.newlineInCode(),
+            () => commands.createParagraphNear(),
+            () => commands.liftEmptyBlock(),
+            () => commands.splitBlock(),
+          ]),
+      };
+    },
+  });
+}
+
+interface ExtractedText {
+  text: string;
+  /** 普通成员 uids(不含 @所有人) */
+  uids: string[];
+  /** 是否含 @所有人 */
   all: boolean;
 }
 
-interface MentionTrigger {
-  /** @ 在 text 中的字符 index(含 @) */
-  startIndex: number;
-  /** 当前 keyword(光标前 @ 后输入的字符,不含 @) */
-  keyword: string;
-  /** 光标 viewport 坐标 */
-  caretLeft: number;
-  caretTop: number;
+function appendToLastLine(lines: string[], chunk: string): void {
+  if (lines.length === 0) lines.push("");
+  lines[lines.length - 1] += chunk;
 }
 
 /**
- * 探测光标前最近一个能触发 mention 的 `@` 位置。
- * 规则:
- * - `@` 前一个字符是空白 / 行首 / 标点视为触发
- * - `@` 与光标之间不能含空白或换行
- * - 否则视为普通文本,返回 null
+ * 从 Editor 里提取发送用文本 + mention 信息。
+ *
+ * Mention node 自身渲染 `@${label}` 并挂 data-id / data-label;`editor.getText()` 默认
+ * 会 skip Mention node。我们手动遍历 doc:遇到 mention 就拼 `@label` 并把 id push 到
+ * uids(`@all` 特殊化为 mention.all=true)。
+ *
+ * 段落之间用 `\n` 分隔,与旧 textarea.value 等价。
  */
-function detectMentionTrigger(
-  text: string,
-  caret: number,
-): { start: number; keyword: string } | null {
-  for (let i = caret - 1; i >= 0; i--) {
-    const ch = text[i];
-    if (ch === "@") {
-      const prev = i === 0 ? " " : text[i - 1];
-      if (/\s|[.,;:!?，。;:、!?]/.test(prev) || i === 0) {
-        return { start: i, keyword: text.slice(i + 1, caret) };
-      }
-      return null;
-    }
-    if (/\s/.test(ch)) return null;
-  }
-  return null;
-}
+function extractFromEditor(editor: Editor): ExtractedText {
+  const uids: string[] = [];
+  let all = false;
+  const lines: string[] = [];
 
-/** 估算 textarea 内字符位置在 viewport 中的坐标(用于 popover 锚点)。 */
-function getCaretViewportPos(
-  el: HTMLTextAreaElement,
-  index: number,
-): { left: number; top: number } {
-  const rect = el.getBoundingClientRect();
-  const style = window.getComputedStyle(el);
-  const lineHeight = parseFloat(style.lineHeight) || 20;
-  const text = el.value.slice(0, index);
-  const lines = text.split("\n");
-  const row = lines.length - 1;
-  return {
-    left: rect.left + 12,
-    top: rect.top - el.scrollTop + row * lineHeight + lineHeight + 4,
-  };
+  editor.state.doc.descendants((node, _pos, parent) => {
+    if (node.type.name === "mention") {
+      const id = (node.attrs as { id?: string }).id;
+      const label = (node.attrs as { label?: string }).label ?? id ?? "";
+      if (id === "@all") {
+        all = true;
+        appendToLastLine(lines, "@所有人");
+      } else if (id) {
+        uids.push(id);
+        appendToLastLine(lines, `@${label}`);
+      }
+      return false;
+    }
+    if (node.isText) {
+      appendToLastLine(lines, node.text ?? "");
+      return false;
+    }
+    if (node.type.name === "paragraph" && parent && parent.type.name === "doc") {
+      lines.push("");
+      return undefined;
+    }
+    if (node.type.name === "hardBreak") {
+      appendToLastLine(lines, "\n");
+      return false;
+    }
+    return undefined;
+  });
+
+  return { text: lines.join("\n").trim(), uids, all };
 }
 
 /**
- * Composer(对应旧 .wk-messageinput-card):
- * - 外 padding 0 16px 8px,内 card rounded-xl border + bg-surface + focus-within:border-brand
- * - **顶部 quoted bar**(reply mode):头像 + 发送者名 + 类型 icon + 两行 clamp digest + ✕
- * - textarea(可滚,无背景),底部 actionbox(图片/文件 + 发送)
- * - Enter 发送 / Shift+Enter 换行
- * - @ 触发 MentionPopover(仅群聊),↑↓ 选,Enter 确认插入 @name
+ * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿):
  *
- * Reply 流程:message-row 右键"回复" → chatReplyActions.set →
- *   Composer 顶部显示 quoted bar → 发送时 Reply attach 到 content → 成功 clear
+ * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(群 / 子区启用)
+ * - Mention 候选 = 当前**群成员**(SDK getSubscribes,K-1 接的 membersync),不是
+ *   整个 Space 成员;子区走父群成员(useGroupSubscribers 内 parse)
+ * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
+ *   `@所有人` 特殊化为 SDK Mention.all=true
+ * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
  *
- * @mention 流程:输入 `@` 触发 → MentionPopover 候选 → Enter 选中插入 `@name ` →
- *   发送时 attach SDK Mention { all, uids } 到 MessageText.mention(仅群聊)
+ * Reply 流程(per-channel):
+ *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
+ *   Composer 顶部按 current channel 取 reply 显示 → 发送时 Reply attach 到 content →
+ *   成功 clear(channel) / 用户 ✕ 关掉也 clear(channel)。切走再切回 reply 状态保留。
  */
 export function Composer({ channel }: ComposerProps) {
-  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const replyingTo = useStore(chatReplyStore, (s) => s.replyingTo);
+  const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // @mention state
-  const [mention, setMention] = useState<MentionState>({ uids: new Set(), all: false });
-  const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const candidatesRef = useRef<MentionCandidate[]>([]);
 
   const isGroup = channel.channelType === ChannelTypeGroup;
+  const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
+  const isMentionable = isGroup || isThread;
 
-  const buildReply = () => {
-    if (!replyingTo) return undefined;
-    const r = new Reply();
-    r.messageID = replyingTo.messageID;
-    r.messageSeq = replyingTo.messageSeq;
-    r.fromUID = replyingTo.fromUID;
-    r.fromName = fromName(replyingTo.fromUID);
-    r.content = replyingTo.content;
-    return r;
-  };
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  // 群成员候选(子区取父群成员;syncSubscribes 异步,改变后 listener 触发重渲)
+  const subscribers = useGroupSubscribers(channel, isMentionable);
 
-  /** 构造发送时的 Mention。 */
-  const buildMention = (): Mention | undefined => {
-    if (!isGroup) return undefined;
-    if (!mention.all && mention.uids.size === 0) return undefined;
-    const m = new Mention();
-    if (mention.all) m.all = true;
-    if (mention.uids.size > 0) m.uids = [...mention.uids];
-    return m;
-  };
+  const memberCandidates = useMemo<MentionItem[]>(() => {
+    if (!isMentionable) return [];
+    const all: MentionItem = { id: "@all", label: "所有人" };
+    return [
+      all,
+      ...subscribers
+        // 去自己 + 去已删除;**保留 bot**(robot=1 的 AI 也是合法 @ 对象,只是 UI 加标识)
+        .filter((s) => s.uid !== myUid && !s.isDeleted)
+        // 显示名优先 remark > name > uid(对齐群里的展示口径);
+        // isBot 标记由 mention-list 渲染 AI badge 区分
+        .map((s) => {
+          const og = s.orgData as { robot?: number } | undefined;
+          return {
+            id: s.uid,
+            label: s.remark || s.name || s.uid,
+            isBot: og?.robot === 1,
+          };
+        }),
+    ];
+  }, [subscribers, myUid, isMentionable]);
 
-  const resetMention = () => {
-    setMention({ uids: new Set(), all: false });
-    setTrigger(null);
-  };
+  const sendTextRef = useRef<() => void>(() => {});
 
-  const onTextChange = (next: string, caret?: number | null) => {
-    setText(next);
-    if (!isGroup) return;
-    const ta = textareaRef.current;
-    const c = caret ?? ta?.selectionStart ?? next.length;
-    const t = detectMentionTrigger(next, c);
-    if (t && ta) {
-      const pos = getCaretViewportPos(ta, t.start);
-      setTrigger({
-        startIndex: t.start,
-        keyword: t.keyword,
-        caretLeft: pos.left,
-        caretTop: pos.top,
-      });
-    } else {
-      setTrigger(null);
-    }
-  };
+  // Mention items 也要 ref 稳定(useEditor 只跑一次,suggestion 闭包拿到的得是最新候选)
+  const candidatesRef = useRef<MentionItem[]>([]);
+  candidatesRef.current = memberCandidates;
 
-  const insertMention = (c: MentionCandidate) => {
-    if (!trigger) return;
-    const before = text.slice(0, trigger.startIndex);
-    const afterCaretIdx = trigger.startIndex + 1 + trigger.keyword.length;
-    const after = text.slice(afterCaretIdx);
-    const inserted = `@${c.name} `;
-    const next = `${before}${inserted}${after}`;
-    setText(next);
-    setMention((prev) => {
-      const u = new Set(prev.uids);
-      let all = prev.all;
-      if (c.isAll) all = true;
-      else u.add(c.uid);
-      return { uids: u, all };
-    });
-    setTrigger(null);
-    requestAnimationFrame(() => {
-      const ta = textareaRef.current;
-      if (!ta) return;
-      const pos = before.length + inserted.length;
-      ta.focus();
-      ta.setSelectionRange(pos, pos);
-    });
-  };
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        blockquote: false,
+        codeBlock: false,
+        horizontalRule: false,
+      }),
+      Placeholder.configure({
+        placeholder: isMentionable
+          ? "说点什么...(Enter 发送, Shift+Enter 换行, @ 提及)"
+          : "说点什么...(Enter 发送, Shift+Enter 换行)",
+      }),
+      ...(isMentionable
+        ? [
+            Mention.configure({
+              HTMLAttributes: {
+                class: "mx-0.5 inline-block rounded-sm bg-brand-tint px-1 font-medium text-brand",
+              },
+              renderText: ({ node }) => {
+                const label = (node.attrs as { label?: string; id?: string }).label;
+                const id = (node.attrs as { id?: string }).id;
+                if (id === "@all") return "@所有人";
+                return `@${label ?? id ?? ""}`;
+              },
+              // TipTap MentionNodeAttrs.id 是 `string | null`,我的 MentionItem.id 是 string —
+              // subtype 上完全兼容,但 TS 因变性报错。安全地用 `as never` 跨过类型噪音(运行时一致)。
+              suggestion: createMentionSuggestion((query) => {
+                const kw = query.toLowerCase();
+                const list = candidatesRef.current;
+                if (!kw) return list.slice(0, 8);
+                return list
+                  .filter(
+                    (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
+                  )
+                  .slice(0, 8);
+              }) as never,
+            }),
+          ]
+        : []),
+      createSubmitOnEnter(() => sendTextRef.current()),
+    ],
+    editorProps: {
+      attributes: {
+        class:
+          "min-h-[2.5rem] max-h-[12rem] overflow-y-auto px-1 py-1 text-sm leading-snug text-text-primary outline-none",
+      },
+    },
+  });
 
-  const sendText = async () => {
-    const value = text.trim();
-    if (!value || sending) return;
+  // K-3:草稿恢复(channel 切换 save 旧 / load 新;发送成功调用 dropDraft 清掉)
+  const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
+
+  const buildReply = useMemo(
+    () => () => {
+      if (!replyingTo) return undefined;
+      const r = new Reply();
+      r.messageID = replyingTo.messageID;
+      r.messageSeq = replyingTo.messageSeq;
+      r.fromUID = replyingTo.fromUID;
+      r.fromName = fromName(replyingTo.fromUID);
+      r.content = replyingTo.content;
+      return r;
+    },
+    [replyingTo],
+  );
+
+  const sendText = async (ed: Editor) => {
+    const { text, uids, all } = extractFromEditor(ed);
+    if (!text || sending) return;
     setSending(true);
     try {
-      const content = new MessageText(value);
+      const content = new MessageText(text);
       const reply = buildReply();
       if (reply) content.reply = reply;
-      const m = buildMention();
-      if (m) content.mention = m;
+      if (isMentionable && (all || uids.length > 0)) {
+        const m = new ImMention();
+        if (all) m.all = true;
+        if (uids.length > 0) m.uids = uids;
+        content.mention = m;
+      }
       await WKSDK.shared().chatManager.send(content, channel);
-      setText("");
-      chatReplyActions.clear();
-      resetMention();
+      ed.commands.clearContent();
+      chatReplyActions.clear(channel);
+      dropDraft();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "发送失败");
     } finally {
       setSending(false);
     }
   };
+
+  useSyncSendTextRef(editor, sendText, sendTextRef);
 
   const sendImage = async (file: File) => {
     try {
@@ -254,7 +320,7 @@ export function Composer({ channel }: ComposerProps) {
       const reply = buildReply();
       if (reply) image.reply = reply;
       await WKSDK.shared().chatManager.send(image, channel);
-      chatReplyActions.clear();
+      chatReplyActions.clear(channel);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "图片发送失败");
     }
@@ -266,46 +332,15 @@ export function Composer({ channel }: ComposerProps) {
       const reply = buildReply();
       if (reply) content.reply = reply;
       await WKSDK.shared().chatManager.send(content, channel);
-      chatReplyActions.clear();
+      chatReplyActions.clear(channel);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "文件发送失败");
     }
   };
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    void sendText();
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (trigger && candidatesRef.current.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveIndex((activeIndex + 1) % candidatesRef.current.length);
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        const len = candidatesRef.current.length;
-        setActiveIndex((activeIndex - 1 + len) % len);
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        const c = candidatesRef.current[activeIndex];
-        if (c) insertMention(c);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setTrigger(null);
-        return;
-      }
-    }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void sendText();
-    }
+    if (editor) void sendText(editor);
   };
 
   const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -327,11 +362,8 @@ export function Composer({ channel }: ComposerProps) {
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
-  const onCandidatesChange = useMemo(() => {
-    return (list: MentionCandidate[]) => {
-      candidatesRef.current = list;
-    };
-  }, []);
+  // 是否有正文(决定发送按钮 disabled)
+  const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
 
   return (
     <div className="shrink-0 px-4 pt-2 pb-3">
@@ -361,7 +393,7 @@ export function Composer({ channel }: ComposerProps) {
             </div>
             <button
               type="button"
-              onClick={() => chatReplyActions.clear()}
+              onClick={() => chatReplyActions.clear(channel)}
               aria-label="取消回复"
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
             >
@@ -379,39 +411,7 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => onTextChange(e.target.value, e.target.selectionStart)}
-          onClick={(e) => {
-            const ta = e.currentTarget;
-            onTextChange(ta.value, ta.selectionStart);
-          }}
-          onKeyUp={(e) => {
-            if (
-              e.key === "ArrowLeft" ||
-              e.key === "ArrowRight" ||
-              e.key === "ArrowUp" ||
-              e.key === "ArrowDown" ||
-              e.key === "Home" ||
-              e.key === "End"
-            ) {
-              const ta = e.currentTarget;
-              onTextChange(ta.value, ta.selectionStart);
-            }
-          }}
-          onBlur={() => {
-            setTimeout(() => setTrigger(null), 100);
-          }}
-          onKeyDown={onKeyDown}
-          rows={2}
-          placeholder={
-            isGroup
-              ? "说点什么...(Enter 发送,Shift+Enter 换行,@ 提及)"
-              : "说点什么...(Enter 发送, Shift+Enter 换行)"
-          }
-          className="w-full resize-none border-0 bg-transparent px-1 text-sm leading-snug text-text-primary placeholder:text-text-tertiary focus:outline-none"
-        />
+        <EditorContent editor={editor} />
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
@@ -440,26 +440,26 @@ export function Composer({ channel }: ComposerProps) {
             theme="solid"
             size="default"
             loading={sending}
-            disabled={!text.trim()}
+            disabled={!hasContent}
           >
             <Send size={14} />
             发送
           </Button>
         </div>
       </form>
-
-      {trigger ? (
-        <MentionPopover
-          keyword={trigger.keyword}
-          anchorLeft={trigger.caretLeft}
-          anchorTop={trigger.caretTop}
-          activeIndex={activeIndex}
-          setActiveIndex={setActiveIndex}
-          onCandidatesChange={onCandidatesChange}
-          onSelect={insertMention}
-          onClose={() => setTrigger(null)}
-        />
-      ) : null}
     </div>
   );
+}
+
+/** editor / sendText 变化时重指 sendTextRef,让 keymap 闭包永远拿最新引用。 */
+function useSyncSendTextRef(
+  editor: Editor | null,
+  sendText: (ed: Editor) => Promise<void>,
+  ref: React.MutableRefObject<() => void>,
+) {
+  useEffect(() => {
+    ref.current = () => {
+      if (editor) void sendText(editor);
+    };
+  }, [editor, sendText, ref]);
 }

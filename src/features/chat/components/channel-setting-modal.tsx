@@ -19,7 +19,7 @@ interface ChannelSettingModalProps {
 }
 
 /** ChannelType 7 = ChannelTypeCommunityTopic */
-const CHANNEL_TYPE_THREAD = 7;
+const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
 /**
  * Modal 打开时主动 syncSubscribes,把群成员拉到 SDK cache。

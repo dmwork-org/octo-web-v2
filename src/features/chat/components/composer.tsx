@@ -16,10 +16,11 @@ import WKSDK, {
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
-import { FileText, Image as ImageIcon, Mic, Paperclip, Send, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Mic, Paperclip, Send, Smile, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
 import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
 import {
@@ -170,6 +171,13 @@ function extractFromEditor(editor: Editor): ExtractedText {
  *   `@所有人` 特殊化为 SDK Mention.all=true
  * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
  *
+ * 增强(对齐旧 ChatToolbar):
+ * - Emoji 面板:点 😀 弹 emoji-mart picker,选中 native unicode 插入 editor
+ * - 粘贴上传:Ctrl+V 粘贴含图片 → 直接走 sendImage,prevent editor 自带 paste 把图
+ *   片当 base64 文本插入
+ * - 拖拽上传:文件拖到 form 区域 → 图片走 sendImage、其他走 sendFile;dragover 必须
+ *   preventDefault 否则 drop 不触发
+ *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
  *   Composer 顶部按 current channel 取 reply 显示 → 发送时 Reply attach 到 content →
@@ -177,9 +185,11 @@ function extractFromEditor(editor: Editor): ExtractedText {
  */
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiWrapRef = useRef<HTMLDivElement>(null);
 
   const isGroup = channel.channelType === ChannelTypeGroup;
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
@@ -355,6 +365,50 @@ export function Composer({ channel }: ComposerProps) {
     if (file) void sendFile(file);
   };
 
+  /**
+   * Ctrl+V 粘贴含图片 → prevent default(阻止 editor 把 image 当 base64 文本插入)+
+   * 走 sendImage 直传。多张图依次发。文本/HTML 粘贴不拦截,让 editor 自带 paste 处理。
+   */
+  const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const images: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === "file" && it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) images.push(f);
+      }
+    }
+    if (images.length === 0) return;
+    e.preventDefault();
+    for (const f of images) void sendImage(f);
+  };
+
+  /** 拖文件到 form 区域 → 图片走 sendImage,其他走 sendFile。多个文件依次发。 */
+  const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
+    e.preventDefault();
+    for (const f of files) {
+      if (f.type.startsWith("image/")) void sendImage(f);
+      else void sendFile(f);
+    }
+  };
+
+  /** dragover 必须 preventDefault,否则浏览器默认会取消 drop 事件。 */
+  const onDragOver = (e: React.DragEvent<HTMLFormElement>) => {
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+    }
+  };
+
+  const insertEmoji = (native: string) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent(native).run();
+    setEmojiOpen(false);
+  };
+
   const replyDigest = replyingTo
     ? ((replyingTo.content as { conversationDigest?: string } | undefined)?.conversationDigest ??
       "")
@@ -369,6 +423,9 @@ export function Composer({ channel }: ComposerProps) {
     <div className="shrink-0 px-4 pt-2 pb-3">
       <form
         onSubmit={onSubmit}
+        onPaste={onPaste}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
         className="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface p-3 transition-colors focus-within:border-brand"
       >
         {replyingTo ? (
@@ -415,6 +472,27 @@ export function Composer({ channel }: ComposerProps) {
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
+            <div ref={emojiWrapRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setEmojiOpen((v) => !v)}
+                aria-label="表情"
+                title="表情"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  emojiOpen
+                    ? "bg-bg-hover text-text-primary"
+                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                }`}
+              >
+                <Smile size={18} />
+              </button>
+              <EmojiPickerPopover
+                open={emojiOpen}
+                containerRef={emojiWrapRef}
+                onSelect={insertEmoji}
+                onClose={() => setEmojiOpen(false)}
+              />
+            </div>
             <button
               type="button"
               onClick={() => imageInputRef.current?.click()}

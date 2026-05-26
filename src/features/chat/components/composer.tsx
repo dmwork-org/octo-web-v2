@@ -17,9 +17,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { FileText, Image as ImageIcon, Mic, Paperclip, Send, Smile, X } from "lucide-react";
-import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
 import { VoiceRecordingBar } from "@/features/chat/components/voice-recording-bar";
 import { FileContent } from "@/features/base/im/file-content";
@@ -168,22 +166,18 @@ function extractFromEditor(editor: Editor): ExtractedText {
 }
 
 /**
- * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强):
+ * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强 + 1:1 旧 UI):
  *
- * - StarterKit 精简 + Placeholder + SubmitOnEnter + Mention(群 / 子区启用)
- * - Mention 候选 = 当前**群成员**(SDK getSubscribes,K-1 接的 membersync),不是
- *   整个 Space 成员;子区走父群成员(useGroupSubscribers 内 parse)
- * - 发送时 extractFromEditor 把 Mention node 转 `@label`,uid 收集到 SDK Mention.uids;
- *   `@所有人` 特殊化为 SDK Mention.all=true
- * - 草稿:per-channel localStorage,channel 切换 save 旧 / load 新,发送成功清掉
+ * 视觉对齐旧 dmworkbase Components/MessageInput/index.css(.wk-messageinput-*):
+ *   - 卡片:rounded-12px / bg-surface / border 1px 浅色 / focus:border deepest text;
+ *     padding 8px 16px(垂直)
+ *   - Reply 引用条:水平 [✕ 14×14 灰圆] | [1×12 分隔线] | "回复 NAME:" + 单行内容
+ *   - 工具栏 actionbox:24×24 muted icon,gap 8px,hover→primary
+ *   - 发送按钮:28h × 32w,默认浅灰 bg-elevated / 有内容 brand,radius 2px
  *
- * 媒体增强(对齐旧 ChatToolbar):
- * - Emoji 面板:点 😀 弹 emoji 网格 picker(EmojiPickerPopover,1:1 旧 EmojiPanel)
- * - 粘贴上传:Ctrl+V 粘贴含图片 → 直接走 sendImage,prevent editor 把图片当 base64 文本插
- * - 拖拽上传:文件拖到 form 区域 → 图片走 sendImage、其他走 sendFile;dragover 必须
- *   preventDefault 否则 drop 不触发
- * - 语音录音:点 🎤 进录音模式(VoiceRecordingBar 替代输入区),录完发送 / 取消;
- *   走 VoiceContent + MediaMessageUploadTask 直传
+ * 不同点(简化 / 现代化):
+ *   - 引用条不带头像(旧版也无,只名字 + 内容)
+ *   - 发送按钮去掉文字,只 SVG send icon(节省横向空间;旧版同款只 icon)
  *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
@@ -253,7 +247,8 @@ export function Composer({ channel }: ComposerProps) {
         ? [
             Mention.configure({
               HTMLAttributes: {
-                class: "mx-0.5 inline-block rounded-sm bg-brand-tint px-1 font-medium text-brand",
+                // 对齐旧 .wk-messageinput-editor .mention:brand 字色 + bold,无背景
+                class: "mx-0.5 font-semibold text-brand",
               },
               renderText: ({ node }) => {
                 const label = (node.attrs as { label?: string; id?: string }).label;
@@ -280,8 +275,9 @@ export function Composer({ channel }: ComposerProps) {
     ],
     editorProps: {
       attributes: {
+        // 对齐旧 .wk-messageinput-editor .ProseMirror:14px / line-height 20px / max-h 100px
         class:
-          "min-h-[2.5rem] max-h-[12rem] overflow-y-auto px-1 py-1 text-sm leading-snug text-text-primary outline-none",
+          "min-h-5 max-h-[100px] overflow-y-auto py-1 text-[14px] leading-5 text-text-primary outline-none",
       },
     },
   });
@@ -459,42 +455,35 @@ export function Composer({ channel }: ComposerProps) {
   const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
 
   return (
-    <div className="shrink-0 px-4 pt-2 pb-3">
+    <div className="shrink-0 px-4 pb-2">
       <form
         onSubmit={onSubmit}
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface p-3 transition-colors focus-within:border-brand"
+        className="flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
       >
+        {/* Reply 引用条 — 对齐旧 .wk-replyview-new:[✕ 14×14 灰圆] | [1×12 分隔] | 回复 名字: 内容(单行) */}
         {replyingTo ? (
-          <div className="flex items-start gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-2 text-[12px]">
-            <ChannelAvatar
-              channel={new Channel(replyingTo.fromUID, ChannelTypePerson)}
-              size={28}
-              title={replySender}
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0 text-text-tertiary">回复</span>
-                <span className="truncate font-semibold text-text-primary">{replySender}</span>
-              </div>
-              <div className="flex items-center gap-1 text-text-secondary">
-                {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
-                <span className="line-clamp-2 break-words leading-snug">
-                  {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
-                  {replyDigest}
-                </span>
-              </div>
-            </div>
+          <div className="mb-2 flex items-center gap-2 rounded-sm bg-bg-elevated px-3 py-1.5 text-[14px] leading-tight">
             <button
               type="button"
               onClick={() => chatReplyActions.clear(channel)}
               aria-label="取消回复"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+              className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-text-tertiary text-bg-surface transition-colors hover:bg-text-secondary"
             >
-              <X size={12} />
+              <X size={8} strokeWidth={3} />
             </button>
+            <span className="h-3 w-px shrink-0 bg-border-default" />
+            <div className="flex min-w-0 flex-1 items-center gap-1 text-text-secondary">
+              <span className="shrink-0">回复</span>
+              <span className="shrink-0 font-medium text-text-primary">{replySender}:</span>
+              {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
+              <span className="truncate">
+                {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
+                {replyDigest}
+              </span>
+            </div>
           </div>
         ) : null}
 
@@ -518,21 +507,21 @@ export function Composer({ channel }: ComposerProps) {
           <>
             <EditorContent editor={editor} />
 
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
+            {/* actionbox — 对齐旧 .wk-messageinput-actionbox:工具按钮 24×24 muted hover→primary,
+                发送按钮 28h × 32w 默认浅灰 / 有内容 brand,radius-sm */}
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <div ref={emojiWrapRef} className="relative">
                   <button
                     type="button"
                     onClick={() => setEmojiOpen((v) => !v)}
                     aria-label="表情"
                     title="表情"
-                    className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                      emojiOpen
-                        ? "bg-bg-hover text-text-primary"
-                        : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                    className={`flex h-6 w-6 items-center justify-center transition-colors ${
+                      emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
                     }`}
                   >
-                    <Smile size={18} />
+                    <Smile size={20} />
                   </button>
                   <EmojiPickerPopover
                     open={emojiOpen}
@@ -546,40 +535,41 @@ export function Composer({ channel }: ComposerProps) {
                   onClick={() => imageInputRef.current?.click()}
                   aria-label="发送图片"
                   title="发送图片"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                 >
-                  <ImageIcon size={18} />
+                  <ImageIcon size={20} />
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label="发送文件"
                   title="发送文件"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                 >
-                  <Paperclip size={18} />
+                  <Paperclip size={20} />
                 </button>
                 <button
                   type="button"
                   onClick={() => void onClickMic()}
                   aria-label="录音"
                   title="录音"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                 >
-                  <Mic size={18} />
+                  <Mic size={20} />
                 </button>
               </div>
-              <Button
-                htmlType="submit"
-                type="primary"
-                theme="solid"
-                size="default"
-                loading={sending}
-                disabled={!hasContent}
+              <button
+                type="submit"
+                aria-label="发送"
+                disabled={!hasContent || sending}
+                className={`flex h-7 w-8 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed ${
+                  hasContent
+                    ? "bg-brand text-white hover:opacity-90"
+                    : "bg-bg-elevated text-text-tertiary"
+                }`}
               >
                 <Send size={14} />
-                发送
-              </Button>
+              </button>
             </div>
           </>
         )}

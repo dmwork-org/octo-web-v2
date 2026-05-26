@@ -74,3 +74,19 @@ body {
   color: var(--color-text-primary);
   background: var(--color-bg-base);
 }
+
+/*
+ * TipTap Placeholder 扩展依赖伪元素读 data-placeholder 显示占位文字。
+ * 对齐旧 dmworkbase MessageInput/index.css 的
+ * `.wk-messageinput-editor .ProseMirror p.is-editor-empty:first-child::before`
+ * 选择器,whitespace pre-wrap 保留 placeholder 里的多空格(如 "...  ⌥+↵ 创建任务")。
+ */
+.ProseMirror p.is-editor-empty:first-child::before,
+.ProseMirror.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  color: var(--color-text-tertiary);
+}

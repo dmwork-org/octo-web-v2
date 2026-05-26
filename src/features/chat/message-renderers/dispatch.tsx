@@ -5,6 +5,10 @@ import { SystemRenderer } from "@/features/chat/message-renderers/system-rendere
 import { ImageRenderer } from "@/features/chat/message-renderers/image-renderer";
 import { FileRenderer } from "@/features/chat/message-renderers/file-renderer";
 import { VoiceRenderer } from "@/features/chat/message-renderers/voice-renderer";
+import { GifRenderer } from "@/features/chat/message-renderers/gif-renderer";
+import { VideoRenderer } from "@/features/chat/message-renderers/video-renderer";
+import { MergeforwardRenderer } from "@/features/chat/message-renderers/mergeforward-renderer";
+import { ThreadCreatedRenderer } from "@/features/chat/message-renderers/thread-created-renderer";
 import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-renderer";
 
 /**
@@ -12,18 +16,18 @@ import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-rende
  *
  * 优先级:
  * 1. remoteExtra.revoke → RevokedRenderer("xxx 撤回了一条消息",P2-B8)
- * 2. 1000 ≤ contentType ≤ 2000 → SystemRenderer(旧项目 module.tsx 388-391)
- * 3. 精确 contentType(text/image/file/voice/...)
+ * 2. 精确 contentType(text/image/file/voice/gif/video/mergeForward/threadCreated/...)
+ * 3. 1000 ≤ contentType ≤ 2000 → SystemRenderer(displayText 兜底)
  * 4. 兜底 [不支持的消息类型 X]
+ *
+ * threadCreated(1100)在 system 范围内但有富 payload + 点击进子区,精确匹配
+ * 优先于 system fallback。
  */
 export function MessageDispatch({ message }: { message: Message }) {
   if (message.remoteExtra?.revoke) {
     return <RevokedRenderer message={message} />;
   }
   const ct = message.contentType;
-  if (ct >= 1000 && ct <= 2000) {
-    return <SystemRenderer message={message} />;
-  }
   switch (ct) {
     case MessageContentType.text:
       return <TextRenderer message={message} />;
@@ -33,13 +37,23 @@ export function MessageDispatch({ message }: { message: Message }) {
       return <FileRenderer message={message} />;
     case MessageContentTypeConst.voice:
       return <VoiceRenderer message={message} />;
-    default:
-      return (
-        <div className="flex justify-center">
-          <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
-            [不支持的消息类型 {ct}]
-          </span>
-        </div>
-      );
+    case MessageContentTypeConst.gif:
+      return <GifRenderer message={message} />;
+    case MessageContentTypeConst.smallVideo:
+      return <VideoRenderer message={message} />;
+    case MessageContentTypeConst.mergeForward:
+      return <MergeforwardRenderer message={message} />;
+    case MessageContentTypeConst.threadCreated:
+      return <ThreadCreatedRenderer message={message} />;
   }
+  if (ct >= 1000 && ct <= 2000) {
+    return <SystemRenderer message={message} />;
+  }
+  return (
+    <div className="flex justify-center">
+      <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
+        [不支持的消息类型 {ct}]
+      </span>
+    </div>
+  );
 }

@@ -17,13 +17,16 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import {
+  AtSign,
+  CheckSquare,
+  ChevronDown,
   FileText,
   Image as ImageIcon,
   Loader2,
+  Maximize2,
   Mic,
   MicOff,
   Paperclip,
-  Send,
   Smile,
   X,
 } from "lucide-react";
@@ -48,6 +51,10 @@ const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase
 
 /** 录音上限(秒)— 对齐旧 PRD;到时自动 stop 触发转写。 */
 const VOICE_MAX_DURATION = 60;
+
+/** Mac 上 Option/Alt 显示 ⌥,其他平台显示 Alt(对齐旧 ALT_KEY)。 */
+const ALT_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌥" : "Alt";
 
 interface ComposerProps {
   channel: Channel;
@@ -89,6 +96,20 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   if (ct === 6) return { Icon: FileText, hint: "[文件]" };
   if (ct === 4) return { Icon: Mic, hint: "[语音]" };
   return { Icon: null, hint: "" };
+}
+
+/**
+ * 占位符(对齐旧 dmworkbase MessageInput buildPlaceholder):
+ *   - person:对 NAME 发送消息  / 发送消息
+ *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务  / 输入消息...  ⌥+↵ 创建任务
+ */
+function buildPlaceholder(channel: Channel, name: string): string {
+  if (channel.channelType === ChannelTypePerson) {
+    return name ? `对 ${name} 发送消息` : "发送消息";
+  }
+  return name
+    ? `在 ${name} 中回复...  ${ALT_KEY}+↵ 创建任务`
+    : `输入消息...  ${ALT_KEY}+↵ 创建任务`;
 }
 
 /**
@@ -183,18 +204,21 @@ function formatRecordTime(sec: number): string {
 /**
  * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强 + 1:1 旧 UI):
  *
- * 媒体增强(对齐旧 ChatToolbar):
+ * 工具栏布局 1:1 对齐旧 dmworkbase MessageInput(图标全靠右,无 Send 按钮,Enter 发):
+ *   [😀 表情] [@ 提及] [📎 文件] [✓ 任务] [🎤▼ 语音] [⤢ 展开]
+ *
+ * 占位符(对齐旧 buildPlaceholder):
+ *   - person:对 NAME 发送消息
+ *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务
+ *
+ * 媒体增强:
  * - Emoji 面板:点 😀 弹 emoji 网格 picker
+ * - @ 提及:点 @ 直接 insert "@" 触发 mention picker(仅群/子区)
  * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
  * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
- * - **语音输入(对齐旧 useVoiceInput)**:点 🎤 开始录音,再点停 → POST /voice/transcribe
- *   → 文本插入 editor,用户可再编辑后正常文本发送。**不发送语音消息**。
- *
- * 视觉对齐旧 .wk-messageinput-* CSS:
- *   - 卡片 rounded-12 / bg-surface / focus:深色 border
- *   - Reply 引用条 [✕ 14×14 灰圆] | [1×12 分隔] | 回复 名字: 单行内容
- *   - 工具栏 24×24 muted icon hover→primary
- *   - 发送按钮 28×32 浅灰 / 有内容 brand,radius-sm,只 SVG icon
+ * - **语音输入**:点 🎤 录音 → POST /voice/transcribe → 文本插入 editor;
+ *   ▼ 下拉(P3+ 选 voice mode);**不发送语音消息**
+ * - ✓ 任务、⤢ 展开:旧 dmworktodo / dmworkbase 接 — 占位 toast,P3+ 真做
  *
  * Reply 流程(per-channel):
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
@@ -217,6 +241,13 @@ export function Composer({ channel }: ComposerProps) {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   // 群成员候选(子区取父群成员;syncSubscribes 异步,改变后 listener 触发重渲)
   const subscribers = useGroupSubscribers(channel, isMentionable);
+
+  // channel 名 — placeholder 用
+  const channelName = (() => {
+    const info = WKSDK.shared().channelManager.getChannelInfo(channel);
+    return info?.title ?? "";
+  })();
+  const placeholder = buildPlaceholder(channel, channelName);
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
@@ -256,11 +287,7 @@ export function Composer({ channel }: ComposerProps) {
         codeBlock: false,
         horizontalRule: false,
       }),
-      Placeholder.configure({
-        placeholder: isMentionable
-          ? "说点什么...(Enter 发送, Shift+Enter 换行, @ 提及)"
-          : "说点什么...(Enter 发送, Shift+Enter 换行)",
-      }),
+      Placeholder.configure({ placeholder }),
       ...(isMentionable
         ? [
             Mention.configure({
@@ -412,6 +439,12 @@ export function Composer({ channel }: ComposerProps) {
     if (file) await transcribeAndInsert(file);
   };
 
+  /** @ 按钮:直接 insert "@",触发 mention picker(仅群/子区)。 */
+  const onClickMention = () => {
+    if (!isMentionable || !editor) return;
+    editor.chain().focus().insertContent("@").run();
+  };
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (editor) void sendText(editor);
@@ -480,15 +513,12 @@ export function Composer({ channel }: ComposerProps) {
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
-  // 是否有正文(决定发送按钮 disabled)
-  const hasContent = !!editor && extractFromEditor(editor).text.length > 0;
-
-  // mic 按钮:三态(对齐旧 useVoiceInput recording / transcribing 视觉)
+  // mic 三态(对齐旧 useVoiceInput 视觉)
   const micRecording = voiceRec.isRecording;
   const micTitle = transcribing
     ? "正在听写..."
     : micRecording
-      ? `录音中 ${formatRecordTime(voiceRec.duration)} / 还剩 ${VOICE_MAX_DURATION - voiceRec.duration} 秒,点击停止并听写`
+      ? `录音中 ${formatRecordTime(voiceRec.duration)}`
       : "语音输入";
 
   return (
@@ -533,11 +563,14 @@ export function Composer({ channel }: ComposerProps) {
         />
         <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
 
-        <EditorContent editor={editor} />
+        {/* 单行布局(对齐旧版):editor 占满,工具栏靠右。无 Send 按钮(Enter 直发) */}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <EditorContent editor={editor} />
+          </div>
 
-        {/* actionbox — 工具按钮 24×24 muted hover→primary;发送按钮 28×32 浅灰/brand */}
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          {/* actionbox — 全部图标靠右 24×24 muted hover→primary */}
+          <div className="flex shrink-0 items-center gap-2">
             <div ref={emojiWrapRef} className="relative">
               <button
                 type="button"
@@ -557,65 +590,89 @@ export function Composer({ channel }: ComposerProps) {
                 onClose={() => setEmojiOpen(false)}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="发送图片"
-              title="发送图片"
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-            >
-              <ImageIcon size={20} />
-            </button>
+            {/* @ 提及(仅群/子区) */}
+            {isMentionable ? (
+              <button
+                type="button"
+                onClick={onClickMention}
+                aria-label="@提及"
+                title="@提及"
+                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              >
+                <AtSign size={20} />
+              </button>
+            ) : null}
+            {/* 📎 附件(图片+文件,旧版合并为一个图标) */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               aria-label="发送文件"
-              title="发送文件"
+              title="发送文件 / 图片"
               className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
               <Paperclip size={20} />
             </button>
-            {/* 语音输入按钮:三态 — idle Mic / recording 红 MicOff + 计时 / transcribing Loader */}
+            {/* ✓ 创建任务(旧 dmworktodo chattoolbar.matter,占位) */}
             <button
               type="button"
-              onClick={() => void onClickMic()}
-              aria-label="语音输入"
-              title={micTitle}
-              disabled={transcribing}
-              className={`flex h-6 items-center justify-center gap-1 px-1 transition-colors disabled:cursor-not-allowed ${
-                micRecording
-                  ? "text-error"
-                  : transcribing
-                    ? "text-text-tertiary"
-                    : "text-text-tertiary hover:text-text-primary"
-              }`}
+              onClick={() => toast.info("创建任务功能即将接入(P3+)")}
+              aria-label="创建任务"
+              title={`创建任务(${ALT_KEY}+↵)`}
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
-              {transcribing ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : micRecording ? (
-                <>
-                  <MicOff size={20} className="animate-pulse" />
-                  <span className="text-[11px] tabular-nums">
-                    {formatRecordTime(voiceRec.duration)}
-                  </span>
-                </>
-              ) : (
-                <Mic size={20} />
-              )}
+              <CheckSquare size={20} />
+            </button>
+            {/* 🎤▼ 语音输入 + 模式下拉 */}
+            <div className="flex h-6 items-center text-text-tertiary">
+              <button
+                type="button"
+                onClick={() => void onClickMic()}
+                aria-label="语音输入"
+                title={micTitle}
+                disabled={transcribing}
+                className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
+                  micRecording
+                    ? "text-error"
+                    : transcribing
+                      ? "text-text-tertiary"
+                      : "text-text-tertiary hover:text-text-primary"
+                }`}
+              >
+                {transcribing ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : micRecording ? (
+                  <>
+                    <MicOff size={20} className="animate-pulse" />
+                    <span className="text-[11px] tabular-nums">
+                      {formatRecordTime(voiceRec.duration)}
+                    </span>
+                  </>
+                ) : (
+                  <Mic size={20} />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => toast.info("语音模式选择即将接入(P3+)")}
+                aria-label="语音模式"
+                title="语音模式"
+                disabled={micRecording || transcribing}
+                className="flex h-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+            {/* ⤢ 展开输入框(P3+ 全屏编辑模式,占位) */}
+            <button
+              type="button"
+              onClick={() => toast.info("展开输入框即将接入(P3+)")}
+              aria-label="展开"
+              title="展开"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <Maximize2 size={18} />
             </button>
           </div>
-          <button
-            type="submit"
-            aria-label="发送"
-            disabled={!hasContent || sending}
-            className={`flex h-7 w-8 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed ${
-              hasContent
-                ? "bg-brand text-white hover:opacity-90"
-                : "bg-bg-elevated text-text-tertiary"
-            }`}
-          >
-            <Send size={14} />
-          </button>
         </div>
       </form>
     </div>

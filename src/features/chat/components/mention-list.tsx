@@ -10,10 +10,13 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
  * - 普通成员:`{ id: uid, label: name }`
  * - @所有人:`{ id: "@all", label: "所有人" }` — extractFromEditor 见到 id==="@all" 设
  *   SDK Mention.all=true,不入 uids
+ * - AI bot:`{ id: uid, label: name, isBot: true }` — id/label 与普通成员同口径
+ *   (mention.uids 走 bot 的 uid),仅 UI 加 AI 角标区分
  */
 export interface MentionItem {
   id: string;
   label: string;
+  isBot?: boolean;
 }
 
 interface MentionListProps {
@@ -102,6 +105,11 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 />
               )}
               <span className="min-w-0 flex-1 truncate text-text-primary">{c.label}</span>
+              {c.isBot ? (
+                <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
+                  AI
+                </span>
+              ) : null}
               {!isAll ? (
                 <span className="shrink-0 truncate font-mono text-[10px] text-text-tertiary">
                   {c.id}

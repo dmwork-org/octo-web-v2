@@ -195,16 +195,18 @@ export function Composer({ channel }: ComposerProps) {
     return [
       all,
       ...subscribers
-        // 去掉自己 + 已删除成员 + AI 机器人(robot=1 单独走 AI 链路,不在 @ 候选里)
-        .filter((s) => {
-          if (s.uid === myUid) return false;
-          if (s.isDeleted) return false;
+        // 去自己 + 去已删除;**保留 bot**(robot=1 的 AI 也是合法 @ 对象,只是 UI 加标识)
+        .filter((s) => s.uid !== myUid && !s.isDeleted)
+        // 显示名优先 remark > name > uid(对齐群里的展示口径);
+        // isBot 标记由 mention-list 渲染 AI badge 区分
+        .map((s) => {
           const og = s.orgData as { robot?: number } | undefined;
-          if (og?.robot === 1) return false;
-          return true;
-        })
-        // 显示名优先 remark > name > uid(对齐群里的展示口径)
-        .map((s) => ({ id: s.uid, label: s.remark || s.name || s.uid })),
+          return {
+            id: s.uid,
+            label: s.remark || s.name || s.uid,
+            isBot: og?.robot === 1,
+          };
+        }),
     ];
   }, [subscribers, myUid, isMentionable]);
 

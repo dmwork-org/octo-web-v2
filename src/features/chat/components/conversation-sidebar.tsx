@@ -6,6 +6,7 @@ import { Search, Plus } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { ConnectionStatusInline } from "@/features/chat/components/connection-status-inline";
+import { ConnectionStatusBadge } from "@/features/chat/components/connection-status-badge";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 
@@ -28,12 +29,15 @@ const TABS: TabDef[] = [
  * 会话 sidebar 容器(对应旧 .wk-chat-content-left):
  *   ┌ Header(.wk-chat-search) ┐
  *   │ Space 名  · 连接状态     │
- *   │            🔍   ➕      │  ← 搜索 → GlobalSearchModal / 新增 P3+ popover
+ *   │            ▁▃▅ 13ms 🔍 ➕ │  ← Badge / 搜索 / 新增
  *   ├ TabBar(SidebarTabBar)    │  关注 / 最近
  *   └ ConversationList(filter) ┘
  *
  * Space 名:拉 GET /v1/space/my,按 spaceStore.spaceId 找匹配;无则取第一个;
  * 列表空 fallback "默认空间"(用户首次未加入任何空间)。
+ *
+ * 连接状态:Inline 文字(下方 · 已连接)+ Badge 信号格 ms(右侧),对应旧
+ * dmworkbase ConnectionStatus 完整态 + compact 态。
  *
  * 🔍 触发 GlobalSearchModal(全局,联系人/群组/文件 3 tab)。
  * ➕ 新增按钮(发起群聊 / 创建分组)P3+ wave。
@@ -60,6 +64,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
           <ConnectionStatusInline />
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <ConnectionStatusBadge />
           <button
             type="button"
             aria-label="搜索"

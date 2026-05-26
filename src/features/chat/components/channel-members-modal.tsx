@@ -12,6 +12,7 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AddMembersModal } from "@/features/chat/components/add-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
@@ -34,8 +35,6 @@ interface ChannelMembersModalProps {
   open: boolean;
   channel: Channel;
   onClose: () => void;
-  /** 父组件提供的"加成员"按钮回调(K-3 picker);不提供则不显示按钮 */
-  onAddMembers?: () => void;
 }
 
 /** 找当前用户在群里的 Subscriber(用来判 owner/manager/normal 决定权限)。 */
@@ -60,18 +59,14 @@ function findMyRole(members: Subscriber[], myUid: string): number {
  *
  * 不做(P3+ wave):role 拖拽 / 转让群主 / 邀请管理 / 申请审核。
  */
-export function ChannelMembersModal({
-  open,
-  channel,
-  onClose,
-  onAddMembers,
-}: ChannelMembersModalProps) {
+export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersModalProps) {
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const subscribers = useGroupSubscribers(channel, open);
   const [keyword, setKeyword] = useState("");
   const [menuFor, setMenuFor] = useState<{ uid: string; x: number; y: number } | null>(null);
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   // 子区 → 父群 channel(用于发 mutation API)
   const groupChannel = useMemo(() => {
@@ -182,7 +177,8 @@ export function ChannelMembersModal({
   };
 
   const isThreadCh = channel.channelType === CHANNEL_TYPE_THREAD;
-  const showAddBtn = !!onAddMembers && !isThreadCh && canManage;
+  // 子区不允许加成员(子区成员=父群,后端会 reject;通过父群 ChannelMembersModal 操作)
+  const showAddBtn = !isThreadCh && canManage;
   const kickTarget = confirmKickUid ? subscribers.find((s) => s.uid === confirmKickUid) : undefined;
   const kickTargetName = kickTarget ? kickTarget.remark || kickTarget.name || kickTarget.uid : "";
 
@@ -193,7 +189,7 @@ export function ChannelMembersModal({
           <h2 className="text-sm font-semibold text-text-primary">成员({subscribers.length})</h2>
           <div className="flex shrink-0 items-center gap-2">
             {showAddBtn ? (
-              <Button type="primary" theme="solid" size="small" onClick={onAddMembers}>
+              <Button type="primary" theme="solid" size="small" onClick={() => setAddOpen(true)}>
                 加成员
               </Button>
             ) : null}
@@ -308,6 +304,11 @@ export function ChannelMembersModal({
         onOk={() => confirmKickUid && kickMu.mutate(confirmKickUid)}
         onCancel={() => setConfirmKickUid(null)}
       />
+
+      {/* 加成员 picker:子区不会进这里(showAddBtn=false),groupChannel 一定是父群 */}
+      {groupChannel ? (
+        <AddMembersModal open={addOpen} channel={groupChannel} onClose={() => setAddOpen(false)} />
+      ) : null}
     </div>
   );
 }

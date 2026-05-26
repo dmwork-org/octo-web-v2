@@ -346,12 +346,12 @@ function SubscribersGrid({
             type="button"
             onClick={onAdd}
             aria-label="加成员"
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1.5"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
-              <Plus size={18} />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
+              <Plus size={20} />
             </span>
-            <span className="text-[11px] text-text-tertiary">&nbsp;</span>
+            <span className="block text-[11px] text-text-tertiary">&nbsp;</span>
           </button>
         ) : null}
         {canManage ? (
@@ -359,12 +359,12 @@ function SubscribersGrid({
             type="button"
             onClick={onKickMode}
             aria-label="移出成员"
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1.5"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
-              <Minus size={18} />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
+              <Minus size={20} />
             </span>
-            <span className="text-[11px] text-text-tertiary">&nbsp;</span>
+            <span className="block text-[11px] text-text-tertiary">&nbsp;</span>
           </button>
         ) : null}
       </div>
@@ -376,20 +376,22 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
   const display = subscriber.remark || subscriber.name || subscriber.uid;
   const ch = new Channel(subscriber.uid, ChannelTypePerson);
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1.5">
       <div className="relative">
-        <ChannelAvatar channel={ch} size={40} title={display} />
+        <ChannelAvatar channel={ch} size={48} title={display} />
         {subscriber.role === ROLE_OWNER ? (
-          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-sm bg-warning px-1 text-[9px] font-semibold text-white">
+          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm bg-warning px-1 py-px text-[9px] leading-none font-semibold whitespace-nowrap text-white">
             群主
           </span>
         ) : subscriber.role === ROLE_MANAGER ? (
-          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-sm bg-brand px-1 text-[9px] font-semibold text-white">
+          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm bg-brand px-1 py-px text-[9px] leading-none font-semibold whitespace-nowrap text-white">
             管理员
           </span>
         ) : null}
       </div>
-      <span className="w-12 truncate text-center text-[11px] text-text-secondary">{display}</span>
+      <span className="block w-full max-w-16 truncate text-center text-[11px] text-text-secondary">
+        {display}
+      </span>
     </div>
   );
 }

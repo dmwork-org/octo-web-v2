@@ -1,11 +1,14 @@
 import { matterApi } from "./matter-client";
 import type {
+  ActivityEntry,
+  AddTimelineReq,
   CreateMatterReq,
   Matter,
   MatterDetail,
   MatterListParams,
   MatterStatus,
   PaginatedList,
+  TimelineEntry,
   UpdateMatterReq,
 } from "@/features/matter/types/matter.types";
 
@@ -57,5 +60,47 @@ export async function addAssignee(matterId: string, userId: string): Promise<voi
 export async function removeAssignee(matterId: string, userId: string): Promise<void> {
   await matterApi(`/matters/${matterId}/assignees/${encodeURIComponent(userId)}`, {
     method: "DELETE",
+  });
+}
+
+// ─── Timeline(评论 / 时间线)─────────────────────────────
+
+/** GET /matters/{id}/timeline?source_channel_id&limit&cursor */
+export async function listTimeline(
+  matterId: string,
+  params?: { source_channel_id?: string; limit?: number; cursor?: string },
+): Promise<PaginatedList<TimelineEntry>> {
+  return matterApi<PaginatedList<TimelineEntry>>(`/matters/${matterId}/timeline`, {
+    query: params,
+  });
+}
+
+/** POST /matters/{id}/timeline { content, channel_id?, channel_type?, channel_name? } */
+export async function addTimelineEntry(
+  matterId: string,
+  req: AddTimelineReq,
+): Promise<TimelineEntry> {
+  return matterApi<TimelineEntry>(`/matters/${matterId}/timeline`, {
+    method: "POST",
+    body: req,
+  });
+}
+
+/** DELETE /matters/{id}/timeline/{entry_id} */
+export async function deleteTimelineEntry(matterId: string, entryId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/timeline/${encodeURIComponent(entryId)}`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Activities(变更记录,只读)──────────────────────────
+
+/** GET /matters/{id}/activities?limit&cursor */
+export async function listActivities(
+  matterId: string,
+  params?: { limit?: number; cursor?: string },
+): Promise<PaginatedList<ActivityEntry>> {
+  return matterApi<PaginatedList<ActivityEntry>>(`/matters/${matterId}/activities`, {
+    query: params,
   });
 }

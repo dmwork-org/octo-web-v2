@@ -85,3 +85,46 @@ export interface UpdateMatterReq {
   deadline?: string | null;
   remind_at?: string | null;
 }
+
+// ─── Timeline(评论 / 时间线)─────────────────────────────
+
+export interface TimelineAttachment {
+  id: string;
+  entry_id: string;
+  file_url: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  created_at: string;
+}
+
+export interface TimelineEntry {
+  id: string;
+  matter_id: string;
+  user_id: string;
+  content: string | null;
+  channel_id?: string;
+  channel_type?: number;
+  source_channel_id?: string;
+  related_uids?: string[];
+  created_at: string;
+  attachments?: TimelineAttachment[];
+}
+
+export interface AddTimelineReq {
+  content?: string;
+  channel_id?: string;
+  channel_type?: number;
+  channel_name?: string;
+}
+
+// ─── Activities(变更记录)──────────────────────────────
+
+export interface ActivityEntry {
+  id: string;
+  matter_id: string;
+  user_id: string;
+  type: string;
+  payload?: Record<string, unknown>;
+  created_at: string;
+}

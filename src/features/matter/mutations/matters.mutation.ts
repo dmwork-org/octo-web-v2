@@ -1,14 +1,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   addAssignee,
+  addTimelineEntry,
   createMatter,
   deleteMatter,
+  deleteTimelineEntry,
   removeAssignee,
   transitionMatter,
   updateMatter,
 } from "@/features/matter/api/matter.api";
-import { matterDetailQueryKey } from "@/features/matter/queries/matters.query";
+import {
+  matterDetailQueryKey,
+  timelineInfiniteQueryKey,
+} from "@/features/matter/queries/matters.query";
 import type {
+  AddTimelineReq,
   CreateMatterReq,
   MatterDetail,
   MatterStatus,
@@ -94,6 +100,28 @@ export function useRemoveAssignee() {
     onSuccess: (_void, args) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+    },
+  });
+}
+
+// ─── Timeline mutations ───────────────────────────────────
+
+export function useAddTimelineEntry(matterId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: AddTimelineReq) => addTimelineEntry(matterId, req),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
+    },
+  });
+}
+
+export function useDeleteTimelineEntry(matterId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: string) => deleteTimelineEntry(matterId, entryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
     },
   });
 }

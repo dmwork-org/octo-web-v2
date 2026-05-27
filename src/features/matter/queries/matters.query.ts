@@ -1,6 +1,17 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import { getMatter, listMatters } from "@/features/matter/api/matter.api";
-import type { MatterListParams, PaginatedList, Matter } from "@/features/matter/types/matter.types";
+import {
+  getMatter,
+  listActivities,
+  listMatters,
+  listTimeline,
+} from "@/features/matter/api/matter.api";
+import type {
+  ActivityEntry,
+  Matter,
+  MatterListParams,
+  PaginatedList,
+  TimelineEntry,
+} from "@/features/matter/types/matter.types";
 
 /**
  * Matter 列表 infinite query。游标分页(后端 keyset)。
@@ -8,9 +19,6 @@ import type { MatterListParams, PaginatedList, Matter } from "@/features/matter/
  * key 形态:["matter", "list", "infinite", spaceId, params],含 spaceId 防止跨
  * Space 缓存串。staleTime 30s — matter 状态变更频繁,既让缓存避免重复请求,
  * 又让 mutation invalidate 能主动失效。
- *
- * 兼容旧调用点(MatterView 用 useQuery 直接拉非分页):保留 `mattersQueryOptions`,
- * Commit 8 路由整合时切到 infinite,届时旧 query 可删。
  */
 
 export const mattersListInfiniteQueryKey = (
@@ -56,5 +64,46 @@ export const matterDetailQueryOptions = (matterId: string | null, sourceChannelI
     queryKey: matterDetailQueryKey(matterId ?? "_"),
     queryFn: () => getMatter(matterId!, sourceChannelId),
     enabled: !!matterId,
+    staleTime: 30 * 1000,
+  });
+
+/**
+ * Matter timeline(评论)infinite query。本期 channel-picker 仍 P3+,因此不传
+ * source_channel_id,后端返回整个 matter 全量 timeline(平铺)。P3+ 接 channel-
+ * picker 后改为 source_channel_id 分组渲染。
+ */
+
+const TIMELINE_PAGE_LIMIT = 30;
+
+export const timelineInfiniteQueryKey = (matterId: string) =>
+  ["matter", "timeline", matterId] as const;
+
+export const timelineInfiniteQueryOptions = (matterId: string) =>
+  infiniteQueryOptions({
+    queryKey: timelineInfiniteQueryKey(matterId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }): Promise<PaginatedList<TimelineEntry>> =>
+      listTimeline(matterId, { limit: TIMELINE_PAGE_LIMIT, cursor: pageParam }),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
+    staleTime: 15 * 1000,
+  });
+
+/**
+ * Matter activities(变更记录)infinite query。只读,展示状态变更 / 受理人变更
+ * / DDL 变更等 activity 时间线。
+ */
+
+export const activitiesInfiniteQueryKey = (matterId: string) =>
+  ["matter", "activities", matterId] as const;
+
+export const activitiesInfiniteQueryOptions = (matterId: string) =>
+  infiniteQueryOptions({
+    queryKey: activitiesInfiniteQueryKey(matterId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }): Promise<PaginatedList<ActivityEntry>> =>
+      listActivities(matterId, { limit: TIMELINE_PAGE_LIMIT, cursor: pageParam }),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
     staleTime: 30 * 1000,
   });

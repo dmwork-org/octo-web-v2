@@ -11,6 +11,7 @@ import { UserName } from "@/features/matter/components/user-name";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
+import { TimelineSection } from "@/features/matter/components/timeline-section";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
@@ -39,7 +40,7 @@ function toggleLabel(s: MatterStatus): string {
  * Matter 详情面板(对齐 P3-matter 设计稿,扩展 MVP D-4):
  *
  *   ┌ Header ─────────────────────────────────────────────────────
- *   │ [状态]|M-96   [📅 设置截止日期(DDL pick)]            ⋯  ✕
+ *   │ [状态]|M-96   [📅 设置截止日期]                       ⋯  ✕
  *   ├──────────────────────────────────────────────────────────────
  *   │ {title 大字粗体}
  *   │ ┌─ 🎯 主要目标(MainGoalEditor TipTap)─────┐
@@ -48,6 +49,7 @@ function toggleLabel(s: MatterStatus): string {
  *   │ 🏷 来自 #{source_name} · {creator} · {created_at}
  *   │ 创建人: [头像] {name}    负责人: [头像] {name}  [编辑]
  *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录 — Commit 17 接)
+ *   │ ─── 评论 / 时间线(TimelineSection)
  *   └
  */
 export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
@@ -207,8 +209,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </div>
         </div>
         <p className="text-xs text-text-tertiary italic">
-          关联群聊 / 变更记录 接入中(Commit 16-17)
+          关联群聊 P3+ · 变更记录 接入中(Commit 17)
         </p>
+
+        <TimelineSection matterId={matterId} />
       </div>
 
       <AssigneePicker

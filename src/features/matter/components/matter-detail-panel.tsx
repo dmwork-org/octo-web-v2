@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Archive, MoreHorizontal, Tag, Target, Trash2, X } from "lucide-react";
+import { Archive, MoreHorizontal, Tag, Trash2, X } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { matterDetailQueryOptions } from "@/features/matter/queries/matters.query";
@@ -10,6 +10,7 @@ import { MatterStatusBadge } from "@/features/matter/components/matter-status-ba
 import { UserName } from "@/features/matter/components/user-name";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
+import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
@@ -35,28 +36,19 @@ function toggleLabel(s: MatterStatus): string {
 }
 
 /**
- * Matter 详情面板(对齐 P3-matter 设计稿):
+ * Matter 详情面板(对齐 P3-matter 设计稿,扩展 MVP D-4):
  *
  *   ┌ Header ─────────────────────────────────────────────────────
- *   │ [状态]|M-96   [📅 设置截止日期]                       ⋯  ✕
+ *   │ [状态]|M-96   [📅 设置截止日期(DDL pick)]            ⋯  ✕
  *   ├──────────────────────────────────────────────────────────────
  *   │ {title 大字粗体}
- *   │ ┌─ 主要目标(P3+ 占位,Commit 15 接 TipTap)─────┐
- *   │ │ 🎯 主要目标                                    │
- *   │ └────────────────────────────────────────────────┘
+ *   │ ┌─ 🎯 主要目标(MainGoalEditor TipTap)─────┐
+ *   │ │ {description 富文本编辑}                     │
+ *   │ └──────────────────────────────────────────────┘
  *   │ 🏷 来自 #{source_name} · {creator} · {created_at}
- *   │ {description}
- *   │
- *   │ 创建人: [头像] {name}    负责人: [头像] {name}
- *   │
- *   │ ─── 二级 tabs(关联群聊 / 变更记录,P3+ 占位)
+ *   │ 创建人: [头像] {name}    负责人: [头像] {name}  [编辑]
+ *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录 — Commit 17 接)
  *   └
- *
- * P3+ 待接:
- *   - 主要目标 TipTap 编辑(Commit 15)
- *   - 关联群聊 tab(channel-picker 仍 P3+,显示空状态 + 跳转提示)
- *   - 变更记录 tab(activities 列表,Commit 17)
- *   - 评论时间线(timeline-section 完整版,Commit 16)
  */
 export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
@@ -158,15 +150,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 pb-8">
         <h1 className="text-2xl leading-tight font-bold text-text-primary">{data.title}</h1>
 
-        <div className="rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 p-4 text-sm dark:from-violet-950/30 dark:to-purple-950/30">
-          <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400">
-            <Target size={14} />
-            <span className="font-medium">主要目标</span>
-          </div>
-          <p className="mt-2 text-text-tertiary italic">
-            主要目标编辑接入中(Commit 15 — TipTap 富文本)
-          </p>
-        </div>
+        <MainGoalEditor matterId={matterId} description={data.description} />
 
         {data.source_name ? (
           <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary">
@@ -177,12 +161,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               {formatDateTime(data.created_at)}
             </span>
           </div>
-        ) : null}
-
-        {data.description ? (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-text-primary">
-            {data.description}
-          </p>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px] text-text-tertiary">

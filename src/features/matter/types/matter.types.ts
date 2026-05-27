@@ -1,8 +1,8 @@
 /**
  * Matter 模块类型定义,字段对齐 todos service `model.Matter` JSON。
  *
- * 来源:旧项目 packages/dmworktodo/src/bridge/types.ts(精简,P3 Wave 1 不含 timeline /
- * activities / extract /attachments,后续 wave 再补)。
+ * 来源:旧项目 packages/dmworktodo/src/bridge/types.ts(精简,P3 MVP 不含 timeline /
+ * activities / extract / attachments / channel linking,后续 wave 再补)。
  */
 
 // ─── 状态枚举 ─────────────────────────────────────────────
@@ -15,16 +15,6 @@ export interface MatterAssignee {
   id: string;
   matter_id: string;
   user_id: string;
-  created_at: string;
-}
-
-export interface MatterChannel {
-  id: string;
-  matter_id: string;
-  channel_id: string;
-  channel_type: number;
-  channel_name?: string;
-  linked_by: string;
   created_at: string;
 }
 
@@ -50,7 +40,6 @@ export interface Matter {
 export interface MatterDetail extends Matter {
   assignees: MatterAssignee[];
   participants?: string[];
-  channels?: MatterChannel[];
 }
 
 // ─── 分页 ─────────────────────────────────────────────────
@@ -95,39 +84,4 @@ export interface UpdateMatterReq {
   description?: string | null;
   deadline?: string | null;
   remind_at?: string | null;
-}
-
-// ─── Timeline ─────────────────────────────────────────────
-
-export interface TimelineAttachment {
-  id: string;
-  entry_id: string;
-  file_url: string;
-  file_name?: string;
-  file_size?: number;
-  mime_type?: string;
-  created_at: string;
-}
-
-export interface TimelineEntry {
-  id: string;
-  matter_id: string;
-  user_id: string;
-  content: string | null;
-  channel_id?: string;
-  channel_type?: number;
-  source_channel_id?: string;
-  related_uids?: string[];
-  created_at: string;
-  attachments?: TimelineAttachment[];
-}
-
-export interface AddTimelineReq {
-  content?: string;
-  attachments?: {
-    file_url: string;
-    file_name?: string;
-    file_size?: number;
-    mime_type?: string;
-  }[];
 }

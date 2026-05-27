@@ -34,12 +34,15 @@
 
 ### 不做(P3+ 留)
 
-- ❌ SmartCreateModal(从 IM 消息抽取生成 matter)
-- ❌ 详情面板里的 timeline / 评论 / 附件 / 关联群聊 / 主要目标编辑 / DDL pick
+> **注**:本节为 task-list 原始划界。设计稿 review 后由架构师裁定扩展 MVP,详见 [decisions.md](./decisions.md) D-4 — timeline / 主要目标编辑 / DDL pick 已加入本期范围,channel-picker / SmartCreateModal / AI 按钮(extractMatter) / ChatTodoPanel 仍 P3+。
+
+- ❌ SmartCreateModal(从 IM 消息抽取生成 matter)— 强耦合 chat
+- ❌ AI 按钮(extractMatter)— payload 含 chat msgs,跨 feature
+- ❌ 关联群聊 / channel-picker — 强耦合 chat 群列表 UI
 - ❌ ChatTodoPanel(chat 内联事项面板,跨 feature 集成)
 - ❌ NavRail 入口的红点角标(per-tab unread)
 - ❌ "我参与的"扩展 tab(只做 3 tab,跟原 PRD v0.7 §10 一致)
-- ❌ Matter 状态变更 timeline activity 渲染
+- ❌ timeline 按 channel 分组 / 附件上传 / @mention(等 channel-picker 一起做)
 
 ## 验收
 

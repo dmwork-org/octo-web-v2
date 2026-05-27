@@ -24,13 +24,12 @@
 
 ## Endpoint 清单(本期**不**做,留 P3+)
 
+> **注**:本节经 [decisions.md](./decisions.md) D-4 修订 — timeline / activities 已加入本期范围,仅保留跨 feature 强耦合的 channel-linking + extract。
+
 跳过下面这些,**不要**为了凑数把代码先撸出来 — 等下一期带 UI 一起做:
 
-- `linkChannel` / `unlinkChannel` — `/matters/:id/channels` POST/DELETE
-- `extractMatter` — `/matters/extract` POST(从 IM 消息抽取)
-- `listTimeline` / `addTimelineEntry` / `deleteTimelineEntry` — `/matters/:id/timeline` GET/POST/DELETE
-- `listComments` / `addComment` / `deleteComment` — timeline 的 wrapper
-- `listActivities` — `/matters/:id/activities` GET
+- `linkChannel` / `unlinkChannel` — `/matters/:id/channels` POST/DELETE(等 channel-picker 一起)
+- `extractMatter` — `/matters/extract` POST(从 IM 消息抽取,payload 跨 chat feature)
 
 ## 关键类型
 

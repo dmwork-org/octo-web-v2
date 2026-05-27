@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Archive, CalendarDays, MoreHorizontal, Tag, Target, Trash2, X } from "lucide-react";
+import { Archive, MoreHorizontal, Tag, Target, Trash2, X } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { matterDetailQueryOptions } from "@/features/matter/queries/matters.query";
@@ -9,6 +9,7 @@ import { useDeleteMatter, useTransitionMatter } from "@/features/matter/mutation
 import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
 import { UserName } from "@/features/matter/components/user-name";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
+import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
@@ -23,11 +24,6 @@ function formatDateTime(iso: string): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${mm}/${dd} ${hh}:${mi}`;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 function nextStatusForToggle(s: MatterStatus): MatterStatus {
@@ -57,7 +53,6 @@ function toggleLabel(s: MatterStatus): string {
  *   └
  *
  * P3+ 待接:
- *   - DDL pick 弹 Calendar(Commit 13)
  *   - 主要目标 TipTap 编辑(Commit 15)
  *   - 关联群聊 tab(channel-picker 仍 P3+,显示空状态 + 跳转提示)
  *   - 变更记录 tab(activities 列表,Commit 17)
@@ -96,7 +91,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden bg-bg-surface">
-      {/* ── 顶栏:状态 + DDL + 操作 + 关闭 ── */}
       <header className="flex shrink-0 items-center justify-between gap-3 px-8 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex items-center gap-2 text-[12px]">
@@ -104,15 +98,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             <span className="text-text-tertiary">|</span>
             <span className="font-mono text-text-tertiary">M-{data.seq_no}</span>
           </span>
-          <button
-            type="button"
-            disabled
-            title="DDL pick 接入中(Commit 13)"
-            className="flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-[12px] text-text-secondary opacity-60 transition-colors hover:bg-bg-hover disabled:cursor-not-allowed"
-          >
-            <CalendarDays size={14} />
-            {data.deadline ? formatDate(data.deadline) : "设置截止日期"}
-          </button>
+          <DeadlinePicker matterId={matterId} deadline={data.deadline} />
         </div>
         <div ref={menuRef} className="relative flex shrink-0 items-center gap-1">
           <button
@@ -170,10 +156,8 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       </header>
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 pb-8">
-        {/* ── 标题大字 ── */}
         <h1 className="text-2xl leading-tight font-bold text-text-primary">{data.title}</h1>
 
-        {/* ── 主要目标(P3+ 占位)── */}
         <div className="rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 p-4 text-sm dark:from-violet-950/30 dark:to-purple-950/30">
           <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400">
             <Target size={14} />
@@ -184,7 +168,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </p>
         </div>
 
-        {/* ── 来源 chip + description ── */}
         {data.source_name ? (
           <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary">
             <Tag size={12} />
@@ -202,7 +185,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </p>
         ) : null}
 
-        {/* ── 创建人 + 负责人 行内紧凑 chip ── */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px] text-text-tertiary">
           <FieldChip label="创建人" uid={data.creator_id} />
           <div className="flex items-center gap-1.5">
@@ -236,7 +218,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </div>
         </div>
 
-        {/* ── 二级 tabs(关联群聊 / 变更记录,P3+ 占位)── */}
         <div className="mt-2 border-b border-border-subtle">
           <div className="flex items-center gap-6">
             <span className="cursor-not-allowed border-b-2 border-text-primary pb-2 text-sm font-semibold text-text-primary opacity-60">

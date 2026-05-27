@@ -11,10 +11,11 @@
 
 ## 1. 类型 + API 端点(commit 1)
 
-- [ ] 建 `src/features/matter/types.ts` — 拷贝 [api-mapping.md](./api-mapping.md) 的精简类型
-- [ ] 建 `src/features/base/api/clients/matter-client.ts` — ofetch 实例,baseURL=`/matter/api/v1`,拦截器复用 `features/base/api/client.ts` 的 5 个(把它们抽出来共享)
-   - 如果当前 `client.ts` 没把拦截器抽公共,先 refactor 抽出来再建第二个 client
-- [ ] 建 `src/features/base/api/endpoints/matter.api.ts` — 8 个 endpoint(listMatters / getMatter / createMatter / updateMatter / transitionMatter / deleteMatter / addAssignee / removeAssignee)
+- [ ] 建 `src/features/matter/types/matter.types.ts` — 拷贝 [api-mapping.md](./api-mapping.md) 的精简类型
+- [ ] 建 `src/features/matter/api/matter-client.ts` — ofetch 实例,baseURL=`/matter/api/v1`,拦截器复用 `features/base/api/client.ts` 的 5 个(把它们抽出来共享)
+  - 如果当前 `client.ts` 没把拦截器抽公共,先 refactor 抽出来再建第二个 client
+- [ ] 建 `src/features/matter/api/matter.api.ts` — 8 个 endpoint(listMatters / getMatter / createMatter / updateMatter / transitionMatter / deleteMatter / addAssignee / removeAssignee)
+  - **注**:endpoint 位置放 `features/matter/api/`(feature-local),**不**放 `features/base/api/endpoints/`。matter 是独立业务域,放 base 会污染基建层。详见 [decisions.md](./decisions.md) D-2。
 
 **验收**:`pnpm check` 全绿。
 

@@ -28,6 +28,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.25",
     "@tiptap/core": "^3.23.6",
+    "@tiptap/extension-link": "^3.23.6",
     "@tiptap/extension-mention": "^3.23.6",
     "@tiptap/extension-placeholder": "^3.23.6",
     "@tiptap/pm": "^3.23.6",

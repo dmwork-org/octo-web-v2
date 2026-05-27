@@ -1,4 +1,3 @@
-import { Calendar } from "lucide-react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
@@ -11,86 +10,67 @@ interface SidebarCardProps {
   onClick: () => void;
 }
 
-function formatDeadline(deadline: string): string {
-  const d = new Date(deadline);
-  const now = new Date();
-  const sameYear = d.getFullYear() === now.getFullYear();
-  return sameYear
-    ? `${d.getMonth() + 1}/${d.getDate()}`
-    : `${d.getFullYear() % 100}/${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-const MAX_VISIBLE_ASSIGNEES = 3;
-
 /**
- * Matter 列表卡(对应旧 dmworktodo SidebarCard 的 Tailwind 重写):
+ * Matter 列表卡(对齐 P3-matter 设计稿,白底 + 阴影 + 大圆角 + selected 紫边):
  *
- *   M-{seq_no}  [状态]                    [📅 DDL?]
- *   {title}
- *   [creator 头像] <UserName creator>  · {source_name?}
- *   [assignee 头像 ×N]
+ *   [状态徽章] | M-96
+ *   {title 大字粗体}
+ *   创建人: [头像] {creator}
+ *   负责人: [头像] {assignee 0}
  *
- * 视觉:rounded-md 6px padding,hover bg-bg-hover,selected bg-brand-tint。
- * DDL 显式红字 — 提示截止日期临近;UserName 走 SDK channelInfo 异步补名。
+ * 设计稿信息密度:status / M-序号 / title / 创建人 / 负责人 各占独立段。本期
+ * 仅渲染第一个 assignee(单负责人主路径);多 assignee 由详情面板展开。
+ *
+ * DDL / source_name 在卡片上不显示(详情面板里展示),与设计稿一致。
  */
 export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
-  const hasDeadline = !!matter.deadline;
-  const assignees = matter.assignees ?? [];
-  const visibleAssignees = assignees.slice(0, MAX_VISIBLE_ASSIGNEES);
-  const overflowCount = assignees.length - visibleAssignees.length;
+  const firstAssignee = matter.assignees?.[0];
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full flex-col gap-1.5 rounded-md px-3 py-2.5 text-left transition-colors duration-150 ease-(--ease-emphasized) ${
-        selected ? "bg-brand-tint" : "hover:bg-bg-hover"
+      className={`flex w-full flex-col gap-2 rounded-xl border bg-bg-surface p-4 text-left shadow-sm transition-all duration-150 ease-(--ease-emphasized) ${
+        selected
+          ? "border-brand ring-1 ring-brand/30"
+          : "border-border-subtle hover:border-border-default"
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="font-mono text-[11px] text-text-tertiary">M-{matter.seq_no}</span>
-          <MatterStatusBadge status={matter.status} />
-        </div>
-        {hasDeadline ? (
-          <span className="flex shrink-0 items-center gap-1 text-[11px] text-error">
-            <Calendar size={11} />
-            {formatDeadline(matter.deadline!)}
-          </span>
-        ) : null}
+      <div className="flex items-center gap-2 text-[12px]">
+        <MatterStatusBadge status={matter.status} />
+        <span className="text-text-tertiary">|</span>
+        <span className="font-mono text-text-tertiary">M-{matter.seq_no}</span>
       </div>
 
-      <h3 className="line-clamp-2 truncate text-sm leading-snug font-semibold text-text-primary">
+      <h3 className="line-clamp-2 text-base leading-snug font-semibold text-text-primary">
         {matter.title}
       </h3>
 
-      <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
-        <ChannelAvatar
-          channel={new Channel(matter.creator_id, ChannelTypePerson)}
-          size={16}
-          title={matter.creator_id}
-        />
-        <UserName uid={matter.creator_id} className="truncate text-text-secondary" />
-        {matter.source_name ? <span className="truncate">· {matter.source_name}</span> : null}
-      </div>
-
-      {assignees.length > 0 ? (
-        <div className="flex items-center gap-1">
-          <div className="flex -space-x-1">
-            {visibleAssignees.map((a) => (
-              <ChannelAvatar
-                key={a.id}
-                channel={new Channel(a.user_id, ChannelTypePerson)}
-                size={18}
-                title={a.user_id}
-              />
-            ))}
-          </div>
-          {overflowCount > 0 ? (
-            <span className="text-[11px] text-text-tertiary">+{overflowCount}</span>
-          ) : null}
+      <div className="flex flex-col gap-1.5 text-[12px] text-text-tertiary">
+        <div className="flex items-center gap-2">
+          <span className="shrink-0">创建人:</span>
+          <ChannelAvatar
+            channel={new Channel(matter.creator_id, ChannelTypePerson)}
+            size={20}
+            title={matter.creator_id}
+          />
+          <UserName uid={matter.creator_id} className="truncate text-text-primary" />
         </div>
-      ) : null}
+        {firstAssignee ? (
+          <div className="flex items-center gap-2">
+            <span className="shrink-0">负责人:</span>
+            <ChannelAvatar
+              channel={new Channel(firstAssignee.user_id, ChannelTypePerson)}
+              size={20}
+              title={firstAssignee.user_id}
+            />
+            <UserName uid={firstAssignee.user_id} className="truncate text-text-primary" />
+            {(matter.assignees?.length ?? 0) > 1 ? (
+              <span className="text-text-tertiary">+{(matter.assignees?.length ?? 0) - 1}</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </button>
   );
 }

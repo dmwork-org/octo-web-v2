@@ -6,9 +6,9 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
 import { mattersQueryOptions } from "@/features/matter/queries/matters.query";
-import { MatterCard } from "@/features/matter/components/matter-card";
 import { MatterDetail } from "@/features/matter/components/matter-detail";
 import { MatterCreateModal } from "@/features/matter/components/matter-create-modal";
+import { SidebarCard } from "@/features/matter/components/sidebar-card";
 import type { MatterListParams } from "@/features/matter/types/matter.types";
 
 type MatterTab = "mine" | "created" | "all";
@@ -31,13 +31,13 @@ function buildParams(tab: MatterTab, myUid: string): MatterListParams {
  *   ┌ 中列 (320)                ┌ 右列 (flex-1)
  *   │ Header(事项 + 新建按钮)  │
  *   │ Tabs: 我负责/我创建/全部 │ MatterDetail
- *   │ 列表(MatterCard)         │ (matterId 来源 state)
+ *   │ 列表(SidebarCard)        │ (matterId 来源 state)
  *   └                            ┘
  *
  * Space 切换:useResetOnSpaceChange 清掉 selectedId / createOpen — 旧 matter 不属于
  * 新 Space,继续打开会触发 detail/delete 跨 Space 403。tab 不动(用户偏好)。
  *
- * 不做(Wave 2+):分页 loadMore、归档分组折叠、SmartCreate、详情面板侧抽屉。
+ * Commit 6/8 会把列表替换为 MatterList(infinite + tabs + 归档折叠 + URL state)。
  */
 export function MatterView() {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -115,7 +115,7 @@ export function MatterView() {
             </div>
           ) : (
             list.map((m) => (
-              <MatterCard
+              <SidebarCard
                 key={m.id}
                 matter={m}
                 selected={m.id === selectedId}

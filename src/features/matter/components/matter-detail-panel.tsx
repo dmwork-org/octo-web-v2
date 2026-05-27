@@ -12,12 +12,15 @@ import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { TimelineSection } from "@/features/matter/components/timeline-section";
+import { ActivityList } from "@/features/matter/components/activity-list";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
   matterId: string;
   onClose: () => void;
 }
+
+type SecondaryTab = "channels" | "activity";
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -48,7 +51,8 @@ function toggleLabel(s: MatterStatus): string {
  *   │ └──────────────────────────────────────────────┘
  *   │ 🏷 来自 #{source_name} · {creator} · {created_at}
  *   │ 创建人: [头像] {name}    负责人: [头像] {name}  [编辑]
- *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录 — Commit 17 接)
+ *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录)
+ *   │ {tab 内容}
  *   │ ─── 评论 / 时间线(TimelineSection)
  *   └
  */
@@ -60,6 +64,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("channels");
   const menuRef = useRef<HTMLDivElement>(null);
 
   const assigneeUids = useMemo(() => data.assignees.map((a) => a.user_id), [data.assignees]);
@@ -200,17 +205,26 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
         <div className="mt-2 border-b border-border-subtle">
           <div className="flex items-center gap-6">
-            <span className="cursor-not-allowed border-b-2 border-text-primary pb-2 text-sm font-semibold text-text-primary opacity-60">
+            <SecondaryTabBtn
+              active={secondaryTab === "channels"}
+              onClick={() => setSecondaryTab("channels")}
+            >
               关联群聊
-            </span>
-            <span className="cursor-not-allowed pb-2 text-sm text-text-tertiary opacity-60">
+            </SecondaryTabBtn>
+            <SecondaryTabBtn
+              active={secondaryTab === "activity"}
+              onClick={() => setSecondaryTab("activity")}
+            >
               变更记录
-            </span>
+            </SecondaryTabBtn>
           </div>
         </div>
-        <p className="text-xs text-text-tertiary italic">
-          关联群聊 P3+ · 变更记录 接入中(Commit 17)
-        </p>
+
+        {secondaryTab === "channels" ? (
+          <p className="text-xs text-text-tertiary italic">关联群聊 P3+ 接入(channel-picker)</p>
+        ) : (
+          <ActivityList matterId={matterId} />
+        )}
 
         <TimelineSection matterId={matterId} />
       </div>
@@ -243,6 +257,28 @@ function FieldChip({ label, uid }: { label: string; uid: string }) {
       <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={18} title={uid} />
       <UserName uid={uid} className="text-text-primary" />
     </span>
+  );
+}
+
+interface SecondaryTabBtnProps {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+function SecondaryTabBtn({ active, onClick, children }: SecondaryTabBtnProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? "border-b-2 border-text-primary pb-2 text-sm font-semibold text-text-primary"
+          : "pb-2 text-sm text-text-tertiary transition-colors hover:text-text-secondary"
+      }
+    >
+      {children}
+    </button>
   );
 }
 

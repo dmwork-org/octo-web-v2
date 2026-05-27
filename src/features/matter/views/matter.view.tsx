@@ -1,63 +1,37 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Suspense } from "react";
 import { useStore } from "@tanstack/react-store";
-import { Plus } from "lucide-react";
-import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
-import { mattersQueryOptions } from "@/features/matter/queries/matters.query";
-import { MatterDetail } from "@/features/matter/components/matter-detail";
-import { MatterCreateModal } from "@/features/matter/components/matter-create-modal";
-import { SidebarCard } from "@/features/matter/components/sidebar-card";
-import type { MatterListParams } from "@/features/matter/types/matter.types";
-
-type MatterTab = "mine" | "created" | "all";
-
-const TABS: { id: MatterTab; label: string }[] = [
-  { id: "mine", label: "我负责的" },
-  { id: "created", label: "我创建的" },
-  { id: "all", label: "全部" },
-];
-
-function buildParams(tab: MatterTab, myUid: string): MatterListParams {
-  if (tab === "mine") return { assignee_id: myUid };
-  if (tab === "created") return { creator_id: myUid };
-  return {};
-}
+import { MatterList } from "@/features/matter/components/matter-list";
+import { QuickAdd } from "@/features/matter/components/quick-add";
+import { MatterDetailPanel } from "@/features/matter/components/matter-detail-panel";
+import { Route } from "@/routes/_auth.matter";
 
 /**
- * 事项主视图(对应旧 dmworktodo TodoPage 精简):
+ * 事项主视图(P3-matter spec §8 路由整合后):
  *
- *   ┌ 中列 (320)                ┌ 右列 (flex-1)
- *   │ Header(事项 + 新建按钮)  │
- *   │ Tabs: 我负责/我创建/全部 │ MatterDetail
- *   │ 列表(SidebarCard)        │ (matterId 来源 state)
+ *   ┌ Sidebar (320)              ┌ Detail (flex-1)
+ *   │ Header(事项)              │
+ *   │ QuickAdd                   │ MatterDetailPanel (?id 命中)
+ *   │ MatterList(tabs + infinite)│   或空状态文案
  *   └                            ┘
  *
- * Space 切换:useResetOnSpaceChange 清掉 selectedId / createOpen — 旧 matter 不属于
- * 新 Space,继续打开会触发 detail/delete 跨 Space 403。tab 不动(用户偏好)。
- *
- * Commit 6/8 会把列表替换为 MatterList(infinite + tabs + 归档折叠 + URL state)。
+ * 选中事项通过 URL `?id={matterId}` 持久化(useSearch + navigate),刷新保留。
+ * Space 切换时 useResetOnSpaceChange 清掉 ?id(避免跨 Space 加载 detail 403)。
+ * Detail panel 包 Suspense 接管 useSuspenseQuery loading。
  */
 export function MatterView() {
-  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
-  const [tab, setTab] = useState<MatterTab>("mine");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const navigate = Route.useNavigate();
+  const { id: selectedId } = Route.useSearch();
+
+  const setSelectedId = (id: string | null) => {
+    void navigate({ search: (prev) => ({ ...prev, id: id ?? undefined }) });
+  };
 
   useResetOnSpaceChange(() => {
-    setSelectedId(null);
-    setCreateOpen(false);
+    if (selectedId) setSelectedId(null);
   });
-
-  const params = useMemo(() => buildParams(tab, myUid), [tab, myUid]);
-  const { data, isLoading, error } = useQuery({
-    ...mattersQueryOptions(params),
-    enabled: !!myUid,
-  });
-
-  const list = data?.data ?? [];
 
   if (!currentSpaceId) {
     return (
@@ -70,72 +44,36 @@ export function MatterView() {
   return (
     <div className="flex flex-1 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-5">
+        <header className="flex h-14 shrink-0 items-center border-b border-border-subtle bg-bg-surface px-5">
           <span className="text-base font-semibold text-text-primary">事项</span>
-          <button
-            type="button"
-            aria-label="新建事项"
-            title="新建事项"
-            onClick={() => setCreateOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <Plus size={16} />
-          </button>
         </header>
-
-        <nav className="flex shrink-0 items-center gap-1 border-b border-border-subtle bg-bg-surface px-2 py-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`relative flex-1 rounded-md py-1.5 text-xs font-medium transition-colors duration-150 ease-(--ease-emphasized) ${
-                tab === t.id
-                  ? "bg-brand-tint text-text-primary"
-                  : "text-text-secondary hover:bg-bg-hover"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-          {isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              加载事项…
-            </div>
-          ) : error ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-error">
-              事项加载失败
-            </div>
-          ) : list.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              暂无事项
-            </div>
-          ) : (
-            list.map((m) => (
-              <SidebarCard
-                key={m.id}
-                matter={m}
-                selected={m.id === selectedId}
-                onClick={() => setSelectedId(m.id)}
-              />
-            ))
-          )}
-        </div>
+        <QuickAdd onCreated={(id) => setSelectedId(id)} />
+        <MatterList
+          selectedId={selectedId ?? null}
+          onSelect={setSelectedId}
+          onTabChange={() => setSelectedId(null)}
+        />
       </aside>
 
-      <MatterDetail matterId={selectedId} onDeleted={() => setSelectedId(null)} />
-
-      <MatterCreateModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(id) => {
-          setCreateOpen(false);
-          setSelectedId(id);
-        }}
-      />
+      {selectedId ? (
+        <Suspense
+          fallback={
+            <section className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+              加载详情…
+            </section>
+          }
+        >
+          <MatterDetailPanel
+            key={selectedId}
+            matterId={selectedId}
+            onClose={() => setSelectedId(null)}
+          />
+        </Suspense>
+      ) : (
+        <section className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+          选个事项看看
+        </section>
+      )}
     </div>
   );
 }

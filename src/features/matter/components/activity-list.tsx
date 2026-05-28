@@ -10,7 +10,10 @@ interface ActivityListProps {
   matterId: string;
 }
 
-const TYPE_LABELS: Record<string, string> = {
+/**
+ * action label 映射(对齐原 dmworktodo MatterDetailPanel/index.tsx:1538-1548)。
+ */
+const ACTION_LABELS: Record<string, string> = {
   created: "创建了事项",
   title_changed: "更新了标题",
   description_changed: "更新了主要目标",
@@ -31,11 +34,11 @@ function formatActivityTime(iso: string): string {
 }
 
 function describeActivity(a: ActivityEntry): string {
-  const label = TYPE_LABELS[a.type] ?? a.type;
-  const payload = a.payload ?? {};
-  const summary = payload["summary"];
-  const from = payload["from"];
-  const to = payload["to"];
+  const label = ACTION_LABELS[a.action] ?? a.action;
+  const detail = a.detail ?? {};
+  const summary = detail["summary"];
+  const from = detail["from"];
+  const to = detail["to"];
   if (typeof summary === "string" && summary.trim()) return `${label}: ${summary}`;
   if (typeof from === "string" || typeof to === "string") {
     const fromStr = typeof from === "string" ? from : "—";
@@ -65,9 +68,10 @@ function useFetchNextOnInView(
 /**
  * 变更记录 / Activity 列表(P3-matter D-4 扩展):
  *
- *   [头像] {actor name} {label}: {payload 摘要}     {time}
+ *   [头像] {actor name} {label}: {detail 摘要}     {time}
  *
- * 只读列表,无操作。后端按时间倒序返回(最新在前)。Cursor 分页触底加载更早。
+ * 字段对齐后端 model.MatterActivity:actor_id / action / detail / created_at
+ * (不是 user_id / type / payload)。只读列表,无操作。
  *
  * P3+:diff 渲染(description_changed 显示 added/removed 行 + 颜色),时间分组,
  * activity icon 区分。
@@ -98,12 +102,12 @@ export function ActivityList({ matterId }: ActivityListProps) {
           className="flex items-start gap-2 rounded-md px-2 py-1.5 text-[12px] text-text-secondary hover:bg-bg-hover"
         >
           <ChannelAvatar
-            channel={new Channel(a.user_id, ChannelTypePerson)}
+            channel={new Channel(a.actor_id, ChannelTypePerson)}
             size={20}
-            title={a.user_id}
+            title={a.actor_id}
           />
           <div className="min-w-0 flex-1">
-            <UserName uid={a.user_id} className="font-medium text-text-primary" />
+            <UserName uid={a.actor_id} className="font-medium text-text-primary" />
             <span className="ml-1 text-text-tertiary">{describeActivity(a)}</span>
           </div>
           <span className="shrink-0 text-[11px] text-text-tertiary">

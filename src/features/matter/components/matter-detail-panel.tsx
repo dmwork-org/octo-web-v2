@@ -10,7 +10,6 @@ import { UserName } from "@/features/matter/components/user-name";
 import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
-import { TimelineSection } from "@/features/matter/components/timeline-section";
 import { ActivityList } from "@/features/matter/components/activity-list";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
@@ -63,9 +62,7 @@ function toggleLabel(s: MatterStatus): string {
  *   │ └──────────────────────────────┘
  *   │ 🏷 来自 #源 · {creator} · {time}
  *   │ [创建人: chip] [负责人: chip ...]
- *   │ ─── 关联群聊 N | 变更记录 N(下划线 active)
- *   │ {tab 内容}
- *   │ ─── 评论 / 时间线
+ *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录 — activities)
  *   │ ✦ Matter 是 IM 工作的 hierarchy 任务卡 · …(footer)
  *   └
  *
@@ -228,11 +225,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           ) : (
             <ActivityList matterId={matterId} />
           )}
-        </div>
-
-        {/* ── 评论 / 时间线 ── */}
-        <div className="px-8">
-          <TimelineSection matterId={matterId} />
         </div>
 
         {/* ── Footer 说明文案 ── */}

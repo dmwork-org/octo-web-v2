@@ -118,13 +118,26 @@ export interface AddTimelineReq {
   channel_name?: string;
 }
 
-// ─── Activities(变更记录)──────────────────────────────
+// ─── Activities(变更记录,字段对齐后端 model.MatterActivity)──────
 
+/**
+ * MatterActivity — 事项变更审计日志条目。后端 todos PR #39。
+ *
+ * action 类型示例:created / title_changed / description_changed /
+ * deadline_changed / status_changed / assignee_added / assignee_removed /
+ * channel_linked / channel_unlinked。
+ *
+ * detail 结构按 action 变化,例如:
+ *   title_changed: { from, to }
+ *   status_changed: { from, to }
+ *   assignee_added: { uid }
+ *   channel_linked: { channel_id, channel_name }
+ */
 export interface ActivityEntry {
   id: string;
   matter_id: string;
-  user_id: string;
-  type: string;
-  payload?: Record<string, unknown>;
+  actor_id: string;
+  action: string;
+  detail: Record<string, unknown> | null;
   created_at: string;
 }

@@ -1,8 +1,7 @@
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { MatterStatusBadge } from "@/features/matter/components/matter-status-badge";
 import { UserName } from "@/features/matter/components/user-name";
-import type { Matter } from "@/features/matter/types/matter.types";
+import type { Matter, MatterStatus } from "@/features/matter/types/matter.types";
 
 interface SidebarCardProps {
   matter: Matter;
@@ -10,65 +9,149 @@ interface SidebarCardProps {
   onClick: () => void;
 }
 
+const STATUS_LABELS: Record<MatterStatus, string> = {
+  open: "进行中",
+  done: "已完成",
+  archived: "已归档",
+};
+
 /**
- * Matter 列表卡(对齐 P3-matter 设计稿,白底 + 阴影 + 大圆角 + selected 紫边):
+ * 状态 pill 颜色,对齐原 dmworktodo:
+ * - open:brand 浅蓝
+ * - done:online 浅绿
+ * - archived:灰
+ */
+const STATUS_CLASS: Record<MatterStatus, string> = {
+  open: "bg-brand-tint text-brand",
+  done: "bg-online/10 text-online",
+  archived: "bg-bg-elevated text-text-tertiary",
+};
+
+function formatDeadline(deadline: string): string {
+  const d = new Date(deadline);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/**
+ * 简笔封套日历 SVG(对齐原 SidebarCard/index.tsx:55-64)。lucide Calendar 视觉
+ * 过重,用原项目同款细线轮廓。
+ */
+function CalendarIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden className="shrink-0">
+      <path
+        d="M4 1v1.5M8 1v1.5M1.5 4.5h9M2.5 2.5h7a1 1 0 011 1v6a1 1 0 01-1 1h-7a1 1 0 01-1-1v-6a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+interface MetaRowProps {
+  label: string;
+  children: React.ReactNode;
+}
+
+function MetaRow({ label, children }: MetaRowProps) {
+  return (
+    <div className="flex items-center gap-1 text-[13px] leading-4 text-text-tertiary">
+      <span className="shrink-0">{label}</span>
+      <span className="inline-flex items-center gap-1">{children}</span>
+    </div>
+  );
+}
+
+/**
+ * Matter 列表卡(1:1 复刻 dmworktodo SidebarCard/index.tsx):
  *
- *   [状态徽章] | M-96
- *   {title 大字粗体}
- *   创建人: [头像] {creator}
- *   负责人: [头像] {assignee 0}
+ *   ┌─────────────────────────────────────────────────────┐
+ *   │ [进行中｜M-142]                          📅 5/29   │
+ *   │ {title 两行 line-clamp}                              │
+ *   │ 创建人:[头像] {name}                                 │
+ *   │ 负责人:[头像组叠加] {name}等N人(N>1时)              │
+ *   └─────────────────────────────────────────────────────┘
  *
- * 设计稿信息密度:status / M-序号 / title / 创建人 / 负责人 各占独立段。本期
- * 仅渲染第一个 assignee(单负责人主路径);多 assignee 由详情面板展开。
- *
- * DDL / source_name 在卡片上不显示(详情面板里展示),与设计稿一致。
+ * 视觉关键点(对齐原项目):
+ * - 状态 pill rounded-full,内含「label｜M-seq_no」全角竖线分隔
+ * - DDL 灰色(text-tertiary)+ 细线封套日历 SVG(非红色,非 lucide Calendar)
+ * - 多 assignee:前 3 头像叠加(-4px margin)+ 第一人名字+"等N人"
+ * - 单 assignee:头像 + 名字(无"等")
+ * - selected:bg-bg-surface + brand 描边 + shadow 轻微浮起
  */
 export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
-  const firstAssignee = matter.assignees?.[0];
+  const statusLabel = STATUS_LABELS[matter.status];
+  const statusClass = STATUS_CLASS[matter.status];
+  const assignees = matter.assignees ?? [];
+  const visibleAssignees = assignees.slice(0, 3);
+  const firstAssigneeUid = assignees[0]?.user_id;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full flex-col gap-2 rounded-xl border bg-bg-surface p-4 text-left shadow-sm transition-all duration-150 ease-(--ease-emphasized) ${
+      className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-all duration-150 ease-(--ease-emphasized) ${
         selected
-          ? "border-brand ring-1 ring-brand/30"
-          : "border-border-subtle hover:border-border-default"
+          ? "border-brand bg-bg-surface shadow-[0_4px_12px_rgba(28,28,35,0.04),0_0_10px_1px_rgba(28,28,35,0.04)]"
+          : "border-transparent bg-bg-surface/80 hover:bg-bg-surface hover:shadow-[0_2px_8px_rgba(28,28,35,0.04)]"
       }`}
     >
-      <div className="flex items-center gap-2 text-[12px]">
-        <MatterStatusBadge status={matter.status} />
-        <span className="text-text-tertiary">|</span>
-        <span className="font-mono text-text-tertiary">M-{matter.seq_no}</span>
+      {/* 第一行:状态 pill + DDL */}
+      <div className="flex items-center justify-between">
+        <span
+          className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${statusClass}`}
+        >
+          <span className="font-semibold">{statusLabel}</span>
+          {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}
+        </span>
+        {matter.deadline ? (
+          <span className="flex items-center gap-0.5 text-[13px] leading-[18px] text-text-tertiary">
+            <CalendarIcon />
+            {formatDeadline(matter.deadline)}
+          </span>
+        ) : null}
       </div>
 
-      <h3 className="line-clamp-2 text-base leading-snug font-semibold text-text-primary">
+      {/* 第二行:标题 */}
+      <h3 className="line-clamp-2 text-[14px] leading-5 font-medium text-text-primary">
         {matter.title}
       </h3>
 
-      <div className="flex flex-col gap-1.5 text-[12px] text-text-tertiary">
-        <div className="flex items-center gap-2">
-          <span className="shrink-0">创建人:</span>
+      {/* 第三行:创建人 + 负责人 */}
+      <div className="flex flex-col gap-1">
+        <MetaRow label="创建人:">
           <ChannelAvatar
             channel={new Channel(matter.creator_id, ChannelTypePerson)}
-            size={20}
+            size={16}
             title={matter.creator_id}
           />
-          <UserName uid={matter.creator_id} className="truncate text-text-primary" />
-        </div>
-        {firstAssignee ? (
-          <div className="flex items-center gap-2">
-            <span className="shrink-0">负责人:</span>
-            <ChannelAvatar
-              channel={new Channel(firstAssignee.user_id, ChannelTypePerson)}
-              size={20}
-              title={firstAssignee.user_id}
-            />
-            <UserName uid={firstAssignee.user_id} className="truncate text-text-primary" />
-            {(matter.assignees?.length ?? 0) > 1 ? (
-              <span className="text-text-tertiary">+{(matter.assignees?.length ?? 0) - 1}</span>
-            ) : null}
-          </div>
+          <UserName uid={matter.creator_id} className="text-text-primary" />
+        </MetaRow>
+
+        {assignees.length > 0 && firstAssigneeUid ? (
+          <MetaRow label="负责人:">
+            <span className="inline-flex items-center">
+              {visibleAssignees.map((a, i) => (
+                <span
+                  key={a.id}
+                  className="relative inline-flex"
+                  style={{ marginLeft: i > 0 ? -4 : 0, zIndex: 3 - i }}
+                >
+                  <ChannelAvatar
+                    channel={new Channel(a.user_id, ChannelTypePerson)}
+                    size={16}
+                    title={a.user_id}
+                  />
+                </span>
+              ))}
+            </span>
+            <span className="text-text-primary">
+              <UserName uid={firstAssigneeUid} />
+              {assignees.length > 1 ? `等${assignees.length}人` : ""}
+            </span>
+          </MetaRow>
         ) : null}
       </div>
     </button>

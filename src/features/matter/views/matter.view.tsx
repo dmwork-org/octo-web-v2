@@ -4,21 +4,23 @@ import { Plus } from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
 import { MatterList } from "@/features/matter/components/matter-list";
-import { QuickAdd } from "@/features/matter/components/quick-add";
+import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { MatterDetailPanel } from "@/features/matter/components/matter-detail-panel";
 import { Route } from "@/routes/_auth.matter";
 
 /**
- * 事项主视图(对齐 P3-matter 设计稿):
+ * 事项主视图(对齐 P3-matter 设计稿 + 原 dmworktodo 创建交互):
  *
  *   ┌ Sidebar (320)              ┌ Detail (flex-1)
  *   │ Header(事项)         + 按钮│
- *   │   ↳ 点击 + 展开 QuickAdd   │ MatterDetailPanel (?id 命中)
- *   │ MatterList(tabs + infinite)│   或空状态文案
+ *   │   ↳ 点击 + 弹 CreateMatterModal(完整表单)
+ *   │ MatterList(tabs + infinite)│ MatterDetailPanel (?id 命中)
+ *   │                            │   或空状态文案
  *   └                            ┘
  *
- * + 按钮:展开/收起顶部 QuickAdd 输入框(对齐设计稿 默认隐藏)。Commit 13 接
- * DDL pick 时,可选改为弹完整表单 modal(创建时同时设置 DDL / 受理人)。
+ * + 按钮弹 CreateMatterModal — 对齐原项目 CreateTaskModal(title / 主要目标 /
+ * 受理人 / DDL 完整表单)。spec.md §UI 文字描述的"QuickAdd 单行输入"在设计稿
+ * 与原项目对齐后改为弹窗形式(详见 decisions.md D-4)。
  *
  * URL `?id={matterId}` 持久化选中,刷新保留。Space 切换 reset。
  */
@@ -26,7 +28,7 @@ export function MatterView() {
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const navigate = Route.useNavigate();
   const { id: selectedId } = Route.useSearch();
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const setSelectedId = (id: string | null) => {
     void navigate({ search: (prev) => ({ ...prev, id: id ?? undefined }) });
@@ -34,7 +36,7 @@ export function MatterView() {
 
   useResetOnSpaceChange(() => {
     if (selectedId) setSelectedId(null);
-    setQuickAddOpen(false);
+    setCreateOpen(false);
   });
 
   if (!currentSpaceId) {
@@ -54,24 +56,12 @@ export function MatterView() {
             type="button"
             aria-label="新建事项"
             title="新建事项"
-            onClick={() => setQuickAddOpen((v) => !v)}
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-              quickAddOpen
-                ? "bg-brand-tint text-brand"
-                : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-            }`}
+            onClick={() => setCreateOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
-            <Plus size={16} className={quickAddOpen ? "rotate-45" : ""} />
+            <Plus size={16} />
           </button>
         </header>
-        {quickAddOpen ? (
-          <QuickAdd
-            onCreated={(id) => {
-              setSelectedId(id);
-              setQuickAddOpen(false);
-            }}
-          />
-        ) : null}
         <MatterList
           selectedId={selectedId ?? null}
           onSelect={setSelectedId}
@@ -98,6 +88,15 @@ export function MatterView() {
           选个事项看看
         </section>
       )}
+
+      <CreateMatterModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(matter) => {
+          setCreateOpen(false);
+          setSelectedId(matter.id);
+        }}
+      />
     </div>
   );
 }

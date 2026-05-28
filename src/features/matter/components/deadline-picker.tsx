@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUpdateMatter } from "@/features/matter/mutations/matters.mutation";
@@ -10,9 +10,11 @@ interface DeadlinePickerProps {
   deadline?: string | null;
 }
 
-function formatDate(iso: string): string {
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+function formatDeadlineLabel(iso: string): string {
   const d = new Date(iso);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  return `截止到 ${d.getMonth() + 1}/${d.getDate()} ${WEEKDAYS[d.getDay()]}`;
 }
 
 /** 把本地选中的 Date 转为后端约定的 ISO(本地时区午夜)。 */
@@ -22,13 +24,29 @@ function toIsoLocalMidnight(d: Date): string {
 }
 
 /**
- * Matter 截止日期 popover(对齐 P3-matter 设计稿头部"设置截止日期"按钮):
- * - 未设置:显示 📅 设置截止日期
- * - 已设置:显示 📅 YYYY/M/D + 右侧 ✕ 清除
+ * 简笔封套日历 SVG(对齐原 dmworktodo SidebarCard 同款 path)。
+ */
+function CalendarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden className="shrink-0">
+      <path
+        d="M4 1v1.5M8 1v1.5M1.5 4.5h9M2.5 2.5h7a1 1 0 011 1v6a1 1 0 01-1 1h-7a1 1 0 01-1-1v-6a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Matter 截止日期 popover(对齐 P3-matter 设计稿头部"截止到 5/29 周五"按钮):
+ * - 未设置:📅 设置截止日期(text-tertiary 灰)
+ * - 已设置:📅 截止到 5/29 周五 + ✕ 清除
  * - 点击主区:弹 Calendar popover,选中即提交 useUpdateMatter
  *
- * 提交策略:onSelect 立即触发(无需 Cancel/Confirm),用户可继续点击 ✕ 清除。
- * mutation 错误由 withErrorToast 拦截器统一兜底。
+ * 提交策略:onSelect 立即触发,无 Cancel/Confirm。错误由 withErrorToast 兜底。
  */
 export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
   const [open, setOpen] = useState(false);
@@ -53,10 +71,10 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
         <button
           type="button"
           disabled={updateMu.isPending}
-          className="flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-sm leading-[18px] text-text-tertiary transition-colors hover:text-text-primary disabled:opacity-50"
         >
-          <CalendarDays size={14} />
-          {deadline ? formatDate(deadline) : "设置截止日期"}
+          <CalendarIcon />
+          {deadline ? formatDeadlineLabel(deadline) : "设置截止日期"}
           {deadline ? (
             <span
               role="button"
@@ -69,7 +87,7 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
                   handleClear(e as unknown as React.MouseEvent);
                 }
               }}
-              className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded text-text-tertiary hover:bg-bg-elevated hover:text-text-primary"
+              className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded text-text-tertiary hover:bg-bg-elevated hover:text-text-primary"
             >
               <X size={10} />
             </span>

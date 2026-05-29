@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { spaceStore } from "@/features/base/stores/space";
 import {
   myBotsQueryOptions,
@@ -9,16 +8,7 @@ import {
 } from "@/features/contacts/queries/directory.query";
 import { ContactsView } from "@/features/contacts/views/contacts.view";
 
-/**
- * URL search:?sub={page} 选中子页,刷新保留 + 链接可分享。
- * sub 缺省 → directory 主目录。
- */
-const contactsSearchSchema = z.object({
-  sub: z.enum(["directory", "applies", "add", "blacklist", "saved-groups"]).default("directory"),
-});
-
 export const Route = createFileRoute("/_auth/contacts")({
-  validateSearch: contactsSearchSchema,
   /**
    * 首屏机会主义预热 directory 4 个 query(spaceMembers / myBots / spaceBots /
    * myGroups)— spaceId 同步从 store 读。spaceId 缺失则跳过,组件挂载时

@@ -425,3 +425,28 @@ export async function listThreads(
   });
   return resp?.list ?? [];
 }
+
+/** 加入子区(对应旧 dmworkdatasource threadJoin)— POST /v1/threads/{shortId}/join */
+export async function joinThread(shortId: string): Promise<void> {
+  await api(`threads/${encodeURIComponent(shortId)}/join`, { method: "POST" });
+}
+
+/** 归档子区(旧 threadArchive)— POST /v1/groups/{groupNo}/threads/{shortId}/archive。 */
+export async function archiveThread(groupNo: string, shortId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/archive`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * 创建子区(无 sourceMessage 时,顶部 + 按钮入口)。旧 dmworkdatasource
+ * threadCreate(groupNo, name, sourceMessageId?)— sourceMessageId 可选。
+ * 区别于 createThread(POST + 必传 source_message_id),本签名简化为 name only。
+ */
+export async function createThreadByName(groupNo: string, name: string): Promise<ThreadRaw> {
+  return api<ThreadRaw>(`groups/${encodeURIComponent(groupNo)}/threads`, {
+    method: "POST",
+    body: { name },
+  });
+}

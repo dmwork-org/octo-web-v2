@@ -3,7 +3,8 @@ import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { useMutation } from "@tanstack/react-query";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { toast } from "@/components/semi-bridge/toast";
-import { MoreHorizontal, MessagesSquare, Search, Star } from "lucide-react";
+import { MoreHorizontal, Search, Star } from "lucide-react";
+import { ThreadIcon } from "@/components/ui/thread-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
@@ -132,7 +133,7 @@ export function ChatHeader({
             onClick={onToggleThreadPanel}
             className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${threadPanelOpen ? "bg-bg-elevated text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
           >
-            <MessagesSquare size={18} />
+            <ThreadIcon size={20} />
           </button>
         ) : null}
         <button

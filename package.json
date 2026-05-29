@@ -19,6 +19,9 @@
     "harness-health": "tsx scripts/harness-health.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@fontsource-variable/geist": "^5.2.9",
     "@tanstack/react-form": "^1.32.0",
     "@tanstack/react-hotkeys": "^0.10.0",

@@ -4,6 +4,7 @@ import WKSDK, {
   ChannelTypePerson,
   MessageContentType,
   type ChannelInfoListener,
+  type Reply,
   type Message,
   type MessageImage,
   type MessageText,
@@ -32,6 +33,7 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
+import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatReplyActions } from "@/features/chat/stores/chat-reply";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
@@ -445,6 +447,11 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           {formatTime(message.timestamp)}
         </div>
         <div className="relative min-w-0 flex-1 py-0.5">
+          {(message.content as { reply?: Reply }).reply ? (
+            <div className="mb-1">
+              <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+            </div>
+          ) : null}
           <MessageDispatch message={message} />
           {isSelf ? (
             <div className="pointer-events-auto absolute right-0 -bottom-1">
@@ -471,6 +478,9 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
           <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
         </header>
+        {(message.content as { reply?: Reply }).reply ? (
+          <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+        ) : null}
         <MessageDispatch message={message} />
         {isSelf ? (
           <div className="pointer-events-auto absolute right-0 -bottom-1">

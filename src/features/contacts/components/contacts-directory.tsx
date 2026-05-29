@@ -366,7 +366,7 @@ export function ContactsDirectory() {
           searchContacts.length === 0 && searchGroups.length === 0 ? (
             <EmptyHint icon={<SearchIcon size={24} />} text="没有找到相关联系人" />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
+            <div className="flex min-h-0 flex-col overflow-y-auto pb-3">
               {searchContacts.length > 0 ? (
                 <section className="flex flex-col">
                   <header className="px-4 py-1 text-[11px] font-semibold text-text-tertiary">
@@ -393,7 +393,7 @@ export function ContactsDirectory() {
           <>
             <section
               className={`flex flex-col border-b border-border-subtle ${
-                expanded === "groups" ? "min-h-0 flex-1" : "shrink-0"
+                expanded === "groups" ? "min-h-0" : "shrink-0"
               }`}
             >
               <AccordionHeader
@@ -407,7 +407,7 @@ export function ContactsDirectory() {
                 myGroups.length === 0 ? (
                   <EmptyHint icon={<UsersRound size={24} />} text="还没有群聊,去创建一个吧" />
                 ) : (
-                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+                  <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myGroups.map((g) => (
                       <GroupRow key={g.group_no} group={g} onClick={() => handleGroupClick(g)} />
                     ))}
@@ -418,7 +418,7 @@ export function ContactsDirectory() {
 
             <section
               className={`flex flex-col border-b border-border-subtle ${
-                expanded === "myBots" ? "min-h-0 flex-1" : "shrink-0"
+                expanded === "myBots" ? "min-h-0" : "shrink-0"
               }`}
             >
               <AccordionHeader
@@ -432,7 +432,7 @@ export function ContactsDirectory() {
                 myBots.length === 0 ? (
                   <EmptyHint icon={<Bot size={24} />} text="还没有添加 AI,去全部联系人里看看" />
                 ) : (
-                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+                  <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myBots.map((b) => (
                       <ContactRow
                         key={b.uid}
@@ -446,7 +446,13 @@ export function ContactsDirectory() {
             </section>
 
             <section
-              className={`flex flex-col ${expanded === "allContacts" ? "min-h-0 flex-1" : "shrink-0"}`}
+              className={`flex flex-col ${
+                expanded === "allContacts"
+                  ? useVirtual
+                    ? "min-h-0 flex-1"
+                    : "min-h-0"
+                  : "shrink-0"
+              }`}
             >
               <AccordionHeader
                 icon={<Users size={16} />}
@@ -473,7 +479,7 @@ export function ContactsDirectory() {
                       />
                     </div>
                   ) : (
-                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+                    <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                       {grouped.map(({ letter, items }) => (
                         <div key={letter} className="flex flex-col">
                           <header className="sticky top-0 bg-bg-base px-4 py-1 text-[11px] font-semibold text-text-tertiary">

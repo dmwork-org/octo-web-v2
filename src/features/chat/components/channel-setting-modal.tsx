@@ -31,7 +31,13 @@ import {
   setChannelSave,
   setChannelTop,
 } from "@/features/base/api/endpoints/channel-setting.api";
-import { updateGroup, updateGroupMember } from "@/features/base/api/endpoints/group.api";
+import {
+  leaveThread,
+  updateGroup,
+  updateGroupMember,
+  updateThread,
+} from "@/features/base/api/endpoints/group.api";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 interface ChannelSettingModalProps {
   open: boolean;
@@ -474,7 +480,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   });
 
   const renameMu = useMutation({
-    mutationFn: (name: string) => updateGroup(channel.channelID, { name }),
+    mutationFn: async (name: string) => {
+      if (isThread) {
+        const p = parseThreadChannelId(channel.channelID);
+        if (!p) throw new Error("子区 ID 解析失败");
+        await updateThread(p.groupNo, p.shortId, { name });
+      } else {
+        await updateGroup(channel.channelID, { name });
+      }
+    },
     onSuccess: () => {
       refreshChannelInfo();
       setEditing(null);
@@ -534,18 +548,26 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   });
 
   const closeMu = useMutation({
-    mutationFn: () =>
-      deleteConversation({
-        channelId: channel.channelID,
-        channelType: channel.channelType,
-      }),
-    onSuccess: () => {
+    mutationFn: async () => {
+      if (isThread) {
+        // 子区:走 leaveThread 真离开(对应旧 dmworkdatasource threadLeave)
+        const p = parseThreadChannelId(channel.channelID);
+        if (!p) throw new Error("子区 ID 解析失败");
+        await leaveThread(p.shortId);
+      } else {
+        await deleteConversation({
+          channelId: channel.channelID,
+          channelType: channel.channelType,
+        });
+      }
       WKSDK.shared().conversationManager.removeConversation(channel);
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       if (chatSelectedStore.state.channel?.channelID === channel.channelID) {
         chatSelectedActions.clear();
       }
-      toast.success(isGroup ? "已退出群聊" : "已关闭聊天");
+      toast.success(isGroup ? "已退出群聊" : isThread ? "已离开子区" : "已关闭聊天");
       setConfirmClose(false);
       onClose();
     },

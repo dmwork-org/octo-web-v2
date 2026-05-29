@@ -1,15 +1,21 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Search, UserPlus, Check } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { searchFriends, applyFriend } from "@/features/contacts/api/friends.api";
-import { friendAppliesQueryKey } from "@/features/contacts/queries/friend-applies.query";
 import type { Friend } from "@/features/contacts/types/friend.types";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 
-const searchQueryKey = (kw: string) => ["contacts", "friend-search", kw] as const;
+/**
+ * 加好友表单(对应旧 dmworkcontacts FriendAdd):搜索 + 结果列表 + 申请。
+ *
+ * 加好友主入口在 chat 右上"+"号(对应旧 chatmenus.addfriend),contacts
+ * 自家无 sub-page 入口 — 本表单完全归 chat 拥有,只通过 contacts/api/
+ * friends.api 复用搜索 / 申请 API(D-2:API 在 contacts,UI 在消费 feature)。
+ */
+const searchQueryKey = (kw: string) => ["chat", "friend-search", kw] as const;
 
 function SearchResultRow({
   user,
@@ -50,8 +56,7 @@ function SearchResultRow({
   );
 }
 
-export function FriendAdd() {
-  const qc = useQueryClient();
+export function FriendAddForm() {
   const [keyword, setKeyword] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [appliedSet, setAppliedSet] = useState<Set<string>>(new Set());
@@ -69,7 +74,6 @@ export function FriendAdd() {
       applyFriend({ to_uid: target.uid, vercode: target.vercode, remark: "" }),
     onSuccess: (_void, target) => {
       setAppliedSet((prev) => new Set(prev).add(target.uid));
-      void qc.invalidateQueries({ queryKey: friendAppliesQueryKey });
       toast.success("好友申请已发出");
     },
     onError: (err) => {

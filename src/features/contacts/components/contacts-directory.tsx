@@ -114,6 +114,33 @@ function indexByLetter(items: ContactItem[]): { letter: string; items: ContactIt
   }));
 }
 
+/**
+ * AI 徽标(对齐旧 dmworkbase/Components/AiBadge):紫色渐变 #7B89F4 → #9D78F5,
+ * 白字 12px / 600,16px 高,圆角 3px。inline style 因为渐变色固定不随主题。
+ */
+function AiBadge() {
+  return (
+    <span
+      style={{ background: "linear-gradient(90deg, #7B89F4 0%, #9D78F5 100%)" }}
+      className="inline-flex h-4 shrink-0 items-center rounded-[3px] px-1 text-[12px] leading-4 font-semibold tracking-[0.02em] text-white"
+    >
+      AI
+    </span>
+  );
+}
+
+/**
+ * 群 tag(对齐旧 .wk-contacts-group-tag):灰底 #E2E3EA + 次要文本色,
+ * font-medium 500,10px,padding 1px 6px。
+ */
+function GroupTag() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-sm bg-bg-elevated px-1.5 text-[10px] leading-4 font-medium text-text-secondary">
+      群
+    </span>
+  );
+}
+
 function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void }) {
   const channel = useMemo(() => new Channel(item.uid, ChannelTypePerson), [item.uid]);
   const roleLabel = item.role && item.role > 0 && item.role <= 2 ? ROLE_LABELS[item.role] : null;
@@ -126,11 +153,7 @@ function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void 
       <ChannelAvatar channel={channel} size={32} title={item.name} />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate text-sm text-text-primary">{item.name}</span>
-        {item.isBot ? (
-          <span className="shrink-0 rounded-sm bg-accent/10 px-1.5 text-[10px] font-semibold text-accent">
-            AI
-          </span>
-        ) : null}
+        {item.isBot ? <AiBadge /> : null}
       </div>
       {roleLabel ? (
         <span
@@ -156,13 +179,8 @@ function GroupRow({ group, onClick }: { group: GroupSummary; onClick: () => void
       <ChannelAvatar channel={channel} size={32} title={group.name} />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate text-sm text-text-primary">{group.name}</span>
-        <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] font-semibold text-text-secondary">
-          群
-        </span>
+        <GroupTag />
       </div>
-      {typeof group.member_count === "number" ? (
-        <span className="shrink-0 text-[11px] text-text-tertiary">{group.member_count}</span>
-      ) : null}
     </button>
   );
 }
@@ -212,25 +230,32 @@ function FilterChips({
   ];
   return (
     <div className="flex shrink-0 items-center gap-1.5 px-4 py-2">
-      {chips.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          onClick={() => onChange(c.id)}
-          className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-            value === c.id
-              ? "bg-brand text-white"
-              : "bg-bg-elevated text-text-secondary hover:bg-bg-hover"
-          }`}
-        >
-          <span>{c.label}</span>
-          {c.count > 0 ? (
-            <span className={value === c.id ? "text-white/80" : "text-text-tertiary"}>
-              {c.count}
-            </span>
-          ) : null}
-        </button>
-      ))}
+      {chips.map((c) => {
+        const active = value === c.id;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onChange(c.id)}
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[13px] leading-none font-medium transition-colors ${
+              active
+                ? "border-brand/20 bg-brand/8 text-brand"
+                : "border-border-default bg-transparent text-text-secondary hover:bg-bg-hover"
+            }`}
+          >
+            <span>{c.label}</span>
+            {c.count > 0 ? (
+              <span
+                className={`text-[11px] font-semibold ${
+                  active ? "text-brand" : "text-text-tertiary"
+                }`}
+              >
+                {c.count}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -333,20 +358,20 @@ export function ContactsDirectory() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 px-3 pt-3 pb-2">
-        <div className="flex items-center gap-2 rounded-md border border-border-default bg-bg-surface px-3 py-1.5 focus-within:border-brand">
-          <SearchIcon size={14} className="text-text-tertiary" />
+        <div className="flex items-center gap-2 rounded-md border-[1.5px] border-transparent bg-bg-elevated px-3 py-1.5 focus-within:border-brand">
+          <SearchIcon size={14} className="shrink-0 text-text-tertiary" />
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索通讯录"
-            className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+            className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
           {keyword ? (
             <button
               type="button"
               onClick={() => setKeyword("")}
               aria-label="清空搜索"
-              className="text-text-tertiary hover:text-text-primary"
+              className="shrink-0 px-0.5 text-base leading-none text-text-tertiary hover:text-text-secondary"
             >
               ×
             </button>
@@ -354,12 +379,12 @@ export function ContactsDirectory() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-y-auto pb-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {searching ? (
           searchContacts.length === 0 && searchGroups.length === 0 ? (
             <EmptyHint icon={<SearchIcon size={24} />} text="没有找到相关联系人" />
           ) : (
-            <>
+            <div className="flex min-h-0 flex-col overflow-y-auto pb-3">
               {searchContacts.length > 0 ? (
                 <section className="flex flex-col">
                   <header className="px-4 py-1 text-[11px] font-semibold text-text-tertiary">
@@ -380,11 +405,15 @@ export function ContactsDirectory() {
                   ))}
                 </section>
               ) : null}
-            </>
+            </div>
           )
         ) : (
           <>
-            <section className="flex flex-col border-b border-border-subtle">
+            <section
+              className={`flex flex-col border-b border-border-subtle ${
+                expanded === "groups" ? "min-h-0" : "shrink-0"
+              }`}
+            >
               <AccordionHeader
                 icon={<UsersRound size={16} />}
                 label="群聊"
@@ -396,7 +425,7 @@ export function ContactsDirectory() {
                 myGroups.length === 0 ? (
                   <EmptyHint icon={<UsersRound size={24} />} text="还没有群聊,去创建一个吧" />
                 ) : (
-                  <div className="flex flex-col pb-2">
+                  <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myGroups.map((g) => (
                       <GroupRow key={g.group_no} group={g} onClick={() => handleGroupClick(g)} />
                     ))}
@@ -405,7 +434,11 @@ export function ContactsDirectory() {
               ) : null}
             </section>
 
-            <section className="flex flex-col border-b border-border-subtle">
+            <section
+              className={`flex flex-col border-b border-border-subtle ${
+                expanded === "myBots" ? "min-h-0" : "shrink-0"
+              }`}
+            >
               <AccordionHeader
                 icon={<Bot size={16} />}
                 label="已添加 AI"
@@ -417,7 +450,7 @@ export function ContactsDirectory() {
                 myBots.length === 0 ? (
                   <EmptyHint icon={<Bot size={24} />} text="还没有添加 AI,去全部联系人里看看" />
                 ) : (
-                  <div className="flex flex-col pb-2">
+                  <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myBots.map((b) => (
                       <ContactRow
                         key={b.uid}
@@ -431,7 +464,13 @@ export function ContactsDirectory() {
             </section>
 
             <section
-              className={`flex flex-col ${useVirtual && expanded === "allContacts" ? "min-h-0 flex-1" : ""}`}
+              className={`flex flex-col ${
+                expanded === "allContacts"
+                  ? useVirtual
+                    ? "min-h-0 flex-1"
+                    : "min-h-0"
+                  : "shrink-0"
+              }`}
             >
               <AccordionHeader
                 icon={<Users size={16} />}
@@ -458,7 +497,7 @@ export function ContactsDirectory() {
                       />
                     </div>
                   ) : (
-                    <div className="flex flex-col pb-2">
+                    <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                       {grouped.map(({ letter, items }) => (
                         <div key={letter} className="flex flex-col">
                           <header className="sticky top-0 bg-bg-base px-4 py-1 text-[11px] font-semibold text-text-tertiary">

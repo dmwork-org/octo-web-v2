@@ -1,7 +1,7 @@
 import { useStore } from "@tanstack/react-store";
 import { X } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
-import { FriendAdd } from "@/features/contacts/components/friend-add";
+import { FriendAddForm } from "@/features/chat/components/friend-add-form";
 
 interface FriendAddModalProps {
   open: boolean;
@@ -13,13 +13,14 @@ interface FriendAddModalProps {
  *
  *   ┌ Header(添加朋友 + X) ┐
  *   ├ 我的短号:{shortNo}    │
- *   ├ FriendAdd 内嵌            │  ← 搜索 + 结果列表 + 加好友按钮
+ *   ├ FriendAddForm 内嵌    │  ← 搜索 + 结果列表 + 加好友按钮
  *   └─────────────────────┘
  *
  * 旧版还有"我的二维码"入口(QRCodeMy),后续 P3+ 再接(需要 user/qrcode API +
  * qrcode.react 渲染)。
  *
- * FriendAdd 本身已包含搜索 + 申请加好友逻辑,本 modal 只提供壳 + 头部 short_no 提示。
+ * FriendAddForm 内含搜索 + 申请加好友逻辑(本期从 contacts 搬到 chat 域 —
+ * 加好友主入口归 chat,contacts/api/friends.api 提供共享 API)。
  */
 export function FriendAddModal({ open, onClose }: FriendAddModalProps) {
   const shortNo = useStore(authStore, (s) => s.user?.short_no ?? "");
@@ -47,7 +48,7 @@ export function FriendAddModal({ open, onClose }: FriendAddModalProps) {
           </div>
         ) : null}
 
-        <FriendAdd />
+        <FriendAddForm />
       </div>
     </div>
   );

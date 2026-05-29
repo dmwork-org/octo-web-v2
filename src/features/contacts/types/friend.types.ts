@@ -1,6 +1,10 @@
 /**
  * Friend(对应后端 /v1/friend/sync 响应 + swagger definitions/friend)。
  * 见 octo-server/modules/user/swagger/friend.yaml:311。
+ *
+ * 本期 contacts 内部无 sub-page 直接消费,Friend 是 API 契约类型,服务于
+ * contacts/api/friends.api.ts + 跨 feature 的 chat friend-add modal /
+ * base modals(user-info / bot-detail / friend-apply)。
  */
 export interface Friend {
   uid: string;

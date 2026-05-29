@@ -5,6 +5,7 @@ import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
+  type MessageContent,
   MessageText,
   type Conversation,
   type Message,
@@ -25,14 +26,11 @@ type ForwardMode = "per" | "merge";
 
 interface ForwardModalProps {
   open: boolean;
-  /** 单条 message 也可以传 [message],对齐多选数组形态。 */
   messages: Message[];
-  /** 调用方决定的默认模式(selection-toolbar 拆按钮后由按钮决定)。 */
   defaultMode?: ForwardMode;
   onClose: () => void;
 }
 
-/** ChannelType 5 = ChannelTypeCommunityTopic(子区);对齐旧 dmworkbase Const.ts。 */
 const CHANNEL_TYPE_THREAD = 5;
 
 const TYPE_LABEL: Record<number, string> = {
@@ -40,6 +38,24 @@ const TYPE_LABEL: Record<number, string> = {
   [ChannelTypeGroup]: "群",
   [CHANNEL_TYPE_THREAD]: "子区",
 };
+
+/**
+ * 深克隆 MessageContent — 复用 src.content 多次 send 会让 WKSDK 把首次发送的
+ * messageID / channel 写回原实例,后续重发被 server 视为重复或目标错乱
+ * (实测"成功但接收方看不到"的根因)。通过 encodeJSON → decodeJSON 重建同
+ * contentType 新实例,等价旧 dmworkbase vm.ts 每次 new Content() 模式。
+ */
+function cloneContent(src: MessageContent): MessageContent {
+  const cloned = WKSDK.shared().getMessageContent(src.contentType);
+  if (!cloned) return src;
+  try {
+    const json = src.encodeJSON();
+    cloned.decodeJSON(json as Record<string, unknown>);
+  } catch {
+    return src;
+  }
+  return cloned;
+}
 
 function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
   const c = new MergeforwardContent();
@@ -70,7 +86,7 @@ function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
   return c;
 }
 
-/** modal 关闭时重置内部 form state — 抽出命名 hook 满足 no-useeffect-in-component。 */
+/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。 */
 function useResetOnClose(open: boolean, reset: () => void): void {
   useEffect(() => {
     if (!open) reset();
@@ -78,13 +94,11 @@ function useResetOnClose(open: boolean, reset: () => void): void {
 }
 
 /**
- * 转发弹窗(选择目标会话 + 留言)。
+ * 转发弹窗:选择目标会话 + 留言。模式由 defaultMode prop 决定(selection-toolbar
+ * 两按钮各自传入),modal 内不显 toggle。
  *
- * 模式由外部 defaultMode 决定(selection-toolbar 拆"逐条 / 合并"两按钮各自传入);
- * modal 内不再显示 toggle,只负责选 target + 发送。
- *
- * 逐条:对每个 target 顺序 send 全部 messages
- * 合并:对每个 target send 1 条 MergeforwardContent
+ * 逐条:对每个 target,逐条 send cloneContent(m.content)
+ * 合并:对每个 target send 1 条 new MergeforwardContent
  */
 export function ForwardModal({ open, messages, defaultMode = "per", onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -129,7 +143,7 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
       } else {
         for (const target of targets) {
           for (const m of messages) {
-            await chat.send(m.content, target);
+            await chat.send(cloneContent(m.content), target);
           }
           if (note) await chat.send(new MessageText(note), target);
         }

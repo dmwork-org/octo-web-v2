@@ -378,8 +378,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   const wrapperBase =
     "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
-  const wrapperHover = selectionActive ? "" : "hover:bg-brand-tint/40";
-  const wrapperSelected = selectionActive && isSelected ? "bg-brand-tint/60" : "";
+  // hover / 选中态色对齐旧 dmworkbase .wk-msg-row(hover rgba(28,28,35,0.04))+
+  // .wk-msg-row--selected(rgba(127,59,245,0.08) 紫 8%)
+  const wrapperHover = selectionActive ? "" : "hover:bg-[rgba(28,28,35,0.04)]";
+  const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
   const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${
     selectionActive ? "cursor-pointer" : ""
   }`;

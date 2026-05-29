@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import type { Channel, Message } from "wukongimjssdk";
-import { CheckSquare, Layers, ListPlus, Share, Trash2, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
@@ -17,18 +16,19 @@ interface SelectionToolbarProps {
 type ForwardMode = "per" | "merge";
 
 /**
- * 多选模式底部浮层(对应截图设计):
+ * 多选模式底部浮层(对齐旧 dmworkbase Conversation.MultiplePanel + .wk-multiplepanel CSS):
  *
- *   ╭─────────────────────────────────────────────────────────╮
- *   │ 逐条转发  合并转发  创建新事项  同步到事项  删除  ✕  │
- *   ╰─────────────────────────────────────────────────────────╯
+ *   ╭ 逐条转发 | 合并转发 | 创建新事项 | 同步到事项 | 删除 | ✕ ╮
  *
- * - fixed bottom 居中,白底胶囊 + shadow
- * - 5 个 action + 1 个关闭 ✕
- * - "创建新事项 / 同步到事项":跨 matter 模块,P3+ 接入 — 本期 console + toast 占位
- * - 转发拆 "逐条 / 合并" 两按钮各自打开 ForwardModal(传 defaultMode)
+ * - 容器:#fff + radius 1000px + shadow + gap 12px + padding 4px 16px
+ * - 按钮:32px 高,padding 6px 16px,radius 100px,14px / 500 / #1c1c23,
+ *   hover bg rgba(28,28,35,0.08);删除按钮 color #FF563B / hover bg
+ *   rgba(255,86,59,0.08)
+ * - 分隔条:1px × 20px,bg rgba(28,28,35,0.15),每按钮间
+ * - 关闭 ✕:28×28 radius 100px,muted color,hover bg
  *
- * 替代 Composer 显示(在 chat-main 内 isSelectionMode 切换)。
+ * "创建新事项 / 同步到事项":跨 matter,P3+ 接入 — 本期 console + toast 占位。
+ * 转发拆 "逐条 / 合并" 两按钮各自打开 ForwardModal(传 defaultMode)。
  */
 export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const qc = useQueryClient();
@@ -106,68 +106,66 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
     toast.info("同步到事项即将接入(matter completion)");
   };
 
-  const baseBtn =
-    "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  const btn =
+    "flex h-8 items-center rounded-full px-4 text-[14px] font-medium leading-none text-[#1c1c23] transition-colors hover:bg-[rgba(28,28,35,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
+  const btnDanger =
+    "flex h-8 items-center rounded-full px-4 text-[14px] font-medium leading-none text-[#FF563B] transition-colors hover:bg-[rgba(255,86,59,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
+  const sep = "h-5 w-px shrink-0 bg-[rgba(28,28,35,0.15)]";
 
   return (
     <>
-      {/* fixed 浮层 — 居中下方,跟 message-list 容器无关 */}
       <div className="pointer-events-none fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
-        <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border-subtle bg-bg-surface px-2 py-1.5 shadow-lg">
+        <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-white px-4 py-1 whitespace-nowrap shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)]">
           <button
             type="button"
             disabled={count === 0}
             onClick={() => openForward("per")}
-            className={`${baseBtn} text-text-primary hover:bg-bg-hover`}
+            className={btn}
           >
-            <Share size={14} />
             逐条转发
           </button>
+          <span className={sep} />
           <button
             type="button"
             disabled={count === 0}
             onClick={() => openForward("merge")}
-            className={`${baseBtn} text-text-primary hover:bg-bg-hover`}
+            className={btn}
           >
-            <Layers size={14} />
             合并转发
           </button>
-          <button
-            type="button"
-            disabled={count === 0}
-            onClick={onCreateMatter}
-            className={`${baseBtn} text-text-primary hover:bg-bg-hover`}
-          >
-            <CheckSquare size={14} />
+          <span className={sep} />
+          <button type="button" disabled={count === 0} onClick={onCreateMatter} className={btn}>
             创建新事项
           </button>
-          <button
-            type="button"
-            disabled={count === 0}
-            onClick={onSyncMatter}
-            className={`${baseBtn} text-text-primary hover:bg-bg-hover`}
-          >
-            <ListPlus size={14} />
+          <span className={sep} />
+          <button type="button" disabled={count === 0} onClick={onSyncMatter} className={btn}>
             同步到事项
           </button>
+          <span className={sep} />
           <button
             type="button"
             disabled={count === 0}
             onClick={() => setConfirmDelete(true)}
-            className={`${baseBtn} text-error hover:bg-error/10`}
+            className={btnDanger}
           >
-            <Trash2 size={14} />
             删除
           </button>
-          <span className="mx-0.5 h-5 w-px bg-border-default" />
+          <span className={sep} />
           <button
             type="button"
             aria-label="退出多选"
             title="退出多选"
             onClick={() => chatSelectionActions.exit()}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
           >
-            <X size={16} />
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <path
+                d="M1 1L13 13M13 1L1 13"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </div>
       </div>

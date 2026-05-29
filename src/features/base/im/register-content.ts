@@ -6,6 +6,10 @@ import { MergeforwardContent } from "@/features/base/im/mergeforward-content";
 import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
 import { VideoContent } from "@/features/base/im/video-content";
 import { VoiceContent } from "@/features/base/im/voice-content";
+import { CardContent } from "@/features/base/im/card-content";
+import { LocationContent } from "@/features/base/im/location-content";
+import { ScreenshotContent } from "@/features/base/im/screenshot-content";
+import { JoinOrganizationContent } from "@/features/base/im/join-organization-content";
 
 /**
  * 注册自定义 MessageContent 子类(SDK 默认只内置 text/image/signalMessage)。
@@ -25,4 +29,11 @@ export function registerContentTypes(): void {
   WKSDK.shared().register(MessageContentTypeConst.smallVideo, () => new VideoContent());
   WKSDK.shared().register(MessageContentTypeConst.mergeForward, () => new MergeforwardContent());
   WKSDK.shared().register(MessageContentTypeConst.threadCreated, () => new ThreadCreatedContent());
+  WKSDK.shared().register(MessageContentTypeConst.card, () => new CardContent());
+  WKSDK.shared().register(MessageContentTypeConst.location, () => new LocationContent());
+  WKSDK.shared().register(MessageContentTypeConst.screenshot, () => new ScreenshotContent());
+  WKSDK.shared().register(
+    MessageContentTypeConst.joinOrganization,
+    () => new JoinOrganizationContent(),
+  );
 }

@@ -27,6 +27,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -472,7 +473,16 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
-      <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openChatProfile(effectiveFromUID(message));
+        }}
+        className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
+      >
+        <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+      </button>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-baseline gap-2 leading-[22px]">
           <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>

@@ -6,6 +6,7 @@ import WKSDK, {
   type MessageText,
 } from "wukongimjssdk";
 import { Fragment, type ReactNode } from "react";
+import { openChatProfile } from "@/features/chat/lib/open-profile";
 
 interface TextRendererProps {
   message: Message;
@@ -14,17 +15,32 @@ interface TextRendererProps {
 /**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
  * brand 色文本 + 浅 brand 底胶囊,@all 用纯 brand 色无背景。
- * 本期点击 noop(P3-A6 接 UserInfoModal / BotDetailModal)。
+ * uid 非空时 click 弹 UserInfoModal / BotDetailModal(经 openChatProfile 判 bot)。
  */
-function MentionTag({ children, isAll }: { children: string; isAll?: boolean }) {
+function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolean; uid?: string }) {
+  const clickable = !isAll && !!uid;
+  if (!clickable) {
+    return (
+      <span
+        className={
+          isAll ? "font-medium text-brand" : "rounded-sm bg-brand/10 px-1 font-medium text-brand"
+        }
+      >
+        {children}
+      </span>
+    );
+  }
   return (
-    <span
-      className={
-        isAll ? "font-medium text-brand" : "rounded-sm bg-brand/10 px-1 font-medium text-brand"
-      }
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        openChatProfile(uid);
+      }}
+      className="cursor-pointer rounded-sm bg-brand/10 px-1 font-medium text-brand hover:bg-brand/20"
     >
       {children}
-    </span>
+    </button>
   );
 }
 
@@ -33,8 +49,8 @@ function MentionTag({ children, isAll }: { children: string; isAll?: boolean }) 
  *
  * 策略:
  * - 拿 mention.uids 各 uid 查 WKSDK channelInfo 拿 title(name 候选)
- * - 文本中精确匹配 `@<name>` 子串包 MentionTag(brand 胶囊)
- * - mention.all=true 时,额外把 `@所有人` / `@all` 高亮(纯 brand 色无背景)
+ * - 文本中精确匹配 `@<name>` 子串包 MentionTag(brand 胶囊,可 click 弹卡)
+ * - mention.all=true 时,额外把 `@所有人` / `@all` 高亮(纯 brand 色无背景,不可 click)
  * - 无匹配则原文返回
  *
  * **不**做"任何 @<word> 都高亮"(避免误识别邮件 / 字面值),只信任 mention 字段。
@@ -44,14 +60,14 @@ function parseTextWithMentions(text: string, mention: Mention | undefined): Reac
   if (!mention || (!mention.uids?.length && !mention.all)) return [text];
 
   // 候选 @<name> 列表(带 @ 前缀,按长度降序避免短名先匹配吃掉长名)
-  const names: { token: string; isAll: boolean }[] = [];
+  const names: { token: string; isAll: boolean; uid?: string }[] = [];
   if (mention.all) {
     names.push({ token: "@所有人", isAll: true }, { token: "@all", isAll: true });
   }
   for (const uid of mention.uids ?? []) {
     const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
     const title = info?.title;
-    if (title) names.push({ token: `@${title}`, isAll: false });
+    if (title) names.push({ token: `@${title}`, isAll: false, uid });
   }
   if (names.length === 0) return [text];
   names.sort((a, b) => b.token.length - a.token.length);
@@ -61,7 +77,7 @@ function parseTextWithMentions(text: string, mention: Mention | undefined): Reac
   let buf = "";
   let i = 0;
   while (i < text.length) {
-    let matched: { token: string; isAll: boolean } | null = null;
+    let matched: { token: string; isAll: boolean; uid?: string } | null = null;
     for (const n of names) {
       if (text.startsWith(n.token, i)) {
         matched = n;
@@ -74,7 +90,7 @@ function parseTextWithMentions(text: string, mention: Mention | undefined): Reac
         buf = "";
       }
       out.push(
-        <MentionTag key={`m-${i}`} isAll={matched.isAll}>
+        <MentionTag key={`m-${i}`} isAll={matched.isAll} uid={matched.uid}>
           {matched.token}
         </MentionTag>,
       );
@@ -90,7 +106,7 @@ function parseTextWithMentions(text: string, mention: Mention | undefined): Reac
 
 /**
  * 文本消息正文(不带气泡 — Slack 风格,头像 + sender 在 MessageRow wrapper 内)。
- * 保留 whitespace-pre-wrap 让换行可见;mention 字段解析高亮(audit-v2 §2.1)。
+ * 保留 whitespace-pre-wrap 让换行可见;mention 字段解析高亮 + click 弹卡(audit-v2 §2.3 + A6)。
  */
 export function TextRenderer({ message }: TextRendererProps) {
   const content = message.content as MessageText;

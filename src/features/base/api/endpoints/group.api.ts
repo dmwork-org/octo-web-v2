@@ -163,6 +163,61 @@ export async function getThread(groupNo: string, shortId: string): Promise<Threa
 }
 
 /**
+ * 子区管理 endpoint(对应旧 dmworkdatasource thread* 系列):
+ *
+ * - PUT    /v1/groups/{groupNo}/threads/{shortId}        改名(body { name })
+ * - POST   /v1/threads/{shortId}/leave                   我离开子区
+ * - DELETE /v1/groups/{groupNo}/threads/{shortId}        解散子区(owner only)
+ * - GET    /v1/groups/{groupNo}/threads/{shortId}/md     子区公告 markdown
+ * - PUT    /v1/groups/{groupNo}/threads/{shortId}/md     更新公告 → { version }
+ * - DELETE /v1/groups/{groupNo}/threads/{shortId}/md     删除公告
+ */
+
+export async function updateThread(
+  groupNo: string,
+  shortId: string,
+  body: { name: string },
+): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`, {
+    method: "PUT",
+    body,
+  });
+}
+
+export async function leaveThread(shortId: string): Promise<void> {
+  await api(`threads/${encodeURIComponent(shortId)}/leave`, { method: "POST" });
+}
+
+export async function deleteThread(groupNo: string, shortId: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getThreadMd(groupNo: string, shortId: string): Promise<GroupMdContent> {
+  return api<GroupMdContent>(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`,
+  );
+}
+
+export async function updateThreadMd(
+  groupNo: string,
+  shortId: string,
+  content: string,
+): Promise<{ version: number }> {
+  return api<{ version: number }>(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`,
+    { method: "PUT", body: { content } },
+  );
+}
+
+export async function deleteThreadMd(groupNo: string, shortId: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`, {
+    method: "DELETE",
+  });
+}
+
+/**
  * 群成员增删 / 管理员晋升降级(对应旧 dmworkdatasource/datasource.ts)。
  *
  * - POST /v1/groups/{groupNo}/members  body: { members: string[] }

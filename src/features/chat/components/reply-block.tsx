@@ -25,7 +25,7 @@ export function ReplyBlock({ reply, onClick }: ReplyBlockProps) {
     <button
       type="button"
       onClick={onClick}
-      className="flex max-w-full cursor-pointer items-stretch gap-2 overflow-hidden rounded-md bg-[rgba(28,28,35,0.04)] px-2 py-1.5 text-left transition-opacity hover:opacity-80"
+      className="flex w-full cursor-pointer items-stretch gap-2 overflow-hidden rounded-md bg-[rgba(28,28,35,0.04)] px-2 py-1.5 text-left transition-opacity hover:opacity-80"
     >
       <span className="w-0.5 shrink-0 self-stretch rounded-[1px] bg-[rgba(28,28,35,0.40)] [min-height:18px]" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">

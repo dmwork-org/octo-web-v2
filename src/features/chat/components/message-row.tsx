@@ -406,7 +406,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   );
 
   const forwardDialog = (
-    <ForwardModal open={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
+    <ForwardModal open={forwardOpen} messages={[message]} onClose={() => setForwardOpen(false)} />
   );
 
   // 子区创建弹窗(对齐旧 Modal.confirm + InputModal):默认名 = digest 前 20 字。

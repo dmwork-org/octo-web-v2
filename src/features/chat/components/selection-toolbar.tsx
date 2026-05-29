@@ -21,15 +21,15 @@ interface SelectionToolbarProps {
  *
  * 替代 Composer 显示。删除走 ConfirmModal 二次确认。
  *
- * 转发简版:逐条转发 ForwardModal(单条)— 旧版 MergeForward(合并转发)
- * 留 P3+ wave。多选超过 1 条时 toast 提示并只转发第一条。
+ * 转发支持多选:多条按时间顺序逐条 send 到每个 target(简化版,接收方看到 N 条
+ * 独立消息)。**合并卡片**(MergeforwardContent wrap 成单卡)留 P3-B2 真正接入。
  */
 export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const qc = useQueryClient();
   const ids = useStore(chatSelectionStore, (s) => s.ids);
   const count = ids.size;
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [forwardOne, setForwardOne] = useState<Message | null>(null);
+  const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
 
   const findMessages = (): Message[] => {
     const data = qc.getQueryData<{ pages: Message[][]; pageParams: unknown[] }>(
@@ -79,10 +79,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const onForward = () => {
     const msgs = findMessages();
     if (msgs.length === 0) return;
-    if (msgs.length > 1) {
-      toast.info("多选合并转发 P3+ 接入,当前只转发第一条");
-    }
-    setForwardOne(msgs[0]);
+    setForwardMessages(msgs);
   };
 
   return (
@@ -132,12 +129,12 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         onCancel={() => setConfirmDelete(false)}
       />
 
-      {forwardOne ? (
+      {forwardMessages.length > 0 ? (
         <ForwardModal
-          open={!!forwardOne}
-          message={forwardOne}
+          open={forwardMessages.length > 0}
+          messages={forwardMessages}
           onClose={() => {
-            setForwardOne(null);
+            setForwardMessages([]);
             chatSelectionActions.exit();
           }}
         />

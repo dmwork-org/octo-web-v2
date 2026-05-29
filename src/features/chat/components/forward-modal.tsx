@@ -17,12 +17,13 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 
 interface ForwardModalProps {
   open: boolean;
-  message: Message;
+  /** 单条 message 也可以传 [message],对齐多选数组形态。 */
+  messages: Message[];
   onClose: () => void;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量,hardcode 7。 */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+/** ChannelType 5 = ChannelTypeCommunityTopic(子区);对齐旧 dmworkbase Const.ts。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 const TYPE_LABEL: Record<number, string> = {
   [ChannelTypePerson]: "私聊",
@@ -35,12 +36,16 @@ const TYPE_LABEL: Record<number, string> = {
  *
  * - 多选当前 Space 的会话(从 conversationsQueryOptions 拿,包含群聊 / DM / 子区)
  * - 底部 textarea 输入"留言"(可选)
- * - 提交流程:对每个 target 先 send(message.content),如有留言再 send(MessageText)
+ * - 多条消息按时间顺序逐条 send 到每个 target;留言最后追加(对齐旧 wave)
  *
- * 旧版完整功能(留 P3+ wave):联系人列表 friend tab、群聊补全合并、搜索 debounce、
+ * 旧版完整功能(P3-B2):**合并转发** — 多条 wrap 成 MergeforwardContent 单卡发送。
+ * 当前简化:多选走"逐条转发"(同 channel 多次 send)— 接收方看到 N 条独立消息
+ * 而非合并卡片。
+ *
+ * 旧版完整功能(P3+ wave):联系人列表 friend tab、群聊补全合并、搜索 debounce、
  * 懒加载 channelInfo VisibilityTrigger。
  */
-export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
+export function ForwardModal({ open, messages, onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leaveMessage, setLeaveMessage] = useState("");
@@ -66,8 +71,11 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
         .map((c) => c.channel);
       const chat = WKSDK.shared().chatManager;
       const note = leaveMessage.trim();
+      // 双层:每个 target 逐条 send 全部 messages(按时间顺序),完了发可选留言。
       for (const target of targets) {
-        await chat.send(message.content, target);
+        for (const m of messages) {
+          await chat.send(m.content, target);
+        }
         if (note) {
           await chat.send(new MessageText(note), target);
         }
@@ -75,7 +83,8 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
     },
     onSuccess: () => {
       const noteSent = leaveMessage.trim().length > 0;
-      toast.success(`已转发到 ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
+      const summary = messages.length > 1 ? `${messages.length} 条消息已转发到` : "已转发到";
+      toast.success(`${summary} ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
       setSelectedIds(new Set());
       setLeaveMessage("");
       onClose();
@@ -104,7 +113,9 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">分享给朋友</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {messages.length > 1 ? `转发 ${messages.length} 条消息` : "分享给朋友"}
+          </h2>
           <button
             type="button"
             onClick={onClose}

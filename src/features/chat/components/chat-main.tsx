@@ -18,7 +18,9 @@ import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
  * - chan  → ChatHeader + MessageList + (selection active ? SelectionToolbar : Composer)
  *
  * 子区列表 panel:chat-header MessagesSquare 按钮(只 group 显示)toggle,
- * panel absolute 浮在右侧覆盖 chat 主区(对应旧 Pages/Chat showThreadPanel)。
+ * panel 作为横向 flex sibling 推挤主区(主区 flex-1 自动 calc 剩余宽度),
+ * 对应旧 Pages/Chat 的 `.wk-chat-content-right.wk-chat-threadpanel-open .wk-chat-content-chat
+ * { width: calc(100% - --wk-width-thread-panel) }` 模式 — 不是 absolute overlay。
  */
 export function ChatMain() {
   const channel = useStore(chatSelectedStore, (s) => s.channel);
@@ -36,19 +38,21 @@ export function ChatMain() {
   const showThreadIcon = channel.channelType === ChannelTypeGroup;
 
   return (
-    <section className="relative flex flex-1 flex-col overflow-hidden">
-      <ChatHeader
-        channel={channel}
-        showThreadIcon={showThreadIcon}
-        threadPanelOpen={threadPanelOpen}
-        onToggleThreadPanel={() => setThreadPanelOpen((v) => !v)}
-      />
-      <MessageList channel={channel} />
-      {selectionActive ? (
-        <SelectionToolbar channel={channel} />
-      ) : (
-        <Composer key={`${channel.channelID}_${channel.channelType}`} channel={channel} />
-      )}
+    <div className="flex flex-1 overflow-hidden">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <ChatHeader
+          channel={channel}
+          showThreadIcon={showThreadIcon}
+          threadPanelOpen={threadPanelOpen}
+          onToggleThreadPanel={() => setThreadPanelOpen((v) => !v)}
+        />
+        <MessageList channel={channel} />
+        {selectionActive ? (
+          <SelectionToolbar channel={channel} />
+        ) : (
+          <Composer key={`${channel.channelID}_${channel.channelType}`} channel={channel} />
+        )}
+      </section>
       {showThreadIcon ? (
         <ThreadListPanel
           open={threadPanelOpen}
@@ -56,6 +60,6 @@ export function ChatMain() {
           onClose={() => setThreadPanelOpen(false)}
         />
       ) : null}
-    </section>
+    </div>
   );
 }

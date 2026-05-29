@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Ban, Bookmark, UserPlus, Users } from "lucide-react";
 import { BotfatherBanner } from "@/features/contacts/components/botfather-banner";
 import { ContactsDirectory } from "@/features/contacts/components/contacts-directory";
@@ -7,6 +6,7 @@ import { FriendAdd } from "@/features/contacts/components/friend-add";
 import { BlacklistPage } from "@/features/contacts/components/blacklist";
 import { SavedGroupsPage } from "@/features/contacts/components/saved-groups";
 import { ChatMain } from "@/features/chat/components/chat-main";
+import { Route } from "@/routes/_auth.contacts";
 
 type SubPage = "directory" | "applies" | "add" | "blacklist" | "saved-groups";
 
@@ -36,9 +36,16 @@ const PAGE_TITLE: Record<SubPage, string> = {
  *
  * 顶部入口 4 个 icon:新朋友(Users)/ 加好友(UserPlus)/ 黑名单(Ban)/
  * 保存的群(Bookmark)。子页内左上"返回"回 directory。
+ *
+ * URL `?sub={page}` 持久化选中子页,刷新保留 + 链接可分享。
  */
 export function ContactsView() {
-  const [page, setPage] = useState<SubPage>("directory");
+  const { sub: page } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const goSub = (sub: SubPage) => {
+    void navigate({ search: (prev) => ({ ...prev, sub }) });
+  };
 
   const renderBody = () => {
     switch (page) {
@@ -73,7 +80,7 @@ export function ContactsView() {
                 type="button"
                 aria-label="新朋友"
                 title="新朋友"
-                onClick={() => setPage("applies")}
+                onClick={() => goSub("applies")}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <Users size={16} />
@@ -82,7 +89,7 @@ export function ContactsView() {
                 type="button"
                 aria-label="加好友"
                 title="加好友"
-                onClick={() => setPage("add")}
+                onClick={() => goSub("add")}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <UserPlus size={16} />
@@ -91,7 +98,7 @@ export function ContactsView() {
                 type="button"
                 aria-label="黑名单"
                 title="黑名单"
-                onClick={() => setPage("blacklist")}
+                onClick={() => goSub("blacklist")}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <Ban size={16} />
@@ -100,7 +107,7 @@ export function ContactsView() {
                 type="button"
                 aria-label="保存的群"
                 title="保存的群"
-                onClick={() => setPage("saved-groups")}
+                onClick={() => goSub("saved-groups")}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <Bookmark size={16} />
@@ -109,7 +116,7 @@ export function ContactsView() {
           ) : (
             <button
               type="button"
-              onClick={() => setPage("directory")}
+              onClick={() => goSub("directory")}
               className="text-xs text-text-secondary hover:text-text-primary"
             >
               返回

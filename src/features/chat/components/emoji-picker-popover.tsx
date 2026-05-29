@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { EMOJI_LIST, emojiImageUrl } from "@/features/chat/lib/emoji-data";
 
 interface EmojiPickerPopoverProps {
@@ -31,20 +32,11 @@ function useClickOutside(
 /**
  * Emoji 面板(对应旧 dmworkbase Components/EmojiToolbar EmojiPanel,1:1 复刻):
  *
- * 旧版 css 关键尺寸(EmojiToolbar/index.css):
- *   .wk-emojitoolbar-emojipanel: max-width 460px / height 372px / radius 0.75rem
- *   .wk-emojipanel-tab: height 40px(底部 tab 条)
- *   .wk-emojipanel-content: 余下 332px,overflow-y auto
- *   .wk-emojipanel-content ul: flex-wrap + padding 13px + margin-left 8px(无固定列数)
- *   li: padding 6px 4px;img: 28×28
+ * - emoji 网格 + 顶部 search 框(过滤 emoji.key 子串)
+ * - tab 区目前只有 emoji 一个(sticker 分类 P3+ 接 commonDataSource)
  *
- * 数据 = EMOJI_LIST(152 unicode + 3 自家 custom token,顺序对齐旧 EmojiService.ts);
- * 资源 = `/emoji/${name}.png`(225 个 png 整目录从旧 web/public/emoji/ 拷过来)。
- *
- * tab 区:目前只有 emoji 一个 tab(选中态白底),sticker 分类 P3+ 接 commonDataSource
- * .userStickerCategory 时再补,占位保持视觉一致。
- *
- * 不做(P3+):sticker 分类 / 最近使用 / custom token 在消息体内替换回 png(走 renderer)。
+ * 资源 = EMOJI_LIST(152 unicode + 3 自家 custom token,顺序对齐旧 EmojiService.ts);
+ * png = `/emoji/${name}.png`(225 个从旧 web/public/emoji/ 拷过来)。
  */
 export function EmojiPickerPopover({
   open,
@@ -53,6 +45,13 @@ export function EmojiPickerPopover({
   onClose,
 }: EmojiPickerPopoverProps) {
   useClickOutside(containerRef, onClose, open);
+  const [keyword, setKeyword] = useState("");
+
+  const filtered = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return EMOJI_LIST;
+    return EMOJI_LIST.filter((e) => e.key.toLowerCase().includes(kw));
+  }, [keyword]);
 
   if (!open) return null;
   return (
@@ -60,41 +59,57 @@ export function EmojiPickerPopover({
       className="absolute bottom-full left-0 z-50 mb-2 flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-lg"
       style={{ width: 460, height: 372 }}
     >
-      {/* emoji 网格区(372 - 40 = 332px) */}
-      <div className="flex-1 overflow-y-auto">
-        <ul
-          role="listbox"
-          aria-label="表情"
-          className="flex flex-wrap"
-          style={{ padding: "13px", marginLeft: "8px" }}
-        >
-          {EMOJI_LIST.map((emoji) => (
-            <li key={emoji.name} style={{ padding: "6px 4px" }}>
-              <button
-                type="button"
-                title={emoji.key}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelect(emoji.key);
-                }}
-                className="cursor-pointer rounded-md transition-transform hover:scale-110"
-              >
-                <img
-                  src={emojiImageUrl(emoji.name)}
-                  alt={emoji.key}
-                  width={28}
-                  height={28}
-                  style={{ width: 28, height: 28, objectFit: "contain", display: "block" }}
-                  loading="lazy"
-                  draggable={false}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
+      {/* 顶部 search 框(audit-v2 §2.4 emoji 搜索) */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-bg-elevated px-3 py-2">
+        <Search size={14} className="shrink-0 text-text-tertiary" />
+        <input
+          type="text"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="搜索表情"
+          className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
+        />
       </div>
-
-      {/* tab 条 — 当前只有 emoji,选中态白底(对齐旧 .wk-emojipanel-tab-item-selected) */}
+      {/* emoji 网格区(剩余高度) */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">
+            没有匹配的表情
+          </div>
+        ) : (
+          <ul
+            role="listbox"
+            aria-label="表情"
+            className="flex flex-wrap"
+            style={{ padding: "13px", marginLeft: "8px" }}
+          >
+            {filtered.map((emoji) => (
+              <li key={emoji.name} style={{ padding: "6px 4px" }}>
+                <button
+                  type="button"
+                  title={emoji.key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(emoji.key);
+                  }}
+                  className="cursor-pointer rounded-md transition-transform hover:scale-110"
+                >
+                  <img
+                    src={emojiImageUrl(emoji.name)}
+                    alt={emoji.key}
+                    width={28}
+                    height={28}
+                    style={{ width: 28, height: 28, objectFit: "contain", display: "block" }}
+                    loading="lazy"
+                    draggable={false}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {/* tab 条 — 当前只有 emoji,sticker tab P3+ 接 sticker.api 时再补 */}
       <div
         className="flex shrink-0 overflow-x-auto overflow-y-hidden border-t border-border-subtle bg-bg-elevated"
         style={{ height: 40 }}

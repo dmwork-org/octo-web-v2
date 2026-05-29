@@ -4,6 +4,7 @@ import WKSDK, {
   ChannelTypePerson,
   MessageContentType,
   type ChannelInfoListener,
+  type Reply,
   type Message,
   type MessageImage,
   type MessageText,
@@ -26,12 +27,14 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
+import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatReplyActions } from "@/features/chat/stores/chat-reply";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
@@ -375,8 +378,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   const wrapperBase =
     "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
-  const wrapperHover = selectionActive ? "" : "hover:bg-brand-tint/40";
-  const wrapperSelected = selectionActive && isSelected ? "bg-brand-tint/60" : "";
+  // hover / 选中态色对齐旧 dmworkbase .wk-msg-row(hover rgba(28,28,35,0.04))+
+  // .wk-msg-row--selected(rgba(127,59,245,0.08) 紫 8%)
+  const wrapperHover = selectionActive ? "" : "hover:bg-[rgba(28,28,35,0.04)]";
+  const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
   const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${
     selectionActive ? "cursor-pointer" : ""
   }`;
@@ -404,7 +409,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   );
 
   const forwardDialog = (
-    <ForwardModal open={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
+    <ForwardModal open={forwardOpen} messages={[message]} onClose={() => setForwardOpen(false)} />
   );
 
   // 子区创建弹窗(对齐旧 Modal.confirm + InputModal):默认名 = digest 前 20 字。
@@ -445,6 +450,11 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           {formatTime(message.timestamp)}
         </div>
         <div className="relative min-w-0 flex-1 py-0.5">
+          {(message.content as { reply?: Reply }).reply ? (
+            <div className="mb-1">
+              <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+            </div>
+          ) : null}
           <MessageDispatch message={message} />
           {isSelf ? (
             <div className="pointer-events-auto absolute right-0 -bottom-1">
@@ -465,12 +475,24 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
-      <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openChatProfile(effectiveFromUID(message));
+        }}
+        className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
+      >
+        <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+      </button>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-baseline gap-2 leading-[22px]">
           <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
           <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
         </header>
+        {(message.content as { reply?: Reply }).reply ? (
+          <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+        ) : null}
         <MessageDispatch message={message} />
         {isSelf ? (
           <div className="pointer-events-auto absolute right-0 -bottom-1">

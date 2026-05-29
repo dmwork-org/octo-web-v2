@@ -10,6 +10,10 @@ import { VideoRenderer } from "@/features/chat/message-renderers/video-renderer"
 import { MergeforwardRenderer } from "@/features/chat/message-renderers/mergeforward-renderer";
 import { ThreadCreatedRenderer } from "@/features/chat/message-renderers/thread-created-renderer";
 import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-renderer";
+import { CardRenderer } from "@/features/chat/message-renderers/card-renderer";
+import { LocationRenderer } from "@/features/chat/message-renderers/location-renderer";
+import { ScreenshotRenderer } from "@/features/chat/message-renderers/screenshot-renderer";
+import { JoinOrganizationRenderer } from "@/features/chat/message-renderers/join-organization-renderer";
 
 /**
  * 按 contentType 分发到具体 renderer。
@@ -43,6 +47,14 @@ export function MessageDispatch({ message }: { message: Message }) {
       return <VideoRenderer message={message} />;
     case MessageContentTypeConst.mergeForward:
       return <MergeforwardRenderer message={message} />;
+    case MessageContentTypeConst.card:
+      return <CardRenderer message={message} />;
+    case MessageContentTypeConst.location:
+      return <LocationRenderer message={message} />;
+    case MessageContentTypeConst.screenshot:
+      return <ScreenshotRenderer message={message} />;
+    case MessageContentTypeConst.joinOrganization:
+      return <JoinOrganizationRenderer message={message} />;
     case MessageContentTypeConst.threadCreated:
       return <ThreadCreatedRenderer message={message} />;
   }

@@ -1,8 +1,24 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, type Conversation, ChannelTypeGroup } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, Hash, Pin, PinOff, Star, Trash2, X } from "lucide-react";
+import WKSDK, {
+  Channel,
+  type Conversation,
+  ChannelTypeGroup,
+  ChannelTypePerson,
+} from "wukongimjssdk";
+import {
+  BellOff,
+  BellRing,
+  Eye,
+  FolderInput,
+  Hash,
+  Pin,
+  PinOff,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -14,9 +30,16 @@ import {
   deleteConversation,
 } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
-import { unfollowChannel } from "@/features/base/api/endpoints/follow.api";
+import {
+  followDM,
+  moveGroupToCategory,
+  unfollowChannel,
+} from "@/features/base/api/endpoints/follow.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { categoriesQueryKey } from "@/features/chat/queries/categories.query";
+import {
+  categoriesQueryKey,
+  categoriesQueryOptions,
+} from "@/features/chat/queries/categories.query";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -312,6 +335,33 @@ export function ConversationList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "取消关注失败"),
   });
 
+  // 关注 DM(对齐旧 FollowService.followDM,把 person 加到关注 tab 默认分组)
+  const followDmMu = useMutation({
+    mutationFn: (peerUid: string) => followDM(peerUid, null),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+      toast.success("已关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "关注失败"),
+  });
+
+  // 移动群到分组(对齐旧 CategoryService.moveGroupToCategory)
+  const moveCatMu = useMutation({
+    mutationFn: (args: { groupNo: string; categoryId: string }) =>
+      moveGroupToCategory(args.groupNo, args.categoryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+      toast.success("已移动");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "移动失败"),
+  });
+
+  // 分组列表(给"移动到分组"子菜单用)— 关注 tab 同款 query
+  const categoriesQ = useQuery({
+    ...categoriesQueryOptions(spaceId),
+    enabled: !!spaceId,
+  });
+
   // ─── Right-click menu ──────────────────────────────────
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
@@ -324,6 +374,7 @@ export function ConversationList({
     const isMuted = !!conv.channelInfo?.mute;
     const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
     const isGroup = conv.channel.channelType === ChannelTypeGroup;
+    const isPerson = conv.channel.channelType === ChannelTypePerson;
 
     if (conv.unread > 0) {
       items.push({
@@ -342,9 +393,35 @@ export function ConversationList({
       icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
       onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
-    // 取消关注:仅群消息(DM/子区 follow API 不同,P3+ 一并补)
+
+    if (isPerson) {
+      items.push({ separator: true });
+      items.push({
+        label: "关注此人",
+        icon: <Star size={13} />,
+        onClick: () => followDmMu.mutate(conv.channel.channelID),
+      });
+    }
+
     if (isGroup) {
       items.push({ separator: true });
+      // 移动到分组 — 二级子菜单列各 category(对齐旧 ContextMenu.moveToCategory)
+      const cats = categoriesQ.data ?? [];
+      const groupNo = conv.channel.channelID;
+      const moveChildren: ContextMenuItem[] = cats.map((cat) => ({
+        label: cat.name,
+        onClick: () => {
+          if (!cat.category_id) return;
+          moveCatMu.mutate({ groupNo, categoryId: cat.category_id });
+        },
+      }));
+      if (moveChildren.length > 0) {
+        items.push({
+          label: "移动到分组",
+          icon: <FolderInput size={13} />,
+          children: moveChildren,
+        });
+      }
       items.push({
         label: "取消关注",
         icon: <Star size={13} />,

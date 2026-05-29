@@ -1,9 +1,11 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
+  Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
+  type MessageContent,
   MessageText,
   type Conversation,
   type Message,
@@ -14,15 +16,22 @@ import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import {
+  MergeforwardContent,
+  type MergeforwardInnerMsg,
+  type MergeforwardUser,
+} from "@/features/base/im/mergeforward-content";
+
+type ForwardMode = "per" | "merge";
 
 interface ForwardModalProps {
   open: boolean;
-  message: Message;
+  messages: Message[];
+  defaultMode?: ForwardMode;
   onClose: () => void;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量,hardcode 7。 */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+const CHANNEL_TYPE_THREAD = 5;
 
 const TYPE_LABEL: Record<number, string> = {
   [ChannelTypePerson]: "私聊",
@@ -31,19 +40,82 @@ const TYPE_LABEL: Record<number, string> = {
 };
 
 /**
- * 转发弹窗(对应旧 dmworkbase Components/ForwardModal 精简版):
+ * 深克隆 MessageContent — 复用 src.content 多次 send 会让 WKSDK 把首次发送的
+ * messageID / channel 写回原实例,后续重发被 server 视为重复或目标错乱
+ * (实测"成功但接收方看不到"的根因)。通过 encode → decode 重建同 contentType
+ * 新实例,等价旧 dmworkbase vm.ts 每次 new Content() 模式。
  *
- * - 多选当前 Space 的会话(从 conversationsQueryOptions 拿,包含群聊 / DM / 子区)
- * - 底部 textarea 输入"留言"(可选)
- * - 提交流程:对每个 target 先 send(message.content),如有留言再 send(MessageText)
- *
- * 旧版完整功能(留 P3+ wave):联系人列表 friend tab、群聊补全合并、搜索 debounce、
- * 懒加载 channelInfo VisibilityTrigger。
+ * **必须用 encode/decode(Uint8Array)而非 encodeJSON/decodeJSON** —
+ * SDK MessageContent.encode 在 base class 把 mention/reply 元字段也拼进 wire
+ * JSON,encodeJSON 只输出子类 content 字段(content/url/...),走 encodeJSON
+ * 路径会让 @mention / 引用消息字段丢失。
  */
-export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
+function cloneContent(src: MessageContent): MessageContent {
+  const cloned = WKSDK.shared().getMessageContent(src.contentType);
+  if (!cloned) return src;
+  try {
+    cloned.decode(src.encode());
+  } catch {
+    return src;
+  }
+  return cloned;
+}
+
+function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
+  const c = new MergeforwardContent();
+  c.channelType = sourceMessages[0]?.channel.channelType ?? 0;
+  const seen = new Set<string>();
+  const users: MergeforwardUser[] = [];
+  for (const m of sourceMessages) {
+    if (!m.fromUID || seen.has(m.fromUID)) continue;
+    seen.add(m.fromUID);
+    const info = WKSDK.shared().channelManager.getChannelInfo(
+      new Channel(m.fromUID, ChannelTypePerson),
+    );
+    users.push({ uid: m.fromUID, name: info?.title || m.fromUID });
+  }
+  c.users = users;
+  c.msgs = sourceMessages.map((m): MergeforwardInnerMsg => {
+    const contentObj = (m.content as { contentObj?: Record<string, unknown> }).contentObj;
+    const json = contentObj
+      ? { ...contentObj, type: m.contentType }
+      : { ...m.content.encodeJSON(), type: m.contentType };
+    return {
+      message_id: m.messageID,
+      from_uid: m.fromUID,
+      timestamp: m.timestamp,
+      payload: json as MergeforwardInnerMsg["payload"],
+    };
+  });
+  return c;
+}
+
+/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。 */
+function useResetOnClose(open: boolean, reset: () => void): void {
+  useEffect(() => {
+    if (!open) reset();
+  }, [open, reset]);
+}
+
+/**
+ * 转发弹窗:选择目标会话 + 留言。模式由 defaultMode prop 决定(selection-toolbar
+ * 两按钮各自传入),modal 内不显 toggle。
+ *
+ * 逐条:对每个 target,逐条 send cloneContent(m.content)
+ * 合并:对每个 target send 1 条 new MergeforwardContent
+ */
+export function ForwardModal({ open, messages, defaultMode = "per", onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leaveMessage, setLeaveMessage] = useState("");
+
+  useResetOnClose(open, () => {
+    setSelectedIds(new Set());
+    setLeaveMessage("");
+  });
+
+  const isMulti = messages.length > 1;
+  const mode: ForwardMode = isMulti ? defaultMode : "per";
 
   const { data: conversations } = useQuery({
     ...conversationsQueryOptions(spaceId),
@@ -66,18 +138,26 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
         .map((c) => c.channel);
       const chat = WKSDK.shared().chatManager;
       const note = leaveMessage.trim();
-      for (const target of targets) {
-        await chat.send(message.content, target);
-        if (note) {
-          await chat.send(new MessageText(note), target);
+      if (mode === "merge") {
+        for (const target of targets) {
+          const mf = buildMergeforward(messages);
+          await chat.send(mf, target);
+          if (note) await chat.send(new MessageText(note), target);
+        }
+      } else {
+        for (const target of targets) {
+          for (const m of messages) {
+            await chat.send(cloneContent(m.content), target);
+          }
+          if (note) await chat.send(new MessageText(note), target);
         }
       }
     },
     onSuccess: () => {
       const noteSent = leaveMessage.trim().length > 0;
-      toast.success(`已转发到 ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
-      setSelectedIds(new Set());
-      setLeaveMessage("");
+      const modeLabel = isMulti ? (mode === "merge" ? "合并" : "逐条") : "";
+      const summary = isMulti ? `${modeLabel}转发 ${messages.length} 条消息到` : "已转发到";
+      toast.success(`${summary} ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
       onClose();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "转发失败"),
@@ -100,11 +180,15 @@ export function ForwardModal({ open, message, onClose }: ForwardModalProps) {
     mu.mutate();
   };
 
+  const headerTitle = isMulti
+    ? `${mode === "merge" ? "合并" : "逐条"}转发 ${messages.length} 条消息`
+    : "分享给朋友";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">分享给朋友</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{headerTitle}</h2>
           <button
             type="button"
             onClick={onClose}

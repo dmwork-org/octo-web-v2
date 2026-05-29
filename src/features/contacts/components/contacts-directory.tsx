@@ -114,6 +114,33 @@ function indexByLetter(items: ContactItem[]): { letter: string; items: ContactIt
   }));
 }
 
+/**
+ * AI 徽标(对齐旧 dmworkbase/Components/AiBadge):紫色渐变 #7B89F4 → #9D78F5,
+ * 白字 12px / 600,16px 高,圆角 3px。inline style 因为渐变色固定不随主题。
+ */
+function AiBadge() {
+  return (
+    <span
+      style={{ background: "linear-gradient(90deg, #7B89F4 0%, #9D78F5 100%)" }}
+      className="inline-flex h-4 shrink-0 items-center rounded-[3px] px-1 text-[12px] leading-4 font-semibold tracking-[0.02em] text-white"
+    >
+      AI
+    </span>
+  );
+}
+
+/**
+ * 群 tag(对齐旧 .wk-contacts-group-tag):灰底 #E2E3EA + 次要文本色,
+ * font-medium 500,10px,padding 1px 6px。
+ */
+function GroupTag() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-sm bg-bg-elevated px-1.5 text-[10px] leading-4 font-medium text-text-secondary">
+      群
+    </span>
+  );
+}
+
 function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void }) {
   const channel = useMemo(() => new Channel(item.uid, ChannelTypePerson), [item.uid]);
   const roleLabel = item.role && item.role > 0 && item.role <= 2 ? ROLE_LABELS[item.role] : null;
@@ -126,11 +153,7 @@ function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void 
       <ChannelAvatar channel={channel} size={32} title={item.name} />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate text-sm text-text-primary">{item.name}</span>
-        {item.isBot ? (
-          <span className="shrink-0 rounded-sm bg-accent/10 px-1.5 text-[10px] font-semibold text-accent">
-            AI
-          </span>
-        ) : null}
+        {item.isBot ? <AiBadge /> : null}
       </div>
       {roleLabel ? (
         <span
@@ -156,13 +179,8 @@ function GroupRow({ group, onClick }: { group: GroupSummary; onClick: () => void
       <ChannelAvatar channel={channel} size={32} title={group.name} />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate text-sm text-text-primary">{group.name}</span>
-        <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] font-semibold text-text-secondary">
-          群
-        </span>
+        <GroupTag />
       </div>
-      {typeof group.member_count === "number" ? (
-        <span className="shrink-0 text-[11px] text-text-tertiary">{group.member_count}</span>
-      ) : null}
     </button>
   );
 }

@@ -237,3 +237,27 @@ IC 进 session 第一件事:**别按 matter task-list 节奏来**,先把 commit 
 | —   | ❌ 取消                   | 原 commit 7 structure-lint 白名单(D-3 决策:不查跨 feature import)             |
 
 详见 [`audit.md`](./audit.md) "修正后的真实 commit 计划" + [`decisions.md`](./decisions.md) D-1 ~ D-5。
+
+---
+
+## 二次修订(D-6 反转后实际 10 commit)
+
+跑 dev server 视觉验收发现"旧版 contacts 页面根本没 header 和 4 入口" → D-6 大反转 → 实际 10 commit:
+
+| 真实 commit | 主题                                                                           |
+| ----------- | ------------------------------------------------------------------------------ |
+| 142ac2f     | `docs(p3-contacts): spec 三件套`                                               |
+| cba80ff     | `chore(contacts): commit 0 audit`                                              |
+| 131a9e9     | `feat(contacts): friend-list 改用 base/lib/pinyin-bucket`                      |
+| 6c7efb8     | `feat(contacts): sub-page 改 URL state (?sub=...)`(后被 D-6 移除)              |
+| eff8449     | `feat(contacts): 路由 loader 预热 directory 4 个 query`                        |
+| e064011     | `chore(contacts): D-1~D-5 决策 + MANIFEST 扩写 + final lint`(阶段性,后被反转)  |
+| 1f99c13     | `refactor(contacts): 砍 sub-page + header — 对齐截图`(**D-6 反转**,1491 → 727) |
+| c760651     | `feat(contacts): 视觉对齐截图 — BotFather / 搜索 / chips`(D-8)                 |
+| 6a9a23c     | `fix(chat): friend-add-modal 砍后失效`(D-6 跨 feature 修复)                    |
+| f258947     | `fix(contacts): 手风琴展开占满剩余 + 段内滚动`(D-7 起手)                       |
+| c0b785d     | `fix(contacts): 段按内容高自适应 + 超出滚动`(D-7 完成)                         |
+| 47094b2     | `fix(contacts): 群 row 删 member_count + AI/群 徽标对齐`(D-8 完成)             |
+| (本)        | `chore(contacts): D-6~D-8 决策 + 全套文档同步代码 + final lint`                |
+
+完整决策反转脉络见 [`decisions.md`](./decisions.md) D-6/D-7/D-8。

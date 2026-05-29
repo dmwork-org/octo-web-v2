@@ -1,38 +1,30 @@
 # contacts feature
 
-> 通讯录(原 dmworkcontacts):好友列表 + 申请 + 黑名单 + 保存的群 + AI 推荐 + 全员/AI/群 3 段目录。
+> 通讯录(原 dmworkcontacts):**精简版** — 主目录(BotFather + 搜索 + 三段手风琴),无 sub-page。
 >
-> P1 阶段:占位 view。**P3 阶段(本期)**:audit + 补差(详见 [`.specify/specs/p3-contacts/`](../../../.specify/specs/p3-contacts/))。
+> P1 阶段:占位 view。**P3 阶段(本期)**:audit + 砍冗余 + 视觉对齐(详见 [`.specify/specs/p3-contacts/`](../../../.specify/specs/p3-contacts/))。
 
-## 结构
+## 结构(本期完成态,830 行)
 
 ```
 contacts/
-├── api/                          contacts 独占业务域(参 P3-matter D-2)
-│   ├── friends.api.ts              /v1/friend/{sync,search,apply,remark} + /v1/friends/:uid
-│   └── friend-applies.api.ts       /v1/friend/{apply,sure} + /v1/user/reddot/friendApply
-├── queries/                      queryOptions 工厂(staleTime 已配)
-│   ├── friends.query.ts            好友列表 sync(30 min staleTime)
-│   ├── friend-applies.query.ts     新好友申请(60s staleTime)
+├── api/
+│   └── friends.api.ts              applyFriend / setUserRemark / deleteFriend / searchFriends
+│                                   (仅服务跨模块消费者 — chat friend-add-form + base modals)
+├── queries/
 │   └── directory.query.ts          spaceMembers / myBots / spaceBots / myGroups(5 min staleTime)
 ├── types/
-│   ├── friend.types.ts             Friend(含 vercode 透传)
-│   └── friend-apply.types.ts       FriendApply
+│   └── friend.types.ts             Friend(API 契约,跨 feature 复用)
 ├── components/
-│   ├── contacts-directory.tsx      主目录:3 段手风琴(群/AI/全部)+ 拼音分组(base/lib/pinyin-bucket)
-│   ├── friend-list.tsx             首字分组好友列表 + 搜索
-│   ├── friend-applies.tsx          新朋友申请 + 接受/删除/清红点
-│   ├── friend-add.tsx              搜索 + 发申请(Friend.vercode 透传)
-│   ├── blacklist.tsx               黑名单
-│   ├── saved-groups.tsx            保存的群
-│   └── botfather-banner.tsx        AI 推荐入口卡
+│   ├── contacts-directory.tsx      主目录:3 段手风琴 + 拼音分组 + 搜索 + AiBadge/GroupTag
+│   └── botfather-banner.tsx        AI 推荐入口卡(渐变 #7C5CFC → #00D4AA)
 └── views/
-    └── contacts.view.tsx           中列 sub-page 切换(URL state ?sub=...)+ 右列 ChatMain
+    └── contacts.view.tsx           BotFather + Directory + ChatMain 3 段
 ```
 
 ## 路由
 
-- `/_auth/contacts?sub={directory|applies|add|blacklist|saved-groups}` — 单一路由 + URL search state
+- `/_auth/contacts` — 无 URL search state(D-6 决策后 sub-page 全砍)
 - loader 机会主义预热 directory 4 个 query(spaceId 缺失则跳过)
 
 ## 复用 base
@@ -43,24 +35,37 @@ contacts/
 | `api/endpoints/space.api.ts`     | spaceMembers                                                |
 | `api/endpoints/robot.api.ts`     | myBots / spaceBots                                          |
 | `api/endpoints/group.api.ts`     | myGroups                                                    |
-| `api/endpoints/blacklist.api.ts` | blacklist                                                   |
+| `api/endpoints/blacklist.api.ts` | (无直接消费,user-info-modal 间接)                           |
 | `api/endpoints/user.api.ts`      | 用户兜底                                                    |
 | `lib/pinyin-bucket.ts`           | 拼音首字母分桶(`bucketLetter` + `sortLetters`)              |
 | `stores/space.ts`                | 当前 spaceId                                                |
 | `stores/auth.ts`                 | 当前 uid                                                    |
 
-## 跨 feature 耦合(已存在,P4+ 解)
+## 跨 feature 出口(API 由 contacts 提供,UI 由消费者拥有)
 
-10 处 `@/features/chat` import,详见 [`audit.md`](../../../.specify/specs/p3-contacts/audit.md) 跨 feature import 真实清单:
+- `applyFriend` / `searchFriends` ← `chat/components/friend-add-form.tsx`(加好友主入口,对齐旧 `chatmenus.addfriend`)
+- `applyFriend` ← `features/base/components/modals/{friend-apply,bot-detail}-modal.tsx`
+- `setUserRemark` / `deleteFriend` ← `features/base/components/modals/user-info-modal.tsx`
+- `Friend` 类型 ← 上述全部
+- `directory.query` 的 `spaceMembersQueryOptions` ← `chat/components/{add-members,create-group}-modal.tsx`、`matter/components/{member,assignee}-picker.tsx`、`summary/components/participant-picker.tsx`
 
-- `ChannelAvatar` × 8 — 头像渲染
-- `chatSelectedActions` × 2 — 点联系人/AI 开对话
-- `ChatMain` × 1 — 右栏复用
+## 跨 feature 入口(contacts 消费 chat,P4+ 解)
 
-P4+ 做"通讯录详情面板"时一并解;`scripts/structure-lint.ts` 不查跨 feature import,本期纯文档化(详见 [`decisions.md`](../../../.specify/specs/p3-contacts/decisions.md) D-3)。
+3 类 10 处 chat 引用,详见 [`audit.md`](../../../.specify/specs/p3-contacts/audit.md):
 
-## P3+ 留项
+- `ChannelAvatar` — 头像渲染(P4+ 抽 base)
+- `chatSelectedActions` — 点联系人 / AI 开对话(P4+ 改事件总线 / router)
+- `ChatMain` — 右栏复用(P4+ 替换为"通讯录详情面板")
 
-- ❌ Organizational(企业组织树)— 业务确认前不做
-- ❌ 联系人详情字段编辑(改备注 / 群信息)— 强耦合 chat 写路径
-- ❌ 子区(thread)列表入口 — 属 chat 域
+## 已砍(D-6 决策,P3+ 不规划重做除非新需求)
+
+- ❌ 新朋友 / 黑名单 / 保存的群 / 加好友 sub-page UI — 旧版 contactsHeaders() 是 dead endpoint,本期已对齐
+- ❌ Organizational(企业组织树)
+- ❌ 联系人详情字段编辑
+
+## 视觉关键决策
+
+- BotFather banner:固定渐变 `#7C5CFC → #00D4AA 135deg`(inline style,不随主题色)
+- AI 徽标:`linear-gradient(90deg, #7B89F4 0%, #9D78F5 100%)` 白字 12px/600(对齐旧 AiBadge)
+- 群 tag:`bg-elevated` + `text-secondary` font-medium 10px(对齐旧 `.wk-contacts-group-tag`)
+- 手风琴展开:按内容自适应 + 超出时段内滚动(`flex-shrink: 1` + `min-h-0` + `overflow-y-auto`,详见 decisions D-7)

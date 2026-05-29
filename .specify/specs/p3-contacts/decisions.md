@@ -90,13 +90,95 @@
 
 ## 提交结构
 
-5 commit 在 `refactor/p3-contacts` 分支累积,最后开 1 个 MR 回 `main`:
+13 commit 在 `refactor/p3-contacts` 分支累积,最后开 1 个 MR 回 `main`:
 
-| Commit | 主题                                                                          |
-| ------ | ----------------------------------------------------------------------------- |
-| 0      | `docs(p3-contacts): spec 三件套(spec / api-mapping / task-list)`              |
-| 0      | `chore(contacts): commit 0 audit — 现有代码 vs 旧 dmworkcontacts 对位`        |
-| 1      | `feat(contacts): friend-list 改用 base/lib/pinyin-bucket`                     |
-| 2      | `feat(contacts): sub-page 改 URL state (?sub=...)`                            |
-| 3      | `feat(contacts): 路由 loader 预热 directory 4 个 query`                       |
-| 4      | `chore(contacts): D-1~D-5 决策 + MANIFEST 扩写 + task-list 同步 + final lint` |
+| Commit                                                              | 主题                          |
+| ------------------------------------------------------------------- | ----------------------------- |
+| `docs(p3-contacts): spec 三件套`                                    | 起手定计划                    |
+| `chore(contacts): commit 0 audit`                                   | 反向修订真相                  |
+| `feat(contacts): friend-list 改用 base/lib/pinyin-bucket`           | 唯一拼音违规修齐              |
+| `feat(contacts): sub-page 改 URL state (?sub=...)`                  | (D-6 决策后 URL schema 移除)  |
+| `feat(contacts): 路由 loader 预热 directory 4 个 query`             | 4 query 并行 RTT 折叠         |
+| `chore(contacts): D-1~D-5 决策 + MANIFEST 扩写 + final lint`        | 阶段性收尾(后被 D-6 反转)     |
+| `refactor(contacts): 砍 sub-page + header`                          | **D-6 反转**:1491 → 727 行    |
+| `feat(contacts): 视觉对齐截图 — BotFather / 搜索框 / chips`         | 截图比对(D-8 起手)            |
+| `fix(chat): friend-add-modal 砍后失效`                              | **D-6 落实**:加好友搬 chat 域 |
+| `fix(contacts): 手风琴展开占满剩余高度 + 段内滚动`                  | **D-7** layout                |
+| `fix(contacts): 展开段按内容高自适应 + 超出时段内滚动`              | **D-7** 完成版                |
+| `fix(contacts): 群 row 删 member_count + AI/群 徽标对齐旧版`        | **D-8** 视觉细节完成          |
+| `chore(contacts): D-6~D-8 决策 + 全套文档同步代码现状 + final lint` | 本 commit                     |
+
+---
+
+## D-6 视觉验证后大反转:砍 sub-page 整套 + 加好友搬 chat 域
+
+**背景**:D-1~D-5 收尾后用户启动 dev server 走 6 条手动验收,对照旧 dmworkcontacts 截图发现:**旧项目 contacts 页面 UI 上根本没有 header 和 4 入口按钮**。
+
+进一步追溯旧源码(`dmworkcontacts/src/module.tsx`):
+
+| 旧入口                     | 注册位置                                                     | 真实 UI 渲染                                                                  |
+| -------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 新朋友 / 黑名单 / 保存的群 | `WKApp.endpoints.registerContactsHeader(...)`                | ❌ **dead endpoint** — `EndpointCommon.tsx contactsHeaders()` 全项目 0 调用点 |
+| 加好友                     | `WKApp.shared.chatMenusRegister("chatmenus.addfriend", ...)` | ✅ chat 右上 "+" 号 `<ChatMenusPopover>`(`dmworkbase/Pages/Chat/index.tsx`)   |
+
+**决策**:**砍 sub-page 整套**(组件 + URL schema)+ **加好友 UI 搬 chat 域**:
+
+- 删 10 文件:`friend-applies` / `friend-add` / `blacklist` / `saved-groups` / `friend-list` 组件 + `friend-applies` / `friends` queries + `friend-applies` api + `friend-apply` types
+- `contacts.view.tsx` -95 行:删 header + 4 icon + sub-page 切换,只留 BotFather + ContactsDirectory + ChatMain
+- `_auth.contacts.tsx`:去 `contactsSearchSchema` / `validateSearch`
+- 留 `friends.api.ts` 3 函数(`applyFriend` / `setUserRemark` / `deleteFriend`),只服务 base modals
+- 加好友:`chat/components/friend-add-modal.tsx` 内嵌已存在 — 把原 `FriendAdd` 搬到 `chat/components/friend-add-form.tsx`(chat-local 归属);恢复 `searchFriends` API + `Friend` 类型供共享
+
+**理由**:
+
+- 旧版没有的 UI 入口,新版也不应该自造,否则跟"对齐设计"原则相悖
+- friend-add-modal 本来就存在于 chat 域,加好友是 chat 域功能(对齐旧 `chatmenus.addfriend`),contacts 这边砍 UI 后,API 留在 contacts/api(D-2 域归属:API 在 contacts,UI 在消费 feature)
+- 1491 → 830 行(-44%),大量 dead UI 代码移除,维护负担降低
+
+**模板原则**(供 summary / appbot 参考):**audit 阶段没启动 dev server 时,基于 grep + 旧源对位的判断不可靠**;视觉验证轮次必须包含"旧版 vs 新版逐功能对照",发现"旧版本来就没这功能"时立刻砍,**不要为已废弃的旧 API 注册槽位维持 UI**。
+
+**遗漏教训**:commit 1f99c13 砍 `friend-add.tsx` 时只 grep 了 contacts 内引用,**漏查跨 feature**(chat 那边 friend-add-modal),导致 chat 整模块崩。后续删跨 feature 暴露的组件,**必须先 grep 全仓库引用**。
+
+## D-7 手风琴 layout:one-expanded 自适应 + 段内 overflow
+
+**背景**:首版用单一外层 `overflow-y-auto` 容纳三段,群聊多时(19+ 项)整列表撑高,搜索框上方被推走。中间版本改 `flex-1` 强拉满展开段,导致内容少时段内底部留白(截图 #3 反馈)。
+
+**最终决策**:**展开段按内容自然高,只在内容超出可用空间时被 flex parent 压扁并启用段内 overflow scroll**。
+
+CSS 模式:
+
+```
+parent: flex flex-col min-h-0 flex-1 overflow-hidden
+  折叠段: shrink-0(只 header 高)
+  展开段: flex flex-col min-h-0(去 flex-1,默认 flex-shrink: 1)
+    内部 list div: flex flex-col overflow-y-auto pb-2(去 flex-1)
+  搜索结果区: flex flex-col min-h-0 overflow-y-auto pb-3
+```
+
+**唯一例外**:全部联系人段 `useVirtual`(>100 联系人)时保留 `flex-1` — 虚拟列表必须有 measurable height 才能算 visible window;>100 场景拉满合理。
+
+**行为**:
+
+- AI 9 项 → 段 ~440px 自然高,下方紧贴下一折叠 header
+- 群聊 19+ 项超出剩余 → 段被压扁,段内自滚
+- 折叠段紧贴展开段尾,parent 底部空白属正常 layout
+
+**模板原则**:**"按内容自适应 + 超出时滚动"= `flex-shrink: 1 + min-height: 0 + overflow-y-auto`,不要默认 `flex-1` — 后者强拉满,反而违反自适应需求**。
+
+## D-8 徽标视觉:对齐旧版 dmworkbase 组件
+
+**背景**:首版 AI 徽标用 `bg-accent/10 text-accent`(浅紫底深紫字),旧版 `dmworkbase/Components/AiBadge` 是**紫色渐变白字**(`linear-gradient(90deg, #7B89F4 0%, #9D78F5 100%)`)— 方向完全相反。群 tag 用 `font-semibold` 偏粗,旧 `.wk-contacts-group-tag` 是 `font-weight: 500`。群 row 我加了 `member_count` 数字,旧版**根本不显示数字**。
+
+**决策**:
+
+- 抽 `AiBadge` 组件:inline style 紫渐变 + 白字 12px/600 16px 高 `rounded-[3px]` `tracking-[0.02em]`,完全对位旧 `.ai-badge-default`
+- 抽 `GroupTag` 组件:`bg-elevated` + `text-secondary` font-medium 10px padding 1px 6px,对位旧 `.wk-contacts-group-tag`
+- 群 row 删 `member_count` 渲染
+
+**理由**:
+
+- "对齐截图" 不只视觉色彩,还包括字号 / 字重 / 圆角 / padding 这些细节
+- 旧版本来没显示数字,新版加上属于"自造功能"违反对齐原则
+- AI 徽标渐变色固定不随主题(白字保证可读性),用 inline style 而非 Tailwind 主题色
+
+**模板原则**:**视觉细节对齐时,inline style 适合"固定品牌色 / 渐变"等不随主题变的场景;主题色 / 半透明叠加用 Tailwind 类**。后续 summary / appbot 用到类似徽标,直接抽到 `features/base/components/` 共享。

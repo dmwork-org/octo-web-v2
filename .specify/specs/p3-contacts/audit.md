@@ -117,3 +117,36 @@ commit 0 顺手把 `api-mapping.md` 的 friend/sync method 标 GET(spec 写 POST
 - 上面 5 commit 计划 vs 原 9 commit:**4 个 commit 砍掉了**(query factory / vercode / structure-lint 白名单 / Organizational P3+ 已无需 commit)— 是否同意?
 - commit 6 视觉对齐留 IC 启动 dev server 肉眼对比再决定,合理?
 - audit 是否需要再深一层(比如跑 dev server 走 6 条手动验收看是否 baseline 已通,若已通则进一步简化)?
+
+---
+
+## 实施期 epilogue(commit 4 收尾后,user 跑 dev 验证回反)
+
+audit 阶段(无运行时观察)断言 "保留现有 sub-page 4 入口,补差 + 改 URL state",**完全错了** — user 启动 dev server 走视觉验收时发现旧版 dmworkcontacts UI 根本没有 header 和 4 入口,4 个 sub-page 在旧版要么是 dead endpoint(新朋友 / 黑名单 / 保存的群)要么挪到 chat 菜单(加好友)。
+
+**真实实施轨迹**(10 commit 而非 audit 设想的 5):
+
+| Commit  | 主题                                         | 性质                                              |
+| ------- | -------------------------------------------- | ------------------------------------------------- |
+| 142ac2f | docs spec 三件套                             | 起手                                              |
+| cba80ff | commit 0 audit                               | 本文档                                            |
+| 131a9e9 | friend-list 接 pinyin-bucket                 | audit 第 #3 真实违规                              |
+| 6c7efb8 | sub-page URL state                           | audit 第 #1 违规(后被 D-6 反转,sub-page 整套砍除) |
+| eff8449 | 路由 loader 预热                             | audit 第 #2 违规                                  |
+| e064011 | D-1~D-5 决策 + MANIFEST + final lint         | 阶段性收尾(后被 D-6 反转)                         |
+| 1f99c13 | **refactor: 砍 sub-page + header**           | **D-6 反转**:1491 → 727 行                        |
+| c760651 | 视觉对齐 BotFather / 搜索 / chips            | D-8 起手                                          |
+| 6a9a23c | **fix: chat friend-add-modal 砍后失效**      | D-6 落实疏漏修复(跨 feature grep 漏查)            |
+| f258947 | fix: 手风琴段展开占满剩余 + 段内滚动         | D-7 起手                                          |
+| c0b785d | fix: 段按内容高自适应 + 超出滚动             | D-7 完成                                          |
+| 47094b2 | fix: 群 row 删 member_count + AI/群 徽标对齐 | D-8 完成                                          |
+| (本)    | D-6~D-8 决策 + 全套文档同步代码 + final lint | 真正收尾                                          |
+
+**最终基线**:1491 → 830 行(-44%),`pnpm check` 0 errors / 5 warnings(预存在 useMemo dep),`pnpm structure-lint` 0 violations。
+
+**audit 阶段教训**(供后续 feature 参考):
+
+1. **没启动 dev server 不要断言"功能保留"** — UI 入口是否真实存在,只能视觉验证;凭代码 grep + 旧源文件名映射不可靠
+2. **删跨 feature 暴露的组件必须先全仓库 grep 引用** — commit 1f99c13 漏查导致 chat 整模块崩,有 6a9a23c 修复成本
+3. **flex layout 自适应 + 滚动需要正确 CSS 心智** — D-7 经历了 3 个 commit 才稳定,正确模式是 `flex-shrink: 1 + min-height: 0 + overflow-y-auto`,不要默认 `flex-1`
+4. **视觉对齐"细节"包括字号 / 字重 / 圆角 / padding,不只是色彩** — D-8 抽 AiBadge / GroupTag 时才意识到旧 dmworkbase 已有专门组件

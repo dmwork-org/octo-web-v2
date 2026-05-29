@@ -1,5 +1,7 @@
 import { matterApi } from "./matter-client";
 import type {
+  ExtractMatterReq,
+  ExtractResult,
   ActivityEntry,
   AddTimelineReq,
   CreateMatterReq,
@@ -103,4 +105,18 @@ export async function listActivities(
   return matterApi<PaginatedList<ActivityEntry>>(`/matters/${matterId}/activities`, {
     query: params,
   });
+}
+
+// ─── Extract(AI 智能创建,对应旧 dmworktodo extractMatter)──────
+
+/**
+ * 从一组聊天消息抽取并创建事项(对应旧 dmworktodo/api/todoApi.ts:243):
+ * POST /matters/extract  body: ExtractMatterReq → ExtractResult
+ *
+ * 后端接收 chat msgs(message_id / from_uid / content / attachments)+ source
+ * channel,LLM 抽取后**直接创建一条 matter 记录**返回 id;前端可立即跳详情
+ * 编辑(title/description 由 AI 填,通常需要 user 二次确认 / 修改 → 走 updateMatter)。
+ */
+export async function extractMatter(req: ExtractMatterReq): Promise<ExtractResult> {
+  return matterApi<ExtractResult>("/matters/extract", { method: "POST", body: req });
 }

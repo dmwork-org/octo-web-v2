@@ -5,6 +5,7 @@ import type { Channel, Message } from "wukongimjssdk";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
+import { SmartCreateModal } from "@/features/matter/components/smart-create-modal";
 import { deleteMessages as deleteMessagesApi } from "@/features/base/api/endpoints/message.api";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
@@ -36,6 +37,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const count = ids.size;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
+  const [smartCreateMessages, setSmartCreateMessages] = useState<Message[]>([]);
   const [forwardMode, setForwardMode] = useState<ForwardMode>("per");
 
   const findMessages = (): Message[] => {
@@ -93,9 +95,8 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   /** 创建新事项(matter completion 阶段接入 — 本期 console + toast P3+)。 */
   const onCreateMatter = () => {
     const msgs = findMessages();
-    // eslint-disable-next-line no-console
-    console.log("[chat] 创建新事项 click(P3+ 跨 matter feature)", { count: msgs.length, msgs });
-    toast.info("创建新事项即将接入(matter completion)");
+    if (msgs.length === 0) return;
+    setSmartCreateMessages(msgs);
   };
 
   /** 同步到事项(matter completion 阶段接入)。 */
@@ -186,6 +187,16 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         defaultMode={forwardMode}
         onClose={() => {
           setForwardMessages([]);
+          chatSelectionActions.exit();
+        }}
+      />
+
+      <SmartCreateModal
+        open={smartCreateMessages.length > 0}
+        channel={channel}
+        messages={smartCreateMessages}
+        onClose={() => {
+          setSmartCreateMessages([]);
           chatSelectionActions.exit();
         }}
       />

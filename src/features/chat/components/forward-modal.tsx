@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
+  Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
   MessageText,
@@ -14,6 +15,11 @@ import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import {
+  MergeforwardContent,
+  type MergeforwardInnerMsg,
+  type MergeforwardUser,
+} from "@/features/base/im/mergeforward-content";
 
 interface ForwardModalProps {
   open: boolean;
@@ -31,24 +37,64 @@ const TYPE_LABEL: Record<number, string> = {
   [CHANNEL_TYPE_THREAD]: "子区",
 };
 
+type ForwardMode = "per" | "merge";
+
 /**
- * 转发弹窗(对应旧 dmworkbase Components/ForwardModal 精简版):
+ * Build MergeforwardContent from selected messages(对齐旧 vm.ts:555 sendMergeforward):
+ * - channelType = 源 channel.channelType(取第一个 message)
+ * - users = msgs.fromUID 去重 + WKSDK channelInfo title
+ * - msgs = raw inner payload(message_id / from_uid / timestamp / payload contentObj)
+ *
+ * 注意 inner payload 需要 type 字段(后端 / 接收方按 type 选 renderer):用
+ * `{ ...encodeJSON(), type: contentType }` 拼回。content.contentObj 可能是 raw
+ * 解码缓存,优先用它(对齐旧 messageToMap)。
+ */
+function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
+  const c = new MergeforwardContent();
+  c.channelType = sourceMessages[0]?.channel.channelType ?? 0;
+  const seen = new Set<string>();
+  const users: MergeforwardUser[] = [];
+  for (const m of sourceMessages) {
+    if (!m.fromUID || seen.has(m.fromUID)) continue;
+    seen.add(m.fromUID);
+    const info = WKSDK.shared().channelManager.getChannelInfo(
+      new Channel(m.fromUID, ChannelTypePerson),
+    );
+    users.push({ uid: m.fromUID, name: info?.title || m.fromUID });
+  }
+  c.users = users;
+  c.msgs = sourceMessages.map((m): MergeforwardInnerMsg => {
+    const contentObj = (m.content as { contentObj?: Record<string, unknown> }).contentObj;
+    const json = contentObj
+      ? { ...contentObj, type: m.contentType }
+      : { ...m.content.encodeJSON(), type: m.contentType };
+    return {
+      message_id: m.messageID,
+      from_uid: m.fromUID,
+      timestamp: m.timestamp,
+      payload: json as MergeforwardInnerMsg["payload"],
+    };
+  });
+  return c;
+}
+
+/**
+ * 转发弹窗(对应旧 dmworkbase Components/ForwardModal):
  *
  * - 多选当前 Space 的会话(从 conversationsQueryOptions 拿,包含群聊 / DM / 子区)
- * - 底部 textarea 输入"留言"(可选)
- * - 多条消息按时间顺序逐条 send 到每个 target;留言最后追加(对齐旧 wave)
+ * - 模式 toggle:多于 1 条消息时显示「逐条 / 合并」单选,默认合并
+ *   - 逐条:对每个 target 顺序 send 全部 messages
+ *   - 合并:对每个 target send 1 条 MergeforwardContent(对齐旧 vm.ts sendMergeforward)
+ * - 底部 textarea 可选留言(模式无关,作为额外 MessageText 发)
  *
- * 旧版完整功能(P3-B2):**合并转发** — 多条 wrap 成 MergeforwardContent 单卡发送。
- * 当前简化:多选走"逐条转发"(同 channel 多次 send)— 接收方看到 N 条独立消息
- * 而非合并卡片。
- *
- * 旧版完整功能(P3+ wave):联系人列表 friend tab、群聊补全合并、搜索 debounce、
- * 懒加载 channelInfo VisibilityTrigger。
+ * 旧 ForwardModal 完整版 UI(左右两列)留 P4+ — 本期先聚焦模式选择 + 真合并构造。
  */
 export function ForwardModal({ open, messages, onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leaveMessage, setLeaveMessage] = useState("");
+  const [mode, setMode] = useState<ForwardMode>("merge");
+  const isMulti = messages.length > 1;
 
   const { data: conversations } = useQuery({
     ...conversationsQueryOptions(spaceId),
@@ -71,19 +117,27 @@ export function ForwardModal({ open, messages, onClose }: ForwardModalProps) {
         .map((c) => c.channel);
       const chat = WKSDK.shared().chatManager;
       const note = leaveMessage.trim();
-      // 双层:每个 target 逐条 send 全部 messages(按时间顺序),完了发可选留言。
-      for (const target of targets) {
-        for (const m of messages) {
-          await chat.send(m.content, target);
+      if (isMulti && mode === "merge") {
+        // 合并:每个 target 发 1 条 MergeforwardContent
+        for (const target of targets) {
+          const mf = buildMergeforward(messages);
+          await chat.send(mf, target);
+          if (note) await chat.send(new MessageText(note), target);
         }
-        if (note) {
-          await chat.send(new MessageText(note), target);
+      } else {
+        // 逐条:每个 target 顺序 send 全部 messages
+        for (const target of targets) {
+          for (const m of messages) {
+            await chat.send(m.content, target);
+          }
+          if (note) await chat.send(new MessageText(note), target);
         }
       }
     },
     onSuccess: () => {
       const noteSent = leaveMessage.trim().length > 0;
-      const summary = messages.length > 1 ? `${messages.length} 条消息已转发到` : "已转发到";
+      const modeLabel = isMulti ? (mode === "merge" ? "合并" : "逐条") : "";
+      const summary = isMulti ? `${modeLabel}转发 ${messages.length} 条消息到` : "已转发到";
       toast.success(`${summary} ${selectedIds.size} 个会话${noteSent ? "(附带留言)" : ""}`);
       setSelectedIds(new Set());
       setLeaveMessage("");
@@ -114,7 +168,7 @@ export function ForwardModal({ open, messages, onClose }: ForwardModalProps) {
       <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
           <h2 className="text-sm font-semibold text-text-primary">
-            {messages.length > 1 ? `转发 ${messages.length} 条消息` : "分享给朋友"}
+            {isMulti ? `转发 ${messages.length} 条消息` : "分享给朋友"}
           </h2>
           <button
             type="button"
@@ -127,6 +181,36 @@ export function ForwardModal({ open, messages, onClose }: ForwardModalProps) {
         </header>
 
         <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+          {isMulti ? (
+            <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle bg-bg-elevated px-5 py-2">
+              <span className="text-xs text-text-secondary">转发方式</span>
+              <div className="flex items-center gap-1 rounded-md bg-bg-surface p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMode("merge")}
+                  className={`rounded px-3 py-1 text-xs transition-colors ${
+                    mode === "merge"
+                      ? "bg-bg-elevated text-text-primary font-medium"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  合并转发
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("per")}
+                  className={`rounded px-3 py-1 text-xs transition-colors ${
+                    mode === "per"
+                      ? "bg-bg-elevated text-text-primary font-medium"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  逐条转发
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
             已选 {selectedIds.size} 个
           </div>

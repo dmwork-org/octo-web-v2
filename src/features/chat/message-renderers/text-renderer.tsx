@@ -19,15 +19,10 @@ interface TextRendererProps {
  */
 function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolean; uid?: string }) {
   const clickable = !isAll && !!uid;
+  const base = "inline-flex items-center rounded px-2 py-0.5 font-medium text-brand";
   if (!clickable) {
     return (
-      <span
-        className={
-          isAll ? "font-medium text-brand" : "rounded-sm bg-brand/10 px-1 font-medium text-brand"
-        }
-      >
-        {children}
-      </span>
+      <span className={isAll ? "font-medium text-brand" : `${base} bg-brand/10`}>{children}</span>
     );
   }
   return (
@@ -37,7 +32,7 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
         e.stopPropagation();
         openChatProfile(uid);
       }}
-      className="cursor-pointer rounded-sm bg-brand/10 px-1 font-medium text-brand hover:bg-brand/20"
+      className={`${base} cursor-pointer bg-brand/10 hover:bg-brand/20`}
     >
       {children}
     </button>

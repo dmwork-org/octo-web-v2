@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Channel } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { InputModal } from "@/features/base/components/modals/input-modal";
@@ -70,7 +70,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     onSuccess: () => {
       invalidate();
       setCreateOpen(false);
-      toast.success("已创建");
+      toast.success("子区创建成功");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
   });
@@ -122,10 +122,14 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
         />
       ) : null}
 
+      {/* 创建子区 modal — 文案对齐旧 ThreadPanel handleCreateThread:
+            title=创建子区 / label=话题名称 / placeholder=输入讨论话题... / okText=创建 */}
       <InputModal
         open={createOpen}
-        title="新建子区"
-        placeholder="输入子区名称"
+        title="创建子区"
+        label="话题名称"
+        placeholder="输入讨论话题..."
+        okText="创建"
         validate={(v) => v.trim().length > 0}
         okLoading={createMu.isPending}
         onOk={(name) => {
@@ -376,8 +380,10 @@ function DetailView({
       <InputModal
         open={renameOpen}
         title="编辑子区名称"
+        label="话题名称"
         placeholder="输入子区名称"
         initialValue={thread.name}
+        okText="保存"
         validate={(v) => v.trim().length > 0 && v.trim() !== thread.name}
         okLoading={renameMu.isPending}
         onOk={(name) => {
@@ -487,7 +493,7 @@ function ThreadItem({
   onClick: () => void;
 }) {
   const hasUnread = (thread.unread_count ?? 0) > 0;
-  const creatorName = thread.creator_name ?? "未知";
+  const creatorName = getCreatorName(thread);
   const lastSender = thread.last_message_sender_name ?? "";
   const lastContent = thread.last_message_content ?? "";
 
@@ -521,6 +527,23 @@ function ThreadItem({
       )}
     </div>
   );
+}
+
+/**
+ * 创建人名称解析(1:1 复刻 ThreadPanel line 967-978 getCreatorName)
+ * 1. thread.creator_name 直接用
+ * 2. 否则查 channelManager 的 personal channelInfo.title
+ * 3. fallback uid → "未知"
+ */
+function getCreatorName(thread: ThreadRaw): string {
+  if (thread.creator_name) return thread.creator_name;
+  if (thread.creator_uid) {
+    const info = WKSDK.shared().channelManager.getChannelInfo(
+      new Channel(thread.creator_uid, ChannelTypePerson),
+    );
+    return info?.title || thread.creator_uid;
+  }
+  return "未知";
 }
 
 /**

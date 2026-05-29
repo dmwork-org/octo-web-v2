@@ -3,13 +3,16 @@ import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { useMutation } from "@tanstack/react-query";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { toast } from "@/components/semi-bridge/toast";
-import { MoreHorizontal, Search, Star } from "lucide-react";
+import { MoreHorizontal, MessagesSquare, Search, Star } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 interface ChatHeaderProps {
+  showThreadIcon?: boolean;
+  threadPanelOpen?: boolean;
+  onToggleThreadPanel?: () => void;
   channel: Channel;
 }
 
@@ -55,7 +58,12 @@ function useChannelInfoLive(channel: Channel) {
  *
  * 接受 channel 而非 conversation:contacts 选人也共用此 header。
  */
-export function ChatHeader({ channel }: ChatHeaderProps) {
+export function ChatHeader({
+  channel,
+  showThreadIcon,
+  threadPanelOpen,
+  onToggleThreadPanel,
+}: ChatHeaderProps) {
   const channelInfo = useChannelInfoLive(channel);
   const isThreadCh = isThread(channel);
   const parsed = isThreadCh ? parseThreadChannelId(channel.channelID) : null;
@@ -116,6 +124,17 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
         >
           <Search size={18} />
         </button>
+        {showThreadIcon ? (
+          <button
+            type="button"
+            aria-label="子区列表"
+            title="子区"
+            onClick={onToggleThreadPanel}
+            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${threadPanelOpen ? "bg-bg-elevated text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
+          >
+            <MessagesSquare size={18} />
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label="更多"

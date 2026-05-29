@@ -42,7 +42,7 @@ export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
     >
       <div className="line-clamp-2 text-[14px] leading-[22px] text-text-primary">{previewText}</div>
       <div className="flex items-center gap-4 text-[12px]">
-        <span className="truncate text-brand">
+        <span className="truncate text-[#7f3bf5]">
           🧵 {c.thread_name}
           {messageCount > 0 ? `·${messageCount} 条回复` : ""}
         </span>

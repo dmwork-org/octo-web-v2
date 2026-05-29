@@ -404,3 +404,24 @@ export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise
     method: "DELETE",
   });
 }
+
+/**
+ * 群下的子区列表(对应旧 dmworkdatasource threadList):
+ * GET /v1/groups/{groupNo}/threads?page_index&page_size → { list: ThreadRaw[] }
+ *
+ * 用于 chat-header 子区按钮弹出的子区面板列表。
+ */
+export interface ThreadListParams {
+  page_index?: number;
+  page_size?: number;
+}
+
+export async function listThreads(
+  groupNo: string,
+  params?: ThreadListParams,
+): Promise<ThreadRaw[]> {
+  const resp = await api<{ list?: ThreadRaw[] }>(`groups/${encodeURIComponent(groupNo)}/threads`, {
+    query: params,
+  });
+  return resp?.list ?? [];
+}

@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/nancy/Desktop/workspace/octo/refactor-2/octo-web/.codex/hooks/pre-tool-use.sh'",
+            "timeout": 30,
+            "statusMessage": "pre-check (structure + vp)..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/nancy/Desktop/workspace/octo/refactor-2/octo-web/.codex/hooks/stop.sh'",
+            "timeout": 60,
+            "statusMessage": "wiki-lint + structure-lint + harness-health..."
+          }
+        ]
+      }
+    ]
+  }
+}

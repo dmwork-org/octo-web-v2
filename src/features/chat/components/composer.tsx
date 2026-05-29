@@ -24,6 +24,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Maximize2,
+  Minimize2,
   Mic,
   MicOff,
   Paperclip,
@@ -235,6 +236,7 @@ function formatRecordTime(sec: number): string {
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const replyingTo = useStore(chatReplyStore, (s) => selectReplyForChannel(s, channel));
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -551,7 +553,7 @@ export function Composer({ channel }: ComposerProps) {
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="relative flex w-full min-h-10 cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary"
+        className={`relative flex w-full cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary ${expanded ? "min-h-[280px]" : "min-h-10"}`}
       >
         {/* Reply 引用条 — 对齐旧 .wk-replyview-new */}
         {replyingTo ? (
@@ -588,7 +590,7 @@ export function Composer({ channel }: ComposerProps) {
 
         {/* 单行布局(对齐旧版):editor 占满,工具栏靠右。无 Send 按钮(Enter 直发) */}
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
+          <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
             <EditorContent editor={editor} />
           </div>
 
@@ -677,15 +679,15 @@ export function Composer({ channel }: ComposerProps) {
                 <ChevronDown size={14} />
               </button>
             </div>
-            {/* ⤢ 展开输入框(P3+ 全屏编辑模式,占位) */}
+            {/* ⤢ 展开输入框 — 切高(B) */}
             <button
               type="button"
-              onClick={() => toast.info("展开输入框即将接入(P3+)")}
-              aria-label="展开"
-              title="展开"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "收起" : "展开"}
+              title={expanded ? "收起" : "展开"}
               className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
-              <Maximize2 size={18} />
+              {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
           </div>
         </div>

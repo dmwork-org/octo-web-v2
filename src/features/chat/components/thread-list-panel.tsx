@@ -2,18 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel } from "wukongimjssdk";
-import { LogOut, Trash2, UserPlus, X } from "lucide-react";
-import { Button } from "@/components/semi-bridge/button";
+import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
-import { authStore } from "@/features/base/stores/auth";
-import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { ThreadIcon } from "@/components/ui/thread-icon";
+import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import {
   createThreadByName,
-  deleteThread,
-  joinThread,
-  leaveThread,
   listThreads,
   type ThreadRaw,
 } from "@/features/base/api/endpoints/group.api";
@@ -25,32 +20,33 @@ interface ThreadListPanelProps {
   onClose: () => void;
 }
 
-/** ThreadStatus(对齐旧 Service/Thread):1=活跃 / 2=归档 / 3=删除。 */
 const THREAD_STATUS_ACTIVE = 1;
-/** ChannelType 5 = ChannelTypeCommunityTopic。 */
 const CHANNEL_TYPE_THREAD = 5;
 
 /**
- * 子区列表 panel(对齐旧 dmworkbase Components/ThreadList,1:1 复刻):
+ * 子区列表 panel(对齐截图高保真设计):
  *
- *   ┌────────────────────────────────────┐
- *   │ 子区列表          [新建子区] [✕]   │
- *   ├────────────────────────────────────┤
- *   │ ┃#┃ thread name  [已加入]   [icon] │ ← hover 出 join/leave/delete
- *   │ ┃ ┃ N 人 · 创建于 X                │
- *   └────────────────────────────────────┘
+ *   ┌──────────────────────────────────┐
+ *   │  ⫷ 子区                       ✕  │
+ *   ├──────────────────────────────────┤
+ *   │ ┌──────────────────────────────┐ │
+ *   │ │      + 新建子区              │ │ ← 全宽 dashed 紫色按钮
+ *   │ └──────────────────────────────┘ │
+ *   │  ▼ 活跃中                        │ ← 折叠分组
+ *   │  ┌────────────────────────────┐  │
+ *   │  │ dev-...        2026/5/13   │
+ *   │  │ 18 条回复 · 参与 3 人 · X… │
+ *   │  │ 许建文: @开发 还是不行哦   │
+ *   │  └────────────────────────────┘  │
+ *   └──────────────────────────────────┘
  *
- * - Filter status === Active(1),归档/删除不显示
- * - 加入(未加入显示主色按钮)/ 离开(已加入显示三级)/ 删除(creator only,
- *   hover 出 danger icon)
- * - 顶部"新建子区"打开 InputModal,createThreadByName 提交
- * - 列表 click → 进子区(buildThreadChannelId)
+ * 操作(加入/离开/解散)入口进子区后走 channel-setting-modal,本 panel 无 hover actions。
  */
 export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps) {
   const qc = useQueryClient();
-  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [createOpen, setCreateOpen] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<ThreadRaw | null>(null);
+  const [activeOpen, setActiveOpen] = useState(true);
+  const selectedChannel = useStore(chatSelectedStore, (s) => s.channel);
 
   const queryKey = ["chat", "thread-list", groupNo];
   const { data, isLoading, error } = useQuery({
@@ -72,92 +68,91 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
   });
 
-  const joinMu = useMutation({
-    mutationFn: (shortId: string) => joinThread(shortId),
-    onSuccess: () => {
-      invalidate();
-      toast.success("已加入");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "加入失败"),
-  });
-
-  const leaveMu = useMutation({
-    mutationFn: (shortId: string) => leaveThread(shortId),
-    onSuccess: () => {
-      invalidate();
-      toast.success("已离开");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "离开失败"),
-  });
-
-  const deleteMu = useMutation({
-    mutationFn: (shortId: string) => deleteThread(groupNo, shortId),
-    onSuccess: () => {
-      invalidate();
-      setConfirmDeleteId(null);
-      toast.success("已删除");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
-  });
-
   if (!open) return null;
 
   const activeThreads = (data ?? []).filter((t) => !t.status || t.status === THREAD_STATUS_ACTIVE);
 
   return (
-    <aside className="absolute top-14 right-0 z-30 flex h-[calc(100%-3.5rem)] w-[320px] flex-col border-l border-border-subtle bg-bg-surface shadow-lg">
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
-        <span className="text-base font-semibold text-text-primary">子区列表</span>
-        <div className="flex items-center gap-2">
-          <Button size="small" onClick={() => setCreateOpen(true)}>
-            新建子区
-          </Button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </div>
+    <aside className="absolute top-0 right-0 z-30 flex h-full w-[360px] flex-col border-l border-border-subtle bg-bg-surface shadow-lg">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4">
+        <span className="flex items-center gap-2 text-base font-semibold text-text-primary">
+          <ThreadIcon size={20} className="text-[#7f3bf5]" />
+          子区
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="关闭"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+        >
+          <X size={16} />
+        </button>
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto p-4">
+        {/* 顶部"+ 新建子区" dashed 紫色全宽按钮 */}
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="mb-4 flex h-12 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#7f3bf5]/40 bg-[rgba(127,59,245,0.04)] text-[14px] font-medium text-[#7f3bf5] transition-colors hover:bg-[rgba(127,59,245,0.08)]"
+        >
+          <Plus size={16} />
+          新建子区
+        </button>
+
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
             加载中…
           </div>
         ) : error ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm">
             <span className="text-error">
               {error instanceof Error ? error.message : "子区加载失败"}
             </span>
-            <Button onClick={invalidate}>重试</Button>
-          </div>
-        ) : activeThreads.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-text-tertiary">
-            <span>暂无子区</span>
-            <Button onClick={() => setCreateOpen(true)}>创建第一个子区</Button>
+            <button
+              type="button"
+              onClick={invalidate}
+              className="text-xs text-[#7f3bf5] hover:underline"
+            >
+              重试
+            </button>
           </div>
         ) : (
-          activeThreads.map((t) => (
-            <ThreadRow
-              key={t.short_id}
-              thread={t}
-              myUid={myUid}
-              joining={joinMu.isPending && joinMu.variables === t.short_id}
-              leaving={leaveMu.isPending && leaveMu.variables === t.short_id}
-              onEnter={() => {
-                const channelId = buildThreadChannelId(groupNo, t.short_id);
-                chatSelectedActions.select(new Channel(channelId, CHANNEL_TYPE_THREAD));
-                onClose();
-              }}
-              onJoin={() => joinMu.mutate(t.short_id)}
-              onLeave={() => leaveMu.mutate(t.short_id)}
-              onAskDelete={() => setConfirmDeleteId(t)}
-            />
-          ))
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveOpen((v) => !v)}
+              className="flex shrink-0 items-center gap-1.5 py-2 text-[13px] text-text-secondary hover:text-text-primary"
+            >
+              {activeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              活跃中
+            </button>
+            {activeOpen ? (
+              activeThreads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-text-tertiary">
+                  暂无子区
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {activeThreads.map((t) => {
+                    const channelId = buildThreadChannelId(groupNo, t.short_id);
+                    const isSelected = selectedChannel?.channelID === channelId;
+                    return (
+                      <ThreadRow
+                        key={t.short_id}
+                        thread={t}
+                        selected={isSelected}
+                        onClick={() => {
+                          chatSelectedActions.select(new Channel(channelId, CHANNEL_TYPE_THREAD));
+                          onClose();
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )
+            ) : null}
+          </>
         )}
       </div>
 
@@ -174,115 +169,57 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
         }}
         onCancel={() => setCreateOpen(false)}
       />
-
-      <ConfirmModal
-        open={!!confirmDeleteId}
-        content={`确定要删除子区 "${confirmDeleteId?.name ?? ""}" 吗?此操作不可恢复。`}
-        okDanger
-        okText="删除"
-        okLoading={deleteMu.isPending}
-        onOk={() => confirmDeleteId && deleteMu.mutate(confirmDeleteId.short_id)}
-        onCancel={() => setConfirmDeleteId(null)}
-      />
     </aside>
   );
 }
 
-function formatTime(dateStr?: string): string {
+/** 日期格式化 yyyy/M/d(对齐截图)。 */
+function formatDate(dateStr?: string): string {
   if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const days = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
-  if (days === 0) return "今天";
-  if (days === 1) return "昨天";
-  if (days < 7) return `${days}天前`;
-  return date.toLocaleDateString();
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 function ThreadRow({
   thread,
-  myUid,
-  joining,
-  leaving,
-  onEnter,
-  onJoin,
-  onLeave,
-  onAskDelete,
+  selected,
+  onClick,
 }: {
   thread: ThreadRaw;
-  myUid: string;
-  joining: boolean;
-  leaving: boolean;
-  onEnter: () => void;
-  onJoin: () => void;
-  onLeave: () => void;
-  onAskDelete: () => void;
+  selected: boolean;
+  onClick: () => void;
 }) {
-  const isMember = thread.is_member === 1;
-  const isCreator = thread.creator_uid === myUid;
+  const messageCount = thread.message_count ?? 0;
+  const memberCount = thread.member_count ?? 0;
+  const creatorName = thread.creator_name ?? "";
+  const lastSender = thread.last_message_sender_name ?? "";
+  const lastContent = thread.last_message_content ?? "";
+
   return (
-    <div
-      className="group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-bg-hover"
-      onClick={onEnter}
-      role="button"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
+        selected ? "bg-bg-elevated" : "hover:bg-bg-hover"
+      }`}
     >
-      {/* # icon — 36×36 圆角方块,浅紫底(对齐旧 .wk-thread-item-icon) */}
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[rgba(127,59,245,0.1)] text-lg font-medium text-[#7f3bf5]">
-        #
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-[14px] font-semibold text-text-primary">{thread.name}</span>
+        <span className="shrink-0 text-[12px] text-text-tertiary">
+          {formatDate(thread.last_message_at || thread.updated_at || thread.created_at)}
+        </span>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-text-primary">{thread.name}</span>
-          {isMember ? (
-            <span className="shrink-0 rounded-[10px] bg-[#7f3bf5] px-1.5 text-[10px] font-normal text-white">
-              已加入
-            </span>
-          ) : null}
+      <div className="truncate text-[12px] text-text-tertiary">
+        {messageCount} 条回复
+        {memberCount > 0 ? ` · 参与 ${memberCount} 人` : ""}
+        {creatorName ? ` · ${creatorName} 发起` : ""}
+      </div>
+      {lastContent ? (
+        <div className="line-clamp-2 text-[13px] leading-snug text-text-secondary">
+          {lastSender ? `${lastSender}: ` : ""}
+          {lastContent}
         </div>
-        <div className="truncate text-[12px] text-text-tertiary">
-          {thread.member_count && thread.member_count > 0 ? `${thread.member_count} 人 · ` : ""}
-          创建于 {formatTime(thread.created_at)}
-        </div>
-      </div>
-      <div
-        className="flex shrink-0 items-center gap-1"
-        onClick={(e) => e.stopPropagation()}
-        role="presentation"
-      >
-        {isMember ? (
-          <button
-            type="button"
-            title="离开"
-            aria-label="离开子区"
-            disabled={leaving}
-            onClick={onLeave}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
-          >
-            <LogOut size={14} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            title="加入"
-            aria-label="加入子区"
-            disabled={joining}
-            onClick={onJoin}
-            className="flex h-7 w-7 items-center justify-center rounded-md bg-[#7f3bf5] text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            <UserPlus size={14} />
-          </button>
-        )}
-        {isCreator ? (
-          <button
-            type="button"
-            title="删除"
-            aria-label="删除子区"
-            onClick={onAskDelete}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-error opacity-0 transition-opacity hover:bg-error/10 group-hover:opacity-100"
-          >
-            <Trash2 size={14} />
-          </button>
-        ) : null}
-      </div>
-    </div>
+      ) : null}
+    </button>
   );
 }

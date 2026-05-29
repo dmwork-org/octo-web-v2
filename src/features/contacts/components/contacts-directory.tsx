@@ -212,25 +212,32 @@ function FilterChips({
   ];
   return (
     <div className="flex shrink-0 items-center gap-1.5 px-4 py-2">
-      {chips.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          onClick={() => onChange(c.id)}
-          className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-            value === c.id
-              ? "bg-brand text-white"
-              : "bg-bg-elevated text-text-secondary hover:bg-bg-hover"
-          }`}
-        >
-          <span>{c.label}</span>
-          {c.count > 0 ? (
-            <span className={value === c.id ? "text-white/80" : "text-text-tertiary"}>
-              {c.count}
-            </span>
-          ) : null}
-        </button>
-      ))}
+      {chips.map((c) => {
+        const active = value === c.id;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onChange(c.id)}
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[13px] leading-none font-medium transition-colors ${
+              active
+                ? "border-brand/20 bg-brand/8 text-brand"
+                : "border-border-default bg-transparent text-text-secondary hover:bg-bg-hover"
+            }`}
+          >
+            <span>{c.label}</span>
+            {c.count > 0 ? (
+              <span
+                className={`text-[11px] font-semibold ${
+                  active ? "text-brand" : "text-text-tertiary"
+                }`}
+              >
+                {c.count}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -333,20 +340,20 @@ export function ContactsDirectory() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 px-3 pt-3 pb-2">
-        <div className="flex items-center gap-2 rounded-md border border-border-default bg-bg-surface px-3 py-1.5 focus-within:border-brand">
-          <SearchIcon size={14} className="text-text-tertiary" />
+        <div className="flex items-center gap-2 rounded-md border-[1.5px] border-transparent bg-bg-elevated px-3 py-1.5 focus-within:border-brand">
+          <SearchIcon size={14} className="shrink-0 text-text-tertiary" />
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索通讯录"
-            className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+            className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
           {keyword ? (
             <button
               type="button"
               onClick={() => setKeyword("")}
               aria-label="清空搜索"
-              className="text-text-tertiary hover:text-text-primary"
+              className="shrink-0 px-0.5 text-base leading-none text-text-tertiary hover:text-text-secondary"
             >
               ×
             </button>

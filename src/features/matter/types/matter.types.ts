@@ -1,8 +1,8 @@
 /**
  * Matter 模块类型定义,字段对齐 todos service `model.Matter` JSON。
  *
- * 来源:旧项目 packages/dmworktodo/src/bridge/types.ts(精简,P3 Wave 1 不含 timeline /
- * activities / extract /attachments,后续 wave 再补)。
+ * 来源:旧项目 packages/dmworktodo/src/bridge/types.ts(精简,P3 MVP 不含 timeline /
+ * activities / extract / attachments / channel linking,后续 wave 再补)。
  */
 
 // ─── 状态枚举 ─────────────────────────────────────────────
@@ -15,16 +15,6 @@ export interface MatterAssignee {
   id: string;
   matter_id: string;
   user_id: string;
-  created_at: string;
-}
-
-export interface MatterChannel {
-  id: string;
-  matter_id: string;
-  channel_id: string;
-  channel_type: number;
-  channel_name?: string;
-  linked_by: string;
   created_at: string;
 }
 
@@ -50,7 +40,6 @@ export interface Matter {
 export interface MatterDetail extends Matter {
   assignees: MatterAssignee[];
   participants?: string[];
-  channels?: MatterChannel[];
 }
 
 // ─── 分页 ─────────────────────────────────────────────────
@@ -97,7 +86,7 @@ export interface UpdateMatterReq {
   remind_at?: string | null;
 }
 
-// ─── Timeline ─────────────────────────────────────────────
+// ─── Timeline(评论 / 时间线)─────────────────────────────
 
 export interface TimelineAttachment {
   id: string;
@@ -124,10 +113,31 @@ export interface TimelineEntry {
 
 export interface AddTimelineReq {
   content?: string;
-  attachments?: {
-    file_url: string;
-    file_name?: string;
-    file_size?: number;
-    mime_type?: string;
-  }[];
+  channel_id?: string;
+  channel_type?: number;
+  channel_name?: string;
+}
+
+// ─── Activities(变更记录,字段对齐后端 model.MatterActivity)──────
+
+/**
+ * MatterActivity — 事项变更审计日志条目。后端 todos PR #39。
+ *
+ * action 类型示例:created / title_changed / description_changed /
+ * deadline_changed / status_changed / assignee_added / assignee_removed /
+ * channel_linked / channel_unlinked。
+ *
+ * detail 结构按 action 变化,例如:
+ *   title_changed: { from, to }
+ *   status_changed: { from, to }
+ *   assignee_added: { uid }
+ *   channel_linked: { channel_id, channel_name }
+ */
+export interface ActivityEntry {
+  id: string;
+  matter_id: string;
+  actor_id: string;
+  action: string;
+  detail: Record<string, unknown> | null;
+  created_at: string;
 }

@@ -1,6 +1,7 @@
 # P3-matter API 映射
 
-> 旧 `dmworktodo/src/api/todoApi.ts` 的 endpoint 1:1 迁到新 `features/base/api/endpoints/matter.api.ts`。
+> 旧 `dmworktodo/src/api/todoApi.ts` 的 endpoint 1:1 迁到新 `features/matter/api/matter.api.ts`。
+> endpoint 位置在 feature-local(非 base),理由见 [decisions.md](./decisions.md) D-2。
 
 ## 后端 baseURL
 
@@ -10,26 +11,25 @@
 
 ## Endpoint 清单(本期需要的)
 
-| 旧函数 | HTTP | Path | 新位置 | 备注 |
-|---|---|---|---|---|
-| `listMatters(params)` | GET | `/matters` | `features/base/api/endpoints/matter.api.ts` | 游标分页,query params 见下 |
-| `getMatter(id)` | GET | `/matters/:id` | 同上 | 返回 MatterDetail(assignees + channels) |
-| `createMatter(req)` | POST | `/matters` | 同上 | body:CreateMatterReq |
-| `updateMatter(id, req)` | PUT | `/matters/:id` | 同上 | title / description / DDL / remind_at |
-| `transitionMatter(id, status)` | PUT | `/matters/:id/status` | 同上 | body:`{status: "open" \| "done" \| "archived"}` |
-| `deleteMatter(id)` | DELETE | `/matters/:id` | 同上 | |
-| `addAssignee(matterId, userId)` | POST | `/matters/:id/assignees` | 同上 | body:`{user_id}` |
-| `removeAssignee(matterId, userId)` | DELETE | `/matters/:id/assignees/:userId` | 同上 | |
+| 旧函数                             | HTTP   | Path                             | 新位置                              | 备注                                            |
+| ---------------------------------- | ------ | -------------------------------- | ----------------------------------- | ----------------------------------------------- |
+| `listMatters(params)`              | GET    | `/matters`                       | `features/matter/api/matter.api.ts` | 游标分页,query params 见下                      |
+| `getMatter(id)`                    | GET    | `/matters/:id`                   | 同上                                | 返回 MatterDetail(assignees + channels)         |
+| `createMatter(req)`                | POST   | `/matters`                       | 同上                                | body:CreateMatterReq                            |
+| `updateMatter(id, req)`            | PUT    | `/matters/:id`                   | 同上                                | title / description / DDL / remind_at           |
+| `transitionMatter(id, status)`     | PUT    | `/matters/:id/status`            | 同上                                | body:`{status: "open" \| "done" \| "archived"}` |
+| `deleteMatter(id)`                 | DELETE | `/matters/:id`                   | 同上                                |                                                 |
+| `addAssignee(matterId, userId)`    | POST   | `/matters/:id/assignees`         | 同上                                | body:`{user_id}`                                |
+| `removeAssignee(matterId, userId)` | DELETE | `/matters/:id/assignees/:userId` | 同上                                |                                                 |
 
 ## Endpoint 清单(本期**不**做,留 P3+)
 
+> **注**:本节经 [decisions.md](./decisions.md) D-4 修订 — timeline / activities 已加入本期范围,仅保留跨 feature 强耦合的 channel-linking + extract。
+
 跳过下面这些,**不要**为了凑数把代码先撸出来 — 等下一期带 UI 一起做:
 
-- `linkChannel` / `unlinkChannel` — `/matters/:id/channels` POST/DELETE
-- `extractMatter` — `/matters/extract` POST(从 IM 消息抽取)
-- `listTimeline` / `addTimelineEntry` / `deleteTimelineEntry` — `/matters/:id/timeline` GET/POST/DELETE
-- `listComments` / `addComment` / `deleteComment` — timeline 的 wrapper
-- `listActivities` — `/matters/:id/activities` GET
+- `linkChannel` / `unlinkChannel` — `/matters/:id/channels` POST/DELETE(等 channel-picker 一起)
+- `extractMatter` — `/matters/extract` POST(从 IM 消息抽取,payload 跨 chat feature)
 
 ## 关键类型
 
@@ -106,17 +106,18 @@ export interface PaginatedList<T> {
 
 ## 3 个 tab 对应的 query 参数
 
-| Tab | params |
-|---|---|
-| 我负责的(mine) | `{assignee_id: myUid}` |
-| 我创建的(created) | `{creator_id: myUid}` |
-| 全部(all) | `{}` |
+| Tab               | params                 |
+| ----------------- | ---------------------- |
+| 我负责的(mine)    | `{assignee_id: myUid}` |
+| 我创建的(created) | `{creator_id: myUid}`  |
+| 全部(all)         | `{}`                   |
 
 后端会按可见性自动收敛(只返回当前用户能看到的)。
 
 ## 状态切换的细节
 
 `transitionMatter` 接 `/matters/:id/status`,body `{status}`,响应是更新后的完整 MatterDetail。前端 mutation onSuccess:
+
 - `qc.setQueryData` 更新单条 detail cache 立即生效
 - `qc.invalidateQueries` 让列表自动重拉(避免乐观更新跟服务器对不上)
 
@@ -125,6 +126,7 @@ export interface PaginatedList<T> {
 后端返回 `{data: Matter[], pagination: {has_more, next_cursor}}`。
 
 用 `useInfiniteQuery`:
+
 - `getNextPageParam: (last) => last.pagination.has_more ? last.pagination.next_cursor : undefined`
 - 渲染 `data?.pages.flatMap(p => p.data)`
 - 底部触底加载(参考 `features/chat/components/message-list.tsx` 的 `usePulldownToLoadHistory`,方向相反)

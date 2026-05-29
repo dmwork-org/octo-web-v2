@@ -19,10 +19,14 @@ interface TextRendererProps {
  */
 function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolean; uid?: string }) {
   const clickable = !isAll && !!uid;
-  const base = "inline-flex items-center rounded px-2 py-0.5 font-medium text-brand";
+  // 旧 mention-entity CSS:#6B3DD8 紫 + rgba(107,61,216,0.08) bg + 4px 圆角 + 2px/8px padding + 500
+  // brand 主题色实际是 #1c1c23 黑灰,mention 紫色固定不随主题,inline 紫色值。
+  const base = "inline-flex items-center rounded-[4px] px-2 py-[2px] font-medium text-[#6B3DD8]";
   if (!clickable) {
     return (
-      <span className={isAll ? "font-medium text-brand" : `${base} bg-brand/10`}>{children}</span>
+      <span className={isAll ? "font-medium text-[#6B3DD8]" : `${base} bg-[rgba(107,61,216,0.08)]`}>
+        {children}
+      </span>
     );
   }
   return (
@@ -32,7 +36,7 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
         e.stopPropagation();
         openChatProfile(uid);
       }}
-      className={`${base} cursor-pointer bg-brand/10 hover:bg-brand/20`}
+      className={`${base} cursor-pointer bg-[rgba(107,61,216,0.08)] hover:bg-[rgba(107,61,216,0.12)]`}
     >
       {children}
     </button>

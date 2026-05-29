@@ -42,15 +42,19 @@ const TYPE_LABEL: Record<number, string> = {
 /**
  * 深克隆 MessageContent — 复用 src.content 多次 send 会让 WKSDK 把首次发送的
  * messageID / channel 写回原实例,后续重发被 server 视为重复或目标错乱
- * (实测"成功但接收方看不到"的根因)。通过 encodeJSON → decodeJSON 重建同
- * contentType 新实例,等价旧 dmworkbase vm.ts 每次 new Content() 模式。
+ * (实测"成功但接收方看不到"的根因)。通过 encode → decode 重建同 contentType
+ * 新实例,等价旧 dmworkbase vm.ts 每次 new Content() 模式。
+ *
+ * **必须用 encode/decode(Uint8Array)而非 encodeJSON/decodeJSON** —
+ * SDK MessageContent.encode 在 base class 把 mention/reply 元字段也拼进 wire
+ * JSON,encodeJSON 只输出子类 content 字段(content/url/...),走 encodeJSON
+ * 路径会让 @mention / 引用消息字段丢失。
  */
 function cloneContent(src: MessageContent): MessageContent {
   const cloned = WKSDK.shared().getMessageContent(src.contentType);
   if (!cloned) return src;
   try {
-    const json = src.encodeJSON();
-    cloned.decodeJSON(json as Record<string, unknown>);
+    cloned.decode(src.encode());
   } catch {
     return src;
   }

@@ -4,20 +4,9 @@ import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { bucketLetter, sortLetters } from "@/features/base/lib/pinyin-bucket";
 import { friendsQueryOptions } from "@/features/contacts/queries/friends.query";
 import type { Friend } from "@/features/contacts/types/friend.types";
-
-/**
- * 按拼音首字母分组(简化版:Latin/数字归 #,中文按首字符 Unicode 大小拆 A-Z + #)。
- * P3 接 pinyin 库做真实分组。
- */
-function bucketLetter(name: string): string {
-  if (!name) return "#";
-  const ch = name.charAt(0).toUpperCase();
-  if (/^[A-Z]$/.test(ch)) return ch;
-  if (/^[0-9]$/.test(ch)) return "#";
-  return "#";
-}
 
 function groupFriends(list: Friend[]): { letter: string; items: Friend[] }[] {
   const map = new Map<string, Friend[]>();
@@ -26,12 +15,7 @@ function groupFriends(list: Friend[]): { letter: string; items: Friend[] }[] {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(f);
   }
-  // 排序:A-Z 字母在前,# 在最后
-  const letters = [...map.keys()].sort((a, b) => {
-    if (a === "#") return 1;
-    if (b === "#") return -1;
-    return a.localeCompare(b);
-  });
+  const letters = [...map.keys()].sort(sortLetters);
   return letters.map((letter) => ({
     letter,
     items: map.get(letter)!.sort((x, y) => {

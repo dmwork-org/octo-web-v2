@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
-import { MoreHorizontal, Search } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { followThread } from "@/features/base/api/endpoints/follow.api";
+import { toast } from "@/components/semi-bridge/toast";
+import { MoreHorizontal, Search, Star } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
@@ -62,6 +65,11 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
     channel.channelID;
 
   const parentGroupTitle = useParentGroupTitle(parsed?.groupNo ?? null);
+  const followThreadMu = useMutation({
+    mutationFn: (channelId: string) => followThread(channelId),
+    onSuccess: () => toast.success("已关注子区"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "关注失败"),
+  });
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingOpen, setSettingOpen] = useState(false);
 
@@ -88,6 +96,17 @@ export function ChatHeader({ channel }: ChatHeaderProps) {
         </h2>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {isThreadCh ? (
+          <button
+            type="button"
+            aria-label="关注此子区"
+            title="关注此子区"
+            onClick={() => followThreadMu.mutate(channel.channelID)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-brand"
+          >
+            <Star size={18} />
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label="搜索聊天内容"

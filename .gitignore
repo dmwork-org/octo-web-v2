@@ -33,3 +33,7 @@ dist-ssr
 # pre-tool-use.sh edit-preview tmp(trap 兜底,但 SIGKILL 时仍可能残留)
 src/**/*.preview-tmp-*.ts
 src/**/*.preview-tmp-*.tsx
+
+# tool configs (不入仓)
+.agents/
+.codex/

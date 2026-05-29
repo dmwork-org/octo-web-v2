@@ -21,16 +21,16 @@
 
 ## 模块对位
 
-| 旧模块 | 新组件 | 状态 | 差距 / 行动 |
-| --- | --- | --- | --- |
-| Contacts/index.tsx | components/contacts-directory.tsx | ✅ 实现 | 拼音 `#` 边界硬编码(commit 2) |
-| FriendAdd/* | components/friend-add.tsx | ⚠️ 部分 | vercode 校验链路待验(commit 5) |
-| NewFriend/* | components/friend-applies.tsx | ✅ 实现 | 红点 verify |
-| Blacklist/* | components/blacklist.tsx | ✅ 实现 | — |
-| GroupSave/* | components/saved-groups.tsx | ✅ 实现 | — |
-| Organizational/* | (无) | ❌ 未做 | **P3+ 留** |
-| Service/* | TanStack Query invalidate 替代 | ✅ 等价 | — |
-| api/* | api/{friends,friend-applies}.api.ts | ✅ 实现 | endpoint path 逐条校对 |
+| 旧模块             | 新组件                              | 状态    | 差距 / 行动                    |
+| ------------------ | ----------------------------------- | ------- | ------------------------------ |
+| Contacts/index.tsx | components/contacts-directory.tsx   | ✅ 实现 | 拼音 `#` 边界硬编码(commit 2)  |
+| FriendAdd/\*       | components/friend-add.tsx           | ⚠️ 部分 | vercode 校验链路待验(commit 5) |
+| NewFriend/\*       | components/friend-applies.tsx       | ✅ 实现 | 红点 verify                    |
+| Blacklist/\*       | components/blacklist.tsx            | ✅ 实现 | —                              |
+| GroupSave/\*       | components/saved-groups.tsx         | ✅ 实现 | —                              |
+| Organizational/\*  | (无)                                | ❌ 未做 | **P3+ 留**                     |
+| Service/\*         | TanStack Query invalidate 替代      | ✅ 等价 | —                              |
+| api/\*             | api/{friends,friend-applies}.api.ts | ✅ 实现 | endpoint path 逐条校对         |
 
 ## 基线指标(commit 0 落笔时)
 
@@ -40,11 +40,11 @@
 
 ## endpoint path 校对(逐条勾选)
 
-| Endpoint | 旧调用点 | 新 api 文件 | 一致? |
-| --- | --- | --- | --- |
-| POST /v1/friend/sync | ? | friends.api.ts | ☐ |
-| GET /v1/friend/search | FriendAdd/vm | friends.api.ts | ☐ |
-| ...(8 个 endpoint 逐条) | | | |
+| Endpoint                | 旧调用点     | 新 api 文件    | 一致? |
+| ----------------------- | ------------ | -------------- | ----- |
+| POST /v1/friend/sync    | ?            | friends.api.ts | ☐     |
+| GET /v1/friend/search   | FriendAdd/vm | friends.api.ts | ☐     |
+| ...(8 个 endpoint 逐条) |              |                |       |
 
 ## 违规项(待修)
 
@@ -83,10 +83,12 @@
 按 commit 0 audit 决策走两个分支:
 
 **分支 A**:`features/base/lib/pinyin-bucket` 已存在
+
 - [ ] `friend-list.tsx` 改用 `bucketByPinyin(items, item => item.name)` 类似 API
 - [ ] `contacts-directory.tsx` 同改
 
 **分支 B**:不存在
+
 - [ ] 建 `features/contacts/lib/pinyin-bucket.ts`,抽出当前 friend-list 内部逻辑
 - [ ] 加测试(本期单元测试不强求,但导出函数有清晰类型)
 - [ ] friend-list / contacts-directory 改用本地工具
@@ -113,6 +115,7 @@
 - [ ] PAGE_TITLE 映射保留
 
 **验收**:
+
 - `/contacts?sub=blacklist` 直达进黑名单
 - 刷新保留 sub
 - 浏览器后退 / 前进 切换 sub
@@ -124,6 +127,7 @@
 
 - [ ] 触发 `implement-route-with-query-loader` skill
 - [ ] `src/routes/_auth.contacts.tsx` 加 loader:
+
   ```ts
   loader: ({ context }) =>
     Promise.all([
@@ -133,7 +137,9 @@
       context.queryClient.ensureQueryData(myGroupsQueryOptions()),
     ]),
   ```
+
   - spaceId 从 `spaceStore` 读(loader 上下文怎么拿 spaceId,参考 chat feature loader 写法)
+
 - [ ] `contacts-directory.tsx` 改 `useQuery` → `useSuspenseQuery`(因为 loader 已保证数据有)
 - [ ] 首屏不再 spinner,直接出列表
 
@@ -157,6 +163,7 @@
 对照旧 `dmworkcontacts/Contacts/index.tsx` 视觉调整(若 commit 0 audit 中发现差距),IC 自查 + 抽样手测。**改动较大** → 拆子 commit 不混合。
 
 可能项:
+
 - 手风琴 default open 状态
 - 头像尺寸 / 间距
 - 搜索框 placeholder 文案
@@ -200,13 +207,33 @@
 
 ## 跟 P3-matter task-list 的差异点(给 IC 看)
 
-| 维度 | P3-matter | P3-contacts |
-| --- | --- | --- |
-| 起步状态 | 缺基建 + 部分实现 + 有超范围代码 | 1486 行已基本现代化,endpoint 已对位 |
-| commit 0 | `chore: remove out-of-scope` | `chore: audit report` |
-| 核心难点 | 抽公共 interceptor / 建独立 client / 写 8 endpoint | 修 useState 违规 + 接拼音基建 + 加 loader |
-| 是否新建 client | 是(`/matter/api/v1` 独立部署) | 否(复用 IM 主 client) |
-| 跨 feature 耦合 | 0(matter 完全独立) | 3(继承现有 chat 引用,白名单标 P4+ 解) |
-| 视觉对齐 | 设计稿驱动(D-4 扩 MVP) | 对照旧 dmworkcontacts 微调 |
+| 维度            | P3-matter                                          | P3-contacts                               |
+| --------------- | -------------------------------------------------- | ----------------------------------------- |
+| 起步状态        | 缺基建 + 部分实现 + 有超范围代码                   | 1486 行已基本现代化,endpoint 已对位       |
+| commit 0        | `chore: remove out-of-scope`                       | `chore: audit report`                     |
+| 核心难点        | 抽公共 interceptor / 建独立 client / 写 8 endpoint | 修 useState 违规 + 接拼音基建 + 加 loader |
+| 是否新建 client | 是(`/matter/api/v1` 独立部署)                      | 否(复用 IM 主 client)                     |
+| 跨 feature 耦合 | 0(matter 完全独立)                                 | 3(继承现有 chat 引用,白名单标 P4+ 解)     |
+| 视觉对齐        | 设计稿驱动(D-4 扩 MVP)                             | 对照旧 dmworkcontacts 微调                |
 
 IC 进 session 第一件事:**别按 matter task-list 节奏来**,先把 commit 0 audit 跑完,跟主架构师确认后再继续。
+
+---
+
+## 实施期修订(commit 0 audit 后反向更新)
+
+本 task-list 原 9 commit 是按 P3-matter "从零迁移" 模板写的,**commit 0 audit 完后发现 4 个 commit 已无需做**,实际跑 5 commit:
+
+| #   | 状态                      | 真实 commit 主题                                                              |
+| --- | ------------------------- | ----------------------------------------------------------------------------- |
+| 0   | ✅ 已做                   | `chore(contacts): commit 0 audit — 现有代码 vs 旧 dmworkcontacts 对位`        |
+| 1   | ✅ 已做(原 commit 2)      | `feat(contacts): friend-list 改用 base/lib/pinyin-bucket`                     |
+| 2   | ✅ 已做(原 commit 3)      | `feat(contacts): sub-page 改 URL state (?sub=...)`                            |
+| 3   | ✅ 已做(原 commit 4)      | `feat(contacts): 路由 loader 预热 directory 4 个 query`                       |
+| 4   | ✅ 已做(原 commit 8 收尾) | `chore(contacts): D-1~D-5 决策 + MANIFEST 扩写 + task-list 同步 + final lint` |
+| —   | ❌ 取消                   | 原 commit 1 query factory 规范化(已规范)                                      |
+| —   | ❌ 取消                   | 原 commit 5 vercode 校验(已实现)                                              |
+| —   | ⏸️ 待定                   | 原 commit 6 视觉对齐(D-5 决策:无运行时观察不预判,合到 commit 4 跑 dev 验证)   |
+| —   | ❌ 取消                   | 原 commit 7 structure-lint 白名单(D-3 决策:不查跨 feature import)             |
+
+详见 [`audit.md`](./audit.md) "修正后的真实 commit 计划" + [`decisions.md`](./decisions.md) D-1 ~ D-5。

@@ -304,6 +304,7 @@ function CategorySection({
   onSelectDM,
   onSelectThread,
 }: CategorySectionProps) {
+  const [expandedThreadsSet, setExpandedThreadsSet] = useState<Set<string>>(new Set());
   const count = sidebarItems.length;
 
   // **Dedup**:已嵌入在某个父群下渲染过的子区 channelID 集合,避免 target_type=5 standalone
@@ -366,18 +367,43 @@ function CategorySection({
                       onClick={() => onSelectGroup(groupNo)}
                     />
                     {expanded
-                      ? threads.map((t) => (
-                          <CompactRow
-                            key={`thread-${t.channel.channelID}`}
-                            variant="thread"
-                            channel={t.channel}
-                            title={t.channelInfo?.title ?? t.channel.channelID}
-                            unread={t.unread || 0}
-                            isMuted={isThreadEffectivelyMuted(t, groupNo)}
-                            selected={t.channel.channelID === selectedChannelId}
-                            onClick={() => onSelectThread(t.channel.channelID)}
-                          />
-                        ))
+                      ? (() => {
+                          const showAll = expandedThreadsSet.has(groupNo);
+                          const MAX = 5;
+                          const visible = showAll ? threads : threads.slice(0, MAX);
+                          const hidden = threads.length - visible.length;
+                          return (
+                            <>
+                              {visible.map((t) => (
+                                <CompactRow
+                                  key={`thread-${t.channel.channelID}`}
+                                  variant="thread"
+                                  channel={t.channel}
+                                  title={t.channelInfo?.title ?? t.channel.channelID}
+                                  unread={t.unread || 0}
+                                  isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                  selected={t.channel.channelID === selectedChannelId}
+                                  onClick={() => onSelectThread(t.channel.channelID)}
+                                />
+                              ))}
+                              {hidden > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedThreadsSet((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(groupNo);
+                                      return next;
+                                    })
+                                  }
+                                  className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
+                                >
+                                  查看更多 +{hidden}
+                                </button>
+                              ) : null}
+                            </>
+                          );
+                        })()
                       : null}
                   </div>
                 );

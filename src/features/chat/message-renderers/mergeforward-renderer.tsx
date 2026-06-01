@@ -9,6 +9,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { ArrowLeft, X } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   MergeforwardContent,
@@ -185,6 +186,9 @@ export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
 /**
  * 聊天记录详情弹窗(对齐旧 .wk-mergeforward-modal + MergeforwardMessageList):
  * - 480 宽 / max-h calc(100vh - 160px)
+ *   **注意**:Tailwind arbitrary value 内 `calc()` 减号两侧必须有空格 →
+ *   `[calc(100vh_-_160px)]`(下划线 = 空格)。直接写 `[calc(100vh-160px)]`
+ *   会生成非法 CSS 被浏览器丢弃,max-h 失效导致 Modal 撑超视口。
  * - Header 56px:[ArrowLeft 可返回时] + title + X
  * - Body:gap 16 / pad 10/16,每条消息 = [avatar 32 + info(name+time / content)]
  * - 嵌套合并转发(type=11)点击 → push contentStack,header navTitle 跟随
@@ -209,7 +213,7 @@ function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClo
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="flex max-h-[calc(100vh-160px)] w-[480px] flex-col overflow-hidden rounded-lg bg-bg-surface shadow-xl">
+      <div className="flex max-h-[calc(100vh_-_160px)] w-[480px] flex-col overflow-hidden rounded-lg bg-bg-surface shadow-xl">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default px-4">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             {canGoBack ? (
@@ -344,21 +348,10 @@ function InnerContent({
 }
 
 /**
- * Modal 内 32×32 头像(简版 — 用 channelInfo.logo,无则首字符 placeholder)。
- * 避免引入 ChannelAvatar 跨 feature 依赖。
+ * Modal 内 32×32 头像 — 复用 `<ChannelAvatar>`(它处理 baseURL 拼接 + 加载失败
+ * fallback 首字母,避免裸 `<img>` 用 channelInfo.logo 相对路径(`users/xxx/avatar`)
+ * broken image 的问题)。
  */
 function InnerAvatar({ uid }: { uid: string }) {
-  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  const title = info?.title || uid;
-  const logo = info?.logo;
-  if (logo) {
-    return (
-      <img src={logo} alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover" />
-    );
-  }
-  return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-elevated text-sm font-medium text-text-secondary">
-      {title.charAt(0)}
-    </div>
-  );
+  return <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={32} />;
 }

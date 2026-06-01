@@ -33,7 +33,8 @@ export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
     const parsed = parseThreadChannelId(c.channel_id);
     if (parsed) {
       try {
-        const thread = await getThread(parsed.groupNo, parsed.shortId);
+        // silent:跳过全局 withErrorToast,自己接管 warning 提示
+        const thread = await getThread(parsed.groupNo, parsed.shortId, { silent: true });
         if (thread.status === THREAD_STATUS_DELETED) {
           toast.warning("该子区已删除");
           return;

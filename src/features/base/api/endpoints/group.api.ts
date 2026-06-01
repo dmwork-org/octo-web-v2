@@ -156,9 +156,15 @@ export interface ThreadRaw {
   mute?: number | null; // tri-state
 }
 
-export async function getThread(groupNo: string, shortId: string): Promise<ThreadRaw> {
+export async function getThread(
+  groupNo: string,
+  shortId: string,
+  opts?: { silent?: boolean },
+): Promise<ThreadRaw> {
   return api<ThreadRaw>(
     `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`,
+    // silent 透传到 withErrorToast 拦截器,跳过全局错误 toast(调用方接管)
+    opts?.silent ? ({ silent: true } as Parameters<typeof api<ThreadRaw>>[1]) : undefined,
   );
 }
 

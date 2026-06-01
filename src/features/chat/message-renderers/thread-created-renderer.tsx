@@ -1,11 +1,17 @@
 import { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { toast } from "@/components/semi-bridge/toast";
+import { getThread } from "@/features/base/api/endpoints/group.api";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
 
 interface ThreadCreatedRendererProps {
   message: Message;
 }
+
+// 旧 ThreadStatus: 1=活跃 2=归档 3=删除
+const THREAD_STATUS_DELETED = 3;
 
 /**
  * 子区创建消息渲染(对应旧 dmworkbase Messages/ThreadCreated)。
@@ -17,12 +23,27 @@ interface ThreadCreatedRendererProps {
  * 第一行 preview:14px text-primary,2 行省略;content fallback 自拼。
  * 第二行 meta:12px / gap 16px / link 紫色 #7f3bf5 / 参与者头像组(最多 3,叠加)
  *
- * 整块 cursor-pointer + click 进子区。
+ * 整块 cursor-pointer + click 进子区。点击前先校验子区状态(对齐旧 ThreadCreated
+ * handleClick line 73-89):API 404 → "该子区已删除或不存在";status=3 → "该子区已删除"。
  */
 export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
   const c = message.content as ThreadCreatedContent;
-  const enter = () => {
+  const enter = async () => {
     if (!c.channel_id) return;
+    const parsed = parseThreadChannelId(c.channel_id);
+    if (parsed) {
+      try {
+        const thread = await getThread(parsed.groupNo, parsed.shortId);
+        if (thread.status === THREAD_STATUS_DELETED) {
+          toast.warning("该子区已删除");
+          return;
+        }
+        // 归档(status=2)允许进入查看,聊天界面禁用发送由 channel 层处理
+      } catch {
+        toast.warning("该子区已删除或不存在");
+        return;
+      }
+    }
     chatSelectedActions.select(new Channel(c.channel_id, c.channel_type || 5));
   };
   const previewText = c.content || `${c.from_name || "用户"} 创建了子区「${c.thread_name}」`;

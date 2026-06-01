@@ -514,8 +514,11 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         await updateGroup(channel.channelID, { name });
       }
     },
-    onSuccess: () => {
-      refreshChannelInfo();
+    onSuccess: async () => {
+      // 改名后强制刷 channelInfo:先清缓存再 fetch,避免 fetchChannelInfo 命中旧缓存
+      // (对齐旧 module.tsx line 1934-1938 deleteChannelInfo + fetchChannelInfo)
+      WKSDK.shared().channelManager.deleteChannelInfo(channel);
+      await WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setEditing(null);
       toast.success("已修改");
     },

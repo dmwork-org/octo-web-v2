@@ -7,6 +7,7 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
@@ -175,8 +176,16 @@ export function MessageList({ channel }: MessageListProps) {
     });
   }, [data?.pages]);
 
-  // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message
-  const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message。
+  // 加 channelInfoTick 依赖 — channelInfo 异步到位后 isBotMessage 重算,
+  // 解决首屏 channelInfo 未缓存 → bot 判定 false → 永远不聚合 bug
+  // (对齐旧 vm channelInfoListener 触发 rebuildRenderItems)。
+  const channelInfoTick = useChannelInfoTick();
+  const renderItems = useMemo(
+    () => buildRenderItems(messages),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages, channelInfoTick],
+  );
 
   // fold session 展开收起 state(sessionId → boolean,默认折叠)
   const [expandedSessions, setExpandedSessions] = useState<Map<string, boolean>>(new Map());

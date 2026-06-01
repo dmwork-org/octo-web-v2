@@ -15,9 +15,17 @@ export const with401Redirect =
     void router.navigate({ href: `/login?redirect=${redirectTo}` });
   };
 
+/**
+ * 全局错误 toast。调用方在 fetch options 传 `silent: true` 可跳过(自己接管错误提示)。
+ *
+ * 用法:
+ *   api('/foo', { ...(silent ? { silent: true } : {}) } as FetchOptions & { silent?: boolean })
+ *   或封装的 endpoint 函数透传 silent 选项。
+ */
 export const withErrorToast =
   () =>
-  ({ response }: ResponseCtx) => {
+  ({ response, options }: ResponseCtx) => {
+    if ((options as { silent?: boolean }).silent) return;
     const data = response._data as { message?: string; msg?: string } | undefined;
     const msg = data?.message ?? data?.msg ?? response.statusText ?? "Request failed";
     toast.error(msg);

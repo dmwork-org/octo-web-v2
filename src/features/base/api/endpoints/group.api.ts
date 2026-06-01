@@ -156,10 +156,71 @@ export interface ThreadRaw {
   mute?: number | null; // tri-state
 }
 
-export async function getThread(groupNo: string, shortId: string): Promise<ThreadRaw> {
+export async function getThread(
+  groupNo: string,
+  shortId: string,
+  opts?: { silent?: boolean },
+): Promise<ThreadRaw> {
   return api<ThreadRaw>(
     `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`,
+    // silent 透传到 withErrorToast 拦截器,跳过全局错误 toast(调用方接管)
+    opts?.silent ? ({ silent: true } as Parameters<typeof api<ThreadRaw>>[1]) : undefined,
   );
+}
+
+/**
+ * 子区管理 endpoint(对应旧 dmworkdatasource thread* 系列):
+ *
+ * - PUT    /v1/groups/{groupNo}/threads/{shortId}        改名(body { name })
+ * - POST   /v1/threads/{shortId}/leave                   我离开子区
+ * - DELETE /v1/groups/{groupNo}/threads/{shortId}        解散子区(owner only)
+ * - GET    /v1/groups/{groupNo}/threads/{shortId}/md     子区公告 markdown
+ * - PUT    /v1/groups/{groupNo}/threads/{shortId}/md     更新公告 → { version }
+ * - DELETE /v1/groups/{groupNo}/threads/{shortId}/md     删除公告
+ */
+
+export async function updateThread(
+  groupNo: string,
+  shortId: string,
+  body: { name: string },
+): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`, {
+    method: "PUT",
+    body,
+  });
+}
+
+export async function leaveThread(shortId: string): Promise<void> {
+  await api(`threads/${encodeURIComponent(shortId)}/leave`, { method: "POST" });
+}
+
+export async function deleteThread(groupNo: string, shortId: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getThreadMd(groupNo: string, shortId: string): Promise<GroupMdContent> {
+  return api<GroupMdContent>(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`,
+  );
+}
+
+export async function updateThreadMd(
+  groupNo: string,
+  shortId: string,
+  content: string,
+): Promise<{ version: number }> {
+  return api<{ version: number }>(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`,
+    { method: "PUT", body: { content } },
+  );
+}
+
+export async function deleteThreadMd(groupNo: string, shortId: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/md`, {
+    method: "DELETE",
+  });
 }
 
 /**
@@ -347,5 +408,51 @@ export async function setGroupBotAdmin(groupNo: string, uid: string): Promise<vo
 export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise<void> {
   await api(`groups/${encodeURIComponent(groupNo)}/bot_admin/${encodeURIComponent(uid)}`, {
     method: "DELETE",
+  });
+}
+
+/**
+ * 群下的子区列表(对应旧 dmworkdatasource threadList):
+ * GET /v1/groups/{groupNo}/threads?page_index&page_size → { list: ThreadRaw[] }
+ *
+ * 用于 chat-header 子区按钮弹出的子区面板列表。
+ */
+export interface ThreadListParams {
+  page_index?: number;
+  page_size?: number;
+}
+
+export async function listThreads(
+  groupNo: string,
+  params?: ThreadListParams,
+): Promise<ThreadRaw[]> {
+  const resp = await api<{ list?: ThreadRaw[] }>(`groups/${encodeURIComponent(groupNo)}/threads`, {
+    query: params,
+  });
+  return resp?.list ?? [];
+}
+
+/** 加入子区(对应旧 dmworkdatasource threadJoin)— POST /v1/threads/{shortId}/join */
+export async function joinThread(shortId: string): Promise<void> {
+  await api(`threads/${encodeURIComponent(shortId)}/join`, { method: "POST" });
+}
+
+/** 归档子区(旧 threadArchive)— POST /v1/groups/{groupNo}/threads/{shortId}/archive。 */
+export async function archiveThread(groupNo: string, shortId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/archive`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * 创建子区(无 sourceMessage 时,顶部 + 按钮入口)。旧 dmworkdatasource
+ * threadCreate(groupNo, name, sourceMessageId?)— sourceMessageId 可选。
+ * 区别于 createThread(POST + 必传 source_message_id),本签名简化为 name only。
+ */
+export async function createThreadByName(groupNo: string, name: string): Promise<ThreadRaw> {
+  return api<ThreadRaw>(`groups/${encodeURIComponent(groupNo)}/threads`, {
+    method: "POST",
+    body: { name },
   });
 }

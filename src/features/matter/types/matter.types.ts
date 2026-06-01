@@ -141,3 +141,38 @@ export interface ActivityEntry {
   detail: Record<string, unknown> | null;
   created_at: string;
 }
+
+// ─── Extract(AI 智能创建,对应旧 dmworktodo bridge/types.ts ExtractMatterReq/Result)─
+
+export interface ExtractMessageAttachment {
+  file_name: string;
+  file_url: string;
+}
+
+export interface ExtractMessage {
+  message_id: string;
+  from_uid: string;
+  from_uname?: string;
+  timestamp?: number;
+  content?: string;
+  attachments?: ExtractMessageAttachment[];
+}
+
+export interface ExtractMatterReq {
+  channel_type: number;
+  channel_id: string;
+  channel_name?: string;
+  creator_uid: string;
+  msgs: ExtractMessage[];
+}
+
+export interface ExtractResult {
+  id: string;
+  seq_no: number;
+  title: string;
+  description: string;
+  source_msgs: string[];
+  deadline?: number | null;
+  status: string;
+  created_at: string;
+}

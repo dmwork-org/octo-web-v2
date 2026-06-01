@@ -23,6 +23,11 @@ export interface ThreadLastMessage {
   timestamp: number;
 }
 
+export interface ThreadParticipant {
+  uid: string;
+  name: string;
+}
+
 export class ThreadCreatedContent extends MessageContent {
   content = "";
   from_uid = "";
@@ -33,6 +38,7 @@ export class ThreadCreatedContent extends MessageContent {
   thread_name = "";
   message_count?: number;
   last_message?: ThreadLastMessage;
+  participants?: ThreadParticipant[];
 
   decodeJSON(content: Record<string, unknown>): void {
     this.content = typeof content.content === "string" ? content.content : "";
@@ -53,6 +59,16 @@ export class ThreadCreatedContent extends MessageContent {
         timestamp: typeof lm.timestamp === "number" ? lm.timestamp : 0,
       };
     }
+    const ps = content.participants;
+    if (Array.isArray(ps)) {
+      this.participants = ps.map((p): ThreadParticipant => {
+        const o = p as Record<string, unknown>;
+        return {
+          uid: typeof o.uid === "string" ? o.uid : "",
+          name: typeof o.name === "string" ? o.name : "",
+        };
+      });
+    }
   }
 
   encodeJSON(): Record<string, unknown> {
@@ -66,6 +82,7 @@ export class ThreadCreatedContent extends MessageContent {
       thread_name: this.thread_name,
       message_count: this.message_count,
       last_message: this.last_message,
+      participants: this.participants,
     };
   }
 

@@ -5,12 +5,18 @@ import { Button } from "@/components/semi-bridge/button";
 interface InputModalProps {
   open: boolean;
   title: string;
+  /** input 上方的小标签(可选)。如 "话题名称"。 */
+  label?: string;
   /** input 占位文本 */
   placeholder?: string;
   /** 初始值,open 翻转时 reset */
   initialValue?: string;
   /** 输入校验:返回 false 时禁用确认按钮(不显示错误文案,简版) */
   validate?: (value: string) => boolean;
+  /** 确认按钮文案,默认 "确定"。 */
+  okText?: string;
+  /** 取消按钮文案,默认 "取消"。 */
+  cancelText?: string;
   okLoading?: boolean;
   onOk: (value: string) => void;
   onCancel: () => void;
@@ -44,9 +50,12 @@ function useEscClose(open: boolean, onCancel: () => void) {
 export function InputModal({
   open,
   title,
+  label,
   placeholder,
   initialValue = "",
   validate,
+  okText = "确定",
+  cancelText = "取消",
   okLoading = false,
   onOk,
   onCancel,
@@ -83,16 +92,17 @@ export function InputModal({
           </button>
         </header>
         <form onSubmit={onSubmit} className="flex flex-col gap-3 p-5">
+          {label ? <label className="text-sm text-text-secondary">{label}</label> : null}
           <input
             autoFocus
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
-            className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+            className="rounded-md border border-border-default bg-bg-base px-3 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
           />
           <div className="flex shrink-0 items-center justify-end gap-2">
             <Button type="tertiary" theme="borderless" onClick={onCancel}>
-              取消
+              {cancelText}
             </Button>
             <Button
               htmlType="submit"
@@ -101,7 +111,7 @@ export function InputModal({
               loading={okLoading}
               disabled={!valid}
             >
-              确定
+              {okText}
             </Button>
           </div>
         </form>

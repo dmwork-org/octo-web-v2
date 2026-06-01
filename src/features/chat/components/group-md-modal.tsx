@@ -8,7 +8,15 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { useDrawerEnterTransition } from "@/features/chat/hooks/use-drawer-enter-transition.hook";
-import { deleteGroupMd, getGroupMd, updateGroupMd } from "@/features/base/api/endpoints/group.api";
+import {
+  deleteGroupMd,
+  deleteThreadMd,
+  getGroupMd,
+  getThreadMd,
+  updateGroupMd,
+  updateThreadMd,
+} from "@/features/base/api/endpoints/group.api";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 interface GroupMdModalProps {
   open: boolean;
@@ -71,9 +79,18 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
   const [version, setVersion] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // 子区(channelType=5)走 thread MD endpoint;否则群 MD
+  const isThread = channel.channelType === 5;
+  const parsed = isThread ? parseThreadChannelId(channel.channelID) : null;
+  const groupNoForApi = parsed?.groupNo ?? channel.channelID;
+  const shortIdForApi = parsed?.shortId;
+
   const mdQ = useQuery({
-    queryKey: ["chat", "group-md", channel.channelID],
-    queryFn: () => getGroupMd(channel.channelID),
+    queryKey: ["chat", isThread ? "thread-md" : "group-md", channel.channelID],
+    queryFn: () =>
+      isThread && shortIdForApi
+        ? getThreadMd(groupNoForApi, shortIdForApi)
+        : getGroupMd(channel.channelID),
     enabled: open,
     staleTime: 30 * 1000,
   });
@@ -81,11 +98,16 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
   useSyncDraftFromServer(mdQ.data, setDraft, setBaseline, setVersion);
 
   const refreshChannelInfo = () => {
-    void qc.invalidateQueries({ queryKey: ["chat", "group-md", channel.channelID] });
+    void qc.invalidateQueries({
+      queryKey: ["chat", isThread ? "thread-md" : "group-md", channel.channelID],
+    });
   };
 
   const saveMu = useMutation({
-    mutationFn: (content: string) => updateGroupMd(channel.channelID, content),
+    mutationFn: (content: string) =>
+      isThread && shortIdForApi
+        ? updateThreadMd(groupNoForApi, shortIdForApi, content)
+        : updateGroupMd(channel.channelID, content),
     onSuccess: (resp) => {
       setBaseline(draft);
       setVersion(resp.version);
@@ -96,7 +118,10 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
   });
 
   const deleteMu = useMutation({
-    mutationFn: () => deleteGroupMd(channel.channelID),
+    mutationFn: () =>
+      isThread && shortIdForApi
+        ? deleteThreadMd(groupNoForApi, shortIdForApi)
+        : deleteGroupMd(channel.channelID),
     onSuccess: () => {
       setDraft("");
       setBaseline("");

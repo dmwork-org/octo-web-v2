@@ -1,6 +1,8 @@
 import { type Message } from "wukongimjssdk";
-import { api } from "@/features/base/api/client";
 import { type FileContent } from "@/features/base/im/file-content";
+import { triggerDownload } from "@/features/chat/lib/file-download";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
+import { getExtension } from "@/features/chat/file-preview/types";
 
 interface FileRendererProps {
   message: Message;
@@ -11,8 +13,7 @@ interface FileRendererProps {
  *
  * **卡片样式**(对齐 .wk-message-file):
  *   - flex / pad 10 12 / min-w 200 / max-w 280 / gap 12 / bg rgba(28,28,35,0.05) / r 8
- *   - hover bg rgba(28,28,35,0.08) + shadow 0 1px 3px rgba(0,0,0,0.08)
- *   - active bg rgba(28,28,35,0.12)
+ *   - hover bg rgba(28,28,35,0.08) + shadow 0 1px 3px / active bg rgba(28,28,35,0.12)
  *   - cursor pointer
  *
  * **结构**:
@@ -21,15 +22,16 @@ interface FileRendererProps {
  *   - actions: 下载按钮 44×44 / 内嵌 18×18 SVG / hover bg
  *   - caption(可选,卡片下方 14 rgba 9,30,66,0.87)
  *
- * **交互**(对齐旧 handleDownload + 整卡 onClick):
- *   - 整卡点击 → 下载(旧仓走预览面板事件,新仓暂无面板,改为下载;后续加预览面板再切)
- *   - 下载按钮独立 onClick,stopPropagation 阻冒泡
- *   - triggerDownload 跨域走后端预签名 URL,同域 a[download] 直下(对齐旧 Utils/download.ts)
+ * **交互**(对齐旧 handleDownload + 整卡 onClick → mittBus 'wk:file-preview'):
+ *   - 整卡点击 → openFilePreview(打开右侧预览面板,跟 thread 互斥)
+ *   - 下载按钮独立 onClick,stopPropagation 阻冒泡(下载,不触发预览)
+ *   - 下载走 triggerDownload(跨域走后端预签名 URL)
  *
  * **未实现**(发送侧场景,P4 收消息流不涉及):
  *   - 上传进度条 / 失败重试(taskManager 订阅)
- *   - 预览面板事件 mittBus 'wk:file-preview'
  *   - send 气泡变色(ext 胶囊绿 / brand color)
+ *   - 激活态 isActive 高亮(正在预览的卡片描边)— FilePreviewInfo.messageId 字段
+ *     已保留,后续在 renderer 内用 useStore 监听即可
  */
 export function FileRenderer({ message }: FileRendererProps) {
   const content = message.content as FileContent;
@@ -41,7 +43,15 @@ export function FileRenderer({ message }: FileRendererProps) {
 
   const onCardClick = () => {
     if (!clickable) return;
-    void triggerDownload(url, name);
+    chatSidePanelActions.openFilePreview({
+      url,
+      name,
+      ext,
+      size,
+      messageId: message.messageID,
+      sourceChannelId: message.channel.channelID,
+      sourceChannelType: message.channel.channelType,
+    });
   };
 
   return (
@@ -56,7 +66,7 @@ export function FileRenderer({ message }: FileRendererProps) {
             onCardClick();
           }
         }}
-        title={clickable ? "点击下载" : undefined}
+        title={clickable ? "点击预览" : undefined}
         className={`flex max-w-[280px] min-w-[200px] items-center gap-3 rounded-lg bg-[rgba(28,28,35,0.05)] px-3 py-2.5 transition-[background-color,box-shadow] duration-150 ${
           clickable
             ? "cursor-pointer hover:bg-[rgba(28,28,35,0.08)] hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] active:bg-[rgba(28,28,35,0.12)]"
@@ -130,8 +140,24 @@ function FileTypeIcon({ extension }: { extension: string }) {
         fill="#9CA3AF"
       />
       <path d="M24 8L30 14H26C24.9 14 24 13.1 24 12V8Z" fill="#D1D5DB" />
-      <line x1="16" y1="20" x2="26" y2="20" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="16" y1="24" x2="22" y2="24" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+      <line
+        x1="16"
+        y1="20"
+        x2="26"
+        y2="20"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="16"
+        y1="24"
+        x2="22"
+        y2="24"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -189,17 +215,6 @@ function DownloadIcon() {
   );
 }
 
-/** 从 ext 字段或 filename 后缀提取(对齐旧 getExtension)。 */
-function getExtension(extension: string, name?: string): string {
-  const ext = (extension || "").toLowerCase();
-  if (ext) return ext;
-  if (name) {
-    const dot = name.lastIndexOf(".");
-    if (dot >= 0) return name.substring(dot + 1).toLowerCase();
-  }
-  return "";
-}
-
 /** 字节 → 人类可读(对齐旧 formatFileSize)。 */
 function formatFileSize(bytes: number): string {
   if (bytes <= 0) return "0 B";
@@ -207,51 +222,4 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-/**
- * 跨域文件下载 — 走后端预签名 URL(对齐旧 Utils/download.ts downloadFile):
- *
- * `<a download>` 在 URL 跨域时浏览器**忽略** download 属性,改为新窗口打开
- * (除非源服务器返 `Content-Disposition: attachment`)。
- *
- * 解决:跨域时调后端 `file/download/url?path=&filename=` 拿一个带
- * `Content-Disposition: attachment; filename=...` 的临时预签名 URL,
- * 再 a[download].click() 即可真下载。
- *
- * 同域 URL 直接走 a[download],无需预签名。
- *
- * **注**:逻辑跟 mergeforward-renderer 内的 triggerDownload 完全一致 — 短期重复,
- * 后续若再有第三处下载需求,统一抽到 `src/features/chat/lib/file-download.ts`。
- */
-async function triggerDownload(url: string, filename: string): Promise<void> {
-  if (!url) return;
-  let parsed: URL;
-  try {
-    parsed = new URL(url, window.location.href);
-  } catch {
-    return;
-  }
-  let downloadUrl = parsed.href;
-  const isCrossOrigin = parsed.origin !== window.location.origin;
-  if (isCrossOrigin && filename) {
-    try {
-      const resp = await api<{ url?: string }>(
-        `file/download/url?path=${encodeURIComponent(parsed.href)}&filename=${encodeURIComponent(filename)}`,
-      );
-      if (resp?.url) downloadUrl = resp.url;
-    } catch {
-      // 拿预签名失败,fallback 用 raw url(浏览器可能新窗口打开,但至少不彻底失败)
-    }
-  }
-  const a = document.createElement("a");
-  a.href = downloadUrl;
-  a.download = filename;
-  if (isCrossOrigin) {
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-  }
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }

@@ -79,32 +79,33 @@
 
 ## 旧项目源参考(只读)
 
-| 关注点 | 旧路径 |
-| --- | --- |
-| ReplyBlock | `packages/dmworkbase/src/ui/message/ReplyBlock/` |
-| MergeforwardCard | `packages/dmworkbase/src/ui/message/MergeforwardCard/` |
-| 媒体上传 | `packages/dmworkbase/src/Components/MessageInput/` |
-| 5 类 renderer | `packages/dmworkbase/src/ui/message/` 各子目录 |
-| Voice 通用组件 | `packages/dmworkbase/src/Components/VoiceRecorder/` + `VoiceInput/` |
-| 关注分组拖拽 | `packages/dmworkbase/src/Components/ConversationListWithCategory/` + dnd 相关 |
-| ImageViewer | `packages/dmworkbase/src/Components/ImageViewer/` |
-| 群链接分享 | `packages/dmworkbase/src/Components/GroupLink/` |
+| 关注点           | 旧路径                                                                        |
+| ---------------- | ----------------------------------------------------------------------------- |
+| ReplyBlock       | `packages/dmworkbase/src/ui/message/ReplyBlock/`                              |
+| MergeforwardCard | `packages/dmworkbase/src/ui/message/MergeforwardCard/`                        |
+| 媒体上传         | `packages/dmworkbase/src/Components/MessageInput/`                            |
+| 5 类 renderer    | `packages/dmworkbase/src/ui/message/` 各子目录                                |
+| Voice 通用组件   | `packages/dmworkbase/src/Components/VoiceRecorder/` + `VoiceInput/`           |
+| 关注分组拖拽     | `packages/dmworkbase/src/Components/ConversationListWithCategory/` + dnd 相关 |
+| ImageViewer      | `packages/dmworkbase/src/Components/ImageViewer/`                             |
+| 群链接分享       | `packages/dmworkbase/src/Components/GroupLink/`                               |
 
 ## 新项目集成点(沿用 contacts spec)
 
-| 要做的事 | 怎么做 |
-| --- | --- |
-| HTTP 请求 | `import { api } from "@/features/base/api/client"` |
-| Query | `queryOptions` + route loader `ensureQueryData` |
-| Mutation | `useMutation` + `invalidateQueries` 链 |
-| URL state | `implement-typed-search-params` skill |
-| 路由 loader | `implement-route-with-query-loader` skill |
+| 要做的事    | 怎么做                                             |
+| ----------- | -------------------------------------------------- |
+| HTTP 请求   | `import { api } from "@/features/base/api/client"` |
+| Query       | `queryOptions` + route loader `ensureQueryData`    |
+| Mutation    | `useMutation` + `invalidateQueries` 链             |
+| URL state   | `implement-typed-search-params` skill              |
+| 路由 loader | `implement-route-with-query-loader` skill          |
 
 ## 工作流约束
 
 继承 P3-contacts 工作流约束(skill / TanStack docs / 单 commit 单子功能)。
 
 **新增约束**:
+
 - **跨 feature 砍 / 增组件前必须全仓库 grep 引用**(吃过 P3-contacts 亏)
 - **新装依赖(@dnd-kit / wavesurfer / echarts 等)** 单独 commit + 注 P3+ 是否会用到
 - **每 phase 完成时 push 一次** — 长分支减少 review 难度

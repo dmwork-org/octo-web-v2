@@ -18,7 +18,6 @@ import { conversationsQueryOptions } from "@/features/chat/queries/conversations
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import {
   MergeforwardContent,
-  type MergeforwardInnerMsg,
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
 
@@ -75,18 +74,10 @@ function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
     users.push({ uid: m.fromUID, name: info?.title || m.fromUID });
   }
   c.users = users;
-  c.msgs = sourceMessages.map((m): MergeforwardInnerMsg => {
-    const contentObj = (m.content as { contentObj?: Record<string, unknown> }).contentObj;
-    const json = contentObj
-      ? { ...contentObj, type: m.contentType }
-      : { ...m.content.encodeJSON(), type: m.contentType };
-    return {
-      message_id: m.messageID,
-      from_uid: m.fromUID,
-      timestamp: m.timestamp,
-      payload: json as MergeforwardInnerMsg["payload"],
-    };
-  });
+  // 直接喂 SDK Message[](mergeforward-content.msgs 已是 Message[] 类型);
+  // encodeJSON 时由 messageToMap 转回 raw `{message_id, from_uid, timestamp, payload}`,
+  // payload 优先用 m.content.contentObj fallback 到 encodeJSON(跟之前 inline 构造等价)。
+  c.msgs = sourceMessages;
   return c;
 }
 

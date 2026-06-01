@@ -223,19 +223,11 @@ export function TextRenderer({ message }: TextRendererProps) {
     const url = getEmojiImageUrl(largeCustom);
     return (
       <span className="inline-block">
-        <img
-          src={url}
-          alt={largeCustom}
-          className="h-[120px] w-[120px]"
-          draggable={false}
-        />
+        <img src={url} alt={largeCustom} className="h-[120px] w-[120px]" draggable={false} />
       </span>
     );
   }
 
-  const tokens = [
-    ...mentionTokens(text, content.mention, message.channel),
-    ...emojiTokens(text),
-  ];
+  const tokens = [...mentionTokens(text, content.mention, message.channel), ...emojiTokens(text)];
   return <Markdown content={text} tokens={tokens} />;
 }

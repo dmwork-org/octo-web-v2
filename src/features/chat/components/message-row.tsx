@@ -133,6 +133,62 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+/**
+ * sender 旁的时间显示(对应旧 dmworkbase Utils/time.ts:44 getTimeStringAutoShort2
+ * mustIncludeTime=true):
+ *   今天 → HH:mm
+ *   昨天 → 昨天 HH:mm
+ *   前天 → 前天 HH:mm
+ *   7 天内 → 星期X HH:mm
+ *   当年外 → M月D日 HH:mm
+ *   跨年 → yyyy/M/D HH:mm
+ */
+function formatSenderTime(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const hhmm = formatTime(ts);
+  if (d.getFullYear() !== now.getFullYear()) {
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${hhmm}`;
+  }
+  const sameDay = (a: Date, b: Date) =>
+    a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, now)) return hhmm;
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (sameDay(d, y)) return `昨天 ${hhmm}`;
+  const by = new Date(now);
+  by.setDate(by.getDate() - 2);
+  if (sameDay(d, by)) return `前天 ${hhmm}`;
+  const deltaHours = (now.getTime() - d.getTime()) / 3600_000;
+  if (deltaHours <= 7 * 24) return `${WEEKDAYS[d.getDay()]} ${hhmm}`;
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${hhmm}`;
+}
+
+/**
+ * sender 是否 AI bot(对齐旧 conversation `channelInfo.orgData.robot === 1`)。
+ * 用于在 sender name 旁渲染紫色 "AI" 徽标。
+ */
+function isBotSender(fromUID: string): boolean {
+  if (!fromUID) return false;
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  const org = info?.orgData as { robot?: number } | undefined;
+  return org?.robot === 1;
+}
+
+/** 紫色 "AI" 小徽标(对齐截图 octopush-麒麟 名字旁)。 */
+function AiBadge() {
+  return (
+    <span className="inline-flex h-4 shrink-0 items-center rounded-[3px] bg-[#7f3bf5] px-1 text-[10px] leading-none font-semibold text-white">
+      AI
+    </span>
+  );
+}
+
 function extractText(message: Message): string {
   if (message.contentType === MessageContentType.text) {
     return (message.content as MessageText).text ?? "";
@@ -185,8 +241,8 @@ function canCreateThread(message: Message): boolean {
 
 /**
  * 单条消息行(Slack 风格,对应旧 packages/dmworkbase/src/ui/message/MessageRow):
- *   [头像 36×36] [sender + timestamp]
- *               [body]                [self 状态徽标]
+ *   [头像 36×36] [sender + AI 徽标? + timestamp]
+ *               [body]                       [self 状态徽标]
  *
  * 多选模式(chatSelectionStore.active)行为:
  * - 左侧渲染 checkbox(替代头像 hover 区域)
@@ -471,7 +527,9 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   }
 
   const senderTitle = senderDisplay(message);
-  const senderChannel = new Channel(effectiveFromUID(message), ChannelTypePerson);
+  const senderUid = effectiveFromUID(message);
+  const senderChannel = new Channel(senderUid, ChannelTypePerson);
+  const isBot = isBotSender(senderUid);
   return (
     <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
@@ -479,16 +537,21 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          openChatProfile(effectiveFromUID(message));
+          openChatProfile(senderUid);
         }}
         className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
       >
         <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
       </button>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
-        <header className="flex items-baseline gap-2 leading-[22px]">
-          <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
-          <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
+        <header className="flex items-center gap-2 leading-[22px]">
+          <span className="truncate text-[14px] font-semibold text-text-primary">
+            {senderTitle}
+          </span>
+          {isBot ? <AiBadge /> : null}
+          <span className="shrink-0 text-[11px] text-text-tertiary">
+            {formatSenderTime(message.timestamp)}
+          </span>
         </header>
         {(message.content as { reply?: Reply }).reply ? (
           <ReplyBlock reply={(message.content as { reply: Reply }).reply} />

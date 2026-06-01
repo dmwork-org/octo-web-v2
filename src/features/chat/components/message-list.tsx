@@ -35,7 +35,6 @@ function shouldRenderBare(m: Message): boolean {
 }
 
 const CONTINUE_GAP_SEC = 5 * 60;
-const TIME_DIVIDER_GAP_SEC = 5 * 60;
 /** 用户离底部多远还算"在底部",收到新消息时自动跟到底。 */
 const NEAR_BOTTOM_THRESHOLD = 200;
 
@@ -47,15 +46,15 @@ function isContinue(curr: Message, prev: Message | undefined): boolean {
   return Math.abs((curr.timestamp || 0) - (prev.timestamp || 0)) < CONTINUE_GAP_SEC;
 }
 
-/** 跨 5 分钟 / 跨日 → 在当前消息前插入 TimeDivider。 */
+/**
+ * **只**跨日时插入 TimeDivider("MM月DD日" 胶囊),一天内多条消息不再重复分隔。
+ * 精确时间显示在每条消息 header 里(message-row),对齐旧 dmworkbase vm.ts:1756。
+ */
 function shouldInsertDivider(curr: Message, prev: Message | undefined): boolean {
   if (!prev) return true;
-  const gap = Math.abs((curr.timestamp || 0) - (prev.timestamp || 0));
-  if (gap >= TIME_DIVIDER_GAP_SEC) return true;
   const a = new Date((prev.timestamp || 0) * 1000);
   const b = new Date((curr.timestamp || 0) * 1000);
-  if (a.toDateString() !== b.toDateString()) return true;
-  return false;
+  return a.toDateString() !== b.toDateString();
 }
 
 /**
@@ -241,7 +240,7 @@ export function MessageList({ channel }: MessageListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto py-3">
+    <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto bg-bg-base py-3">
       {hasNextPage ? (
         <div className="flex justify-center py-2 text-xs text-text-tertiary">
           {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}

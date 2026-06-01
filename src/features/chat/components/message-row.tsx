@@ -424,7 +424,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   if (bare) {
     return (
-      <div className="px-4 py-1">
+      <div className="px-4 py-2">
         <MessageDispatch message={message} />
       </div>
     );

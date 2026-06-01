@@ -37,7 +37,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
       <button
         type="button"
         onClick={() => src && setPreview(true)}
-        className="overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
+        className="w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
         aria-label="查看大图"
       >
         {src ? (

@@ -123,6 +123,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
           onBack={() => setView("list")}
           onClose={close}
           onInvalidate={invalidate}
+          onThreadUpdated={(patch) =>
+            setActiveThread((prev) => (prev ? { ...prev, ...patch } : prev))
+          }
           onAfterDelete={() => {
             setView("list");
             setActiveThread(null);
@@ -266,6 +269,7 @@ function DetailView({
   onBack,
   onClose,
   onInvalidate,
+  onThreadUpdated,
   onAfterDelete,
 }: {
   groupNo: string;
@@ -273,6 +277,8 @@ function DetailView({
   onBack: () => void;
   onClose: () => void;
   onInvalidate: () => void;
+  /** 改名/状态变更后,通知外层更新 activeThread,detail header 实时显示新值。 */
+  onThreadUpdated?: (patch: Partial<ThreadRaw>) => void;
   onAfterDelete: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -286,8 +292,9 @@ function DetailView({
 
   const renameMu = useMutation({
     mutationFn: (name: string) => updateThread(groupNo, thread.short_id, { name }),
-    onSuccess: () => {
+    onSuccess: (_data, name) => {
       onInvalidate();
+      onThreadUpdated?.({ name });
       setRenameOpen(false);
       toast.success("已更新");
     },

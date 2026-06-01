@@ -45,18 +45,39 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
 }
 
 /**
- * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**:
- *   - 群 subscriber:remark(本地备注)/ name(后端 enrich,可能中文)/
- *     orgData.real_name(实名)/ orgData.displayName(后端拼好)
- *   - Person channelInfo:title(IM 原始 name,可能 username 英文)/
- *     orgData.remark / orgData.real_name / orgData.displayName
+ * 从 text 正则提取所有 `@xxx`,按出现顺序对应 mention.uids[i] — 主路径。
  *
- * 原因:旧仓 mention 走 `message.parts`(SDK 把 text + uid 解析配对);
- * 新仓只有 raw text + mention.uids,必须靠**文本匹配**。同一 uid 在 text
- * 里可能写成中文名(发送端用 sub.name)或英文 username(channelInfo.title),
- * 也可能是本地 remark。单一候选漏掉哪种都不高亮。
+ * **背景**:同一 uid 在 text 里可能是中文名 / 英文 username / remark,
+ * channelInfo/subscriber 缓存里的候选可能全部不匹配(刘会燕场景:sub.name 和
+ * channelInfo.title 都是 "liuhuiyan",但 text 里写的是 "@刘会燕")。
  *
- * 全部候选都生成 token,markdown 后处理按长度降序匹配,命中任意一个就高亮。
+ * 主路径:正则匹配 text 里所有 `@xxx`(以中文/字母开头),按出现顺序跟
+ * mention.uids 一一对应 — 发送端 input 插 mention 时是按顺序填入 uids,
+ * i 对应不会错位。
+ *
+ * 正则:`@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}` — 必须首字符是中文或字母,
+ * 避免 "@123" / "@-x" 误识别;不包含空白/中文标点,保证 mention 边界。
+ */
+function extractAtSpansFromText(text: string, uids: string[]): { match: string; uid: string }[] {
+  if (!text || uids.length === 0) return [];
+  // eslint-disable-next-line no-misleading-character-class
+  const re = /@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}/g;
+  const out: { match: string; uid: string }[] = [];
+  let i = 0;
+  for (const m of text.matchAll(re)) {
+    if (i >= uids.length) break;
+    out.push({ match: m[0], uid: uids[i++] });
+  }
+  return out;
+}
+
+/**
+ * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选** — 兜底路径。
+ *   - 群 subscriber:remark / name / orgData.real_name / orgData.displayName
+ *   - Person channelInfo:title / orgData.remark / orgData.real_name / orgData.displayName
+ *
+ * 旧仓 mention 走 `message.parts`(SDK 把 text + uid 解析配对);新仓没这数据,
+ * 必须靠文本匹配。多候选覆盖各种 name 写法。
  */
 function collectCandidateNames(uid: string, channel: Channel): string[] {
   const names: string[] = [];
@@ -87,12 +108,20 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
 /**
  * mention 字段 → Markdown tokens(供 `<Markdown>` 后处理替换):
  *
- * - mention.uids 各 uid 收集**所有候选名字**(中文/英文/备注/实名),每个生成 token
- * - mention.all=true 时额外加 "@所有人" / "@all" token(纯色无 bg,不可 click)
+ * 双路径(主路径 + 兜底):
+ *   1. 正则提取 text 里所有 `@xxx`,按顺序对应 mention.uids — 主路径,
+ *      不依赖任何缓存,只要 text 里 @ 模式可识别就能高亮
+ *   2. 候选 name token:为每个 uid 收集所有候选 name,作为额外保险
+ *      (text 里 mention 后紧接特殊字符,正则边界没覆盖的 case 仍能匹配)
  *
- * 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段。
+ * - mention.all=true 时额外加 "@所有人" / "@all" token
+ * - 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段
  */
-function mentionTokens(mention: Mention | undefined, channel: Channel): MarkdownToken[] {
+function mentionTokens(
+  text: string,
+  mention: Mention | undefined,
+  channel: Channel,
+): MarkdownToken[] {
   if (!mention || (!mention.uids?.length && !mention.all)) return [];
   const tokens: MarkdownToken[] = [];
   if (mention.all) {
@@ -107,9 +136,20 @@ function mentionTokens(mention: Mention | undefined, channel: Channel): Markdown
       });
     }
   }
+  // 主路径:正则提取
+  for (const { match, uid } of extractAtSpansFromText(text, mention.uids ?? [])) {
+    tokens.push({
+      match,
+      render: (key) => (
+        <MentionTag key={key} uid={uid}>
+          {match}
+        </MentionTag>
+      ),
+    });
+  }
+  // 兜底:候选 names
   for (const uid of mention.uids ?? []) {
-    const names = collectCandidateNames(uid, channel);
-    for (const name of names) {
+    for (const name of collectCandidateNames(uid, channel)) {
       const match = `@${name}`;
       tokens.push({
         match,
@@ -128,15 +168,14 @@ function mentionTokens(mention: Mention | undefined, channel: Channel): Markdown
  * 文本消息正文 — markdown 渲染 + @mention 高亮(M1)。
  *
  * 对应旧 dmworkbase Messages/Text/MarkdownContent.tsx(404 行) 的精简版:
- * 只保留 react-markdown + remark-gfm + remark-breaks,不引入 highlight.js/KaTeX/sanitize
- * (按 CLAUDE.md "先跑 n=1 再抽象" — 真有场景再加)。
+ * 只保留 react-markdown + remark-gfm + remark-breaks,不引入 highlight.js/KaTeX/sanitize。
  *
- * @mention 字段走 token 后处理(避开 markdown 块级结构干扰),群消息时优先
- * 走 subscribers 查后端 enrich 后的 name(可能带 `(Nancy)` 后缀)。
+ * @mention 字段走 token 后处理 — 主路径正则提取 text 里 @xxx 按顺序对应
+ * uids;兜底用 subscriber / channelInfo 多候选 name 匹配。
  */
 export function TextRenderer({ message }: TextRendererProps) {
   const content = message.content as MessageText;
   const text = content.text ?? "";
-  const tokens = mentionTokens(content.mention, message.channel);
+  const tokens = mentionTokens(text, content.mention, message.channel);
   return <Markdown content={text} tokens={tokens} />;
 }

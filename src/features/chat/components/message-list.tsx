@@ -34,16 +34,19 @@ function shouldRenderBare(m: Message): boolean {
   return false;
 }
 
-const CONTINUE_GAP_SEC = 5 * 60;
 /** 用户离底部多远还算"在底部",收到新消息时自动跟到底。 */
 const NEAR_BOTTOM_THRESHOLD = 200;
 
-/** 与上一条同发送者 + 5 分钟内 = 连续(对应旧 wk-msg-row--continue)。 */
+/**
+ * 同发送者 = 连续(对齐旧 dmworkbase useMessageRow.ts:86 isContinue):
+ *   pre 存在 + 非系统(bare)消息 + 同 sender
+ * **不**做时间窗口判断 — 即使跨多小时,同一发送者连发的消息全聚合一个 header
+ * (mergeforward 卡片 + 后续 text 就能跟前面的 text 一起折叠)。
+ */
 function isContinue(curr: Message, prev: Message | undefined): boolean {
   if (!prev) return false;
   if (shouldRenderBare(prev) || shouldRenderBare(curr)) return false;
-  if (prev.fromUID !== curr.fromUID) return false;
-  return Math.abs((curr.timestamp || 0) - (prev.timestamp || 0)) < CONTINUE_GAP_SEC;
+  return prev.fromUID === curr.fromUID;
 }
 
 /**

@@ -187,6 +187,64 @@ function AiBadge() {
   );
 }
 
+/**
+ * realname_verified 归一化(对齐旧 Utils/displayName.ts normalizeVerified):
+ * 后端可能投射 tinyint(1) → "1" / "true",必须 truthy 收敛到 boolean。
+ */
+function normalizeVerified(v: unknown): boolean {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") {
+    const s = v.toLowerCase();
+    return s === "1" || s === "true";
+  }
+  return false;
+}
+
+/**
+ * sender 是否已实名(对齐旧 Utils/realnameBadge.ts shouldShowRealnameBadge,简化版):
+ * - bot 短路 false(AI/bot 发送者不显示徽章)
+ * - Person channelInfo.orgData.realname_verified truthy → true
+ *
+ * 未做的旧仓覆盖:groupMember subscriber.orgData 路径(覆盖率不够再补)+
+ * self-fallback(login user.realname_verified 字段尚未接入 auth store);
+ * 当前 Person channelInfo 路径已覆盖大部分群消息场景。
+ */
+function isSenderVerified(fromUID: string, isBot: boolean): boolean {
+  if (!fromUID || isBot) return false;
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  const org = info?.orgData as { realname_verified?: unknown } | undefined;
+  return normalizeVerified(org?.realname_verified);
+}
+
+/**
+ * 实名认证徽标(对齐旧 RealnameVerifiedBadge variant="icon"):
+ * 12×12 SVG 圆 + 白色对勾;颜色 `#2f8cff`(OCTO 品牌蓝);紧贴 sender 名右侧。
+ */
+function RealnameBadge() {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center text-[#2f8cff]"
+      title="已完成实名认证"
+      aria-label="已实名"
+      role="img"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <circle cx="6" cy="6" r="6" fill="currentColor" />
+        <path
+          d="M3 6.2l2 2 4-4"
+          stroke="#fff"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function extractText(message: Message): string {
   if (message.contentType === MessageContentType.text) {
     return (message.content as MessageText).text ?? "";
@@ -239,8 +297,8 @@ function canCreateThread(message: Message): boolean {
 
 /**
  * 单条消息行(Slack 风格,对应旧 packages/dmworkbase/src/ui/message/MessageRow):
- *   [头像 36×36] [sender + AI 徽标? + timestamp]
- *               [body]                       [self 状态徽标]
+ *   [头像 36×36] [sender + 实名 ✓? + AI 徽标? + timestamp]
+ *               [body]                                    [self 状态徽标]
  *
  * 多选模式(chatSelectionStore.active)行为:
  * - 左侧渲染 checkbox(替代头像 hover 区域)
@@ -534,6 +592,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const senderUid = effectiveFromUID(message);
   const senderChannel = new Channel(senderUid, ChannelTypePerson);
   const isBot = isBotSender(senderUid);
+  const isVerified = isSenderVerified(senderUid, isBot);
   return (
     <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
@@ -552,6 +611,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           <span className="truncate text-[15px] font-semibold text-text-primary">
             {senderTitle}
           </span>
+          {isVerified ? <RealnameBadge /> : null}
           {isBot ? <AiBadge /> : null}
           <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">
             {formatSenderTime(message.timestamp)}

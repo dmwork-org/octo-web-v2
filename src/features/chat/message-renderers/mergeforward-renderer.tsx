@@ -351,7 +351,60 @@ function InnerContent({
       />
     );
   }
+  if (msg.contentType === MessageContentTypeConst.file) {
+    return <FileCard content={msg.content as { name?: string; ext?: string; size?: number }} />;
+  }
   return <span>{msg.content?.conversationDigest ?? "[消息]"}</span>;
+}
+
+/**
+ * 文件卡片(对齐旧 MergeforwardMessageList .wk-mergeforward-file CSS):
+ *   - 容器:flex / pad 8 12 / bg rgba(28,28,35,0.04) / r 8 / gap 10 / max-w 300
+ *   - icon 56x56 / r 8 / iconBg 按 ext 配色 / 文字白色 ext 全大写居中
+ *   - name 14/500/text-primary truncate
+ *   - size 11/text-tertiary
+ *
+ * 按扩展名配色(对齐旧 getFileExtColor):
+ *   pdf → 红 / doc(x) → 蓝 / xls(x) → 绿 / ppt(x) → 橙 / zip|rar|7z → 黄 / 其他 → 灰
+ *
+ * 简化(对齐但未做):URL 点击下载 — 后续 P5+ 接 file-renderer 同款下载逻辑。
+ */
+function FileCard({ content }: { content: { name?: string; ext?: string; size?: number } }) {
+  const name = content.name || "unknown file";
+  const ext = (content.ext || "").toUpperCase();
+  const size = content.size ?? 0;
+  const iconBg = ((): string => {
+    const e = ext.toLowerCase();
+    if (e === "pdf") return "#EF4444";
+    if (e === "doc" || e === "docx") return "#3B82F6";
+    if (e === "xls" || e === "xlsx") return "#22C55E";
+    if (e === "ppt" || e === "pptx") return "#F97316";
+    if (e === "zip" || e === "rar" || e === "7z") return "#EAB308";
+    return "#9CA3AF";
+  })();
+  const sizeText = ((): string => {
+    if (size <= 0) return "0 B";
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  })();
+  return (
+    <div className="flex max-w-[300px] items-center gap-2.5 rounded-lg bg-[rgba(28,28,35,0.04)] px-3 py-2">
+      <div
+        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-[12px] font-semibold text-white"
+        style={{ backgroundColor: iconBg }}
+      >
+        {ext || "FILE"}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="truncate text-[14px] font-medium text-text-primary" title={name}>
+          {name}
+        </div>
+        <div className="text-[11px] text-text-tertiary">{sizeText}</div>
+      </div>
+    </div>
+  );
 }
 
 /**

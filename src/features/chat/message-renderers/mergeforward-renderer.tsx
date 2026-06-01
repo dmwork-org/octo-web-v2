@@ -11,6 +11,7 @@ import WKSDK, {
 import { ArrowLeft, X } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { api } from "@/features/base/api/client";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   MergeforwardContent,
@@ -310,6 +311,7 @@ function MergeforwardList({
  * - text → Markdown(自动 linkify URL,gfm autolinks)
  * - image → 缩略 img(无 Lightbox,P5+ 接)
  * - mergeForward → 嵌套 MergeforwardCard,点击 push stack
+ * - file → FileCard,点击下载(对齐旧 .wk-mergeforward-file)
  * - 其他 → content.conversationDigest fallback("[文件]"/"[图片]"...)
  */
 function InnerContent({
@@ -362,6 +364,51 @@ function InnerContent({
 }
 
 /**
+ * 跨域文件下载 — 走后端预签名 URL(对齐旧 Utils/download.ts downloadFile):
+ *
+ * `<a download>` 在 URL 跨域时浏览器**忽略** download 属性,改为新窗口打开
+ * (除非源服务器返 `Content-Disposition: attachment`)。
+ *
+ * 解决:跨域时调后端 `file/download/url?path=&filename=` 拿一个带
+ * `Content-Disposition: attachment; filename=...` 的临时预签名 URL,
+ * 再 a[download].click() 即可真下载。
+ *
+ * 同域 URL 直接走 a[download],无需预签名。
+ */
+async function triggerDownload(url: string, filename: string): Promise<void> {
+  if (!url) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(url, window.location.href);
+  } catch {
+    return;
+  }
+  let downloadUrl = parsed.href;
+  const isCrossOrigin = parsed.origin !== window.location.origin;
+  if (isCrossOrigin && filename) {
+    try {
+      const resp = await api<{ url?: string }>(
+        `file/download/url?path=${encodeURIComponent(parsed.href)}&filename=${encodeURIComponent(filename)}`,
+      );
+      if (resp?.url) downloadUrl = resp.url;
+    } catch {
+      // 拿预签名失败,fallback 用 raw url(浏览器可能新窗口打开,但至少不彻底失败)
+    }
+  }
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = filename;
+  if (isCrossOrigin) {
+    // 跨域预签名 URL 若仍未触发下载,a[target=_blank] 让浏览器在新 tab 处理
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+  }
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
  * 文件卡片(对齐旧 MergeforwardMessageList .wk-mergeforward-file CSS):
  *   - 容器:flex / pad 8 12 / bg rgba(28,28,35,0.04) / r 8 / gap 10 / max-w 300
  *   - icon 56x56 / r 8 / iconBg 按 ext 配色 / 文字白色 ext 全大写居中
@@ -371,7 +418,8 @@ function InnerContent({
  * **交互**(对齐旧 wk-mergeforward-file--clickable):
  *   - 有 url:cursor-pointer + hover bg rgba(28,28,35,0.07) + 点击下载
  *   - 无 url:cursor-default + 无 hover
- *   - 下载:`<a href download>` 触发浏览器原生下载(对齐 file-renderer.downloadFile)
+ *   - 下载走 triggerDownload — 跨域时通过后端预签名 URL 让浏览器真下载
+ *     (不是新窗口打开)
  *
  * 按扩展名配色(对齐旧 getFileExtColor):
  *   pdf → 红 / doc(x) → 蓝 / xls(x) → 绿 / ppt(x) → 橙 / zip|rar|7z → 黄 / 其他 → 灰
@@ -404,15 +452,7 @@ function FileCard({
   })();
   const onClick = () => {
     if (!clickable) return;
-    // 触发浏览器原生下载(对齐 file-renderer.downloadFile + a[download])
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    void triggerDownload(url, name);
   };
   return (
     <div

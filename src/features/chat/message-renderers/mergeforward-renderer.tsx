@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import WKSDK, {
   Channel,
   ChannelTypePerson,
@@ -193,7 +194,12 @@ export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
  * - Body:gap 16 / pad 10/16,每条消息 = [avatar 32 + info(name+time / content)]
  * - 嵌套合并转发(type=11)点击 → push contentStack,header navTitle 跟随
  *
- * z-[100]:压在 Toast 之下,但在普通 modal(z-50/60)和业务浮层之上,避免遮挡。
+ * **createPortal 到 document.body**:Modal 触发链是 message-row → message-list
+ * (overflow-y-auto 滚动容器),fixed 会被滚动容器的 stacking context trap,
+ * 导致 chat text 跨 z-index 透到 Modal box 上(用户截图 16 现象)。
+ * Portal 到 body 让 Modal 脱离父子 stacking,z-[100] 真正生效。
+ *
+ * z-[100]:压在 Toast 之下,但在普通 modal(z-50/60)和业务浮层之上。
  */
 function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClose: () => void }) {
   const [stack, setStack] = useState<MergeforwardContent[]>([]);
@@ -208,7 +214,7 @@ function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClo
   };
   const goBack = () => setStack((prev) => prev.slice(0, -1));
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -243,7 +249,8 @@ function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClo
           <MergeforwardList content={current} onOpenNested={pushNested} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

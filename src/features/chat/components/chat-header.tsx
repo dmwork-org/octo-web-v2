@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
-import { useMutation } from "@tanstack/react-query";
-import { followThread } from "@/features/base/api/endpoints/follow.api";
-import { toast } from "@/components/semi-bridge/toast";
-import { MoreHorizontal, Search, Star } from "lucide-react";
+import { ListChecks, MoreHorizontal } from "lucide-react";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -18,8 +14,8 @@ interface ChatHeaderProps {
   channel: Channel;
 }
 
-/** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 未导出常量,旧项目 hardcode 7。 */
-const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+/** ChannelType 5 = ChannelTypeCommunityTopic(子区) — SDK 未导出常量,旧 dmworkbase Const.ts 同。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 function isThread(c: Channel): boolean {
   return c.channelType === CHANNEL_TYPE_THREAD;
@@ -50,13 +46,15 @@ function useChannelInfoLive(channel: Channel) {
 /**
  * Chat 区顶部 header(对应旧 .wk-chat-conversation-header):
  *
- *   [头像 28×28] [面包屑/名字]                       [🔍] [⋯]
+ *   [头像 28×28] [面包屑/名字]                  [事项] [子区列表]? [⋯]
  *
  * - 高度 56px / bg-surface / border-bottom
- * - 头像:DM 圆 / Group 圆角 6px / 子区 ThreadIcon 18px 占位(bg-elevated 圆角)
+ * - 头像:DM 圆 / Group 圆角 / **子区借用父群头像**(对齐截图,不是 ThreadIcon 占位)
  * - 名字:displayName(remark || name);子区显示"父群 › 子区"面包屑,父群可点击跳回
- * - 🔍 搜索:打开 GlobalSearchModal 带 channel(channel 内搜索 mode)
- * - ⋯ 更多:打开 ChannelSettingModal(精简版聊天信息)
+ * - 事项 ListChecks:对齐旧 dmworktodo registerChannelHeaderRightItem
+ *   (matter panel chat 内集成方案未定,onClick 用 console 占位)
+ * - 子区列表 ThreadIcon:**仅 group 主区显示**,子区主区时不出现(对齐 Pages/Chat line 688)
+ * - 更多 ⋯:打开 ChannelSettingModal(精简版聊天信息)
  *
  * 接受 channel 而非 conversation:contacts 选人也共用此 header。
  */
@@ -74,31 +72,33 @@ export function ChatHeader({
     channelInfo?.title ||
     channel.channelID;
 
+  const parentChannel = parsed ? new Channel(parsed.groupNo, ChannelTypeGroup) : null;
   const parentGroupTitle = useParentGroupTitle(parsed?.groupNo ?? null);
-  const followThreadMu = useMutation({
-    mutationFn: (channelId: string) => followThread(channelId),
-    onSuccess: () => toast.success("已关注子区"),
-    onError: (err) => toast.error(err instanceof Error ? err.message : "关注失败"),
-  });
-  const [searchOpen, setSearchOpen] = useState(false);
   const [settingOpen, setSettingOpen] = useState(false);
 
-  // 子区主区时,父群面包屑点击 → 切回父群(对齐旧 ThreadPanel handleOpenFullView 同向反向)
+  // 子区主区时,父群面包屑点击 → 切回父群(对齐旧 ThreadPanel handleOpenFullView 反向)
   const goParentGroup = () => {
-    if (!parsed) return;
-    chatSelectedActions.select(new Channel(parsed.groupNo, ChannelTypeGroup));
+    if (!parentChannel) return;
+    chatSelectedActions.select(parentChannel);
+  };
+
+  // 事项面板入口 — chat 内 matter panel 集成方案待定,先 console 占位(对齐截图)
+  const onClickMatter = () => {
+    console.info("[chat-header] matter button clicked — panel integration TBD", {
+      channelId: channel.channelID,
+      channelType: channel.channelType,
+    });
   };
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        {isThreadCh ? (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-text-secondary">
-            <ThreadIcon size={18} />
-          </div>
-        ) : (
-          <ChannelAvatar channel={channel} size={28} title={displayName} />
-        )}
+        {/* 子区借用父群头像(对齐截图);其他场景用 channel 自身头像 */}
+        <ChannelAvatar
+          channel={parentChannel ?? channel}
+          size={28}
+          title={parentGroupTitle || displayName}
+        />
         <h2 className="flex min-w-0 flex-1 items-center gap-1 truncate text-base font-semibold leading-tight text-text-primary">
           {isThreadCh && parsed ? (
             <>
@@ -121,25 +121,14 @@ export function ChatHeader({
         </h2>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {isThreadCh ? (
-          <button
-            type="button"
-            aria-label="关注此子区"
-            title="关注此子区"
-            onClick={() => followThreadMu.mutate(channel.channelID)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-brand"
-          >
-            <Star size={18} />
-          </button>
-        ) : null}
         <button
           type="button"
-          aria-label="搜索聊天内容"
-          title="搜索聊天内容"
-          onClick={() => setSearchOpen(true)}
+          aria-label="事项"
+          title="事项"
+          onClick={onClickMatter}
           className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <Search size={18} />
+          <ListChecks size={18} />
         </button>
         {showThreadIcon ? (
           <button
@@ -163,7 +152,6 @@ export function ChatHeader({
         </button>
       </div>
 
-      <GlobalSearchModal open={searchOpen} channel={channel} onClose={() => setSearchOpen(false)} />
       <ChannelSettingModal
         open={settingOpen}
         channel={channel}

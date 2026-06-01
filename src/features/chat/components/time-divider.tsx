@@ -22,15 +22,16 @@ function formatDateLabel(ts: number): string {
 /**
  * 时间分隔条 — 浅灰胶囊(对应旧 .wk-message-time + .wk-message-time-box):
  *   外层 margin 16 0 8(上 16 下 8,不对称)/ text-align center
- *   胶囊 bg rgba(0,0,0,0.03) / radius-full / 11px font-medium / text-tertiary
+ *   胶囊 bg rgba(0,0,0,0.03) / radius-full / 11px / text-tertiary
  *   padding 2px 10px
  *
  * 跟系统消息(SystemRenderer)同款胶囊样式,只是文本不同。
+ * font-weight 用 default 400(旧源码 500 在 PingFang SC 下视觉过粗,跟旧 Roboto 不一致)。
  */
 export function TimeDivider({ timestamp }: TimeDividerProps) {
   return (
     <div className="mt-4 mb-2 flex justify-center">
-      <span className="rounded-full bg-[rgba(0,0,0,0.03)] px-2.5 py-0.5 text-[11px] leading-[1.5] font-medium text-text-tertiary">
+      <span className="rounded-full bg-[rgba(0,0,0,0.03)] px-2.5 py-0.5 text-[11px] leading-[1.5] text-text-tertiary">
         {formatDateLabel(timestamp)}
       </span>
     </div>

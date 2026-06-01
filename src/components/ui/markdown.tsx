@@ -1,12 +1,16 @@
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 /**
  * 通用 Markdown 渲染器(对应旧 dmworkbase Messages/Text/MarkdownContent)。
  *
- * **依赖**:`react-markdown@10` + `remark-gfm@4`(已在 deps,group-md-modal 同款)。
- * 不引入新 dep — code highlight / KaTeX 暂用基础样式,等真有场景再加。
+ * **依赖**:
+ * - `react-markdown@10`
+ * - `remark-gfm@4`(GFM:table / strikethrough / task list / autolinks)
+ * - `remark-breaks@4`(单 `\n` → `<br>`,**chat 软换行关键**;对齐旧 MarkdownContent
+ *   baseRemarkPlugins)
  *
  * **后处理 token 替换**(`tokens` prop):
  *   tokens = [{ match: '@张三', render: (key) => <MentionTag uid="..." /> }]
@@ -150,7 +154,7 @@ function buildComponents(tokens: MarkdownToken[]): Components {
  *
  * 字号/行距对齐旧 markdown.css(line-height 1.6 舒展,headings em 缩放):
  * - 整体 `leading-[1.6]`(对应 wk-markdown line-height: 1.6)
- * - headings 用 em 跟父字号 14px 缩放(h1 1.4em=19.6 / h2 1.25em=17.5 / h3 1.1em=15.4 / h4-6 1em=14)
+ * - headings 用 em 跟父字号 14px 缩放(h1 1.4em / h2 1.25em / h3 1.1em / h4-6 1em)
  * - 段落 mb-sp-2 = 8px(my-2),最后一段无 mb
  * - lists pl-5 = 20px,li mb-sp-1 = 4px
  * - blockquote 紫色左边 + ai-surface bg
@@ -191,7 +195,7 @@ export function Markdown({ content, tokens = [], className }: MarkdownProps) {
   const components = buildComponents(tokens);
   return (
     <div className={`${MD_CLASS}${className ? ` ${className}` : ""}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
         {normalized}
       </ReactMarkdown>
     </div>

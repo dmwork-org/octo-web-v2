@@ -240,7 +240,7 @@ export function MessageList({ channel }: MessageListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto bg-bg-base pb-3">
+    <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto bg-bg-surface pb-3">
       {hasNextPage ? (
         <div className="flex justify-center py-2 text-xs text-text-tertiary">
           {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}

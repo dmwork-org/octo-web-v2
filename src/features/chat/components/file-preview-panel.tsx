@@ -2,6 +2,7 @@ import { useStore } from "@tanstack/react-store";
 import { Download, ExternalLink, X } from "lucide-react";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { openInNewWindow, triggerDownload } from "@/features/chat/lib/file-download";
+import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
 import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
 
 /**
@@ -14,11 +15,11 @@ import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
  *   [文件名(truncate)] [ExternalLink] [Download] [Close]
  *   - 高 48 / bg-surface / border-bottom
  *
- * **content**:flex-1 overflow-hidden,通过 registry 按 ext 分发 renderer。
- *
- * **commit 1**:registry 尚未实现,先用占位 "渲染器加载中…"。commit 2 加入
- * Fallback/Image/Pdf,commit 3 加 Markdown/Text/Code,commit 4 加 Json/Jsonl/
- * Excel/Html。
+ * **content**:flex-1 overflow-hidden,通过 `fileRendererRegistry.getRenderer(ext)`
+ * 按扩展名分发 renderer(策略模式,对齐旧 Components/FilePreviewPanel/registry.ts)。
+ * - commit 2 已注册:image / pdf / fallback
+ * - commit 3 待注册:markdown / text / code
+ * - commit 4 待注册:json / jsonl / excel(csv) / html
  */
 export function FilePreviewPanel() {
   const state = useStore(chatSidePanelStore);
@@ -27,6 +28,7 @@ export function FilePreviewPanel() {
 }
 
 function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
+  const { renderer: Renderer } = fileRendererRegistry.getRenderer(file.ext, file.name);
   return (
     <aside className="flex h-full w-[380px] shrink-0 flex-col border-l border-border-default bg-bg-base">
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
@@ -57,10 +59,12 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
         </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {/* commit 2~4 在此处接入 registry 分发 renderer */}
-        <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-          预览渲染器即将接入(commit 2~4)
-        </div>
+        <Renderer
+          file={file}
+          onError={(msg) => {
+            console.error("[FilePreviewPanel] renderer error:", msg, file);
+          }}
+        />
       </div>
     </aside>
   );

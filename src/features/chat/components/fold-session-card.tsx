@@ -1,4 +1,10 @@
-import { MessageContentType, type Message, type MessageText } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  MessageContentType,
+  type Message,
+  type MessageText,
+} from "wukongimjssdk";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { Markdown } from "@/components/ui/markdown";
 import { MessageRow } from "@/features/chat/components/message-row";
@@ -12,22 +18,21 @@ interface FoldSessionCardProps {
 
 /**
  * AI 多 bot 协作折叠会话卡(1:1 对齐旧 dmworkbase Conversation.renderFoldSession +
- * fold-session-avatar.svg + FoldSessionExpandedList):
+ * FoldSessionCard summary head + FoldSessionExpandedList):
  *
- * 结构(对齐旧 .wk-message-item-fold-session-shell + content):
+ * 结构:
  *   - shell: mt-6 + px-4 + gap-2 + items-start
- *   - avatar: 32×32 inline SVG(蓝紫渐变圆 + AI logo,对齐旧 fold-session-avatar.svg)
+ *   - avatar: 32×32 inline SVG(蓝紫渐变圆 + AI logo,1:1 旧 fold-session-avatar.svg)
  *   - content:
  *     - title row: 参与者名(× 分隔)+ "AI协作" 紫胶囊 + 时间 + 右侧 toggle btn
  *     - 卡片 bg rgba(28,28,35,0.04) / r 8 / p 12 / max-w min(680, vw-120)
  *
- * **折叠态**(对齐 renderFoldSessionSummary line 1118-1144):
- *   - text → Markdown body
- *   - 其他 → conversationDigest 字符串
- *   - **不渲染 sender 灰胶囊**(sender 已在卡片头部"参与者名" + 时间)
+ * **折叠态**(对齐旧 FoldSessionCard summary line 209-213 + .wk-fold-msg-head/name/time):
+ *   - 顶部 sender 白底胶囊 12/700 + HH:mm 12 灰(`.wk-fold-msg-name` + `.wk-fold-msg-time`)
+ *   - 下方 body:text → Markdown / 其他 → conversationDigest
  *
- * **展开态**:走 MessageRow 普通流(用户允许 — 时间/sender 走 message-row 统一逻辑,
- * 不强求旧 FoldSessionExpandedList 的简版样式)。
+ * **展开态**:走 MessageRow,**强制 continueWithPrev=false**(对齐截图 27 — 旧仓展开
+ * 每条独立头像 + sender header,不折叠 continue)。
  *
  * 简化(对齐旧但未实现):
  *   - 单 AI "AI助手" vs 多 AI "AI协作" 区分 — 都用 "AI协作"
@@ -42,11 +47,9 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
 
   return (
     <div className="mt-6 flex items-start gap-2 px-4">
-      {/* AI 圆形头像 — 对齐旧 fold-session-avatar.svg */}
       <FoldSessionAvatar />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {/* 标题行 */}
         <header className="flex max-w-[min(680px,calc(100vw_-_120px))] flex-wrap items-center gap-2">
           <span className="truncate text-[14px] font-semibold text-[#000]">{participantLabel}</span>
           <span className="inline-flex h-[18px] shrink-0 items-center rounded-[4px] bg-gradient-to-r from-[#7b89f4] to-[#9d78f5] px-1.5 text-[11px] leading-none font-medium text-white">
@@ -58,11 +61,10 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
             onClick={onToggle}
             className="ml-auto cursor-pointer text-[12px] font-semibold whitespace-nowrap text-[#7f3bf5] transition-opacity hover:opacity-80"
           >
-            {expanded ? "收起" : `展开 ${messages.length} 条讨论`}
+            {expanded ? `收起 ${messages.length} 条讨论` : `展开 ${messages.length} 条讨论`}
           </button>
         </header>
 
-        {/* 卡片体 */}
         <div className="w-full max-w-[min(680px,calc(100vw_-_120px))] overflow-hidden rounded-lg bg-[rgba(28,28,35,0.04)] p-3">
           {expanded ? (
             <FoldSessionExpanded messages={messages} />
@@ -76,11 +78,27 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
 }
 
 /**
- * 折叠态摘要 — 对齐旧 renderFoldSessionSummary(只渲染 body,无 sender header):
- *   - text → Markdown
- *   - 其他 → conversationDigest 字符串
+ * 折叠态摘要 — 对齐旧 FoldSessionCard summary head + renderFoldSessionSummary:
+ *   [sender 白底黑字胶囊 12/700/r 3/padding 2 8] [HH:mm 12 rgba(28,28,35,0.4)]
+ *   body:text → Markdown / 其他 → conversationDigest
  */
 function FoldSessionSummary({ message }: { message: Message }) {
+  const senderName = senderTitleOf(message.fromUID);
+  const time = formatTime(message.timestamp);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
+          {senderName}
+        </span>
+        <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
+      </div>
+      <SummaryBody message={message} />
+    </div>
+  );
+}
+
+function SummaryBody({ message }: { message: Message }) {
   if (message.contentType === MessageContentType.text) {
     const text = (message.content as MessageText).text ?? "";
     return <Markdown content={text} />;
@@ -91,17 +109,18 @@ function FoldSessionSummary({ message }: { message: Message }) {
 }
 
 /**
- * 展开态:渲染所有 messages(走 MessageRow 统一逻辑,sender 名 + 时间复用 message-row
- * 内部 senderDisplay + formatSenderTime,不重写)。
+ * 展开态:渲染所有 messages,走 MessageRow 统一逻辑(sender + 时间复用 message-row 内部)。
+ * **强制 continueWithPrev=false** — 对齐截图 27 旧仓行为(每条独立显示头像 + sender header,
+ * 不因 sender 相同而折叠;fold session 内部消息间距由 MessageRow mt-6 给出)。
  */
 function FoldSessionExpanded({ messages }: { messages: Message[] }) {
   return (
     <div className="-mx-3 -my-3 flex flex-col">
-      {messages.map((m, i) => (
+      {messages.map((m) => (
         <MessageRow
           key={m.clientMsgNo || m.messageID}
           message={m}
-          continueWithPrev={i > 0 && messages[i - 1].fromUID === m.fromUID}
+          continueWithPrev={false}
           bare={shouldRenderBare(m)}
         />
       ))}
@@ -125,9 +144,17 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+/** uid → Person channelInfo title fallback uid(对齐 message-row.senderDisplay 简化版)。 */
+function senderTitleOf(fromUID: string): string {
+  if (!fromUID) return "";
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  return info?.title || fromUID;
+}
+
 /**
- * AI 协作头像 — 1:1 内联 inline 旧 fold-session-avatar.svg
- * (路径 packages/dmworkbase/src/Components/Conversation/fold-session-avatar.svg)。
+ * AI 协作头像 — 1:1 内联 旧 fold-session-avatar.svg
  * 32×32 圆 + 渐变 #41DFFF→#7F3BF5 + 白色 AI logo。
  */
 function FoldSessionAvatar() {

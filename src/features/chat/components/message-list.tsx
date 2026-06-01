@@ -256,8 +256,10 @@ export function MessageList({ channel }: MessageListProps) {
       {messages.map((m, i) => {
         const prev = messages[i - 1];
         const bare = shouldRenderBare(m);
-        const continueWithPrev = !bare && isContinue(m, prev);
         const showDivider = shouldInsertDivider(m, prev);
+        // 跨日(TimeDivider 插在中间)强制不 continue → 重显示头像 + sender header
+        // 对齐旧仓:旧仓跨日插入 Time 系统消息,Time 之后的消息 isContinue=false
+        const continueWithPrev = !bare && !showDivider && isContinue(m, prev);
         return (
           <div key={m.clientMsgNo || m.messageID}>
             {showDivider && <TimeDivider timestamp={m.timestamp} />}

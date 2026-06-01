@@ -1,13 +1,5 @@
-import WKSDK, {
-  Channel,
-  ChannelTypePerson,
-  MessageContentType,
-  type Message,
-  type MessageText,
-} from "wukongimjssdk";
-import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import { Markdown } from "@/components/ui/markdown";
-import { MessageRow } from "@/features/chat/components/message-row";
+import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
+import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { type FoldSession } from "@/features/chat/lib/fold-session";
 
 interface FoldSessionCardProps {
@@ -29,16 +21,14 @@ interface FoldSessionCardProps {
  *
  * **折叠态**(对齐旧 FoldSessionCard summary line 209-213 + .wk-fold-msg-head/name/time):
  *   - 顶部 sender 白底胶囊 12/700 + HH:mm 12 灰(`.wk-fold-msg-name` + `.wk-fold-msg-time`)
- *   - 下方 body:text → Markdown / 其他 → conversationDigest
+ *   - 下方 body 走 MessageDispatch(text → TextRenderer 含 mention 高亮 / file → FileRenderer / ...)
  *
- * **展开态**:走 MessageRow,**强制 continueWithPrev=false**(对齐截图 27 — 旧仓展开
- * 每条独立头像 + sender header,不折叠 continue)。
- *
- * 简化(对齐旧但未实现):
- *   - 单 AI "AI助手" vs 多 AI "AI协作" 区分 — 都用 "AI协作"
- *   - > 5 AI tooltip 折叠
- *   - typing 实时合并(BeatLoader)+ 120s 自动失活定时器
- *   - shouldMergeFlash / appearing 动效
+ * **展开态**(对齐截图 28 旧 FoldSessionExpandedList +
+ * `.wk-fold-msg-ava { display: none }`):
+ *   - 每条独立 head(白底胶囊 sender + 灰 time)+ body
+ *   - **无头像**(旧 CSS 直接 display:none 隐藏 wk-fold-msg-ava)
+ *   - **复用 FoldSessionSummary** — 折叠/展开 head 渲染逻辑完全一致,
+ *     差别只是展开渲染所有 messages、折叠只渲染 lastMessage
  */
 export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCardProps) {
   const { participants, messages, lastMessage } = session;
@@ -69,7 +59,7 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
           {expanded ? (
             <FoldSessionExpanded messages={messages} />
           ) : (
-            <FoldSessionSummary message={lastMessage} />
+            <FoldSessionItem message={lastMessage} />
           )}
         </div>
       </div>
@@ -78,11 +68,15 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
 }
 
 /**
- * 折叠态摘要 — 对齐旧 FoldSessionCard summary head + renderFoldSessionSummary:
+ * Fold 内单条消息渲染(折叠态摘要 / 展开态每条复用):
  *   [sender 白底黑字胶囊 12/700/r 3/padding 2 8] [HH:mm 12 rgba(28,28,35,0.4)]
- *   body:text → Markdown / 其他 → conversationDigest
+ *   body 走 MessageDispatch — text 走 TextRenderer 含 mention 高亮,
+ *   file/image 走各自 renderer,跟旧 renderFoldMessageContent 同款。
+ *
+ * 对齐旧 `.wk-fold-msg-head` + `.wk-fold-msg-name` + `.wk-fold-msg-time` 样式,
+ * **不**渲染 avatar(对齐 `.wk-fold-msg-ava { display: none }`)。
  */
-function FoldSessionSummary({ message }: { message: Message }) {
+function FoldSessionItem({ message }: { message: Message }) {
   const senderName = senderTitleOf(message.fromUID);
   const time = formatTime(message.timestamp);
   return (
@@ -93,48 +87,23 @@ function FoldSessionSummary({ message }: { message: Message }) {
         </span>
         <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
       </div>
-      <SummaryBody message={message} />
+      <MessageDispatch message={message} />
     </div>
   );
-}
-
-function SummaryBody({ message }: { message: Message }) {
-  if (message.contentType === MessageContentType.text) {
-    const text = (message.content as MessageText).text ?? "";
-    return <Markdown content={text} />;
-  }
-  const digest =
-    (message.content as { conversationDigest?: string } | undefined)?.conversationDigest ?? "";
-  return <span className="text-[14px] text-[rgba(28,28,35,0.8)]">{digest}</span>;
 }
 
 /**
- * 展开态:渲染所有 messages,走 MessageRow 统一逻辑(sender + 时间复用 message-row 内部)。
- * **强制 continueWithPrev=false** — 对齐截图 27 旧仓行为(每条独立显示头像 + sender header,
- * 不因 sender 相同而折叠;fold session 内部消息间距由 MessageRow mt-6 给出)。
+ * 展开态:渲染所有 messages,每条用 FoldSessionItem(无头像,简版 head + body)。
+ * 消息间距由 gap-3 给出。
  */
 function FoldSessionExpanded({ messages }: { messages: Message[] }) {
   return (
-    <div className="-mx-3 -my-3 flex flex-col">
+    <div className="flex flex-col gap-3">
       {messages.map((m) => (
-        <MessageRow
-          key={m.clientMsgNo || m.messageID}
-          message={m}
-          continueWithPrev={false}
-          bare={shouldRenderBare(m)}
-        />
+        <FoldSessionItem key={m.clientMsgNo || m.messageID} message={m} />
       ))}
     </div>
   );
-}
-
-/** 跟 message-list shouldRenderBare 同款(本地副本避免循环依赖)。 */
-function shouldRenderBare(m: Message): boolean {
-  if (m.remoteExtra?.revoke) return true;
-  const ct = m.contentType;
-  if (ct === MessageContentTypeConst.threadCreated) return false;
-  if (ct >= 1000 && ct <= 2000) return true;
-  return false;
 }
 
 /** HH:mm 格式化(对齐旧 timeOnly)。 */

@@ -148,32 +148,34 @@ function buildComponents(tokens: MarkdownToken[]): Components {
  * 内置基础样式 — 不引 Tailwind typography 插件,避免改 build config;
  * 用 `*:` 子选择器把 markdown 元素样式约束在 `.wk-md` scope 内。
  *
- * 设计要点:
- * - 段落 leading-snug,inline code 用 bg-bg-elevated 色块
- * - 代码块用 monospace + bg-bg-elevated + 圆角(无语法高亮 — 等 P5 加 hljs)
- * - 表格简单 border;list disc/decimal;blockquote 左 border
- * - heading 字号收敛(chat 里 h1/h2 不能太大)
+ * 字号/行距对齐旧 markdown.css(line-height 1.6 舒展,headings em 缩放):
+ * - 整体 `leading-[1.6]`(对应 wk-markdown line-height: 1.6)
+ * - headings 用 em 跟父字号 14px 缩放(h1 1.4em=19.6 / h2 1.25em=17.5 / h3 1.1em=15.4 / h4-6 1em=14)
+ * - 段落 mb-sp-2 = 8px(my-2),最后一段无 mb
+ * - lists pl-5 = 20px,li mb-sp-1 = 4px
+ * - blockquote 紫色左边 + ai-surface bg
  */
 const MD_CLASS = [
-  "wk-md text-sm leading-snug text-text-primary break-words",
+  "wk-md text-sm leading-[1.6] text-text-primary break-words",
   // headings
-  "[&_h1]:mt-2 [&_h1]:mb-1 [&_h1]:text-[18px] [&_h1]:font-semibold",
-  "[&_h2]:mt-2 [&_h2]:mb-1 [&_h2]:text-[16px] [&_h2]:font-semibold",
-  "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-[15px] [&_h3]:font-semibold",
-  "[&_h4]:mt-1 [&_h4]:mb-1 [&_h4]:text-[14px] [&_h4]:font-semibold",
-  // paragraph spacing
-  "[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
+  "[&_h1]:mt-3 [&_h1]:mb-2 [&_h1]:text-[1.4em] [&_h1]:leading-[1.3] [&_h1]:font-semibold",
+  "[&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[1.25em] [&_h2]:leading-[1.3] [&_h2]:font-semibold",
+  "[&_h3]:mt-3 [&_h3]:mb-2 [&_h3]:text-[1.1em] [&_h3]:leading-[1.3] [&_h3]:font-semibold",
+  "[&_h4]:mt-3 [&_h4]:mb-2 [&_h4]:text-[1em] [&_h4]:leading-[1.3] [&_h4]:font-semibold",
+  "[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0",
+  // paragraph spacing(舒展,8px 段落间)
+  "[&_p]:mb-2 [&_p:last-child]:mb-0",
   // lists
-  "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5",
-  "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5",
-  "[&_li]:my-0.5",
+  "[&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-5",
+  "[&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5",
+  "[&_li]:mb-1 [&_li:last-child]:mb-0",
   // inline code
   "[&_code]:rounded-sm [&_code]:bg-bg-elevated [&_code]:px-1 [&_code]:py-px [&_code]:font-mono [&_code]:text-[12.5px]",
   // code block
-  "[&_pre]:my-1.5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-bg-elevated [&_pre]:p-3",
-  "[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[12.5px] [&_pre_code]:leading-relaxed",
+  "[&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-bg-elevated [&_pre]:p-3",
+  "[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[12.5px] [&_pre_code]:leading-[1.6]",
   // blockquote
-  "[&_blockquote]:my-1.5 [&_blockquote]:border-l-2 [&_blockquote]:border-border-default [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary",
+  "[&_blockquote]:my-2 [&_blockquote]:border-l-[3px] [&_blockquote]:border-l-[rgba(127,59,245,0.25)] [&_blockquote]:bg-[rgba(127,59,245,0.03)] [&_blockquote]:px-3 [&_blockquote]:py-2 [&_blockquote]:rounded-r-sm [&_blockquote]:text-text-secondary",
   // tables(GFM)
   "[&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13px]",
   "[&_th]:border [&_th]:border-border-default [&_th]:bg-bg-elevated [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium",

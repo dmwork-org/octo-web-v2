@@ -133,38 +133,36 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+/** Intl 英文短星期(Mon/Tue/.../Sun),对齐旧 dmworkbase moment `ddd` format。 */
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-US", { weekday: "short" });
 
 /**
- * sender 旁的时间显示(对应旧 dmworkbase Utils/time.ts:44 getTimeStringAutoShort2
- * mustIncludeTime=true):
+ * sender 旁的时间显示(对齐旧 bridge/message/useMessageRow.ts:335 formatTimestamp):
  *   今天 → HH:mm
  *   昨天 → 昨天 HH:mm
- *   前天 → 前天 HH:mm
- *   7 天内 → 星期X HH:mm
- *   当年外 → M月D日 HH:mm
- *   跨年 → yyyy/M/D HH:mm
+ *   一周内 → "ddd HH:mm"(英文短星期,Mon/Tue/Sat...)
+ *   今年 → MM-DD HH:mm
+ *   跨年 → YYYY-MM-DD HH:mm
  */
 function formatSenderTime(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts * 1000);
   const now = new Date();
   const hhmm = formatTime(ts);
-  if (d.getFullYear() !== now.getFullYear()) {
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${hhmm}`;
-  }
   const sameDay = (a: Date, b: Date) =>
-    a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
   if (sameDay(d, now)) return hhmm;
   const y = new Date(now);
   y.setDate(y.getDate() - 1);
   if (sameDay(d, y)) return `昨天 ${hhmm}`;
-  const by = new Date(now);
-  by.setDate(by.getDate() - 2);
-  if (sameDay(d, by)) return `前天 ${hhmm}`;
-  const deltaHours = (now.getTime() - d.getTime()) / 3600_000;
-  if (deltaHours <= 7 * 24) return `${WEEKDAYS[d.getDay()]} ${hhmm}`;
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${hhmm}`;
+  const deltaDays = Math.abs(now.getTime() - d.getTime()) / 86_400_000;
+  if (deltaDays < 7) return `${WEEKDAY_FORMATTER.format(d)} ${hhmm}`;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hhmm}`;
+  return `${d.getFullYear()}-${mm}-${dd} ${hhmm}`;
 }
 
 /**
@@ -433,12 +431,14 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   }
 
   const wrapperBase =
-    "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
+    "group relative flex items-start gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
   // hover / 选中态色对齐旧 dmworkbase .wk-msg-row(hover rgba(28,28,35,0.04))+
   // .wk-msg-row--selected(rgba(127,59,245,0.08) 紫 8%)
   const wrapperHover = selectionActive ? "" : "hover:bg-[rgba(28,28,35,0.04)]";
   const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
-  const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${
+  // continue 间距 12px,非 continue 24px(对齐旧 .wk-msg-row--continue margin-top)
+  const wrapperSpacing = continueWithPrev ? "mt-3" : "mt-6";
+  const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${wrapperSpacing} ${
     selectionActive ? "cursor-pointer" : ""
   }`;
 
@@ -502,10 +502,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     return (
       <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
         {checkbox}
-        <div className="w-9 shrink-0 self-stretch text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="w-9 shrink-0 text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
         </div>
-        <div className="relative min-w-0 flex-1 py-0.5">
+        <div className="relative min-w-0 flex-1">
           {(message.content as { reply?: Reply }).reply ? (
             <div className="mb-1">
               <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
@@ -531,7 +531,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const senderChannel = new Channel(senderUid, ChannelTypePerson);
   const isBot = isBotSender(senderUid);
   return (
-    <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
+    <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
       {checkbox}
       <button
         type="button"
@@ -544,12 +544,12 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
       </button>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
-        <header className="flex items-center gap-2 leading-[22px]">
-          <span className="truncate text-[14px] font-semibold text-text-primary">
+        <header className="flex h-[22px] items-center gap-2 leading-[22px]">
+          <span className="truncate text-[15px] font-semibold text-text-primary">
             {senderTitle}
           </span>
           {isBot ? <AiBadge /> : null}
-          <span className="shrink-0 text-[11px] text-text-tertiary">
+          <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">
             {formatSenderTime(message.timestamp)}
           </span>
         </header>

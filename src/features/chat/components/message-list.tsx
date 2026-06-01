@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { type Channel, type Message } from "wukongimjssdk";
@@ -9,6 +9,8 @@ import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
+import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
+import { buildRenderItems } from "@/features/chat/lib/fold-session";
 import {
   distanceFromBottom,
   getPulldownRestoredScrollTop,
@@ -40,8 +42,7 @@ const NEAR_BOTTOM_THRESHOLD = 200;
 /**
  * 同发送者 = 连续(对齐旧 dmworkbase useMessageRow.ts:86 isContinue):
  *   pre 存在 + 非系统(bare)消息 + 同 sender
- * **不**做时间窗口判断 — 即使跨多小时,同一发送者连发的消息全聚合一个 header
- * (mergeforward 卡片 + 后续 text 就能跟前面的 text 一起折叠)。
+ * **不**做时间窗口判断 — 即使跨多小时,同一发送者连发的消息全聚合一个 header。
  */
 function isContinue(curr: Message, prev: Message | undefined): boolean {
   if (!prev) return false;
@@ -52,20 +53,22 @@ function isContinue(curr: Message, prev: Message | undefined): boolean {
 /**
  * **只**跨日时插入 TimeDivider("MM月DD日" 胶囊),一天内多条消息不再重复分隔。
  * 精确时间显示在每条消息 header 里(message-row),对齐旧 dmworkbase vm.ts:1756。
+ *
+ * 取每个 RenderItem 的代表 timestamp:foldSession 用 lastMessage,message 用自身。
  */
-function shouldInsertDivider(curr: Message, prev: Message | undefined): boolean {
-  if (!prev) return true;
-  const a = new Date((prev.timestamp || 0) * 1000);
-  const b = new Date((curr.timestamp || 0) * 1000);
+function timestampOfItem(item: ReturnType<typeof buildRenderItems>[number]): number {
+  return item.type === "foldSession" ? item.session.lastMessage.timestamp : item.message.timestamp;
+}
+
+function shouldInsertDividerByTs(currTs: number, prevTs: number | undefined): boolean {
+  if (prevTs === undefined) return true;
+  const a = new Date((prevTs || 0) * 1000);
+  const b = new Date((currTs || 0) * 1000);
   return a.toDateString() !== b.toDateString();
 }
 
 /**
  * 进入会话时把 scrollTop 拉到底(useLayoutEffect 在 paint 前同步设置,避免闪烁)。
- *
- * 触发条件:`firstReadyKey` 从 "" 变成第一条非空消息的 id 时,认为是初次到达 +
- * 内容首次有 height — 这一帧把 scrollTop 设到底,后续不再干预(由"新消息到达
- * 时,若用户在底部附近就自动跟"接管)。
  */
 function useInitialScrollToBottom(
   scrollRef: React.RefObject<HTMLDivElement | null>,
@@ -89,17 +92,6 @@ interface FollowBottomKey {
   mine: boolean;
 }
 
-/**
- * 新消息到达时分两种情况:
- * - 自己发出 → **无条件**滚到底(对齐 IM 主流体验:用户刚 Enter 完应该看到自己的消息)
- * - 别人发出 → 仅当用户在底部附近(< 200px)时跟到底,否则不动(用户可能在看历史)
- *
- * useLayoutEffect:在 paint 前同步设 scrollTop,新消息 mount 后立即到位,无闪烁。
- *
- * 双 RAF tick:某些 message renderer(图片 / 代码块)mount 后 height 是异步算的,
- * 第一次 setScrollTop 拿到的 scrollHeight 可能还不是最终值;再追一帧 RAF 兜底
- * (体感:发送图片消息时不会"掉出"视口底)。
- */
 function useFollowBottomOnNewMessages(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   key: FollowBottomKey,
@@ -115,7 +107,6 @@ function useFollowBottomOnNewMessages(
     const shouldFollow = key.mine || distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
     if (shouldFollow) {
       el.scrollTop = el.scrollHeight;
-      // 异步 layout(图片/代码块/markdown)兜底
       requestAnimationFrame(() => {
         if (el.isConnected) el.scrollTop = el.scrollHeight;
       });
@@ -124,17 +115,6 @@ function useFollowBottomOnNewMessages(
   }, [key.id, key.mine, scrollRef]);
 }
 
-/**
- * 顶部 onScroll 触发拉历史 + prepend 后保持视觉位置。
- *
- * - onScroll:scrollTop <= 250 → fetchNextPage(loading 时不重复触发,
- *   isFetchingNextPage / fetchedSinceMountRef 双锁定)
- * - prepend 完成那一帧:scrollTop = prevScrollTop + (nextHeight - prevHeight)
- *   用 useLayoutEffect 在 paint 前同步设置,无闪烁
- *
- * 实现:在 fetchNextPage 调用前 snapshot prev,调用后 useLayoutEffect 监听
- * pageCount 变化时还原。
- */
 function usePulldownToLoadHistory(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   pageCount: number,
@@ -142,12 +122,9 @@ function usePulldownToLoadHistory(
   isFetchingNextPage: boolean,
   fetchNextPage: () => void,
 ) {
-  // snapshot 容器:fetchNextPage 调用瞬间记录 scrollHeight + scrollTop
   const snapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
-  // 上一次见到的 pageCount,用来判定 prepend 是否完成
   const prevPageCountRef = useRef(pageCount);
 
-  // onScroll 监听:接近顶部 → 取 snapshot 后触发 fetchNextPage
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -161,7 +138,6 @@ function usePulldownToLoadHistory(
     return () => el.removeEventListener("scroll", onScroll);
   }, [scrollRef, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // prepend 完成(pageCount 增加 + snapshot 在手)→ 还原 scrollTop
   useLayoutEffect(() => {
     if (pageCount <= prevPageCountRef.current) {
       prevPageCountRef.current = pageCount;
@@ -198,6 +174,19 @@ export function MessageList({ channel }: MessageListProps) {
       return aSeq - bSeq;
     });
   }, [data?.pages]);
+
+  // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message
+  const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+
+  // fold session 展开收起 state(sessionId → boolean,默认折叠)
+  const [expandedSessions, setExpandedSessions] = useState<Map<string, boolean>>(new Map());
+  const toggleSession = (sessionId: string) => {
+    setExpandedSessions((prev) => {
+      const next = new Map(prev);
+      next.set(sessionId, !next.get(sessionId));
+      return next;
+    });
+  };
 
   const firstReadyKey = useMemo(
     () => (messages[0] ? messages[0].clientMsgNo || messages[0].messageID || "" : ""),
@@ -253,16 +242,35 @@ export function MessageList({ channel }: MessageListProps) {
           {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}
         </div>
       ) : null}
-      {messages.map((m, i) => {
-        const prev = messages[i - 1];
+      {renderItems.map((item, i) => {
+        const prev = renderItems[i - 1];
+        const currTs = timestampOfItem(item);
+        const prevTs = prev ? timestampOfItem(prev) : undefined;
+        const showDivider = shouldInsertDividerByTs(currTs, prevTs);
+
+        if (item.type === "foldSession") {
+          const session = item.session;
+          return (
+            <div key={session.sessionId}>
+              {showDivider ? <TimeDivider timestamp={currTs} /> : null}
+              <FoldSessionCard
+                session={session}
+                expanded={!!expandedSessions.get(session.sessionId)}
+                onToggle={() => toggleSession(session.sessionId)}
+              />
+            </div>
+          );
+        }
+
+        // message item:跟前一项(可能是 foldSession 或 message)做 continue 判定
+        const m = item.message;
         const bare = shouldRenderBare(m);
-        const showDivider = shouldInsertDivider(m, prev);
-        // 跨日(TimeDivider 插在中间)强制不 continue → 重显示头像 + sender header
-        // 对齐旧仓:旧仓跨日插入 Time 系统消息,Time 之后的消息 isContinue=false
-        const continueWithPrev = !bare && !showDivider && isContinue(m, prev);
+        // foldSession 后的 message 强制不 continue(显示完整 header)
+        const prevMessage = prev?.type === "message" ? prev.message : undefined;
+        const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
         return (
           <div key={m.clientMsgNo || m.messageID}>
-            {showDivider && <TimeDivider timestamp={m.timestamp} />}
+            {showDivider ? <TimeDivider timestamp={currTs} /> : null}
             <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
           </div>
         );

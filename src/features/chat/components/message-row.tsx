@@ -27,7 +27,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -307,6 +307,10 @@ function canCreateThread(message: Message): boolean {
  * 右键 → ContextMenu(F-4/F-5/F-6 完整集合,对齐旧 module.tsx
  * registerMessageContextMenus 7 项):
  *   - 复制 / 复制图片 / 回复 / 转发 / 多选 / 撤回 / 创建子区(群消息)/ 删除
+ *
+ * 头像 click → AvatarMenuButton 弹 popover 菜单(@TA / 查看用户信息),
+ * 对齐旧 ConversationContext onTapAvatar → avatarMenusContext.show。
+ * **不要**直接弹 profile modal(那是旧仓 showUser 走的快捷路径,头像 click 走菜单)。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   useSenderInfoLive(effectiveFromUID(message));
@@ -640,16 +644,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       onClick={onRowClick}
     >
       {checkbox}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          openChatProfile(senderUid);
-        }}
-        className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
+      <AvatarMenuButton
+        messageChannel={message.channel}
+        senderUid={senderUid}
+        senderTitle={senderTitle}
       >
         <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
-      </button>
+      </AvatarMenuButton>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
           <span className="truncate text-[15px] font-semibold text-text-primary">

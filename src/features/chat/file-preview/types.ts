@@ -38,6 +38,27 @@ export interface BaseRendererProps {
   file: FilePreviewInfo;
   /** 渲染器内部异常上抛(目前 panel 仅 console.error,后续可接 toast)。 */
   onError?: (msg: string) => void;
+  /**
+   * 视图模式 — panel 持有,renderer 按需消费(仅 Markdown 真切换;
+   * Code/Html 简化版忽略此字段)。
+   *   - "preview"(默认):渲染视图
+   *   - "source":源码视图(markdown 走 highlight-markdown,html 走 code 风格)
+   */
+  viewMode?: "preview" | "source";
+  /**
+   * Markdown 上报 toc 大纲(h1/h2/h3),panel 根据此判定是否显示 TOC 按钮 + 渲染
+   * popup 列表。其他 renderer 不调用。
+   *
+   * **id 约定**:slug(由 renderer 内 anchor 注入到 DOM `<h_>` 上),click toc
+   * item 时 panel 用 `document.getElementById(id).scrollIntoView()` 跳转。
+   */
+  onTocChange?: (items: TocItem[]) => void;
+}
+
+export interface TocItem {
+  level: 1 | 2 | 3;
+  text: string;
+  id: string;
 }
 
 export type FileRenderer = ComponentType<BaseRendererProps>;

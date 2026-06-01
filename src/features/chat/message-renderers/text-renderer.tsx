@@ -8,6 +8,11 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
+import {
+  findEmojiKeywords,
+  getEmojiImageUrl,
+  getSingleCustomEmoji,
+} from "@/features/base/emoji/emoji-data";
 
 interface TextRendererProps {
   message: Message;
@@ -41,6 +46,23 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Inline emoji 图(对齐旧 .wk-message-text-richemoji img 18×18 + vertical-align: sub)。
+ * src 来自 `public/emoji/<key>.png`,小图嵌入文本流,跟字符基线对齐。
+ */
+function EmojiImg({ keyword }: { keyword: string }) {
+  const url = getEmojiImageUrl(keyword);
+  if (!url) return <span>{keyword}</span>;
+  return (
+    <img
+      src={url}
+      alt={keyword}
+      className="inline-block h-[18px] w-[18px] align-sub"
+      draggable={false}
+    />
   );
 }
 
@@ -165,17 +187,55 @@ function mentionTokens(
 }
 
 /**
- * 文本消息正文 — markdown 渲染 + @mention 高亮(M1)。
+ * Emoji 字段 → Markdown tokens:扫 text 里**出现过**的 keyword
+ * (`[使命必达]` / `😀` / unicode emoji 序列),替换成 `<EmojiImg>`。
+ * 对齐旧 EmojiService + MarkdownContent emoji parts(`./emoji/<key>.png`)。
+ */
+function emojiTokens(text: string): MarkdownToken[] {
+  const keywords = findEmojiKeywords(text);
+  return keywords.map((kw) => ({
+    match: kw,
+    render: (key) => <EmojiImg key={key} keyword={kw} />,
+  }));
+}
+
+/**
+ * 文本消息正文 — markdown 渲染 + @mention 高亮 + emoji 替换(M1)。
  *
  * 对应旧 dmworkbase Messages/Text/MarkdownContent.tsx(404 行) 的精简版:
  * 只保留 react-markdown + remark-gfm + remark-breaks,不引入 highlight.js/KaTeX/sanitize。
  *
+ * **特殊**:全文本 trim 后仅含 1 个 custom_ keyword → 大图 120×120
+ * (对齐旧 isLargeCustomEmoji),不走 Markdown。
+ *
  * @mention 字段走 token 后处理 — 主路径正则提取 text 里 @xxx 按顺序对应
  * uids;兜底用 subscriber / channelInfo 多候选 name 匹配。
+ *
+ * emoji 走全局 keyword 扫描 token — 不依赖 parts 字段,直接对 text 匹配 152 keyword。
  */
 export function TextRenderer({ message }: TextRendererProps) {
   const content = message.content as MessageText;
   const text = content.text ?? "";
-  const tokens = mentionTokens(text, content.mention, message.channel);
+
+  // 单独一个 custom emoji → 大图(120×120),跳过 markdown
+  const largeCustom = getSingleCustomEmoji(text);
+  if (largeCustom) {
+    const url = getEmojiImageUrl(largeCustom);
+    return (
+      <span className="inline-block">
+        <img
+          src={url}
+          alt={largeCustom}
+          className="h-[120px] w-[120px]"
+          draggable={false}
+        />
+      </span>
+    );
+  }
+
+  const tokens = [
+    ...mentionTokens(text, content.mention, message.channel),
+    ...emojiTokens(text),
+  ];
   return <Markdown content={text} tokens={tokens} />;
 }

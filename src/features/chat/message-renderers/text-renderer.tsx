@@ -5,8 +5,8 @@ import WKSDK, {
   type Message,
   type MessageText,
 } from "wukongimjssdk";
-import { Fragment, type ReactNode } from "react";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 
 interface TextRendererProps {
   message: Message;
@@ -44,76 +44,57 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
 }
 
 /**
- * 把 text 按 mention 字段切片为 (string | MentionTag)[]。
+ * mention 字段 → Markdown tokens(供 `<Markdown>` 后处理替换):
  *
- * 策略:
- * - 拿 mention.uids 各 uid 查 WKSDK channelInfo 拿 title(name 候选)
- * - 文本中精确匹配 `@<name>` 子串包 MentionTag(brand 胶囊,可 click 弹卡)
- * - mention.all=true 时,额外把 `@所有人` / `@all` 高亮(纯 brand 色无背景,不可 click)
- * - 无匹配则原文返回
+ * - mention.uids 各 uid 查 WKSDK channelInfo 拿 title → "@<title>" token
+ * - mention.all=true 时额外加 "@所有人" / "@all" token(纯色无 bg,不可 click)
  *
- * **不**做"任何 @<word> 都高亮"(避免误识别邮件 / 字面值),只信任 mention 字段。
+ * 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段。
  */
-function parseTextWithMentions(text: string, mention: Mention | undefined): ReactNode[] {
-  if (!text) return [];
-  if (!mention || (!mention.uids?.length && !mention.all)) return [text];
-
-  // 候选 @<name> 列表(带 @ 前缀,按长度降序避免短名先匹配吃掉长名)
-  const names: { token: string; isAll: boolean; uid?: string }[] = [];
+function mentionTokens(mention: Mention | undefined): MarkdownToken[] {
+  if (!mention || (!mention.uids?.length && !mention.all)) return [];
+  const tokens: MarkdownToken[] = [];
   if (mention.all) {
-    names.push({ token: "@所有人", isAll: true }, { token: "@all", isAll: true });
+    for (const txt of ["@所有人", "@all"] as const) {
+      tokens.push({
+        match: txt,
+        render: (key) => (
+          <MentionTag key={key} isAll>
+            {txt}
+          </MentionTag>
+        ),
+      });
+    }
   }
   for (const uid of mention.uids ?? []) {
     const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
     const title = info?.title;
-    if (title) names.push({ token: `@${title}`, isAll: false, uid });
+    if (!title) continue;
+    const match = `@${title}`;
+    tokens.push({
+      match,
+      render: (key) => (
+        <MentionTag key={key} uid={uid}>
+          {match}
+        </MentionTag>
+      ),
+    });
   }
-  if (names.length === 0) return [text];
-  names.sort((a, b) => b.token.length - a.token.length);
-
-  // 单次扫描:从左到右尝试匹配候选 token,命中则切出 MentionTag,否则推进 1 字符
-  const out: ReactNode[] = [];
-  let buf = "";
-  let i = 0;
-  while (i < text.length) {
-    let matched: { token: string; isAll: boolean; uid?: string } | null = null;
-    for (const n of names) {
-      if (text.startsWith(n.token, i)) {
-        matched = n;
-        break;
-      }
-    }
-    if (matched) {
-      if (buf) {
-        out.push(buf);
-        buf = "";
-      }
-      out.push(
-        <MentionTag key={`m-${i}`} isAll={matched.isAll} uid={matched.uid}>
-          {matched.token}
-        </MentionTag>,
-      );
-      i += matched.token.length;
-    } else {
-      buf += text[i];
-      i++;
-    }
-  }
-  if (buf) out.push(buf);
-  return out;
+  return tokens;
 }
 
 /**
- * 文本消息正文(不带气泡 — Slack 风格,头像 + sender 在 MessageRow wrapper 内)。
- * 保留 whitespace-pre-wrap 让换行可见;mention 字段解析高亮 + click 弹卡(audit-v2 §2.3 + A6)。
+ * 文本消息正文 — markdown 渲染 + @mention 高亮(M1)。
+ *
+ * 对应旧 dmworkbase Messages/Text/MarkdownContent.tsx(404 行) 的精简版:
+ * 只保留 react-markdown + remark-gfm(已有 dep),不引入 highlight.js/KaTeX/sanitize
+ * (按 CLAUDE.md "先跑 n=1 再抽象" — 真有场景再加)。
+ *
+ * @mention 字段走 token 后处理(避开 markdown 块级结构干扰)。
  */
 export function TextRenderer({ message }: TextRendererProps) {
   const content = message.content as MessageText;
   const text = content.text ?? "";
-  const parts = parseTextWithMentions(text, content.mention);
-  return (
-    <p className="text-sm leading-snug whitespace-pre-wrap text-text-primary">
-      {parts.map((p, idx) => (typeof p === "string" ? <Fragment key={idx}>{p}</Fragment> : p))}
-    </p>
-  );
+  const tokens = mentionTokens(content.mention);
+  return <Markdown content={text} tokens={tokens} />;
 }

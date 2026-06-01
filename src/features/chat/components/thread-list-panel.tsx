@@ -89,11 +89,19 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     setView("detail");
   };
 
+  // 关 panel 时把 view/activeThread 重置 — 下次重开默认进 list
+  // (panel 用 `if (!open) return null` 早退,内部 state 不卸载,不 reset 会停在 detail)
+  const close = () => {
+    setView("list");
+    setActiveThread(null);
+    onClose();
+  };
+
   return (
     <aside className="flex h-full w-[380px] shrink-0 flex-col border-l border-border-default bg-bg-base">
       {view === "list" ? (
         <ListView
-          onClose={onClose}
+          onClose={close}
           onOpenCreate={() => setCreateOpen(true)}
           isLoading={isLoading}
           error={error}
@@ -113,7 +121,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
           groupNo={groupNo}
           thread={activeThread}
           onBack={() => setView("list")}
-          onClose={onClose}
+          onClose={close}
           onInvalidate={invalidate}
           onAfterDelete={() => {
             setView("list");

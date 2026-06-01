@@ -9,6 +9,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 
 interface ChatHeaderProps {
   showThreadIcon?: boolean;
@@ -52,8 +53,8 @@ function useChannelInfoLive(channel: Channel) {
  *   [头像 28×28] [面包屑/名字]                       [🔍] [⋯]
  *
  * - 高度 56px / bg-surface / border-bottom
- * - 头像:DM 圆 / Group 圆角 6px / 子区 # icon 占位
- * - 名字:displayName(remark || name);子区显示"父群 › 子区"面包屑
+ * - 头像:DM 圆 / Group 圆角 6px / 子区 ThreadIcon 18px 占位(bg-elevated 圆角)
+ * - 名字:displayName(remark || name);子区显示"父群 › 子区"面包屑,父群可点击跳回
  * - 🔍 搜索:打开 GlobalSearchModal 带 channel(channel 内搜索 mode)
  * - ⋯ 更多:打开 ChannelSettingModal(精简版聊天信息)
  *
@@ -82,22 +83,37 @@ export function ChatHeader({
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingOpen, setSettingOpen] = useState(false);
 
+  // 子区主区时,父群面包屑点击 → 切回父群(对齐旧 ThreadPanel handleOpenFullView 同向反向)
+  const goParentGroup = () => {
+    if (!parsed) return;
+    chatSelectedActions.select(new Channel(parsed.groupNo, ChannelTypeGroup));
+  };
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {isThreadCh ? (
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-text-secondary">
-            #
+            <ThreadIcon size={18} />
           </div>
         ) : (
           <ChannelAvatar channel={channel} size={28} title={displayName} />
         )}
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-tight text-text-primary">
+        <h2 className="flex min-w-0 flex-1 items-center gap-1 truncate text-base font-semibold leading-tight text-text-primary">
           {isThreadCh && parsed ? (
             <>
-              <span className="text-text-secondary">{parentGroupTitle || parsed.groupNo}</span>
-              <span className="mx-2 text-text-tertiary">›</span>
-              <span>{displayName}</span>
+              <button
+                type="button"
+                onClick={goParentGroup}
+                title="返回父群"
+                className="shrink truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
+              >
+                {parentGroupTitle || parsed.groupNo}
+              </button>
+              <span className="shrink-0 text-[11px] font-light text-text-disabled">›</span>
+              <span className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
+                {displayName}
+              </span>
             </>
           ) : (
             displayName

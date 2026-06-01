@@ -88,13 +88,15 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
               <List size={16} />
             </IconBtn>
           ) : null}
-          <IconBtn
-            label="在新窗口打开"
-            onClick={() => openInNewWindow(file.url)}
-            disabled={!file.url}
-          >
-            <ExternalLink size={16} />
-          </IconBtn>
+          {type === "html" ? (
+            <IconBtn
+              label="在新窗口打开"
+              onClick={() => openInNewWindow(file.url)}
+              disabled={!file.url}
+            >
+              <ExternalLink size={16} />
+            </IconBtn>
+          ) : null}
           <IconBtn
             label="下载"
             onClick={() => void triggerDownload(file.url, file.name)}

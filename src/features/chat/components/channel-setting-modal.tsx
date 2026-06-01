@@ -128,12 +128,15 @@ function NavRow({
   subTitle,
   right,
   danger,
+  center,
   onClick,
 }: {
   title: string;
   subTitle?: React.ReactNode;
   right?: React.ReactNode;
   danger?: boolean;
+  /** 标题居中(无 subTitle/right 的纯文字按钮场景,如"返回群聊「父群名」")。 */
+  center?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -146,7 +149,7 @@ function NavRow({
       }`}
     >
       <span
-        className={`flex-1 truncate text-[13px] ${danger ? "text-error" : "text-text-primary"}`}
+        className={`${center ? "text-center" : "flex-1 truncate text-left"} text-[13px] ${danger ? "text-error" : "text-text-primary"} ${center ? "w-full" : ""}`}
       >
         {title}
       </span>
@@ -455,7 +458,29 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
 
   const memberCountFromSubs = subscribers.length;
   const memberCount = memberCountFromSubs > 0 ? memberCountFromSubs : (orgData?.member_count ?? 0);
-  const headerCount = isGroup || isThread ? memberCount : undefined;
+  // 子区抽屉对齐截图,header 不带 (N) 计数(截图 "聊天信息(0)" 中的 0 用户要求忽略)
+  const headerCount = isGroup ? memberCount : undefined;
+
+  // 子区抽屉专属 — 父群 / 改名权限 / GROUP.md 元数据
+  // (对齐旧 dmworkbase module.tsx line 1883-2076)
+  const threadParsed = isThread ? parseThreadChannelId(channel.channelID) : null;
+  const threadParentChannel = threadParsed
+    ? new Channel(threadParsed.groupNo, ChannelTypeGroup)
+    : null;
+  const threadParentName =
+    (threadParentChannel
+      ? WKSDK.shared().channelManager.getChannelInfo(threadParentChannel)?.title
+      : "") ||
+    threadParsed?.groupNo ||
+    "";
+  const threadCreatorUid = (
+    channelInfo?.orgData as { thread?: { creator_uid?: string } } | undefined
+  )?.thread?.creator_uid;
+  const canEditThreadName = isThread && (threadCreatorUid === myUid || iAmOwnerOrManager);
+  const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
+    ?.has_thread_md;
+  const threadMdVersion =
+    (channelInfo?.orgData as { thread_md_version?: number } | undefined)?.thread_md_version ?? 0;
 
   const refreshChannelInfo = () => {
     void WKSDK.shared().channelManager.fetchChannelInfo(channel);
@@ -613,11 +638,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         </header>
 
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
-          {isGroup || isThread ? (
+          {/* 成员九宫格仅 group(子区抽屉对齐截图不显示成员) */}
+          {isGroup ? (
             <SubscribersGrid
               subscribers={subscribers}
-              canAdd={isGroup}
-              canManage={isGroup && iAmOwnerOrManager}
+              canAdd
+              canManage={iAmOwnerOrManager}
               onAdd={() => setAddOpen(true)}
               onKickMode={() => setKickListOpen(true)}
             />
@@ -692,6 +718,45 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
+          {/* 子区抽屉 base.info: 子区名称 + 返回群聊「父群名」(对齐截图) */}
+          {isThread ? (
+            <SectionGroup>
+              <InlineEditRow
+                title="子区名称"
+                value={title}
+                placeholder="未设置"
+                canEdit={canEditThreadName}
+                cantEditMessage="只有子区创建者或群管理者才能修改名称"
+                maxLength={50}
+                pending={renameMu.isPending}
+                editing={editing === "name"}
+                onEnterEdit={() => setEditing("name")}
+                onCancel={() => setEditing(null)}
+                onSave={(v) => renameMu.mutate(v)}
+              />
+              <NavRow
+                title={`返回群聊「${threadParentName}」`}
+                center
+                onClick={() => {
+                  if (!threadParentChannel) return;
+                  chatSelectedActions.select(threadParentChannel);
+                  onClose();
+                }}
+              />
+            </SectionGroup>
+          ) : null}
+
+          {/* 子区抽屉 GROUP.md(对齐旧 module.tsx thread.md.setting line 1978-2043) */}
+          {isThread ? (
+            <SectionGroup>
+              <NavRow
+                title="GROUP.md"
+                subTitle={hasThreadMd ? `已配置 v${threadMdVersion}` : "未配置"}
+                onClick={() => setSubpage("md")}
+              />
+            </SectionGroup>
+          ) : null}
+
           {!isThread ? (
             <SectionGroup>
               <ToggleRow
@@ -734,9 +799,17 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
+          {/* danger Section — 子区只显示"离开子区"(截图无"清空聊天记录") */}
           <SectionGroup>
-            <NavRow title="清空聊天记录" danger onClick={() => setConfirmClear(true)} />
-            <NavRow title={dangerCloseTitle} danger onClick={() => setConfirmClose(true)} />
+            {!isThread ? (
+              <NavRow title="清空聊天记录" danger onClick={() => setConfirmClear(true)} />
+            ) : null}
+            <NavRow
+              title={dangerCloseTitle}
+              danger
+              center={isThread}
+              onClick={() => setConfirmClose(true)}
+            />
           </SectionGroup>
         </div>
       </aside>

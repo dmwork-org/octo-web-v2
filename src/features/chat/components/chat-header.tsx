@@ -106,7 +106,7 @@ export function ChatHeader({
                 type="button"
                 onClick={goParentGroup}
                 title="返回父群"
-                className="shrink truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
+                className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
               >
                 {parentGroupTitle || parsed.groupNo}
               </button>

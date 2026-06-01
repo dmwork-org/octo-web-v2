@@ -560,9 +560,39 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     </div>
   ) : null;
 
+  // 引用消息点击 → 定位原消息(对齐旧 Conversation.locateMessage):
+  // scroll into view + box-shadow inset 1.5s 紫色高亮闪烁;未命中(消息可能
+  // 已撤回/不在当前已加载范围)toast.warning 提示。
+  const onReplyClick = () => {
+    const reply = (message.content as { reply?: Reply }).reply;
+    const seq = reply?.messageSeq;
+    if (!seq) return;
+    const el = document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
+    if (!el) {
+      toast.warning("原消息不在当前可见范围");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const prevShadow = el.style.boxShadow;
+    const prevTransition = el.style.transition;
+    el.style.transition = "box-shadow 0.3s ease";
+    el.style.boxShadow = "inset 0 0 0 2px rgba(127, 59, 245, 0.5)";
+    window.setTimeout(() => {
+      el.style.boxShadow = prevShadow;
+      window.setTimeout(() => {
+        el.style.transition = prevTransition;
+      }, 400);
+    }, 1500);
+  };
+
   if (continueWithPrev) {
     return (
-      <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
+      <div
+        className={wrapperClass}
+        data-msg-seq={message.messageSeq}
+        onContextMenu={onContextMenu}
+        onClick={onRowClick}
+      >
         {checkbox}
         <div className="w-9 shrink-0 text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
@@ -570,7 +600,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         <div className="relative min-w-0 flex-1">
           {(message.content as { reply?: Reply }).reply ? (
             <div className="mb-1">
-              <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+              <ReplyBlock
+                reply={(message.content as { reply: Reply }).reply}
+                onClick={onReplyClick}
+              />
             </div>
           ) : null}
           <MessageDispatch message={message} />
@@ -594,7 +627,12 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const isBot = isBotSender(senderUid);
   const isVerified = isSenderVerified(senderUid, isBot);
   return (
-    <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
+    <div
+      className={wrapperClass}
+      data-msg-seq={message.messageSeq}
+      onContextMenu={onContextMenu}
+      onClick={onRowClick}
+    >
       {checkbox}
       <button
         type="button"
@@ -618,7 +656,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           </span>
         </header>
         {(message.content as { reply?: Reply }).reply ? (
-          <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+          <ReplyBlock reply={(message.content as { reply: Reply }).reply} onClick={onReplyClick} />
         ) : null}
         <MessageDispatch message={message} />
         {isSelf ? (

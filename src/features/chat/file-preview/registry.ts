@@ -1,6 +1,10 @@
 import { CodeRenderer } from "@/features/chat/file-preview/renderers/code-renderer";
+import { ExcelRenderer } from "@/features/chat/file-preview/renderers/excel-renderer";
 import { FallbackRenderer } from "@/features/chat/file-preview/renderers/fallback-renderer";
+import { HtmlRenderer } from "@/features/chat/file-preview/renderers/html-renderer";
 import { ImageRenderer } from "@/features/chat/file-preview/renderers/image-renderer";
+import { JsonRenderer } from "@/features/chat/file-preview/renderers/json-renderer";
+import { JsonlRenderer } from "@/features/chat/file-preview/renderers/jsonl-renderer";
 import { MarkdownRenderer } from "@/features/chat/file-preview/renderers/markdown-renderer";
 import { PdfRenderer } from "@/features/chat/file-preview/renderers/pdf-renderer";
 import { TextRenderer } from "@/features/chat/file-preview/renderers/text-renderer";
@@ -16,10 +20,10 @@ import {
  *
  * 策略模式核心:扩展名 → renderer 映射 + needsFetch 标记(供 panel 决定是否预加载文本)。
  *
- * **覆盖范围**(全 10 个,跨多 commit 接入):
- * - **commit 2**:image / pdf / fallback(不需 fetch)
- * - **commit 3**(本)新增:markdown / text / code(需 fetch 文本)
- * - **commit 4** 新增:json / jsonl / excel / html(需 fetch + 结构化解析)
+ * **覆盖范围(全 10 个 type)**:
+ *   image / pdf / fallback     — commit 2(不需 fetch)
+ *   markdown / text / code     — commit 3(需 fetch 文本)
+ *   json / jsonl / excel / html — commit 4(本)
  *
  * **明确不支持**(走 fallback):.docx / .xlsx / .pptx / .doc / .xls / .ppt
  * 等 Office binary、.mp3 / .mp4 等音视频(对话流内有专门 renderer)。
@@ -87,7 +91,30 @@ class FileRendererRegistry {
       renderer: CodeRenderer,
       needsFetch: true,
     });
-    // json / jsonl / excel / html — commit 4 注册
+    this.register({
+      type: "json",
+      extensions: ["json"],
+      renderer: JsonRenderer,
+      needsFetch: true,
+    });
+    this.register({
+      type: "jsonl",
+      extensions: ["jsonl"],
+      renderer: JsonlRenderer,
+      needsFetch: true,
+    });
+    this.register({
+      type: "excel",
+      extensions: ["csv"],
+      renderer: ExcelRenderer,
+      needsFetch: true,
+    });
+    this.register({
+      type: "html",
+      extensions: ["html", "htm"],
+      renderer: HtmlRenderer,
+      needsFetch: true,
+    });
   }
 
   register(item: RendererRegistryItem) {

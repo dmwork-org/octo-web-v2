@@ -28,3 +28,41 @@ export function formatFileSize(bytes?: number): string {
 export function isFileTooLarge(size?: number): boolean {
   return !!size && size > FILE_SIZE_THRESHOLD.MAX_PREVIEW;
 }
+
+/** 文本类 renderer 分级渲染模式(对齐旧 RenderMode)。 */
+export type RenderMode = "highlight" | "plain" | "too-large";
+
+/** size → 渲染模式(对齐旧 getRenderMode):<200KB highlight / <2MB plain / 其他 too-large。 */
+export function getRenderMode(size: number): RenderMode {
+  if (size <= FILE_SIZE_THRESHOLD.HIGHLIGHT) return "highlight";
+  if (size <= FILE_SIZE_THRESHOLD.PLAIN_TEXT) return "plain";
+  return "too-large";
+}
+
+/** 是否值得拉取文件内容(对齐旧 shouldFetchContent)。0=未知,试拉;超 20MB 不拉。 */
+export function shouldFetchContent(fileSize: number): boolean {
+  return fileSize === 0 || fileSize <= FILE_SIZE_THRESHOLD.MAX_PREVIEW;
+}
+
+/**
+ * ext → 语法高亮 language(对齐旧 LANGUAGE_MAP + getLanguageFromExtension)。
+ * 未命中直接返回 ext(SyntaxHighlighter 大多数 case 直接用 ext 也能识别)。
+ */
+const LANGUAGE_MAP: Record<string, string> = {
+  js: "javascript",
+  jsx: "javascript",
+  ts: "typescript",
+  tsx: "typescript",
+  py: "python",
+  rb: "ruby",
+  yml: "yaml",
+  sh: "bash",
+  bash: "bash",
+  md: "markdown",
+  markdown: "markdown",
+};
+
+export function getLanguageFromExtension(ext: string): string {
+  const lower = ext.toLowerCase();
+  return LANGUAGE_MAP[lower] || lower;
+}

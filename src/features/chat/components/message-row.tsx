@@ -561,8 +561,9 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   ) : null;
 
   // 引用消息点击 → 定位原消息(对齐旧 Conversation.locateMessage):
-  // scroll into view + box-shadow inset 1.5s 紫色高亮闪烁;未命中(消息可能
-  // 已撤回/不在当前已加载范围)toast.warning 提示。
+  // scrollIntoView + 紫色 bg fade 动画 2s ease-out(对齐旧 .wk-message-item-reminder
+  // keyframes:rgba(127,59,245,0.1) 0% → rgba(127,59,245,0.06) 60% → transparent 100%);
+  // 未命中(消息可能已撤回/不在当前已加载范围)toast.warning 提示。
   const onReplyClick = () => {
     const reply = (message.content as { reply?: Reply }).reply;
     const seq = reply?.messageSeq;
@@ -573,16 +574,21 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       return;
     }
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    const prevShadow = el.style.boxShadow;
-    const prevTransition = el.style.transition;
-    el.style.transition = "box-shadow 0.3s ease";
-    el.style.boxShadow = "inset 0 0 0 2px rgba(127, 59, 245, 0.5)";
-    window.setTimeout(() => {
-      el.style.boxShadow = prevShadow;
-      window.setTimeout(() => {
-        el.style.transition = prevTransition;
-      }, 400);
-    }, 1500);
+    // 临时加 border-radius 8px 让 bg fade 更柔和(对齐旧 .wk-message-item-reminder)
+    const prevRadius = el.style.borderRadius;
+    el.style.borderRadius = "8px";
+    const anim = el.animate(
+      [
+        { backgroundColor: "rgba(127, 59, 245, 0.1)" },
+        { backgroundColor: "rgba(127, 59, 245, 0.06)", offset: 0.6 },
+        { backgroundColor: "transparent" },
+      ],
+      { duration: 2000, easing: "ease-out", fill: "forwards" },
+    );
+    anim.onfinish = () => {
+      anim.cancel();
+      el.style.borderRadius = prevRadius;
+    };
   };
 
   if (continueWithPrev) {

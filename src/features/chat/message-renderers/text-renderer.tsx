@@ -45,35 +45,49 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
 }
 
 /**
- * 解析 uid → 当前消息上下文里 @ 文本里实际的 name。
+ * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**:
+ *   - 群 subscriber:remark(本地备注)/ name(后端 enrich,可能中文)/
+ *     orgData.real_name(实名)/ orgData.displayName(后端拼好)
+ *   - Person channelInfo:title(IM 原始 name,可能 username 英文)/
+ *     orgData.remark / orgData.real_name / orgData.displayName
  *
- * **关键**:发送端(MessageInput)插 mention 时 token 是 `@<member.name>`,
- * member.name 来自**群成员 subscriber 后端 enrich**,可能带后缀(如 `许建文(Nancy)`)。
- * 如果接收端用 Person channelInfo.title(IM channelInfoCallback 只填了 raw name
- * 比如 `许建文`)去匹配,就会**只命中 `@许建文`**,后面的 `(Nancy)` 漏在外面 —
- * 用户截图 10/11 对比的根因。
+ * 原因:旧仓 mention 走 `message.parts`(SDK 把 text + uid 解析配对);
+ * 新仓只有 raw text + mention.uids,必须靠**文本匹配**。同一 uid 在 text
+ * 里可能写成中文名(发送端用 sub.name)或英文 username(channelInfo.title),
+ * 也可能是本地 remark。单一候选漏掉哪种都不高亮。
  *
- * 修复:群消息优先查 `getSubscribes(groupChannel)` 拿 `sub.name`,fallback
- * Person channelInfo.title。
- *
- * 对齐旧 dmworkbase:
- * - Components/MessageInput line 301:`@${member.name}`(发送端)
- * - bridge/useMessageRow:subscriberDisplayName 也优先 subscriber 路径
+ * 全部候选都生成 token,markdown 后处理按长度降序匹配,命中任意一个就高亮。
  */
-function resolveMentionName(uid: string, channel: Channel): string | undefined {
+function collectCandidateNames(uid: string, channel: Channel): string[] {
+  const names: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
+  };
   if (channel.channelType === ChannelTypeGroup) {
-    const subs = WKSDK.shared().channelManager.getSubscribes(channel);
-    const hit = subs?.find((s) => s.uid === uid);
-    if (hit?.name) return hit.name;
+    const sub = WKSDK.shared()
+      .channelManager.getSubscribes(channel)
+      ?.find((s) => s.uid === uid);
+    push(sub?.remark);
+    push(sub?.name);
+    const subOrg = sub?.orgData as { real_name?: string; displayName?: string } | undefined;
+    push(subOrg?.real_name);
+    push(subOrg?.displayName);
   }
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  return info?.title || undefined;
+  push(info?.title);
+  const infoOrg = info?.orgData as
+    | { remark?: string; real_name?: string; displayName?: string }
+    | undefined;
+  push(infoOrg?.remark);
+  push(infoOrg?.real_name);
+  push(infoOrg?.displayName);
+  return names;
 }
 
 /**
  * mention 字段 → Markdown tokens(供 `<Markdown>` 后处理替换):
  *
- * - mention.uids 各 uid 经 `resolveMentionName` 拿 @ 显示名 → "@<name>" token
+ * - mention.uids 各 uid 收集**所有候选名字**(中文/英文/备注/实名),每个生成 token
  * - mention.all=true 时额外加 "@所有人" / "@all" token(纯色无 bg,不可 click)
  *
  * 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段。
@@ -94,17 +108,18 @@ function mentionTokens(mention: Mention | undefined, channel: Channel): Markdown
     }
   }
   for (const uid of mention.uids ?? []) {
-    const name = resolveMentionName(uid, channel);
-    if (!name) continue;
-    const match = `@${name}`;
-    tokens.push({
-      match,
-      render: (key) => (
-        <MentionTag key={key} uid={uid}>
-          {match}
-        </MentionTag>
-      ),
-    });
+    const names = collectCandidateNames(uid, channel);
+    for (const name of names) {
+      const match = `@${name}`;
+      tokens.push({
+        match,
+        render: (key) => (
+          <MentionTag key={key} uid={uid}>
+            {match}
+          </MentionTag>
+        ),
+      });
+    }
   }
   return tokens;
 }

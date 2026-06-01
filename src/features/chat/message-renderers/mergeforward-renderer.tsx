@@ -135,11 +135,11 @@ function MergeforwardCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-fit min-w-[200px] max-w-[400px] cursor-pointer flex-col rounded-lg border border-[rgba(46,50,56,0.09)] bg-[rgba(28,28,35,0.03)] p-3 text-left transition-colors hover:bg-[rgba(28,28,35,0.05)]"
+      className="flex w-full max-w-[400px] min-w-[200px] cursor-pointer flex-col rounded-lg border border-[rgba(46,50,56,0.09)] bg-[rgba(28,28,35,0.03)] p-3 text-left transition-colors hover:bg-[rgba(28,28,35,0.05)]"
     >
       <div className="mb-2 truncate text-[14px] font-medium text-[#1c1c23]">{title}</div>
       {previewItems.length > 0 ? (
-        <ul className="mb-2.5 flex flex-col gap-1">
+        <ul className="mb-2.5 flex w-full flex-col gap-1">
           {previewItems.map((text, i) => (
             <li key={i} className="truncate text-[12px] text-[rgba(28,28,35,0.6)]">
               {text}
@@ -147,7 +147,7 @@ function MergeforwardCard({
           ))}
         </ul>
       ) : null}
-      <div className="mb-2.5 h-px bg-[rgba(46,50,56,0.09)]" />
+      <div className="mb-2.5 h-px w-full bg-[rgba(46,50,56,0.09)]" />
       <div className="text-[12px] text-[rgba(28,28,35,0.35)]">聊天记录</div>
     </button>
   );

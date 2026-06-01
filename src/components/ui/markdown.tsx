@@ -160,7 +160,8 @@ function buildComponents(tokens: MarkdownToken[]): Components {
  * - blockquote 紫色左边 + ai-surface bg
  */
 const MD_CLASS = [
-  "wk-md text-sm leading-[1.6] text-text-primary break-words",
+  // 正文 color 用 rgba(28,28,35,0.8)(对齐旧 wk-msg-text-content,不走 token --wk-text-primary)
+  "wk-md text-sm leading-[1.6] text-[rgba(28,28,35,0.8)] break-words",
   // headings
   "[&_h1]:mt-3 [&_h1]:mb-2 [&_h1]:text-[1.4em] [&_h1]:leading-[1.3] [&_h1]:font-semibold",
   "[&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-[1.25em] [&_h2]:leading-[1.3] [&_h2]:font-semibold",

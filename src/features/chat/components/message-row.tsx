@@ -432,9 +432,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   const wrapperBase =
     "group relative flex items-start gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
-  // hover / 选中态色对齐旧 dmworkbase .wk-msg-row(hover rgba(28,28,35,0.04))+
-  // .wk-msg-row--selected(rgba(127,59,245,0.08) 紫 8%)
-  const wrapperHover = selectionActive ? "" : "hover:bg-[rgba(28,28,35,0.04)]";
+  // hover ::before:对齐旧 .wk-msg-row::before(top/bottom -2px,bg rgba(28,28,35,0.04))
+  //   伪元素绝对定位向上下扩展 2px,叠在 #f6f6f6 上 = ~#ededed(用户实地拾色一致)
+  //   - z-index:before 0 / 子元素 1(确保 hover 高亮在内容下方)
+  //   - 元素本身 bg 透明,只有 selected 态才覆盖
+  const wrapperHover = selectionActive
+    ? ""
+    : "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:bg-[rgba(28,28,35,0.04)] before:opacity-0 before:transition-opacity before:pointer-events-none hover:before:opacity-100 [&>*]:relative [&>*]:z-[1]";
   const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
   // continue 间距 12px,非 continue 24px(对齐旧 .wk-msg-row--continue margin-top)
   const wrapperSpacing = continueWithPrev ? "mt-3" : "mt-6";

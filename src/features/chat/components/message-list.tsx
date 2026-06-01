@@ -8,9 +8,11 @@ import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.q
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { useScrollToBottomButton } from "@/features/chat/hooks/use-scroll-to-bottom-button.hook";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
+import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { buildRenderItems } from "@/features/chat/lib/fold-session";
 import {
   distanceFromBottom,
@@ -220,6 +222,9 @@ export function MessageList({ channel }: MessageListProps) {
     fetchNextPage,
   );
 
+  // 右下角 scroll-to-bottom 按钮 + 未读徽标(1:1 对齐旧 ConversationPositionView)
+  const scrollBtn = useScrollToBottomButton(scrollRef, messages.length);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
@@ -241,49 +246,52 @@ export function MessageList({ channel }: MessageListProps) {
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="flex flex-1 flex-col overflow-y-auto pb-3"
-      style={{ backgroundColor: "#f6f6f6" }}
-    >
-      {hasNextPage ? (
-        <div className="flex justify-center py-2 text-xs text-text-tertiary">
-          {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}
-        </div>
-      ) : null}
-      {renderItems.map((item, i) => {
-        const prev = renderItems[i - 1];
-        const currTs = timestampOfItem(item);
-        const prevTs = prev ? timestampOfItem(prev) : undefined;
-        const showDivider = shouldInsertDividerByTs(currTs, prevTs);
+    <div className="relative flex flex-1 flex-col" style={{ backgroundColor: "#f6f6f6" }}>
+      <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto pb-3">
+        {hasNextPage ? (
+          <div className="flex justify-center py-2 text-xs text-text-tertiary">
+            {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}
+          </div>
+        ) : null}
+        {renderItems.map((item, i) => {
+          const prev = renderItems[i - 1];
+          const currTs = timestampOfItem(item);
+          const prevTs = prev ? timestampOfItem(prev) : undefined;
+          const showDivider = shouldInsertDividerByTs(currTs, prevTs);
 
-        if (item.type === "foldSession") {
-          const session = item.session;
+          if (item.type === "foldSession") {
+            const session = item.session;
+            return (
+              <div key={session.sessionId}>
+                {showDivider ? <TimeDivider timestamp={currTs} /> : null}
+                <FoldSessionCard
+                  session={session}
+                  expanded={!!expandedSessions.get(session.sessionId)}
+                  onToggle={() => toggleSession(session.sessionId)}
+                />
+              </div>
+            );
+          }
+
+          // message item:跟前一项(可能是 foldSession 或 message)做 continue 判定
+          const m = item.message;
+          const bare = shouldRenderBare(m);
+          // foldSession 后的 message 强制不 continue(显示完整 header)
+          const prevMessage = prev?.type === "message" ? prev.message : undefined;
+          const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
           return (
-            <div key={session.sessionId}>
+            <div key={m.clientMsgNo || m.messageID}>
               {showDivider ? <TimeDivider timestamp={currTs} /> : null}
-              <FoldSessionCard
-                session={session}
-                expanded={!!expandedSessions.get(session.sessionId)}
-                onToggle={() => toggleSession(session.sessionId)}
-              />
+              <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
             </div>
           );
-        }
-
-        // message item:跟前一项(可能是 foldSession 或 message)做 continue 判定
-        const m = item.message;
-        const bare = shouldRenderBare(m);
-        // foldSession 后的 message 强制不 continue(显示完整 header)
-        const prevMessage = prev?.type === "message" ? prev.message : undefined;
-        const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
-        return (
-          <div key={m.clientMsgNo || m.messageID}>
-            {showDivider ? <TimeDivider timestamp={currTs} /> : null}
-            <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
-          </div>
-        );
-      })}
+        })}
+      </div>
+      <ScrollToBottomButton
+        visible={scrollBtn.visible}
+        unreadCount={scrollBtn.unreadCount}
+        onClick={scrollBtn.scrollToBottom}
+      />
     </div>
   );
 }

@@ -352,7 +352,11 @@ function InnerContent({
     );
   }
   if (msg.contentType === MessageContentTypeConst.file) {
-    return <FileCard content={msg.content as { name?: string; ext?: string; size?: number }} />;
+    return (
+      <FileCard
+        content={msg.content as { name?: string; ext?: string; size?: number; url?: string }}
+      />
+    );
   }
   return <span>{msg.content?.conversationDigest ?? "[消息]"}</span>;
 }
@@ -364,15 +368,24 @@ function InnerContent({
  *   - name 14/500/text-primary truncate
  *   - size 11/text-tertiary
  *
+ * **交互**(对齐旧 wk-mergeforward-file--clickable):
+ *   - 有 url:cursor-pointer + hover bg rgba(28,28,35,0.07) + 点击下载
+ *   - 无 url:cursor-default + 无 hover
+ *   - 下载:`<a href download>` 触发浏览器原生下载(对齐 file-renderer.downloadFile)
+ *
  * 按扩展名配色(对齐旧 getFileExtColor):
  *   pdf → 红 / doc(x) → 蓝 / xls(x) → 绿 / ppt(x) → 橙 / zip|rar|7z → 黄 / 其他 → 灰
- *
- * 简化(对齐但未做):URL 点击下载 — 后续 P5+ 接 file-renderer 同款下载逻辑。
  */
-function FileCard({ content }: { content: { name?: string; ext?: string; size?: number } }) {
+function FileCard({
+  content,
+}: {
+  content: { name?: string; ext?: string; size?: number; url?: string };
+}) {
   const name = content.name || "unknown file";
   const ext = (content.ext || "").toUpperCase();
   const size = content.size ?? 0;
+  const url = content.url || "";
+  const clickable = !!url;
   const iconBg = ((): string => {
     const e = ext.toLowerCase();
     if (e === "pdf") return "#EF4444";
@@ -389,8 +402,33 @@ function FileCard({ content }: { content: { name?: string; ext?: string; size?: 
     if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   })();
+  const onClick = () => {
+    if (!clickable) return;
+    // 触发浏览器原生下载(对齐 file-renderer.downloadFile + a[download])
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
   return (
-    <div className="flex max-w-[300px] items-center gap-2.5 rounded-lg bg-[rgba(28,28,35,0.04)] px-3 py-2">
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`flex max-w-[300px] items-center gap-2.5 rounded-lg bg-[rgba(28,28,35,0.04)] px-3 py-2 transition-colors ${
+        clickable ? "cursor-pointer hover:bg-[rgba(28,28,35,0.07)]" : "cursor-default"
+      }`}
+    >
       <div
         className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-[12px] font-semibold text-white"
         style={{ backgroundColor: iconBg }}

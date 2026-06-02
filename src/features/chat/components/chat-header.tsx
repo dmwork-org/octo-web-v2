@@ -91,7 +91,7 @@ export function ChatHeader({
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-5">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {/* 子区借用父群头像(对齐截图);其他场景用 channel 自身头像 */}
         <ChannelAvatar

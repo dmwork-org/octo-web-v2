@@ -3,31 +3,36 @@ interface TimeDividerProps {
   timestamp: number;
 }
 
-/** 把 unix 秒转成"今天 HH:mm" / "昨天 HH:mm" / "yyyy-MM-dd HH:mm"。 */
-function formatDividerLabel(ts: number): string {
+/**
+ * 跨日分隔显示 `MM月DD日`(月日补 0,无时间),对齐旧 Messages/Time
+ * `formatMessageTime` + Messages/Time/index.css 胶囊样式。
+ *
+ * **只**渲染日期(不含 HH:mm) — message-row 自己显示精确时间。
+ * `message-list.shouldInsertDivider` 也已收窄为"仅跨日插",一天内多条消息
+ * 只在跨日时插一个"MM月DD日"分隔(对齐旧 vm.ts:1756 同款逻辑)。
+ */
+function formatDateLabel(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts * 1000);
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yStart = new Date(todayStart.getTime() - 24 * 3600 * 1000);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  if (d >= todayStart) return `今天 ${hh}:${mm}`;
-  if (d >= yStart) return `昨天 ${hh}:${mm}`;
-  const sameYear = d.getFullYear() === now.getFullYear();
-  if (sameYear) return `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`;
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${hh}:${mm}`;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}月${dd}日`;
 }
 
 /**
- * 时间分隔条(对应旧 Messages/Time TimeContent + Messages/HistorySplit)。
- * 跨日 / 间隔 > 5 分钟 时由 message-list 计算后插入。
+ * 时间分隔条 — 浅灰胶囊(对应旧 .wk-message-time + .wk-message-time-box):
+ *   外层 margin 16 0 8(上 16 下 8,不对称)/ text-align center
+ *   胶囊 bg rgba(0,0,0,0.03) / radius-full / 11px / text-tertiary
+ *   padding 2px 10px
+ *
+ * 跟系统消息(SystemRenderer)同款胶囊样式,只是文本不同。
+ * font-weight 用 default 400(旧源码 500 在 PingFang SC 下视觉过粗,跟旧 Roboto 不一致)。
  */
 export function TimeDivider({ timestamp }: TimeDividerProps) {
   return (
-    <div className="flex justify-center py-2">
-      <span className="text-[11px] leading-none text-text-tertiary">
-        {formatDividerLabel(timestamp)}
+    <div className="mt-4 mb-2 flex justify-center">
+      <span className="rounded-full bg-[rgba(0,0,0,0.03)] px-2.5 py-0.5 text-[11px] leading-[1.5] text-text-tertiary">
+        {formatDateLabel(timestamp)}
       </span>
     </div>
   );

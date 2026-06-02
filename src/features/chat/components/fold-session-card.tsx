@@ -1,0 +1,165 @@
+import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
+import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
+import { type FoldSession } from "@/features/chat/lib/fold-session";
+
+interface FoldSessionCardProps {
+  session: FoldSession;
+  expanded: boolean;
+  onToggle: () => void;
+}
+
+/**
+ * AI 多 bot 协作折叠会话卡(1:1 对齐旧 dmworkbase Conversation.renderFoldSession +
+ * FoldSessionCard summary head + FoldSessionExpandedList):
+ *
+ * 结构:
+ *   - shell: mt-6 + px-4 + gap-2 + items-start
+ *   - avatar: 32×32 inline SVG(蓝紫渐变圆 + AI logo,1:1 旧 fold-session-avatar.svg)
+ *   - content:
+ *     - title row: 参与者名(× 分隔)+ "AI协作" 紫胶囊 + 时间 + 右侧 toggle btn
+ *     - 卡片 bg rgba(28,28,35,0.04) / r 8 / p 12 / max-w min(680, vw-120)
+ *
+ * **折叠态**(对齐旧 FoldSessionCard summary line 209-213 + .wk-fold-msg-head/name/time):
+ *   - 顶部 sender 白底胶囊 12/700 + HH:mm 12 灰(`.wk-fold-msg-name` + `.wk-fold-msg-time`)
+ *   - 下方 body 走 MessageDispatch(text → TextRenderer 含 mention 高亮 / file → FileRenderer / ...)
+ *
+ * **展开态**(对齐截图 28 旧 FoldSessionExpandedList +
+ * `.wk-fold-msg-ava { display: none }`):
+ *   - 每条独立 head(白底胶囊 sender + 灰 time)+ body
+ *   - **无头像**(旧 CSS 直接 display:none 隐藏 wk-fold-msg-ava)
+ *   - **复用 FoldSessionSummary** — 折叠/展开 head 渲染逻辑完全一致,
+ *     差别只是展开渲染所有 messages、折叠只渲染 lastMessage
+ */
+export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCardProps) {
+  const { participants, messages, lastMessage } = session;
+  const participantLabel = participants.map((p) => p.name).join(" × ") || "AI";
+  const time = formatTime(lastMessage.timestamp);
+
+  return (
+    <div className="mt-6 flex items-start gap-2 px-4">
+      <FoldSessionAvatar />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <header className="flex max-w-[min(680px,calc(100vw_-_120px))] flex-wrap items-center gap-2">
+          <span className="truncate text-[14px] font-semibold text-[#000]">{participantLabel}</span>
+          <span className="inline-flex h-[18px] shrink-0 items-center rounded-[4px] bg-gradient-to-r from-[#7b89f4] to-[#9d78f5] px-1.5 text-[11px] leading-none font-medium text-white">
+            AI协作
+          </span>
+          <span className="text-[14px] text-[rgba(28,28,35,0.4)]">{time}</span>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="ml-auto cursor-pointer text-[12px] font-semibold whitespace-nowrap text-[#7f3bf5] transition-opacity hover:opacity-80"
+          >
+            {expanded ? `收起 ${messages.length} 条讨论` : `展开 ${messages.length} 条讨论`}
+          </button>
+        </header>
+
+        <div className="w-full max-w-[min(680px,calc(100vw_-_120px))] overflow-hidden rounded-lg bg-[rgba(28,28,35,0.04)] p-3">
+          {expanded ? (
+            <FoldSessionExpanded messages={messages} />
+          ) : (
+            <FoldSessionItem message={lastMessage} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fold 内单条消息渲染(折叠态摘要 / 展开态每条复用):
+ *   [sender 白底黑字胶囊 12/700/r 3/padding 2 8] [HH:mm 12 rgba(28,28,35,0.4)]
+ *   body 走 MessageDispatch — text 走 TextRenderer 含 mention 高亮,
+ *   file/image 走各自 renderer,跟旧 renderFoldMessageContent 同款。
+ *
+ * 对齐旧 `.wk-fold-msg-head` + `.wk-fold-msg-name` + `.wk-fold-msg-time` 样式,
+ * **不**渲染 avatar(对齐 `.wk-fold-msg-ava { display: none }`)。
+ */
+function FoldSessionItem({ message }: { message: Message }) {
+  const senderName = senderTitleOf(message.fromUID);
+  const time = formatTime(message.timestamp);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
+          {senderName}
+        </span>
+        <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
+      </div>
+      <MessageDispatch message={message} />
+    </div>
+  );
+}
+
+/**
+ * 展开态:渲染所有 messages,每条用 FoldSessionItem(无头像,简版 head + body)。
+ * 消息间距由 gap-3 给出。
+ */
+function FoldSessionExpanded({ messages }: { messages: Message[] }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {messages.map((m) => (
+        <FoldSessionItem key={m.clientMsgNo || m.messageID} message={m} />
+      ))}
+    </div>
+  );
+}
+
+/** HH:mm 格式化(对齐旧 timeOnly)。 */
+function formatTime(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** uid → Person channelInfo title fallback uid(对齐 message-row.senderDisplay 简化版)。 */
+function senderTitleOf(fromUID: string): string {
+  if (!fromUID) return "";
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  return info?.title || fromUID;
+}
+
+/**
+ * AI 协作头像 — 1:1 内联 旧 fold-session-avatar.svg
+ * 32×32 圆 + 渐变 #41DFFF→#7F3BF5 + 白色 AI logo。
+ */
+function FoldSessionAvatar() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="shrink-0"
+      aria-hidden="true"
+    >
+      <rect width="32" height="32" rx="16" fill="url(#fold-session-grad)" />
+      <g clipPath="url(#fold-session-clip)">
+        <path
+          d="M8.14967 6.2245C8.55742 6.1095 8.99917 6.22675 9.34942 6.44875C9.69317 6.6605 9.91917 7.02925 10.0089 7.4175C10.1284 7.896 9.94317 8.41025 9.61717 8.76625C9.47692 8.921 9.27467 9.00525 9.14842 9.17475C9.04817 9.301 9.00242 9.464 9.00092 9.6235C8.99917 10.2047 9.00292 10.786 8.99917 11.3672C9.78517 10.4772 10.7489 9.74975 11.7999 9.201C12.9812 8.5925 14.2914 8.234 15.6192 8.16775C17.6337 8.0835 19.6572 8.71425 21.3042 9.86925C21.9334 10.3092 22.5187 10.8152 23.0242 11.394C23.0252 10.804 23.0259 10.2137 23.0239 9.62375C23.0207 9.359 22.8429 9.13775 22.6437 8.98175C22.2352 8.71325 22.0079 8.22675 21.9782 7.74825C21.9852 7.338 22.1627 6.93775 22.4422 6.64C22.7234 6.36525 23.1067 6.1895 23.5017 6.17725C23.8097 6.18525 24.1137 6.2865 24.3697 6.45775C24.7254 6.68775 24.9507 7.0855 25.0249 7.497C25.0812 7.77325 25.0229 8.06 24.9144 8.316C24.7987 8.5785 24.6214 8.82 24.3804 8.98C24.1762 9.11825 24.0264 9.3455 24.0269 9.59775C24.0237 10.682 24.0274 11.7662 24.0249 12.8507C24.0179 12.9292 24.0669 12.9955 24.0999 13.0625C25.0407 14.9492 25.5747 17.027 25.7387 19.1255C25.7724 19.556 25.8047 19.9877 25.7812 20.4195C25.7122 21.253 25.3249 22.0317 24.7927 22.6662C24.3687 23.1805 23.8317 23.5887 23.2747 23.949C21.9119 24.8032 20.3564 25.3115 18.7789 25.588C17.0629 25.8862 15.3002 25.9067 13.5779 25.6457C12.3979 25.4677 11.2332 25.1605 10.1367 24.6862C9.20342 24.282 8.31417 23.753 7.57117 23.0535C6.93367 22.4247 6.42942 21.6282 6.26592 20.7382C6.20817 20.471 6.20917 20.1967 6.21192 19.9247C6.29867 17.5207 6.84817 15.116 7.94517 12.9675C7.96542 12.9217 8.00167 12.88 7.99992 12.8277C7.99967 11.7682 8.00017 10.7087 7.99967 9.6495C8.00267 9.44025 7.89917 9.2425 7.75017 9.1005C7.63842 8.9765 7.48317 8.90225 7.37342 8.77575C7.11742 8.48825 6.96767 8.10925 6.95292 7.725C6.96417 7.40725 7.07717 7.096 7.25842 6.8355C7.46467 6.529 7.79617 6.3195 8.14967 6.2245ZM20.4092 13.3332C20.3022 13.3412 20.1982 13.3777 20.1042 13.4287C19.8912 13.5417 19.7897 13.7927 19.7804 14.0235C19.7794 16.0492 19.7807 18.075 19.7799 20.1007C19.7819 20.2365 19.8132 20.374 19.8832 20.4915C19.9882 20.6862 20.2092 20.7957 20.4239 20.8117C20.5399 20.8037 20.6524 20.7622 20.7529 20.705C20.9407 20.5987 21.0404 20.3817 21.0617 20.1745C21.0632 18.1085 21.0619 16.042 21.0624 13.9757C21.0514 13.8235 20.9902 13.674 20.8969 13.5537C20.7744 13.4177 20.5909 13.3395 20.4092 13.3332ZM13.8842 13.363C13.4417 13.4157 13.0264 13.6247 12.6994 13.924C12.4829 14.137 12.3292 14.4057 12.2127 14.6842C11.4852 16.3067 10.7574 17.9292 10.0304 19.552C9.96542 19.7045 9.88742 19.8515 9.83267 20.0082C9.75117 20.2172 9.84842 20.449 9.98367 20.612C10.1089 20.7295 10.2784 20.8032 10.4504 20.8112C10.6899 20.7892 10.9317 20.6507 11.0192 20.417C11.7519 18.7897 12.4769 17.1587 13.2062 15.5297C13.2819 15.3445 13.3757 15.168 13.4624 14.9882C13.5532 14.873 13.6757 14.7825 13.8199 14.7475C14.1059 14.6692 14.4257 14.676 14.6969 14.8035C14.8024 14.8662 14.8987 14.9557 14.9507 15.0685C15.7524 16.8597 16.5527 18.6515 17.3542 20.4427C17.4047 20.553 17.4867 20.649 17.5942 20.7067C17.7352 20.7845 17.9054 20.8427 18.0652 20.7917C18.1989 20.7507 18.3379 20.6895 18.4214 20.572C18.5444 20.4037 18.6154 20.175 18.5252 19.9755C18.3519 19.5687 18.1652 19.1672 17.9872 18.7622C17.3567 17.3512 16.7274 15.9397 16.0964 14.529C15.9652 14.2667 15.7937 14.0185 15.5637 13.8335C15.1042 13.4472 14.4769 13.2732 13.8842 13.363ZM13.9104 18.2905C13.6019 18.352 13.2917 18.4992 13.1059 18.7617C12.9562 18.9615 12.8907 19.2277 12.9477 19.4725C13.0087 19.7992 13.2709 20.0522 13.5607 20.1925C13.8437 20.3165 14.1674 20.365 14.4704 20.29C14.7849 20.2305 15.0784 20.0467 15.2589 19.781C15.3784 19.5887 15.4509 19.3475 15.3882 19.1235C15.3392 18.8522 15.1497 18.6245 14.9212 18.4797C14.6267 18.285 14.2544 18.2305 13.9104 18.2905Z"
+          fill="white"
+        />
+      </g>
+      <defs>
+        <linearGradient
+          id="fold-session-grad"
+          x1="21"
+          y1="0"
+          x2="30.0865"
+          y2="30.0054"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#41DFFF" />
+          <stop offset="1" stopColor="#7F3BF5" />
+        </linearGradient>
+        <clipPath id="fold-session-clip">
+          <rect width="20" height="20" fill="white" transform="translate(6 6)" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}

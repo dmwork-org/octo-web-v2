@@ -36,6 +36,7 @@ import {
   unfollowChannel,
 } from "@/features/base/api/endpoints/follow.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
 import {
   categoriesQueryKey,
   categoriesQueryOptions,
@@ -93,6 +94,8 @@ function digestOf(c: Conversation): string {
  * - 子区(ChannelTypeCommunityTopic)左侧头像取**父群**头像、名字前加 # 图标、
  *   名字上方一行小字面包屑显示父群名(对齐旧 .wk-conv-breadcrumb)
  * - 右键 onContextMenu → 父层 onContextMenu(打开 ContextMenu)
+ * - **typing 中** → digest 行渲染 "··· 正在输入"(对齐截图 #37,
+ *   走 ConversationTypingDigest 内部 useTypingForChannel hook)
  */
 function ConversationRow({
   conversation,
@@ -184,7 +187,7 @@ function ConversationRow({
               isMuted ? "text-text-tertiary" : "text-text-secondary"
             }`}
           >
-            {digestOf(conversation)}
+            <ConversationTypingDigest channel={channel} fallback={digestOf(conversation)} />
           </span>
         </div>
       </div>

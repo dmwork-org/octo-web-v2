@@ -10,6 +10,7 @@ import { CardContent } from "@/features/base/im/card-content";
 import { LocationContent } from "@/features/base/im/location-content";
 import { ScreenshotContent } from "@/features/base/im/screenshot-content";
 import { JoinOrganizationContent } from "@/features/base/im/join-organization-content";
+import { TypingContent } from "@/features/base/im/typing-content";
 
 /**
  * 注册自定义 MessageContent 子类(SDK 默认只内置 text/image/signalMessage)。
@@ -19,6 +20,7 @@ import { JoinOrganizationContent } from "@/features/base/im/join-organization-co
  *   - P2-B5: file
  *   - P2-B*: voice / gif / smallVideo / mergeForward / threadCreated
  *   - P3+: card / lottieSticker / location / screenshot / summaryCard / ...
+ *   - typing(contentType=-2,bot "正在回复中" 提示)
  *
  * 幂等:SDK register 直接覆盖 contentMap[contentType]。
  */
@@ -36,4 +38,5 @@ export function registerContentTypes(): void {
     MessageContentTypeConst.joinOrganization,
     () => new JoinOrganizationContent(),
   );
+  WKSDK.shared().register(MessageContentTypeConst.typing, () => new TypingContent());
 }

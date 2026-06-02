@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import WKSDK, {
-  type Channel,
+  Channel,
   type CMDContent,
   type Message,
   MessageStatus,
@@ -9,7 +10,11 @@ import WKSDK, {
   type Task,
   TaskStatus,
 } from "wukongimjssdk";
+import { spaceStore } from "@/features/base/stores/space";
+import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
+import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
+import { TypingManager } from "@/features/chat/services/typing-manager";
 
 /** Task 实例可能是 MessageTask 子类(.message 字段);用类型 intersection 让 cast 通过。 */
 type TaskWithMessage = Task & { message?: Message };
@@ -19,16 +24,29 @@ type TaskWithMessage = Task & { message?: Message };
  * - 新消息推送(messageListener)— append 到 InfiniteData.pages[0]
  * - 发送 ack(messageStatusListener)— 找 clientSeq 对应消息,更新 messageID/messageSeq/status
  * - 上传任务失败(taskManager.addListener)— 把 sendingQueue 内对应消息标 Fail
- * - CMD messageRevoke(chatManager.addCMDListener)— 把 cache 内对应 message
- *   remoteExtra.revoke=true,RevokedRenderer 接管渲染
+ * - CMD messageRevoke / typing(chatManager.addCMDListener)
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
+ *
+ * **空间隔离双保险**:
+ *   - hook 层:`isChannelOfSpace(channel, spaceId)` — channel 不属当前 Space 不挂 listener
+ *   - listener 层:messageListener 内 `isMessageOfSpace` — Person 私聊
+ *     (尤其 BotFather 这类全局 bot)按 message.content.contentObj.space_id 过滤
+ *
+ * **typing 联动**(对齐旧 dmworkbase TypingManager):
+ *   - CMD `cmd: 'typing'` → TypingManager.addTyping(对齐旧 module.tsx:290)
+ *   - bot 真消息到达 → TypingManager.removeTyping(对齐旧 module.tsx:433)
+ *   - typing 消息(理论上走 CMD 不走 message listener)如果 server 误推普通 msg,
+ *     skip 写 cache 避免被当历史消息保留
  */
 export function useMessagesSync(channel: Channel | null) {
   const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
 
   useEffect(() => {
     if (!channel) return;
+    // Space 隔离兜底:channel 不属当前 Space 不挂 listener(防 cache 跨 Space 渗漏)
+    if (!isChannelOfSpace(channel, spaceId)) return;
     const key = messagesQueryKey(channel.channelID, channel.channelType);
 
     const updateInPlace = (predicate: (m: Message) => boolean, update: (m: Message) => void) => {
@@ -51,6 +69,14 @@ export function useMessagesSync(channel: Channel | null) {
 
     const messageListener = (message: Message) => {
       if (!message.channel.isEqual(channel)) return;
+      // typing 消息(理论上走 CMD,兜底):不写 cache
+      if (message.contentType === MessageContentTypeConst.typing) return;
+      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id)
+      if (!isMessageOfSpace(message, spaceId)) return;
+      // bot 真消息到达 → 清掉 typing indicator(对齐旧 module.tsx:433)
+      if (TypingManager.hasTyping(message.channel)) {
+        TypingManager.removeTyping(message.channel);
+      }
       qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
         if (!prev) {
           return { pages: [[message]], pageParams: [0] };
@@ -97,6 +123,23 @@ export function useMessagesSync(channel: Channel | null) {
 
     const cmdListener = (cmdMessage: Message) => {
       const cmd = cmdMessage.content as CMDContent;
+
+      // typing CMD(对齐旧 module.tsx:290):全局监听(channel 由 cmd.param 给,
+      // 不一定 = 当前打开的 channel — 例如多面板未打开但 bot 已开始 typing)
+      if (cmd.cmd === "typing") {
+        const p = cmd.param as {
+          channel_id?: string;
+          channel_type?: number;
+          from_uid?: string;
+          from_name?: string;
+        };
+        if (p?.channel_id != null && p.channel_type != null && p.from_uid) {
+          const typingChannel = new Channel(p.channel_id, p.channel_type);
+          TypingManager.addTyping(typingChannel, p.from_uid, p.from_name ?? "");
+        }
+        return;
+      }
+
       if (cmd.cmd !== "messageRevoke") return;
       const param = cmd.param as { message_id?: string };
       if (!param?.message_id) return;
@@ -121,5 +164,5 @@ export function useMessagesSync(channel: Channel | null) {
       WKSDK.shared().chatManager.removeCMDListener(cmdListener);
       WKSDK.shared().taskManager.removeListener(taskListener);
     };
-  }, [channel, qc]);
+  }, [channel, qc, spaceId]);
 }

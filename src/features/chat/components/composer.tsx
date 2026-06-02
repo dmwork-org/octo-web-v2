@@ -47,6 +47,7 @@ import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook"
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
+import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
@@ -232,6 +233,11 @@ function formatRecordTime(sec: number): string {
  *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
  *   Composer 顶部按 current channel 取 reply 显示 → 发送时 Reply attach 到 content →
  *   成功 clear(channel) / 用户 ✕ 关掉也 clear(channel)。切走再切回 reply 状态保留。
+ *
+ * **头像菜单 @TA 联动**:`useApplyPendingMention(channel, editor)` 监听
+ * chatMentionRequestStore,头像 popover 点 "@TA" → store 写入 pending →
+ * 本 hook 检测到 → editor.insertContent mention node → 消费 store。
+ * 对齐旧 ConversationContext `messageInputContext.addMention(uid, name)`。
  */
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
@@ -339,6 +345,9 @@ export function Composer({ channel }: ComposerProps) {
 
   // K-3:草稿恢复(channel 切换 save 旧 / load 新;发送成功调用 dropDraft 清掉)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
+
+  // 头像菜单 "@TA" → chatMentionRequestStore → 本 hook 监听并插 mention node
+  useApplyPendingMention(channel, editor);
 
   const buildReply = useMemo(
     () => () => {

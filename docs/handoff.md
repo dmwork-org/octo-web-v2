@@ -16,12 +16,12 @@
 
 ## 二、已完成(可直接当背景知识用,**无需重读**)
 
-| 模块 | 关键产物 | 参考路径 |
-|---|---|---|
-| **P0 auth** | login 闭环 + 401 重定向 + token refresh | `routes/login*.tsx`, `features/base/stores/auth.ts` |
-| **P1 base 框架** | AppShell + Sidebar + 7 路由空壳 + ofetch 拦截器栈 + Semi bridge 高频组件 | `features/base/{layout,api,components}/` |
-| **P2 IM 主路径** | Provider + 18 类 message renderer + 关注分组 + 语音 + composer + 消息列表 | `features/chat/`(完整) |
-| **P3-matter** | 26 commits / +3500 行 / spec 5 条全过 + D-4 扩展(DDL/TipTap/timeline/activities) | `features/matter/` + `.specify/specs/p3-matter/` |
+| 模块             | 关键产物                                                                         | 参考路径                                            |
+| ---------------- | -------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **P0 auth**      | login 闭环 + 401 重定向 + token refresh                                          | `routes/login*.tsx`, `features/base/stores/auth.ts` |
+| **P1 base 框架** | AppShell + Sidebar + 7 路由空壳 + ofetch 拦截器栈 + Semi bridge 高频组件         | `features/base/{layout,api,components}/`            |
+| **P2 IM 主路径** | Provider + 18 类 message renderer + 关注分组 + 语音 + composer + 消息列表        | `features/chat/`(完整)                              |
+| **P3-matter**    | 26 commits / +3500 行 / spec 5 条全过 + D-4 扩展(DDL/TipTap/timeline/activities) | `features/matter/` + `.specify/specs/p3-matter/`    |
 
 ⚠️ contacts / summary / appbot 已有 P1 阶段写下的初版代码(类似 matter 当时的状态),**质量未审计** — 进 P3 实施时按 D-1 决策"增量改造"而非推倒重写,但要先扫一遍判断哪些能用。
 
@@ -33,12 +33,12 @@
 
 旧项目源码 `octo-web/packages/`,新项目落点 `src/features/<name>/`:
 
-| feature | 旧源 | 现有代码状态 | 难度 | 跨耦合 |
-|---|---|---|---|---|
-| **contacts** | `dmworkcontacts/` | 7 components / 1 view / 2 api / 3 query — **较完整,需审计** | 中 | 弱(IM channel 只用读) |
-| **summary** | `dmworksummary/` | 10 components / 1 view / 1 api / 1 query — **较完整,需审计** | 中-高 | 中(@消息 / 消息引用展示) |
-| **appbot** | `dmworkappbot/` | 仅 1 component / 1 view — **placeholder** | 中 | 弱 |
-| **datasource** | `dmworkdatasource/` | **未起目录**,从零做 | 中 | 弱 |
+| feature        | 旧源                | 现有代码状态                                                 | 难度  | 跨耦合                   |
+| -------------- | ------------------- | ------------------------------------------------------------ | ----- | ------------------------ |
+| **contacts**   | `dmworkcontacts/`   | 7 components / 1 view / 2 api / 3 query — **较完整,需审计**  | 中    | 弱(IM channel 只用读)    |
+| **summary**    | `dmworksummary/`    | 10 components / 1 view / 1 api / 1 query — **较完整,需审计** | 中-高 | 中(@消息 / 消息引用展示) |
+| **appbot**     | `dmworkappbot/`     | 仅 1 component / 1 view — **placeholder**                    | 中    | 弱                       |
+| **datasource** | `dmworkdatasource/` | **未起目录**,从零做                                          | 中    | 弱                       |
 
 **操作流程**(沿用 P3-matter 验证过的模板):
 
@@ -66,16 +66,16 @@
 
 ### C. P4 富 UI 能力(部分已启动)
 
-| 组件 | 状态 |
-|---|---|
-| TipTap RichEditor | ✅ 已在 matter 引入(commit `beabc4d`),`components/rich/` 可复用 |
-| shadcn Calendar / Popover | ✅ 已装(commit `d53b6b8`) |
-| PdfViewer | ❌ 未做 |
-| Lottie | ❌ 未做 |
-| VoiceRecorder | ❌ 未做(chat composer 里有 voice,但通用组件未抽) |
-| DataTable / VirtualList | ❌ 未做 |
-| Excel 导出 | ❌ 未做 |
-| @dnd-kit 包装 | ❌ 未做(关注 tab 拖拽 P3+ 留) |
+| 组件                      | 状态                                                            |
+| ------------------------- | --------------------------------------------------------------- |
+| TipTap RichEditor         | ✅ 已在 matter 引入(commit `beabc4d`),`components/rich/` 可复用 |
+| shadcn Calendar / Popover | ✅ 已装(commit `d53b6b8`)                                       |
+| PdfViewer                 | ❌ 未做                                                         |
+| Lottie                    | ❌ 未做                                                         |
+| VoiceRecorder             | ❌ 未做(chat composer 里有 voice,但通用组件未抽)                |
+| DataTable / VirtualList   | ❌ 未做                                                         |
+| Excel 导出                | ❌ 未做                                                         |
+| @dnd-kit 包装             | ❌ 未做(关注 tab 拖拽 P3+ 留)                                   |
 
 按需做 — 业务 feature 真用到再抽。
 

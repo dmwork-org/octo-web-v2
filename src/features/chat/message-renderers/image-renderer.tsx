@@ -6,9 +6,20 @@ interface ImageRendererProps {
   message: Message;
 }
 
+// 对齐旧 SingleImage(packages/dmworkbase/src/ui/message/ImageContent/SingleImage.tsx)
+const MAX_W = 660; // 旧 FALLBACK_MAX_WIDTH
+const MAX_H = 372; // 旧 MAX_HEIGHT
+
 /**
  * 图片消息(Slack 风格 — 直接缩略图,无气泡)。
- * 缩略图最大 360×420 框等比缩放;点击 overlay 全屏预览(P4 接 ImageToolbar 完整工具栏)。
+ *
+ * 视觉对齐旧 SingleImage + ImageContent/index.css:
+ * - 缩略图框 max 660 × 372,等比缩放(Figma 334:14414)
+ * - radius 16px(`--wk-r-lg`,新仓 `rounded-lg`)
+ * - bg `#F2F3F4`(图片加载/透明占位)
+ * - hover opacity 0.9 + transition
+ *
+ * 点击 overlay 全屏预览(P5 接 lightbox 完整工具栏)。
  */
 export function ImageRenderer({ message }: ImageRendererProps) {
   const image = message.content as MessageImage;
@@ -17,7 +28,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
   const src = image.url || "";
   const naturalW = image.width || 200;
   const naturalH = image.height || 200;
-  const ratio = Math.min(360 / naturalW, 420 / naturalH, 1);
+  const ratio = Math.min(MAX_W / naturalW, MAX_H / naturalH, 1);
   const w = Math.round(naturalW * ratio);
   const h = Math.round(naturalH * ratio);
 
@@ -26,7 +37,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
       <button
         type="button"
         onClick={() => src && setPreview(true)}
-        className="overflow-hidden rounded-md bg-bg-elevated"
+        className="w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
         aria-label="查看大图"
       >
         {src ? (
@@ -36,7 +47,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
             width={w}
             height={h}
             className="block"
-            style={{ maxWidth: 360, maxHeight: 420, objectFit: "contain" }}
+            style={{ maxWidth: MAX_W, maxHeight: MAX_H, objectFit: "contain" }}
           />
         ) : (
           <div className="flex h-32 w-32 items-center justify-center text-xs text-text-tertiary">

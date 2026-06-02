@@ -1,4 +1,4 @@
-import { MessageContent } from "wukongimjssdk";
+import WKSDK, { Message, MessageContent } from "wukongimjssdk";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -13,50 +13,25 @@ export interface MergeforwardUser {
 }
 
 /**
- * 合并转发里嵌套的单条消息(后端 raw payload,snake case)。
- *
- * 字段对齐旧 dmworkbase mapToMessage 的源端 messageMap:
- *   - message_id:消息 ID(可能是数字或字符串)
- *   - from_uid:发送者 uid
- *   - timestamp:发送时间
- *   - payload:嵌套 content(有 type 字段 + 具体 content/text/url 等)
- *
- * 不实例化为 SDK Message — renderer 只用前 4 条做 digest 预览,直接读 raw 即可。
- */
-export interface MergeforwardInnerMsg {
-  message_id?: string | number;
-  from_uid?: string;
-  timestamp?: number;
-  payload?: {
-    type?: number;
-    content?: string;
-    text?: string;
-    name?: string;
-    [k: string]: unknown;
-  };
-}
-
-/**
  * 合并转发消息 content(对应旧 dmworkbase Messages/Mergeforward):
  *
- *   - channel_type:来源会话类型(group=2 / person=1)
+ *   - channelType:来源会话类型(group=2 / person=1)
  *   - users:涉及的用户列表(用于 title 拼接 + sender 名查找)
- *   - msgs:嵌套消息 raw payload 数组
+ *   - msgs:嵌套消息(**SDK Message 实例**,已通过 mapToMessage 完整 decode,
+ *     包括 type=11 嵌套合并转发也是 MergeforwardContent 实例)
  *
- * **没有 title 字段** — 旧版 title 是渲染期 derive(getTitle):
+ * **没有 title 字段** — 旧版 title 是渲染期 derive:
  *   - group → 固定"群的聊天记录"
  *   - person → "NAME1、NAME2 的聊天记录"
  *
- * 简化(对齐旧版差异):
- * - 不做 decode 深度防护(MAX_DECODE_DEPTH 8)— 旧版有,后端深度可控后再加
- * - 不重写 decode() 用 TextDecoder — 大 payload 默认 String.fromCharCode.apply
- *   stack overflow,真出问题再改
- * - msgs 不实例化 SDK Message — renderer 直接读 raw payload type → digest 文字
+ * 嵌套 decode 通过 mapToMessage:payload obj → JSON.stringify → TextEncoder
+ * → SDK getMessageContent(type).decode(bytes) 实例化(对齐旧 Mergeforward
+ * index.tsx:168-195 mapToMessage)。
  */
 export class MergeforwardContent extends MessageContent {
   channelType = 0;
   users: MergeforwardUser[] = [];
-  msgs: MergeforwardInnerMsg[] = [];
+  msgs: Message[] = [];
 
   decodeJSON(content: Record<string, unknown>): void {
     this.channelType = typeof content.channel_type === "number" ? content.channel_type : 0;
@@ -68,14 +43,17 @@ export class MergeforwardContent extends MessageContent {
       seen.add(u.uid);
       return true;
     });
-    this.msgs = Array.isArray(content.msgs) ? (content.msgs as MergeforwardInnerMsg[]) : [];
+    const rawMsgs = Array.isArray(content.msgs)
+      ? (content.msgs as Array<Record<string, unknown>>)
+      : [];
+    this.msgs = rawMsgs.map((m) => mapToMessage(m));
   }
 
   encodeJSON(): Record<string, unknown> {
     return {
       channel_type: this.channelType,
       users: this.users,
-      msgs: this.msgs,
+      msgs: this.msgs.map((m) => messageToMap(m)),
     };
   }
 
@@ -84,6 +62,46 @@ export class MergeforwardContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return "[聊天记录]";
+    return "[合并转发]";
   }
+}
+
+/**
+ * 把后端 raw msg map 反序列化成 SDK Message 实例(对齐旧 mapToMessage line 168-195)。
+ *
+ * 流程:
+ * 1. 创建 Message,填 messageID / timestamp / fromUID
+ * 2. 取 payload.type → getMessageContent(type) 拿 MessageContent 实例
+ * 3. payload obj → JSON.stringify → TextEncoder bytes → content.decode(bytes)
+ *    这样嵌套 MergeforwardContent 也会递归 decode(因为 MergeforwardContent.decode
+ *    会再调它的 decodeJSON,继续走 mapToMessage)
+ * 4. message.content = content
+ */
+function mapToMessage(raw: Record<string, unknown>): Message {
+  const m = new Message();
+  m.messageID = raw.message_id != null ? String(raw.message_id) : "";
+  m.timestamp = typeof raw.timestamp === "number" ? raw.timestamp : 0;
+  m.fromUID = typeof raw.from_uid === "string" ? raw.from_uid : "";
+  const payloadObj = (raw.payload as Record<string, unknown> | undefined) ?? {};
+  const t = typeof payloadObj.type === "number" ? payloadObj.type : 0;
+  const content = WKSDK.shared().getMessageContent(t);
+  const bytes = new TextEncoder().encode(JSON.stringify(payloadObj));
+  content.decode(bytes);
+  m.content = content;
+  return m;
+}
+
+/** 反向:Message 实例 → raw map(encode 时用,与 mapToMessage 对称)。 */
+function messageToMap(m: Message): Record<string, unknown> {
+  const content = m.content;
+  const payload = (content as unknown as { contentObj?: Record<string, unknown> }).contentObj ?? {
+    ...content.encodeJSON(),
+    type: content.contentType,
+  };
+  return {
+    message_id: m.messageID,
+    timestamp: m.timestamp,
+    from_uid: m.fromUID,
+    payload,
+  };
 }

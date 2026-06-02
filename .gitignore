@@ -37,3 +37,6 @@ src/**/*.preview-tmp-*.tsx
 # tool configs (不入仓)
 .agents/
 .codex/
+
+# scratch — chrome devtools 调研截图等
+.cache/

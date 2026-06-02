@@ -1,38 +1,42 @@
-import { useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup } from "wukongimjssdk";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { ChatHeader } from "@/features/chat/components/chat-header";
+import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologram";
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
+import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
 
 /**
  * ChatMain — chat / contacts(以及未来 matter / summary 凡需展示聊天主区)
  * 共用的"右侧主区"。
  *
  * 数据来源:chatSelectedStore.channel
- * - null  → "选择对话,激活连接"占位
+ * - null  → 渲染 ChatEmptyHologram(1:1 旧 wk-chat-empty-hologram:中心圆 +
+ *           左侧用户节点 + 右侧 AI 方块 + 虚线连接 + pulse/dash 动效)
  * - chan  → ChatHeader + MessageList + (selection active ? SelectionToolbar : Composer)
  *
- * 子区列表 panel:chat-header MessagesSquare 按钮(只 group 显示)toggle,
- * panel 作为横向 flex sibling 推挤主区(主区 flex-1 自动 calc 剩余宽度),
- * 对应旧 Pages/Chat 的 `.wk-chat-content-right.wk-chat-threadpanel-open .wk-chat-content-chat
- * { width: calc(100% - --wk-width-thread-panel) }` 模式 — 不是 absolute overlay。
+ * **侧边 panel(互斥渲染)** — 由 chatSidePanelStore.kind 决定:
+ * - threads     → 渲染 ThreadListPanel
+ * - filePreview → 渲染 FilePreviewPanel
+ * - none        → 不渲染右侧
+ *
+ * 互斥语义对齐旧 dmworkbase Pages/Chat `_onFilePreview` —
+ * 打开文件预览自动关 thread(反之亦然),不会出现两个 panel 同时撑出 760px 把主区压扁。
+ *
+ * 横向 flex sibling 模式(主区 flex-1 自动 calc 剩余宽度),不是 absolute overlay。
  */
 export function ChatMain() {
   const channel = useStore(chatSelectedStore, (s) => s.channel);
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
-  const [threadPanelOpen, setThreadPanelOpen] = useState(false);
+  const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
 
   if (!channel) {
-    return (
-      <section className="flex flex-1 flex-col items-center justify-center text-sm text-text-tertiary">
-        选择对话,激活连接
-      </section>
-    );
+    return <ChatEmptyHologram />;
   }
 
   const showThreadIcon = channel.channelType === ChannelTypeGroup;
@@ -43,8 +47,8 @@ export function ChatMain() {
         <ChatHeader
           channel={channel}
           showThreadIcon={showThreadIcon}
-          threadPanelOpen={threadPanelOpen}
-          onToggleThreadPanel={() => setThreadPanelOpen((v) => !v)}
+          threadPanelOpen={sidePanelKind === "threads"}
+          onToggleThreadPanel={() => chatSidePanelActions.toggleThreads()}
         />
         <MessageList channel={channel} />
         {selectionActive ? (
@@ -53,13 +57,14 @@ export function ChatMain() {
           <Composer key={`${channel.channelID}_${channel.channelType}`} channel={channel} />
         )}
       </section>
-      {showThreadIcon ? (
+      {sidePanelKind === "threads" && showThreadIcon ? (
         <ThreadListPanel
-          open={threadPanelOpen}
+          open
           groupNo={channel.channelID}
-          onClose={() => setThreadPanelOpen(false)}
+          onClose={() => chatSidePanelActions.close()}
         />
       ) : null}
+      {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
     </div>
   );
 }

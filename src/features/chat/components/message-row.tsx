@@ -27,7 +27,8 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -133,6 +134,109 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+/** Intl 英文短星期(Mon/Tue/.../Sun),对齐旧 dmworkbase moment `ddd` format。 */
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-US", { weekday: "short" });
+
+/**
+ * sender 旁的时间显示(对齐旧 bridge/message/useMessageRow.ts:335 formatTimestamp):
+ *   今天 → HH:mm
+ *   昨天 → 昨天 HH:mm
+ *   一周内 → "ddd HH:mm"(英文短星期,Mon/Tue/Sat...)
+ *   今年 → MM-DD HH:mm
+ *   跨年 → YYYY-MM-DD HH:mm
+ */
+function formatSenderTime(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const hhmm = formatTime(ts);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(d, now)) return hhmm;
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (sameDay(d, y)) return `昨天 ${hhmm}`;
+  const deltaDays = Math.abs(now.getTime() - d.getTime()) / 86_400_000;
+  if (deltaDays < 7) return `${WEEKDAY_FORMATTER.format(d)} ${hhmm}`;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hhmm}`;
+  return `${d.getFullYear()}-${mm}-${dd} ${hhmm}`;
+}
+
+/**
+ * sender 是否 AI bot(对齐旧 conversation `channelInfo.orgData.robot === 1`)。
+ * 用于在 sender name 旁渲染共用 AiBadge(渐变紫色 "AI")。
+ */
+function isBotSender(fromUID: string): boolean {
+  if (!fromUID) return false;
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  const org = info?.orgData as { robot?: number } | undefined;
+  return org?.robot === 1;
+}
+
+/**
+ * realname_verified 归一化(对齐旧 Utils/displayName.ts normalizeVerified):
+ * 后端可能投射 tinyint(1) → "1" / "true",必须 truthy 收敛到 boolean。
+ */
+function normalizeVerified(v: unknown): boolean {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") {
+    const s = v.toLowerCase();
+    return s === "1" || s === "true";
+  }
+  return false;
+}
+
+/**
+ * sender 是否已实名(对齐旧 Utils/realnameBadge.ts shouldShowRealnameBadge,简化版):
+ * - bot 短路 false(AI/bot 发送者不显示徽章)
+ * - Person channelInfo.orgData.realname_verified truthy → true
+ *
+ * 未做的旧仓覆盖:groupMember subscriber.orgData 路径(覆盖率不够再补)+
+ * self-fallback(login user.realname_verified 字段尚未接入 auth store);
+ * 当前 Person channelInfo 路径已覆盖大部分群消息场景。
+ */
+function isSenderVerified(fromUID: string, isBot: boolean): boolean {
+  if (!fromUID || isBot) return false;
+  const info = WKSDK.shared().channelManager.getChannelInfo(
+    new Channel(fromUID, ChannelTypePerson),
+  );
+  const org = info?.orgData as { realname_verified?: unknown } | undefined;
+  return normalizeVerified(org?.realname_verified);
+}
+
+/**
+ * 实名认证徽标(对齐旧 RealnameVerifiedBadge variant="icon"):
+ * 12×12 SVG 圆 + 白色对勾;颜色 `#2f8cff`(OCTO 品牌蓝);紧贴 sender 名右侧。
+ */
+function RealnameBadge() {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center text-[#2f8cff]"
+      title="已完成实名认证"
+      aria-label="已实名"
+      role="img"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <circle cx="6" cy="6" r="6" fill="currentColor" />
+        <path
+          d="M3 6.2l2 2 4-4"
+          stroke="#fff"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function extractText(message: Message): string {
   if (message.contentType === MessageContentType.text) {
     return (message.content as MessageText).text ?? "";
@@ -185,8 +289,8 @@ function canCreateThread(message: Message): boolean {
 
 /**
  * 单条消息行(Slack 风格,对应旧 packages/dmworkbase/src/ui/message/MessageRow):
- *   [头像 36×36] [sender + timestamp]
- *               [body]                [self 状态徽标]
+ *   [头像 36×36] [sender + 实名 ✓? + AI 徽标? + timestamp]
+ *               [body]                                    [self 状态徽标]
  *
  * 多选模式(chatSelectionStore.active)行为:
  * - 左侧渲染 checkbox(替代头像 hover 区域)
@@ -195,6 +299,10 @@ function canCreateThread(message: Message): boolean {
  * 右键 → ContextMenu(F-4/F-5/F-6 完整集合,对齐旧 module.tsx
  * registerMessageContextMenus 7 项):
  *   - 复制 / 复制图片 / 回复 / 转发 / 多选 / 撤回 / 创建子区(群消息)/ 删除
+ *
+ * 头像 click → AvatarMenuButton 弹 popover 菜单(@TA / 查看用户信息),
+ * 对齐旧 ConversationContext onTapAvatar → avatarMenusContext.show。
+ * **不要**直接弹 profile modal(那是旧仓 showUser 走的快捷路径,头像 click 走菜单)。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   useSenderInfoLive(effectiveFromUID(message));
@@ -370,19 +478,25 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   if (bare) {
     return (
-      <div className="px-4 py-1">
+      <div className="px-4 py-2">
         <MessageDispatch message={message} />
       </div>
     );
   }
 
   const wrapperBase =
-    "group relative flex gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
-  // hover / 选中态色对齐旧 dmworkbase .wk-msg-row(hover rgba(28,28,35,0.04))+
-  // .wk-msg-row--selected(rgba(127,59,245,0.08) 紫 8%)
-  const wrapperHover = selectionActive ? "" : "hover:bg-[rgba(28,28,35,0.04)]";
+    "group relative flex items-start gap-3 px-4 transition-colors duration-150 ease-(--ease-emphasized)";
+  // hover ::before:对齐旧 .wk-msg-row::before(top/bottom -2px,bg rgba(28,28,35,0.04))
+  //   伪元素绝对定位向上下扩展 2px,叠在 #f6f6f6 上 = ~#ededed(用户实地拾色一致)
+  //   - z-index:before 0 / 子元素 1(确保 hover 高亮在内容下方)
+  //   - 元素本身 bg 透明,只有 selected 态才覆盖
+  const wrapperHover = selectionActive
+    ? ""
+    : "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:bg-[rgba(28,28,35,0.04)] before:opacity-0 before:transition-opacity before:pointer-events-none hover:before:opacity-100 [&>*]:relative [&>*]:z-[1]";
   const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
-  const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${
+  // continue 间距 12px,非 continue 24px(对齐旧 .wk-msg-row--continue margin-top)
+  const wrapperSpacing = continueWithPrev ? "mt-3" : "mt-6";
+  const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${wrapperSpacing} ${
     selectionActive ? "cursor-pointer" : ""
   }`;
 
@@ -442,17 +556,56 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     </div>
   ) : null;
 
+  // 引用消息点击 → 定位原消息(对齐旧 Conversation.locateMessage):
+  // scrollIntoView + 紫色 bg fade 动画 2s ease-out(对齐旧 .wk-message-item-reminder
+  // keyframes:rgba(127,59,245,0.1) 0% → rgba(127,59,245,0.06) 60% → transparent 100%);
+  // 未命中(消息可能已撤回/不在当前已加载范围)toast.warning 提示。
+  const onReplyClick = () => {
+    const reply = (message.content as { reply?: Reply }).reply;
+    const seq = reply?.messageSeq;
+    if (!seq) return;
+    const el = document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
+    if (!el) {
+      toast.warning("原消息不在当前可见范围");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // 临时加 border-radius 8px 让 bg fade 更柔和(对齐旧 .wk-message-item-reminder)
+    const prevRadius = el.style.borderRadius;
+    el.style.borderRadius = "8px";
+    const anim = el.animate(
+      [
+        { backgroundColor: "rgba(127, 59, 245, 0.1)" },
+        { backgroundColor: "rgba(127, 59, 245, 0.06)", offset: 0.6 },
+        { backgroundColor: "transparent" },
+      ],
+      { duration: 2000, easing: "ease-out", fill: "forwards" },
+    );
+    anim.onfinish = () => {
+      anim.cancel();
+      el.style.borderRadius = prevRadius;
+    };
+  };
+
   if (continueWithPrev) {
     return (
-      <div className={wrapperClass} onContextMenu={onContextMenu} onClick={onRowClick}>
+      <div
+        className={wrapperClass}
+        data-msg-seq={message.messageSeq}
+        onContextMenu={onContextMenu}
+        onClick={onRowClick}
+      >
         {checkbox}
-        <div className="w-9 shrink-0 self-stretch text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="w-9 shrink-0 text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
         </div>
-        <div className="relative min-w-0 flex-1 py-0.5">
+        <div className="relative min-w-0 flex-1">
           {(message.content as { reply?: Reply }).reply ? (
             <div className="mb-1">
-              <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+              <ReplyBlock
+                reply={(message.content as { reply: Reply }).reply}
+                onClick={onReplyClick}
+              />
             </div>
           ) : null}
           <MessageDispatch message={message} />
@@ -471,27 +624,38 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   }
 
   const senderTitle = senderDisplay(message);
-  const senderChannel = new Channel(effectiveFromUID(message), ChannelTypePerson);
+  const senderUid = effectiveFromUID(message);
+  const senderChannel = new Channel(senderUid, ChannelTypePerson);
+  const isBot = isBotSender(senderUid);
+  const isVerified = isSenderVerified(senderUid, isBot);
   return (
-    <div className={`${wrapperClass} pt-3`} onContextMenu={onContextMenu} onClick={onRowClick}>
+    <div
+      className={wrapperClass}
+      data-msg-seq={message.messageSeq}
+      onContextMenu={onContextMenu}
+      onClick={onRowClick}
+    >
       {checkbox}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          openChatProfile(effectiveFromUID(message));
-        }}
-        className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
+      <AvatarMenuButton
+        messageChannel={message.channel}
+        senderUid={senderUid}
+        senderTitle={senderTitle}
       >
         <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
-      </button>
+      </AvatarMenuButton>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
-        <header className="flex items-baseline gap-2 leading-[22px]">
-          <span className="truncate text-sm font-semibold text-text-primary">{senderTitle}</span>
-          <span className="text-[11px] text-text-tertiary">{formatTime(message.timestamp)}</span>
+        <header className="flex h-[22px] items-center gap-2 leading-[22px]">
+          <span className="truncate text-[15px] font-semibold text-text-primary">
+            {senderTitle}
+          </span>
+          {isVerified ? <RealnameBadge /> : null}
+          {isBot ? <AiBadge size="small" /> : null}
+          <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">
+            {formatSenderTime(message.timestamp)}
+          </span>
         </header>
         {(message.content as { reply?: Reply }).reply ? (
-          <ReplyBlock reply={(message.content as { reply: Reply }).reply} />
+          <ReplyBlock reply={(message.content as { reply: Reply }).reply} onClick={onReplyClick} />
         ) : null}
         <MessageDispatch message={message} />
         {isSelf ? (

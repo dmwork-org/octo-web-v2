@@ -1,0 +1,280 @@
+/* ============================================================
+   wk-markdown — 消息气泡内的 Markdown 渲染样式(1:1 复刻旧
+   dmworkbase/src/Messages/Text/markdown.css,245 行)
+
+   旧仓用 `var(--wk-sp-*)` 等设计 token,新仓项目无同名 var,
+   按旧 token 实际数值直接 px / rgba 还原,保持视觉 1:1。
+   ============================================================ */
+
+.wk-markdown {
+  /* 旧 var(--wk-msg-text-content) 实际 14px 字号 + rgba(28,28,35,0.8) 正文色;
+     旧仓 css 写 font-size: inherit 是因为外层 .wk-message-text-richtext 已显式 14px,
+     新仓父级没设字号 → inherit 拿到浏览器默认 16px,需要在这里显式钉死。 */
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(28, 28, 35, 0.8);
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* ── 段落 ── */
+.wk-markdown p {
+  margin: 0 0 8px 0;
+}
+.wk-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── 标题 ── */
+.wk-markdown h1,
+.wk-markdown h2,
+.wk-markdown h3,
+.wk-markdown h4,
+.wk-markdown h5,
+.wk-markdown h6 {
+  margin: 12px 0 8px 0;
+  font-weight: 600;
+  line-height: 1.3;
+  /* 旧 var(--semi-color-text-0) — 主文本深色 */
+  color: rgba(28, 28, 35, 1);
+}
+.wk-markdown h1 {
+  font-size: 1.4em;
+}
+.wk-markdown h2 {
+  font-size: 1.25em;
+}
+.wk-markdown h3 {
+  font-size: 1.1em;
+}
+.wk-markdown h4,
+.wk-markdown h5,
+.wk-markdown h6 {
+  font-size: 1em;
+}
+
+.wk-markdown h1:first-child,
+.wk-markdown h2:first-child,
+.wk-markdown h3:first-child {
+  margin-top: 0;
+}
+
+/* ── 列表 ── */
+.wk-markdown ul,
+.wk-markdown ol {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+.wk-markdown ul {
+  list-style: disc;
+}
+.wk-markdown ol {
+  list-style: decimal;
+}
+.wk-markdown li {
+  margin-bottom: 4px;
+}
+.wk-markdown li:last-child {
+  margin-bottom: 0;
+}
+
+/* GFM 任务列表 */
+.wk-markdown li input[type="checkbox"] {
+  margin-right: 8px;
+  /* 旧 var(--wk-brand-primary) — 品牌紫 */
+  accent-color: #7f3bf5;
+}
+
+/* ── 引用块 ── */
+.wk-markdown blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  /* 旧 var(--wk-border-glow) — 紫色边线 */
+  border-left: 3px solid rgba(127, 59, 245, 0.25);
+  /* 旧 var(--wk-ai-surface) — 紫色淡底 */
+  background: rgba(127, 59, 245, 0.03);
+  border-radius: 0 4px 4px 0;
+  /* 旧 var(--semi-color-text-1) — 次文本 */
+  color: rgba(28, 28, 35, 0.72);
+}
+.wk-markdown blockquote p {
+  margin: 0;
+}
+
+/* ── 行内代码 ── */
+.wk-markdown code:not(pre code) {
+  padding: 2px 4px;
+  border-radius: 2px;
+  /* 旧 var(--semi-color-fill-0) — 浅灰 fill */
+  background: rgba(28, 28, 35, 0.05);
+  /* 旧 var(--wk-text-accent) — 品牌紫 */
+  color: #7f3bf5;
+  font-size: 0.875em;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  /* 旧 var(--wk-border-subtle) */
+  border: 1px solid rgba(28, 28, 35, 0.08);
+}
+
+/* 发送气泡内行内代码:与接收气泡保持一致的语义变量(旧仓同款) */
+.wk-markdown-send code:not(pre code) {
+  background: rgba(28, 28, 35, 0.05);
+  color: #7f3bf5;
+  border-color: rgba(28, 28, 35, 0.08);
+}
+
+/* ── 代码块 ── */
+.wk-markdown-pre-wrapper {
+  position: relative;
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(28, 28, 35, 0.08);
+}
+
+.wk-markdown pre {
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.875em;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  line-height: 1.5;
+  /* highlight.js 的 github-dark 主题提供背景色 */
+}
+
+.wk-markdown pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* ── 分隔线 ── */
+.wk-markdown hr {
+  margin: 12px 0;
+  border: none;
+  /* 旧 var(--semi-color-border) */
+  border-top: 1px solid rgba(28, 28, 35, 0.1);
+}
+
+/* ── GFM 表格 ── */
+.wk-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.875em;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(28, 28, 35, 0.1);
+}
+
+.wk-markdown th,
+.wk-markdown td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(28, 28, 35, 0.1);
+  border-right: 1px solid rgba(28, 28, 35, 0.1);
+}
+.wk-markdown th:last-child,
+.wk-markdown td:last-child {
+  border-right: none;
+}
+
+.wk-markdown th {
+  background: rgba(28, 28, 35, 0.05);
+  font-weight: 600;
+  color: rgba(28, 28, 35, 1);
+}
+
+.wk-markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.wk-markdown tr:hover td {
+  /* 旧 var(--wk-bg-hover) */
+  background: rgba(28, 28, 35, 0.04);
+}
+
+/* ── 链接 ── */
+.wk-markdown a {
+  color: #7f3bf5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 150ms ease;
+}
+.wk-markdown a:hover {
+  opacity: 0.8;
+}
+
+/* ── 图片 ── */
+.wk-markdown img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+/* ── @mention(消息气泡内的 mention span)── */
+.wk-message-mention {
+  display: inline;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.wk-message-mention-send,
+.wk-message-mention-recv {
+  color: #7f3bf5;
+}
+
+/* ── 数学公式 (KaTeX) ── */
+.wk-markdown .katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.wk-markdown .katex {
+  font-size: 1.1em;
+}
+
+/* 行内公式 */
+.wk-markdown .math-inline {
+  display: inline;
+}
+
+/* 块级公式 */
+.wk-markdown .math-display {
+  display: block;
+  margin: 12px 0;
+  text-align: center;
+}
+
+/* KaTeX 错误提示 */
+.wk-markdown .katex-error {
+  /* 旧 var(--wk-color-danger) */
+  color: #ef4444;
+  font-size: 0.875em;
+}
+
+/* ── 流式光标(复用已有动画) ── */
+.wk-markdown .wk-stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #7f3bf5;
+  animation: wk-stream-blink 1s infinite;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+}
+
+.wk-markdown.wk-markdown-send .wk-stream-cursor {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+@keyframes wk-stream-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}

@@ -44,6 +44,9 @@ export interface ChannelInfoRaw {
   group_md_updated_at?: string | null;
   can_edit_group_md?: number | boolean;
   can_manage_bot_admin?: number | boolean;
+  // Space 归属(后端透传;im-callbacks 构造 orgData 时存到 orgData.space_id,
+  // 给 isChannelOfSpace 第 2 层 fallback 用,实现跨 Space 渗漏防护)
+  space_id?: string;
 }
 
 export async function getChannelInfoRaw(

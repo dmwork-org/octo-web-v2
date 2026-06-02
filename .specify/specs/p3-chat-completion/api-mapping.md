@@ -12,11 +12,11 @@
 
 ### A1 媒体上传
 
-| Endpoint | HTTP | 用途 | 备注 |
-| --- | --- | --- | --- |
-| `/v1/upload/file` | POST(multipart) | 文件上传 | 返回 `{ url, file_name, size }` |
-| `/v1/upload/image` | POST(multipart) | 图片上传(可能复用 `/upload/file`) | 返回含 width/height |
-| `/v1/upload/video` | POST(multipart) | 视频上传(可能复用) | 返回 duration/thumbnail |
+| Endpoint           | HTTP            | 用途                              | 备注                            |
+| ------------------ | --------------- | --------------------------------- | ------------------------------- |
+| `/v1/upload/file`  | POST(multipart) | 文件上传                          | 返回 `{ url, file_name, size }` |
+| `/v1/upload/image` | POST(multipart) | 图片上传(可能复用 `/upload/file`) | 返回含 width/height             |
+| `/v1/upload/video` | POST(multipart) | 视频上传(可能复用)                | 返回 duration/thumbnail         |
 
 实现位置:`features/chat/api/upload.api.ts`(新建)
 
@@ -32,11 +32,12 @@
 
 ### A4 合并转发完善
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
+| Endpoint                     | HTTP | 用途         |
+| ---------------------------- | ---- | ------------ |
 | `/v1/messages/forward-merge` | POST | 合并消息转发 |
 
 Body 示例:
+
 ```json
 {
   "from_message_ids": ["id1", "id2"],
@@ -52,6 +53,7 @@ Body 示例:
 **无新 endpoint** — 5 类都是消息渲染层,后端通过 `content.type` 区分,前端在 `message-renderers/dispatch.tsx` 加 case。
 
 需要补的:
+
 - `contentType` 枚举对齐后端实际值(grep 旧项目 `MessageContentTypes` 枚举)
 - `message-renderers/link-card-renderer.tsx`(新建)
 - `message-renderers/red-packet-renderer.tsx`
@@ -66,12 +68,12 @@ Body 示例:
 
 ### C1 子区 follow/unfollow + DM 关注
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/follow/dm` | POST | 关注 DM(单聊) |
-| `/v1/follow/dm/:uid` | DELETE | 取关 DM |
-| `/v1/follow/channel/:channel_id` | POST | 关注子区 / 群 |
-| `/v1/follow/channel/:channel_id` | DELETE | 取关 |
+| Endpoint                         | HTTP   | 用途          |
+| -------------------------------- | ------ | ------------- |
+| `/v1/follow/dm`                  | POST   | 关注 DM(单聊) |
+| `/v1/follow/dm/:uid`             | DELETE | 取关 DM       |
+| `/v1/follow/channel/:channel_id` | POST   | 关注子区 / 群 |
+| `/v1/follow/channel/:channel_id` | DELETE | 取关          |
 
 实现位置:`features/base/api/endpoints/follow.api.ts`(已有,补 DM / 子区路径)
 
@@ -81,8 +83,8 @@ Body 示例:
 
 ### C3 跨分组移动右键菜单
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
+| Endpoint          | HTTP | 用途                    |
+| ----------------- | ---- | ----------------------- |
 | `/v1/follow/move` | POST | 把会话移到指定 category |
 
 Body: `{ conversation_id, target_category_id }`
@@ -91,8 +93,8 @@ Body: `{ conversation_id, target_category_id }`
 
 ### C4 拖拽排序
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
+| Endpoint          | HTTP | 用途                  |
+| ----------------- | ---- | --------------------- |
 | `/v1/follow/sort` | POST | 提交完整 sorted order |
 
 Body: `{ category_id, conversation_ids: [...] }`(全量 reorder)
@@ -119,18 +121,18 @@ Body: `{ category_id, conversation_ids: [...] }`(全量 reorder)
 
 ### D4 群链接分享
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/groups/:group_no/invite-link` | GET | 拿邀请链接 |
-| `/v1/groups/:group_no/invite-link` | POST | 重新生成 |
+| Endpoint                           | HTTP | 用途       |
+| ---------------------------------- | ---- | ---------- |
+| `/v1/groups/:group_no/invite-link` | GET  | 拿邀请链接 |
+| `/v1/groups/:group_no/invite-link` | POST | 重新生成   |
 
 实现位置:`features/base/api/endpoints/group.api.ts`(已存在 qrcode 类似,加 link 类型)
 
 ### D5 群内搜索
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/messages/search` | GET | 消息搜索 |
+| Endpoint              | HTTP | 用途     |
+| --------------------- | ---- | -------- |
+| `/v1/messages/search` | GET  | 消息搜索 |
 
 Query: `{ channel_id, channel_type, keyword, limit, offset }`
 
@@ -138,11 +140,11 @@ Query: `{ channel_id, channel_type, keyword, limit, offset }`
 
 ### D6 消息收藏 / 星标
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/favorites` | GET | 我的收藏列表 |
-| `/v1/favorites` | POST | 添加 |
-| `/v1/favorites/:id` | DELETE | 取消 |
+| Endpoint            | HTTP   | 用途         |
+| ------------------- | ------ | ------------ |
+| `/v1/favorites`     | GET    | 我的收藏列表 |
+| `/v1/favorites`     | POST   | 添加         |
+| `/v1/favorites/:id` | DELETE | 取消         |
 
 Body: `{ message_id, source_channel_id, source_channel_type }`
 
@@ -150,9 +152,9 @@ Body: `{ message_id, source_channel_id, source_channel_type }`
 
 ### D7 消息编辑
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/messages/:id/edit` | PUT | 编辑消息内容 |
+| Endpoint                | HTTP | 用途         |
+| ----------------------- | ---- | ------------ |
+| `/v1/messages/:id/edit` | PUT  | 编辑消息内容 |
 
 Body: `{ content: {...} }`
 
@@ -160,11 +162,11 @@ Body: `{ content: {...} }`
 
 ### D8 消息 reaction
 
-| Endpoint | HTTP | 用途 |
-| --- | --- | --- |
-| `/v1/messages/:id/reactions` | POST | 添加 reaction |
-| `/v1/messages/:id/reactions/:emoji` | DELETE | 取消 |
-| `/v1/messages/:id/reactions` | GET | 拉某条消息的所有 reactions(可能内嵌在 message 响应中) |
+| Endpoint                            | HTTP   | 用途                                                  |
+| ----------------------------------- | ------ | ----------------------------------------------------- |
+| `/v1/messages/:id/reactions`        | POST   | 添加 reaction                                         |
+| `/v1/messages/:id/reactions/:emoji` | DELETE | 取消                                                  |
+| `/v1/messages/:id/reactions`        | GET    | 拉某条消息的所有 reactions(可能内嵌在 message 响应中) |
 
 ## Phase E — 收尾
 
@@ -172,13 +174,13 @@ Body: `{ content: {...} }`
 
 ## 复用 base/endpoints(无需新增,只调用)
 
-| 现有 endpoint | 谁用 |
-| --- | --- |
-| `space.api.ts` getSpaceMembers | mention picker, add-members modal |
-| `robot.api.ts` getSpaceBots | mention bot suggestion |
-| `group.api.ts` getMyGroups / createGroup / updateGroup / 等 | 全套群管理 |
-| `user.api.ts` | 用户头像 / 名字 |
-| `channel.api.ts` | 频道 info |
+| 现有 endpoint                                               | 谁用                              |
+| ----------------------------------------------------------- | --------------------------------- |
+| `space.api.ts` getSpaceMembers                              | mention picker, add-members modal |
+| `robot.api.ts` getSpaceBots                                 | mention bot suggestion            |
+| `group.api.ts` getMyGroups / createGroup / updateGroup / 等 | 全套群管理                        |
+| `user.api.ts`                                               | 用户头像 / 名字                   |
+| `channel.api.ts`                                            | 频道 info                         |
 
 ## 类型同步
 

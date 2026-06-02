@@ -117,15 +117,18 @@ export function ChatHeader({
         </h2>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          aria-label="事项"
-          title="事项"
-          onClick={onClickMatter}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-        >
-          <ListChecks size={18} />
-        </button>
+        {/* 事项入口仅群聊/子区显示(对齐旧 dmworktodo registerChatHeaderIcon — 私聊不显示) */}
+        {channel.channelType === ChannelTypeGroup || isThreadCh ? (
+          <button
+            type="button"
+            aria-label="事项"
+            title="事项"
+            onClick={onClickMatter}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <ListChecks size={18} />
+          </button>
+        ) : null}
         {showThreadIcon ? (
           <button
             type="button"

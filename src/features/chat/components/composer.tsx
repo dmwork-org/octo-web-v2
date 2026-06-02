@@ -679,15 +679,29 @@ export function Composer({ channel }: ComposerProps) {
             >
               <Paperclip size={20} />
             </button>
-            <button
-              type="button"
-              onClick={() => toast.info("创建任务功能即将接入(P3+)")}
-              aria-label="创建任务"
-              title={`创建任务(${ALT_KEY}+↵)`}
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-            >
-              <CheckSquare size={20} />
-            </button>
+            {/* 创建任务 ✓ — 仅群聊/子区显示(对齐旧 dmworktodo registerChatToolbar)。
+                点击 emit chat:create-matter-from-composer 事件,chat-main listener 打开
+                SmartCreateModal,跟 Alt+Enter 同入口。 */}
+            {isMentionable ? (
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("chat:create-matter-from-composer", {
+                      detail: {
+                        channelId: channel.channelID,
+                        channelType: channel.channelType,
+                      },
+                    }),
+                  )
+                }
+                aria-label="创建任务"
+                title={`创建任务(${ALT_KEY}+↵)`}
+                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              >
+                <CheckSquare size={20} />
+              </button>
+            ) : null}
             <div className="flex h-6 items-center text-text-tertiary">
               <button
                 type="button"

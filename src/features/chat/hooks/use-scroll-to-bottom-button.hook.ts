@@ -51,7 +51,13 @@ export function useScrollToBottomButton(
     }
   }, [messageCount]);
 
+  // 关键:effect deps 必须含 `ready` 而非仅 scrollRef(ref 引用稳定不触发重跑)。
+  // message-list 在 messages.length===0/loading/error 时 early-return 不渲染 scroll 容器,
+  // scrollRef.current = null,effect 跑了也 attach 不上;等 messages 到位 ready
+  // 从 false→true,effect 重跑此时才能 attach listener。
+  const ready = messageCount > 0;
   useEffect(() => {
+    if (!ready) return;
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
@@ -61,7 +67,7 @@ export function useScrollToBottomButton(
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollRef]);
+  }, [scrollRef, ready]);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;

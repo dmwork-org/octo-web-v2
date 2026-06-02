@@ -200,7 +200,6 @@ export function SmartCreateModal({
               deadline={deadline}
               setDeadline={setDeadline}
               today={today}
-              myUid={myUid}
               channel={channel}
               titleRef={titleRef}
             />
@@ -255,7 +254,6 @@ interface ManualFieldsProps {
   deadline: string;
   setDeadline: (v: string) => void;
   today: string;
-  myUid: string;
   channel: Channel;
   titleRef: React.RefObject<HTMLInputElement | null>;
 }
@@ -270,7 +268,6 @@ function ManualFields({
   deadline,
   setDeadline,
   today,
-  myUid,
   channel,
   titleRef,
 }: ManualFieldsProps) {
@@ -305,12 +302,7 @@ function ManualFields({
       </Field>
 
       <Field label="负责人" required>
-        <AssigneeMultiSelect
-          value={assigneeUids}
-          onChange={setAssigneeUids}
-          myUid={myUid}
-          channel={channel}
-        />
+        <AssigneeMultiSelect value={assigneeUids} onChange={setAssigneeUids} channel={channel} />
       </Field>
 
       <Field label="Deadline" required>
@@ -351,7 +343,6 @@ function Field({
 interface AssigneeMultiSelectProps {
   value: string[];
   onChange: (v: string[]) => void;
-  myUid: string;
   channel: Channel;
 }
 
@@ -361,7 +352,7 @@ interface MemberOption {
   isBot: boolean;
 }
 
-function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiSelectProps) {
+function AssigneeMultiSelect({ value, onChange, channel }: AssigneeMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   useClickOutside(wrapRef, () => setOpen(false));
@@ -371,7 +362,7 @@ function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiS
   const candidates = useMemo<MemberOption[]>(
     () =>
       subscribers
-        .filter((s) => s.uid !== myUid && !s.isDeleted)
+        .filter((s) => !s.isDeleted)
         .map((s) => {
           const og = s.orgData as { robot?: number } | undefined;
           return {
@@ -380,7 +371,7 @@ function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiS
             isBot: og?.robot === 1,
           };
         }),
-    [subscribers, myUid],
+    [subscribers],
   );
   const valueSet = useMemo(() => new Set(value), [value]);
   const selectedMembers = useMemo(

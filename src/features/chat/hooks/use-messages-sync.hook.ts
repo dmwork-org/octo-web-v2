@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
-  type Channel,
+  Channel,
   type CMDContent,
   type Message,
   MessageStatus,

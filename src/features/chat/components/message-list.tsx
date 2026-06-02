@@ -9,10 +9,12 @@ import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { useScrollToBottomButton } from "@/features/chat/hooks/use-scroll-to-bottom-button.hook";
+import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channel.hook";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
+import { TypingIndicator } from "@/features/chat/components/typing-indicator";
 import { buildRenderItems } from "@/features/chat/lib/fold-session";
 import {
   distanceFromBottom,
@@ -118,6 +120,29 @@ function useFollowBottomOnNewMessages(
   }, [key.id, key.mine, scrollRef]);
 }
 
+/**
+ * typing indicator 出现时也跟到底(对齐旧 vm.typingListener `scrollToBottom(false)`)。
+ * key 用 typing.fromUID,同一 bot 连续 typing 不重复跟。
+ */
+function useFollowBottomOnTyping(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  typingKey: string,
+) {
+  const lastKeyRef = useRef("");
+  useLayoutEffect(() => {
+    if (!typingKey || lastKeyRef.current === typingKey) {
+      lastKeyRef.current = typingKey;
+      return;
+    }
+    lastKeyRef.current = typingKey;
+    const el = scrollRef.current;
+    if (!el) return;
+    if (distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [typingKey, scrollRef]);
+}
+
 function usePulldownToLoadHistory(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   pageCount: number,
@@ -168,6 +193,8 @@ export function MessageList({ channel }: MessageListProps) {
     useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // typing info(per-channel)— bot CMD typing 推送 → TypingManager → 本 hook 同步
+  const typing = useTypingForChannel(channel);
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
@@ -175,7 +202,7 @@ export function MessageList({ channel }: MessageListProps) {
     // 按数组出现顺序 append 末尾。对齐旧 vm.fillOrder 的 maxOrder+1 语义 —
     // **不能**简单视 pending seq 为 MAX_SAFE_INTEGER,否则在 bot 回复(seq=N)
     // 到达时 pending(我刚发但 ack 还没回)的 MAX > N,bot 反而排到我消息**之前**,
-    // 视觉上 bot 回复"穿插"到我消息上方(用户反馈截图 #35)。
+    // 视觉上 bot 回复"穿插"到我消息上方。
     const acked: Message[] = [];
     const pending: Message[] = [];
     for (const m of all) {
@@ -222,6 +249,7 @@ export function MessageList({ channel }: MessageListProps) {
 
   useInitialScrollToBottom(scrollRef, firstReadyKey);
   useFollowBottomOnNewMessages(scrollRef, followKey);
+  useFollowBottomOnTyping(scrollRef, typing?.fromUID ?? "");
   usePulldownToLoadHistory(
     scrollRef,
     data?.pages.length ?? 0,
@@ -245,7 +273,7 @@ export function MessageList({ channel }: MessageListProps) {
       <div className="flex flex-1 items-center justify-center text-sm text-error">消息加载失败</div>
     );
   }
-  if (messages.length === 0) {
+  if (messages.length === 0 && !typing) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
         暂无消息,发一条试试
@@ -294,6 +322,7 @@ export function MessageList({ channel }: MessageListProps) {
             </div>
           );
         })}
+        {typing ? <TypingIndicator info={typing} /> : null}
       </div>
       <ScrollToBottomButton
         visible={scrollBtn.visible}

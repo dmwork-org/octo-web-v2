@@ -421,7 +421,25 @@ export function Composer({ channel }: ComposerProps) {
     try {
       const { text } = await transcribeVoice(file, { channelType: channel.channelType });
       if (text && editor) {
-        editor.chain().focus().insertContent(text).run();
+        if (isMentionable) {
+          // 群/子区:解析 "@张三" 等 mention 标记(对齐旧 parseMentionMarkers,A6)。
+          // 用 dynamic import 避免顶部 import 段膨胀(parser 仅 voice 流量小路径用)。
+          const [{ parseVoiceMentions }, { isStickyMentionUid }] = await Promise.all([
+            import("@/features/chat/lib/voice-mention-parser"),
+            import("@/features/base/lib/mention-three-state"),
+          ]);
+          const members = candidatesRef.current
+            .filter((c) => !isStickyMentionUid(c.id))
+            .map((c) => ({ uid: c.id, name: c.label }));
+          const content = parseVoiceMentions(text, members);
+          editor
+            .chain()
+            .focus()
+            .insertContent(content as never)
+            .run();
+        } else {
+          editor.chain().focus().insertContent(text).run();
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "转写失败");

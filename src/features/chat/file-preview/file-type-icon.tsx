@@ -40,14 +40,16 @@ function iconOf(ext: string): string {
 
 export function FileTypeIcon({ extension, size = 40 }: FileTypeIconProps) {
   const src = iconOf(extension);
+  // 用 style + max-w/h 双保险:不同 SVG viewBox(48/32/27 等)在 img attr 下表现
+  // 不一致,显式 inline style 限定 box,确保跟旧 .wk-attachment-node-icon img
+  // (48×48 + object-fit: contain)等效。
   return (
     <img
       src={src}
       alt={extension}
       draggable={false}
-      width={size}
-      height={size}
-      className="block object-contain"
+      style={{ width: size, height: size }}
+      className="block max-h-full max-w-full shrink-0 object-contain"
     />
   );
 }

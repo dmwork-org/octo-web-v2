@@ -124,9 +124,9 @@ export function VoiceButtonGroup({
         disabled={state === "transcribing" || state === "preparing"}
         className={`flex h-6 items-center justify-center gap-0.5 rounded px-1 transition-colors disabled:cursor-not-allowed ${
           state === "recording" || state === "transcribing"
-            ? "bg-brand/[0.06] text-brand"
+            ? "bg-bg-selected text-accent"
             : state === "preparing"
-              ? "text-brand opacity-60"
+              ? "text-accent opacity-60"
               : "text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
         }`}
       >

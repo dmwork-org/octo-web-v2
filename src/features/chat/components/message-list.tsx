@@ -198,19 +198,20 @@ export function MessageList({ channel }: MessageListProps) {
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
-    // 排序:已 ack 消息(messageSeq > 0)按 seq 升序;未 ack(seq=0,client pending)
-    // 按数组出现顺序 append 末尾。对齐旧 vm.fillOrder 的 maxOrder+1 语义 —
-    // **不能**简单视 pending seq 为 MAX_SAFE_INTEGER,否则在 bot 回复(seq=N)
-    // 到达时 pending(我刚发但 ack 还没回)的 MAX > N,bot 反而排到我消息**之前**,
-    // 视觉上 bot 回复"穿插"到我消息上方。
-    const acked: Message[] = [];
-    const pending: Message[] = [];
-    for (const m of all) {
-      if (m.messageSeq && m.messageSeq > 0) acked.push(m);
-      else pending.push(m);
-    }
-    acked.sort((a, b) => a.messageSeq - b.messageSeq);
-    return [...acked, ...pending];
+    // 排序:**timestamp 主键**(秒,跨 ack/pending 一致),seq 次键(同秒消息稳定)。
+    //
+    // 为什么不用 messageSeq:bot 真消息 ack 后 seq=N,我刚发消息 pending(seq=0),
+    // 如果按 seq 排 bot 会排在我前面(截图 #35 的视觉错乱)。timestamp 排序:
+    // 我消息 client 时间 = 发送瞬间 < bot 消息 server 时间 = 处理瞬间 →
+    // 我消息正确显示在 bot 之前。
+    //
+    // timestamp 缺失(=0)的极端 case fallback 用 seq 兜底排序稳定。
+    return [...all].sort((a, b) => {
+      const ta = a.timestamp || 0;
+      const tb = b.timestamp || 0;
+      if (ta !== tb) return ta - tb;
+      return (a.messageSeq || 0) - (b.messageSeq || 0);
+    });
   }, [data?.pages]);
 
   // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message。

@@ -6,6 +6,10 @@ import WKSDK, {
   type Message,
 } from "wukongimjssdk";
 import { channelSpaceKey, channelSpaceMap } from "@/features/base/stores/space";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+
+/** 子区 channel type(对齐旧 dmworkbase ChannelTypeCommunityTopic = 5)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 /**
  * 系统 Bot channelID 集合(对齐旧 dmworkbase SpaceService.SYSTEM_BOTS):
@@ -20,14 +24,14 @@ export const SYSTEM_BOTS = new Set<string>(["botfather"]);
  * `true` = 允许显示;`false` = 应过滤掉)。
  *
  * **群聊判定**(由强到弱):
- *   1. `channelSpaceMap`(由 syncConversations 预填) — 命中即按 owner 匹配
+ *   1. `channelSpaceMap`(由 syncConversations / channelInfoCallback 预填) — 命中即按 owner 匹配
  *   2. SDK `channelManager.getChannelInfo(channel).orgData.space_id` —
  *      命中后**回填** channelSpaceMap 避免下次重查
  *   3. 都未命中 → **fail-close + 主动 fetch**:暂时过滤(返回 false),触发
  *      channelInfoListener 异步到位后下次 snapshot 自动加进来
  *
- * 旧仓 fail-open 让其他 Space 的新群短暂渗漏到当前列表("等下次切 Space 矫正"),
- * 新仓改 fail-close 杜绝渗漏 — 代价是当前 Space 真的新群有 200ms 延迟显示。
+ * **子区**(channelType = 5):channelID = `{groupNo}____{shortId}`,属于父群
+ * → 解析出 groupNo,递归走父群的群聊判定。
  *
  * **Person 私聊**:channel level 永远 allow(不归属 Space);消息/会话级别由
  * `isMessageOfSpace` / `isConversationOfSpace` 用 `contentObj.space_id` 判定。
@@ -38,6 +42,14 @@ export function isChannelOfSpace(channel: Channel, spaceId: string | null): bool
   if (!spaceId) return true;
   if (!channel?.channelID) return true;
   if (channel.channelType === ChannelTypePerson) return true;
+
+  // 子区:解析出父群 groupNo,委托父群判定
+  if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (!parsed) return true;
+    const parentChannel = { channelID: parsed.groupNo, channelType: ChannelTypeGroup } as Channel;
+    return isChannelOfSpace(parentChannel, spaceId);
+  }
 
   if (channel.channelType === ChannelTypeGroup) {
     const key = channelSpaceKey(channel.channelID, channel.channelType);

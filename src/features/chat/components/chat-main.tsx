@@ -10,6 +10,7 @@ import { Composer } from "@/features/chat/components/composer";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
 import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
+import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
 
 /**
  * ChatMain — chat / contacts(以及未来 matter / summary 凡需展示聊天主区)
@@ -65,6 +66,7 @@ export function ChatMain() {
         />
       ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
+      {sidePanelKind === "matter" ? <MatterListPanel /> : null}
     </div>
   );
 }

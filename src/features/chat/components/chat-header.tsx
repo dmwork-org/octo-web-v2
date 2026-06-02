@@ -6,6 +6,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ChannelSettingModal } from "@/features/chat/components/channel-setting-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 
 interface ChatHeaderProps {
   showThreadIcon?: boolean;
@@ -82,13 +83,8 @@ export function ChatHeader({
     chatSelectedActions.select(parentChannel);
   };
 
-  // 事项面板入口 — chat 内 matter panel 集成方案待定,先 console 占位(对齐截图)
-  const onClickMatter = () => {
-    console.info("[chat-header] matter button clicked — panel integration TBD", {
-      channelId: channel.channelID,
-      channelType: channel.channelType,
-    });
-  };
+  // 事项面板入口:toggle chat 右侧 matter panel(对齐旧 registerChatMatterPanel)
+  const onClickMatter = () => chatSidePanelActions.toggleMatter();
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">

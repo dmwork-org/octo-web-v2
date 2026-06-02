@@ -11,7 +11,7 @@ import WKSDK, {
   TaskStatus,
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
-import { isChannelOfSpace } from "@/features/base/lib/space-filter";
+import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 
 /** Task 实例可能是 MessageTask 子类(.message 字段);用类型 intersection 让 cast 通过。 */
@@ -27,11 +27,12 @@ type TaskWithMessage = Task & { message?: Message };
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
  *
- * **空间隔离双保险**:listener 已通过 `channel.isEqual` 过滤"非当前会话"消息,
- * 但 Space 切换时若 chatSelectedStore 还没及时 reset(主进程同步,极短窗口),
- * 旧 channel 的推送可能误写到新 Space cache。本 hook 额外用 `isChannelOfSpace`
- * 兜底 — channel 不归属当前 Space 时整体不挂 listener(对齐
- * conversations-sync 同款过滤)。
+ * **空间隔离双保险**:
+ *   - hook 层:`isChannelOfSpace(channel, spaceId)` — channel 不属当前 Space 不挂
+ *     listener(防 Space 切换瞬间 chatSelected reset 之前的极短窗口写脏 cache)
+ *   - listener 层:messageListener 内 `isMessageOfSpace(message, spaceId)` —
+ *     Person 私聊(尤其 BotFather 这类全局 bot)按 message.content.contentObj.space_id
+ *     过滤,避免其他 Space 的 bot 私聊蹦进当前 cache;群聊由 isChannelOfSpace 兜底
  */
 export function useMessagesSync(channel: Channel | null) {
   const qc = useQueryClient();
@@ -63,6 +64,8 @@ export function useMessagesSync(channel: Channel | null) {
 
     const messageListener = (message: Message) => {
       if (!message.channel.isEqual(channel)) return;
+      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id)
+      if (!isMessageOfSpace(message, spaceId)) return;
       qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
         if (!prev) {
           return { pages: [[message]], pageParams: [0] };

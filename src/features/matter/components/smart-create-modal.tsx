@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
-import { Calendar, ChevronDown, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
-import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { createMatter, extractMatter, updateMatter } from "@/features/matter/api/matter.api";
 import type {
   ExtractMatterReq,
@@ -83,7 +83,6 @@ export function SmartCreateModal({
   onClose,
 }: SmartCreateModalProps) {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
-  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const isManual = messages.length === 0;
 
   const [draft, setDraft] = useState<ExtractResult | null>(null);
@@ -202,7 +201,7 @@ export function SmartCreateModal({
               setDeadline={setDeadline}
               today={today}
               myUid={myUid}
-              spaceId={spaceId}
+              channel={channel}
               titleRef={titleRef}
             />
           ) : isExtracting ? (
@@ -257,7 +256,7 @@ interface ManualFieldsProps {
   setDeadline: (v: string) => void;
   today: string;
   myUid: string;
-  spaceId: string | null;
+  channel: Channel;
   titleRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -272,7 +271,7 @@ function ManualFields({
   setDeadline,
   today,
   myUid,
-  spaceId,
+  channel,
   titleRef,
 }: ManualFieldsProps) {
   return (
@@ -310,24 +309,18 @@ function ManualFields({
           value={assigneeUids}
           onChange={setAssigneeUids}
           myUid={myUid}
-          spaceId={spaceId}
+          channel={channel}
         />
       </Field>
 
       <Field label="Deadline" required>
-        <div className="relative">
-          <input
-            type="date"
-            value={deadline}
-            min={today}
-            onChange={(e) => setDeadline(e.target.value)}
-            className="h-8 w-full rounded-sm border-0 bg-brand/[0.04] pr-9 pl-3 text-sm text-text-primary focus:bg-brand/[0.06] focus:outline-none"
-          />
-          <Calendar
-            size={14}
-            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-text-tertiary"
-          />
-        </div>
+        <input
+          type="date"
+          value={deadline}
+          min={today}
+          onChange={(e) => setDeadline(e.target.value)}
+          className="h-8 w-full rounded-sm border-0 bg-brand/[0.04] px-3 text-sm text-text-primary focus:bg-brand/[0.06] focus:outline-none"
+        />
       </Field>
     </>
   );
@@ -359,21 +352,35 @@ interface AssigneeMultiSelectProps {
   value: string[];
   onChange: (v: string[]) => void;
   myUid: string;
-  spaceId: string | null;
+  channel: Channel;
 }
 
-function AssigneeMultiSelect({ value, onChange, myUid, spaceId }: AssigneeMultiSelectProps) {
+interface MemberOption {
+  uid: string;
+  name: string;
+  isBot: boolean;
+}
+
+function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   useClickOutside(wrapRef, () => setOpen(false));
 
-  const { data: members } = useQuery({
-    ...spaceMembersQueryOptions(spaceId),
-    enabled: !!spaceId,
-  });
-  const candidates = useMemo(
-    () => (members ?? []).filter((m) => m.uid !== myUid && m.robot !== 1),
-    [members, myUid],
+  // 对齐旧 useMemberList:有 channel 用群成员(子区取父群),不过滤 bot 让用户可选(UI 加 AI badge)
+  const subscribers = useGroupSubscribers(channel, true);
+  const candidates = useMemo<MemberOption[]>(
+    () =>
+      subscribers
+        .filter((s) => s.uid !== myUid && !s.isDeleted)
+        .map((s) => {
+          const og = s.orgData as { robot?: number } | undefined;
+          return {
+            uid: s.uid,
+            name: s.remark || s.name || s.uid,
+            isBot: og?.robot === 1,
+          };
+        }),
+    [subscribers, myUid],
   );
   const valueSet = useMemo(() => new Set(value), [value]);
   const selectedMembers = useMemo(
@@ -447,7 +454,10 @@ function AssigneeMultiSelect({ value, onChange, myUid, spaceId }: AssigneeMultiS
                     title={m.name}
                   />
                   <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>
-                  {checked ? <span className="text-xs font-semibold text-brand">✓</span> : null}
+                  {m.isBot ? <AiBadge size="small" /> : null}
+                  {checked ? (
+                    <span className="ml-1 text-xs font-semibold text-brand">✓</span>
+                  ) : null}
                 </button>
               );
             })

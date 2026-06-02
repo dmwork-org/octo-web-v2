@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { MENTION_UID_AIS, isStickyMentionUid } from "@/features/base/lib/mention-three-state";
 
 /**
@@ -49,14 +50,15 @@ function useScrollActiveIntoView(
 }
 
 /**
- * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover):
- * - 渲染候选项,↑↓ 改 activeIndex,Enter / Tab 触发 command 插入 Mention node
- * - command 由 TipTap suggestion 提供,默认会把 item({id,label})作为 attrs 插入
- * - sticky 三态:
- *     "-1" / "@all" → Users 图标(legacy @所有人,mention.all=1)
- *     "-2"          → Users 图标(@所有人,mention.humans=1)
- *     "-3"          → Bot 图标 + AI 角标(@所有AI,mention.ais=1)
- * - activeIndex 变化时自动滚动锚点行到视口(A8,对齐旧 MentionList)
+ * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover)。
+ *
+ * 1:1 对齐旧 dmworkbase MentionList + MentionList.css:
+ *   - 容器:min-w 420px / radius 4px / shadow / padding 5px 0
+ *   - 行:padding 5px 16px / icon 24×24 圆 / mb 10px(行之间留空隙)
+ *   - 命中(active 或 hover):brand 实色背景 + 反白文字
+ *   - icon + name + AiBadge(共用组件)— 不显 uid 灰小字(老仓没有)
+ *   - sticky 三态(-1/-2/@all → Users / -3 → Bot)用 lucide 图标 + 同 24×24 圆
+ *   - 空态行:"没有找到成员"(items.length === 0 直接 null,与候选 popover 自动隐藏一致)
  */
 export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
@@ -93,7 +95,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
     return (
       <ul
         role="listbox"
-        className="max-h-64 min-w-[220px] overflow-y-auto rounded-md border border-border-default bg-bg-surface py-1 shadow-lg"
+        className="max-h-[220px] min-w-[420px] overflow-y-auto rounded-md bg-bg-surface py-[5px] shadow-lg"
       >
         {items.map((c, i) => {
           const active = i === activeIndex;
@@ -112,12 +114,18 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 e.preventDefault();
                 selectItem(i);
               }}
-              className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-sm ${
-                active ? "bg-brand-tint" : "hover:bg-bg-hover"
+              className={`mb-[10px] flex cursor-pointer items-center gap-2 px-4 py-[5px] transition-colors ${
+                active ? "bg-brand text-text-inverse" : "text-text-primary hover:bg-brand-tint"
               }`}
             >
               {isSticky ? (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-secondary">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                    active
+                      ? "bg-text-inverse/20 text-text-inverse"
+                      : "bg-bg-elevated text-text-secondary"
+                  }`}
+                >
                   {isAis ? <Bot size={14} /> : <Users size={14} />}
                 </span>
               ) : (
@@ -127,17 +135,10 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                   title={c.label}
                 />
               )}
-              <span className="min-w-0 flex-1 truncate text-text-primary">{c.label}</span>
-              {isAis || c.isBot ? (
-                <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                  AI
-                </span>
-              ) : null}
-              {!isSticky ? (
-                <span className="shrink-0 truncate font-mono text-[10px] text-text-tertiary">
-                  {c.id}
-                </span>
-              ) : null}
+              <strong className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+                {c.label}
+              </strong>
+              {isAis || c.isBot ? <AiBadge size="small" /> : null}
             </li>
           );
         })}

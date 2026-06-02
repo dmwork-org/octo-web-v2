@@ -448,6 +448,8 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
+  const [preparing, setPreparing] = useState(false);
+
   const voiceRec = useVoiceRecorder({
     maxDuration: VOICE_MAX_DURATION,
     onError: (e) => toast.error(e.message || "录音失败"),
@@ -459,10 +461,22 @@ export function Composer({ channel }: ComposerProps) {
     },
   });
 
+  // start 包一层 preparing:对齐旧 VoiceInputIndicator 的 preparing 态 — getUserMedia
+  // 申请权限 / 启动音轨期间显示"准备中..." UI(A7)。
+  const safeStartVoice = async () => {
+    if (preparing) return;
+    setPreparing(true);
+    try {
+      await voiceRec.start();
+    } finally {
+      setPreparing(false);
+    }
+  };
+
   useVoiceShortcut(
     voiceRec.isRecording,
-    transcribing,
-    () => void voiceRec.start(),
+    transcribing || preparing,
+    () => void safeStartVoice(),
     () => {
       void (async () => {
         const file = await voiceRec.stop(false);
@@ -473,9 +487,9 @@ export function Composer({ channel }: ComposerProps) {
   );
 
   const onClickMic = async () => {
-    if (transcribing) return;
+    if (transcribing || preparing) return;
     if (!voiceRec.isRecording) {
-      await voiceRec.start();
+      await safeStartVoice();
       return;
     }
     const file = await voiceRec.stop(false);
@@ -549,9 +563,11 @@ export function Composer({ channel }: ComposerProps) {
   const micRecording = voiceRec.isRecording;
   const micTitle = transcribing
     ? "正在听写..."
-    : micRecording
-      ? `录音中 ${formatRecordTime(voiceRec.duration)}`
-      : `语音输入(Shift+${META_KEY}+Space)`;
+    : preparing
+      ? "准备中..."
+      : micRecording
+        ? `录音中 ${formatRecordTime(voiceRec.duration)}`
+        : `语音输入(Shift+${META_KEY}+Space)`;
 
   return (
     <div className="shrink-0 px-4 pb-2">
@@ -646,17 +662,19 @@ export function Composer({ channel }: ComposerProps) {
                 onClick={() => void onClickMic()}
                 aria-label="语音输入"
                 title={micTitle}
-                disabled={transcribing}
+                disabled={transcribing || preparing}
                 className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
                   micRecording
                     ? "text-error"
-                    : transcribing
+                    : transcribing || preparing
                       ? "text-text-tertiary"
                       : "text-text-tertiary hover:text-text-primary"
                 }`}
               >
                 {transcribing ? (
                   <Loader2 size={20} className="animate-spin" />
+                ) : preparing ? (
+                  <Mic size={20} className="animate-pulse opacity-60" />
                 ) : micRecording ? (
                   <>
                     <MicOff size={20} className="animate-pulse" />

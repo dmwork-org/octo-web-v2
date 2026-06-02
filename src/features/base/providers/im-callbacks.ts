@@ -283,6 +283,9 @@ export function registerImCallbacks(): void {
       // person 专属字段
       if (channel.channelType === ChannelTypePerson) {
         orgData.shortNo = (extra as { short_no?: string }).short_no ?? "";
+        // bot 命令清单(JSON 字符串,composer 端解析后驱动 / 斜杠菜单;非 bot 不会有)
+        orgData.bot_commands =
+          raw.bot_commands ?? (extra as { bot_commands?: string }).bot_commands;
       } else if (channel.channelType === ChannelTypeGroup) {
         const extraGroup = extra as Record<string, unknown>;
         orgData.forbidden = raw.forbidden;

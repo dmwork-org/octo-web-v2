@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
+import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
 import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
 import { transcribeVoice } from "@/features/base/api/endpoints/voice.api";
@@ -48,6 +49,8 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
+import { useSlashCommand } from "@/features/chat/hooks/use-slash-command.hook";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
@@ -105,11 +108,9 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   return { Icon: null, hint: "" };
 }
 
-/**
- * 占位符(对齐旧 dmworkbase MessageInput buildPlaceholder):
- *   - person:对 NAME 发送消息  / 发送消息
- *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务  / 输入消息...  ⌥+↵ 创建任务
- */
+// 占位符 (对齐旧 dmworkbase MessageInput buildPlaceholder):
+//   - person:对 NAME 发送消息  / 发送消息
+//   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务  / 输入消息...  ⌥+↵ 创建任务
 function buildPlaceholder(channel: Channel, name: string): string {
   if (channel.channelType === ChannelTypePerson) {
     return name ? `对 ${name} 发送消息` : "发送消息";
@@ -119,10 +120,11 @@ function buildPlaceholder(channel: Channel, name: string): string {
     : `输入消息...  ${ALT_KEY}+↵ 创建任务`;
 }
 
-/**
- * Enter / Shift+Enter keymap 扩展。Mention popover 打开时它的 onKeyDown(suggestion
- * plugin 在 keymap 上层注入)优先消费 Enter,本扩展不会被触发。
- */
+// Enter / Shift+Enter keymap 扩展。Mention popover 打开时它的 onKeyDown(suggestion
+// plugin 在 keymap 上层注入)优先消费 Enter,本扩展不会被触发。
+//
+// 斜杠菜单打开时:editorProps.handleKeyDown(优先级最高)会消费 Enter 并 return true,
+// prosemirror 不再走到本 keymap,所以这里无需再判 slash。
 function createSubmitOnEnter(onSubmit: () => void) {
   return Extension.create({
     name: "submitOnEnter",
@@ -157,15 +159,11 @@ function appendToLastLine(lines: string[], chunk: string): void {
   lines[lines.length - 1] += chunk;
 }
 
-/**
- * 从 Editor 里提取发送用文本 + mention 信息。
- *
- * Mention node 自身渲染 `@${label}` 并挂 data-id / data-label;`editor.getText()` 默认
- * 会 skip Mention node。我们手动遍历 doc:遇到 mention 就拼 `@label` 并把 id push 到
- * uids(`@all` 特殊化为 mention.all=true)。
- *
- * 段落之间用 `\n` 分隔,与旧 textarea.value 等价。
- */
+// 从 Editor 里提取发送用文本 + mention 信息。
+//
+// Mention node 自身渲染 @label 并挂 data-id / data-label;editor.getText() 默认
+// 会 skip Mention node。我们手动遍历 doc:遇到 mention 就拼 @label 并把 id push 到
+// uids(@all 特殊化为 mention.all=true)。段落之间用 \n 分隔,与旧 textarea.value 等价。
 function extractFromEditor(editor: Editor): ExtractedText {
   const uids: string[] = [];
   let all = false;
@@ -208,37 +206,15 @@ function formatRecordTime(sec: number): string {
   return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
-/**
- * Composer(P3-K1/K-2/K-3,TipTap + Mention + 草稿 + 媒体增强 + 1:1 旧 UI):
- *
- * 工具栏布局 1:1 对齐旧 dmworkbase MessageInput(图标全靠右,无 Send 按钮,Enter 发):
- *   [😀 表情] [@ 提及] [📎 文件] [✓ 任务] [🎤▼ 语音] [⤢ 展开]
- *
- * 占位符(对齐旧 buildPlaceholder):
- *   - person:对 NAME 发送消息
- *   - group/topic:在 NAME 中回复...  ⌥+↵ 创建任务
- *
- * 媒体增强:
- * - Emoji 面板:点 😀 弹 emoji 网格 picker(picker 相对 form 左对齐)
- * - @ 提及:点 @ 直接 insert "@" 触发 mention picker(仅群/子区)
- * - 粘贴上传:Ctrl+V 粘贴含图片 → sendImage 直传
- * - 拖拽上传:文件拖到 form 区域 → 图片 sendImage / 其他 sendFile
- * - **语音输入**:点 🎤 录音 → POST /voice/transcribe → 文本插入 editor;
- *   ▼ 下拉(P3+ 选 voice mode);**不发送语音消息**
- * - **语音快捷键**:Shift + ⌘/Ctrl + Space 按住录音,松开任一 modifier 停 + 转写;
- *   Esc 录音中取消(对齐旧 VoiceInputIndicator)
- * - ✓ 任务、⤢ 展开:旧 dmworktodo / dmworkbase 接 — 占位 toast,P3+ 真做
- *
- * Reply 流程(per-channel):
- *   message-row 右键"回复" → chatReplyActions.set(channel, message) →
- *   Composer 顶部按 current channel 取 reply 显示 → 发送时 Reply attach 到 content →
- *   成功 clear(channel) / 用户 ✕ 关掉也 clear(channel)。切走再切回 reply 状态保留。
- *
- * **头像菜单 @TA 联动**:`useApplyPendingMention(channel, editor)` 监听
- * chatMentionRequestStore,头像 popover 点 "@TA" → store 写入 pending →
- * 本 hook 检测到 → editor.insertContent mention node → 消费 store。
- * 对齐旧 ConversationContext `messageInputContext.addMention(uid, name)`。
- */
+// Composer:TipTap + Mention + 草稿 + 媒体增强 + 斜杠命令(1:1 旧 UI)。
+//
+// 工具栏布局对齐旧 dmworkbase MessageInput(图标全靠右,无 Send 按钮,Enter 发):
+//   [😀 表情] [@ 提及] [📎 文件] [✓ 任务] [🎤▼ 语音] [⤢ 展开]
+//
+// 斜杠命令(P5-A1):bot 私聊时,从 channelInfo.orgData.bot_commands 解析命令清单;
+// editor 文本以 "/" 开头(无空格/换行)→ 浮出菜单;↑↓ 切换,Enter 选中替换为
+// "/cmd ",Escape 关闭。键盘由 editorProps.handleKeyDown 拦截(优先级高于 Mention /
+// submitOnEnter)。
 export function Composer({ channel }: ComposerProps) {
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -258,6 +234,9 @@ export function Composer({ channel }: ComposerProps) {
   // 群成员候选(子区取父群成员;syncSubscribes 异步,改变后 listener 触发重渲)
   const subscribers = useGroupSubscribers(channel, isMentionable);
 
+  // bot 私聊的命令清单(person + robot=1 才有;其它返空数组)
+  const botCommands = useBotCommands(channel);
+
   // channel 名 — placeholder 用
   const channelName = (() => {
     const info = WKSDK.shared().channelManager.getChannelInfo(channel);
@@ -271,10 +250,9 @@ export function Composer({ channel }: ComposerProps) {
     return [
       all,
       ...subscribers
-        // 去自己 + 去已删除;**保留 bot**(robot=1 的 AI 也是合法 @ 对象,只是 UI 加标识)
+        // 去自己 + 去已删除;保留 bot(robot=1 的 AI 也是合法 @ 对象,只是 UI 加标识)
         .filter((s) => s.uid !== myUid && !s.isDeleted)
-        // 显示名优先 remark > name > uid(对齐群里的展示口径);
-        // isBot 标记由 mention-list 渲染 AI badge 区分
+        // 显示名优先 remark > name > uid;isBot 标记由 mention-list 渲染 AI badge 区分
         .map((s) => {
           const og = s.orgData as { robot?: number } | undefined;
           return {
@@ -291,6 +269,10 @@ export function Composer({ channel }: ComposerProps) {
   // Mention items 也要 ref 稳定(useEditor 只跑一次,suggestion 闭包拿到的得是最新候选)
   const candidatesRef = useRef<MentionItem[]>([]);
   candidatesRef.current = memberCandidates;
+
+  // slash 命令的 handleKeyDown 通过 ref 透传给 editorProps(useEditor 闭包稳定)
+  const slashKeyDownRef = useRef<(e: KeyboardEvent) => boolean>(() => false);
+  const slashIsOpenRef = useRef<() => boolean>(() => false);
 
   const editor = useEditor({
     extensions: [
@@ -317,8 +299,8 @@ export function Composer({ channel }: ComposerProps) {
                 if (id === "@all") return "@所有人";
                 return `@${label ?? id ?? ""}`;
               },
-              // TipTap MentionNodeAttrs.id 是 `string | null`,我的 MentionItem.id 是 string —
-              // subtype 上完全兼容,但 TS 因变性报错。安全地用 `as never` 跨过类型噪音(运行时一致)。
+              // TipTap MentionNodeAttrs.id 是 string | null,我的 MentionItem.id 是 string;
+              // subtype 完全兼容,但 TS 因变性报错。用 as never 跨过类型噪音(运行时一致)。
               suggestion: createMentionSuggestion((query) => {
                 const kw = query.toLowerCase();
                 const list = candidatesRef.current;
@@ -332,7 +314,12 @@ export function Composer({ channel }: ComposerProps) {
             }),
           ]
         : []),
-      createSubmitOnEnter(() => sendTextRef.current()),
+      createSubmitOnEnter(() => {
+        // slash menu 打开时不发送(editorProps.handleKeyDown 已 consume,正常不会走到这里,
+        // 但做兜底防 race)
+        if (slashIsOpenRef.current()) return;
+        sendTextRef.current();
+      }),
     ],
     editorProps: {
       attributes: {
@@ -340,8 +327,15 @@ export function Composer({ channel }: ComposerProps) {
         class:
           "min-h-5 max-h-[100px] overflow-y-auto py-1 text-[14px] leading-5 text-text-primary outline-none",
       },
+      // 优先级高于 Mention plugin / submitOnEnter keymap;slash menu 打开时拦截 ↑↓Enter/Escape
+      handleKeyDown: (_view, event) => slashKeyDownRef.current(event),
     },
   });
+
+  // slash 命令 hook(消费 editor.onUpdate 维护 visible/filter/activeIndex,提供 keymap)
+  const slash = useSlashCommand(editor, botCommands);
+  useSyncRef(slashKeyDownRef, slash.handleKeyDown);
+  useSyncRef(slashIsOpenRef, slash.isOpen);
 
   // K-3:草稿恢复(channel 切换 save 旧 / load 新;发送成功调用 dropDraft 清掉)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
@@ -415,7 +409,7 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
-  /** 收到 audio File → POST /voice/transcribe → text 插 editor 当前光标。 */
+  // 收到 audio File → POST /voice/transcribe → text 插 editor 当前光标。
   const transcribeAndInsert = async (file: File) => {
     setTranscribing(true);
     try {
@@ -456,12 +450,8 @@ export function Composer({ channel }: ComposerProps) {
     () => void voiceRec.stop(true),
   );
 
-  /**
-   * mic 按钮点击:
-   *   idle → start 录音
-   *   recording → stop + 转写 + 插 editor
-   *   transcribing → 锁住,不响应
-   */
+  // mic 按钮点击:idle → start 录音;recording → stop + 转写 + 插 editor;
+  // transcribing → 锁住不响应
   const onClickMic = async () => {
     if (transcribing) return;
     if (!voiceRec.isRecording) {
@@ -472,7 +462,7 @@ export function Composer({ channel }: ComposerProps) {
     if (file) await transcribeAndInsert(file);
   };
 
-  /** @ 按钮:直接 insert "@",触发 mention picker(仅群/子区)。 */
+  // @ 按钮:直接 insert "@",触发 mention picker(仅群/子区)。
   const onClickMention = () => {
     if (!isMentionable || !editor) return;
     editor.chain().focus().insertContent("@").run();
@@ -480,6 +470,8 @@ export function Composer({ channel }: ComposerProps) {
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // slash menu 打开时禁止 submit(submit 按钮也走这里,虽然没渲染但保险)
+    if (slash.isOpen()) return;
     if (editor) void sendText(editor);
   };
 
@@ -495,10 +487,8 @@ export function Composer({ channel }: ComposerProps) {
     if (file) void sendFile(file);
   };
 
-  /**
-   * Ctrl+V 粘贴含图片 → prevent default(阻止 editor 把 image 当 base64 文本插入)+
-   * 走 sendImage 直传。多张图依次发。文本/HTML 粘贴不拦截,让 editor 自带 paste 处理。
-   */
+  // Ctrl+V 粘贴含图片 → prevent default(阻止 editor 把 image 当 base64 文本插入)+
+  // 走 sendImage 直传。多张图依次发。文本/HTML 粘贴不拦截,让 editor 自带 paste 处理。
   const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -515,7 +505,7 @@ export function Composer({ channel }: ComposerProps) {
     for (const f of images) void sendImage(f);
   };
 
-  /** 拖文件到 form 区域 → 图片走 sendImage,其他走 sendFile。多个文件依次发。 */
+  // 拖文件到 form 区域 → 图片走 sendImage,其他走 sendFile。多个文件依次发。
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return;
@@ -526,7 +516,7 @@ export function Composer({ channel }: ComposerProps) {
     }
   };
 
-  /** dragover 必须 preventDefault,否则浏览器默认会取消 drop 事件。 */
+  // dragover 必须 preventDefault,否则浏览器默认会取消 drop 事件。
   const onDragOver = (e: React.DragEvent<HTMLFormElement>) => {
     if (e.dataTransfer?.types?.includes("Files")) {
       e.preventDefault();
@@ -701,8 +691,18 @@ export function Composer({ channel }: ComposerProps) {
           </div>
         </div>
 
+        {/* 斜杠命令菜单 — 仅 bot 私聊 + 文本以 "/" 开头时浮出
+            (absolute bottom-full + 跟 form 等宽,对齐旧 .wk-slash-command-menu) */}
+        <SlashCommandMenu
+          commands={botCommands}
+          filter={slash.state.filter}
+          visible={slash.state.visible}
+          activeIndex={slash.state.activeIndex}
+          onSelect={slash.handleSelect}
+        />
+
         {/* Emoji picker — 放在 form 直接子级,absolute 相对 form left-0 弹出
-            (而不是相对右上角的 emoji 按钮),与输入框左边对齐,对齐旧 EmojiToolbar 视觉位置。
+            (而不是相对右上角的 emoji 按钮),与输入框左边对齐。
             click outside 监听 form 整体:点 form 内任何位置(含 emoji 按钮)都不关
             picker,点 form 外才关。*/}
         <EmojiPickerPopover
@@ -716,7 +716,7 @@ export function Composer({ channel }: ComposerProps) {
   );
 }
 
-/** editor / sendText 变化时重指 sendTextRef,让 keymap 闭包永远拿最新引用。 */
+// editor / sendText 变化时重指 sendTextRef,让 keymap 闭包永远拿最新引用。
 function useSyncSendTextRef(
   editor: Editor | null,
   sendText: (ed: Editor) => Promise<void>,
@@ -727,4 +727,11 @@ function useSyncSendTextRef(
       if (editor) void sendText(editor);
     };
   }, [editor, sendText, ref]);
+}
+
+// 把最新 fn 同步进 ref(满足 no-useeffect-in-component;给 slash 等闭包稳定的回调用)。
+function useSyncRef<T>(ref: React.MutableRefObject<T>, value: T) {
+  useEffect(() => {
+    ref.current = value;
+  }, [ref, value]);
 }

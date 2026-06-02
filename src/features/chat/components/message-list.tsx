@@ -171,11 +171,19 @@ export function MessageList({ channel }: MessageListProps) {
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
-    return [...all].sort((a, b) => {
-      const aSeq = a.messageSeq || Number.MAX_SAFE_INTEGER;
-      const bSeq = b.messageSeq || Number.MAX_SAFE_INTEGER;
-      return aSeq - bSeq;
-    });
+    // 排序:已 ack 消息(messageSeq > 0)按 seq 升序;未 ack(seq=0,client pending)
+    // 按数组出现顺序 append 末尾。对齐旧 vm.fillOrder 的 maxOrder+1 语义 —
+    // **不能**简单视 pending seq 为 MAX_SAFE_INTEGER,否则在 bot 回复(seq=N)
+    // 到达时 pending(我刚发但 ack 还没回)的 MAX > N,bot 反而排到我消息**之前**,
+    // 视觉上 bot 回复"穿插"到我消息上方(用户反馈截图 #35)。
+    const acked: Message[] = [];
+    const pending: Message[] = [];
+    for (const m of all) {
+      if (m.messageSeq && m.messageSeq > 0) acked.push(m);
+      else pending.push(m);
+    }
+    acked.sort((a, b) => a.messageSeq - b.messageSeq);
+    return [...acked, ...pending];
   }, [data?.pages]);
 
   // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message。

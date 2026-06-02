@@ -14,18 +14,20 @@ import { CardRenderer } from "@/features/chat/message-renderers/card-renderer";
 import { LocationRenderer } from "@/features/chat/message-renderers/location-renderer";
 import { ScreenshotRenderer } from "@/features/chat/message-renderers/screenshot-renderer";
 import { JoinOrganizationRenderer } from "@/features/chat/message-renderers/join-organization-renderer";
+import { TypingRenderer } from "@/features/chat/message-renderers/typing-renderer";
 
 /**
  * 按 contentType 分发到具体 renderer。
  *
  * 优先级:
  * 1. remoteExtra.revoke → RevokedRenderer("xxx 撤回了一条消息",P2-B8)
- * 2. 精确 contentType(text/image/file/voice/gif/video/mergeForward/threadCreated/...)
+ * 2. 精确 contentType(text/image/file/voice/gif/video/mergeForward/threadCreated/typing/...)
  * 3. 1000 ≤ contentType ≤ 2000 → SystemRenderer(displayText 兜底)
  * 4. 兜底 [不支持的消息类型 X]
  *
  * threadCreated(1100)在 system 范围内但有富 payload + 点击进子区,精确匹配
  * 优先于 system fallback。
+ * typing(-2)是 transient 状态消息,3 个跳动点占位。
  */
 export function MessageDispatch({ message }: { message: Message }) {
   if (message.remoteExtra?.revoke) {
@@ -33,6 +35,8 @@ export function MessageDispatch({ message }: { message: Message }) {
   }
   const ct = message.contentType;
   switch (ct) {
+    case MessageContentTypeConst.typing:
+      return <TypingRenderer />;
     case MessageContentType.text:
       return <TextRenderer message={message} />;
     case MessageContentType.image:

@@ -1,5 +1,6 @@
 import { useStore } from "@tanstack/react-store";
 import { X } from "lucide-react";
+import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { MatterList } from "@/features/matter/components/matter-list";
 import { MatterDetailPanel as MatterDetailInner } from "@/features/matter/components/matter-detail-panel";
@@ -18,6 +19,9 @@ import { MatterDetailPanel as MatterDetailInner } from "@/features/matter/compon
  */
 export function MatterListPanel() {
   const state = useStore(chatSidePanelStore, (s) => s);
+  // chat 当前 channel — 传给 MatterList,触发"按 channel_id 过滤 + 默认 tab=all + 本地切 tab"
+  // (对齐旧 ChatMatterPanel { initialFilters: { channel_id }, default tab="all" })
+  const channel = useStore(chatSelectedStore, (s) => s.channel);
   if (state.kind !== "matter") return null;
   const { matterId } = state;
 
@@ -53,7 +57,11 @@ export function MatterListPanel() {
             onClose={() => chatSidePanelActions.selectMatter(null)}
           />
         ) : (
-          <MatterList selectedId={null} onSelect={(id) => chatSidePanelActions.selectMatter(id)} />
+          <MatterList
+            selectedId={null}
+            onSelect={(id) => chatSidePanelActions.selectMatter(id)}
+            channel={channel ?? undefined}
+          />
         )}
       </div>
     </aside>

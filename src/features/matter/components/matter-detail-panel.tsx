@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { MoreHorizontal, Plus, Tag } from "lucide-react";
+import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import { Hash, MoreHorizontal, Plus, Tag } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { matterDetailQueryOptions } from "@/features/matter/queries/matters.query";
 import { useDeleteMatter, useTransitionMatter } from "@/features/matter/mutations/matters.mutation";
 import { UserName } from "@/features/matter/components/user-name";
@@ -221,7 +223,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
         <div className="px-8 pt-4">
           {secondaryTab === "channels" ? (
-            <ChannelsPlaceholder />
+            <ChannelsTab
+              sourceChannelId={data.source_channel_id}
+              sourceChannelType={data.source_channel_type}
+            />
           ) : (
             <ActivityList matterId={matterId} />
           )}
@@ -285,8 +290,37 @@ function FieldChip({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-/** 关联群聊 tab 占位:+ 关联新群按钮(P3+ disabled)+ dashed 空态。 */
-function ChannelsPlaceholder() {
+/**
+ * 关联群聊 tab(B5,对齐旧 dmworktodo LinkChannelsModal 反向):
+ *
+ * 显示 matter.source_channel_id / source_channel_type 关联的会话条目;点击 → 选中
+ * 该会话 + 关闭 matter panel(对齐旧 routeLeftMenuID 跳 chat 体验)。
+ *
+ * 关联新群入口 — 老仓在 dmworktodo LinkChannelsModal,新仓 P3+ 接;此处禁用占位。
+ */
+function ChannelsTab({
+  sourceChannelId,
+  sourceChannelType,
+}: {
+  sourceChannelId?: string;
+  sourceChannelType?: number;
+}) {
+  const hasSource = !!sourceChannelId && sourceChannelType != null;
+  const channel =
+    hasSource && sourceChannelId
+      ? new Channel(sourceChannelId, sourceChannelType ?? ChannelTypeGroup)
+      : null;
+  const info = channel ? WKSDK.shared().channelManager.getChannelInfo(channel) : undefined;
+  if (channel && !info) void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+  const title = info?.title ?? sourceChannelId ?? "";
+  const isGroup = sourceChannelType === ChannelTypeGroup;
+
+  const onJump = () => {
+    if (!channel) return;
+    chatSelectedActions.select(channel);
+    chatSidePanelActions.close();
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -302,9 +336,24 @@ function ChannelsPlaceholder() {
           关联新群
         </button>
       </div>
-      <div className="rounded-md border border-dashed border-border-default px-4 py-8 text-center text-xs text-text-tertiary">
-        暂无关联群聊
-      </div>
+      {hasSource && channel ? (
+        <button
+          type="button"
+          onClick={onJump}
+          className="flex w-full items-center gap-2 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2 text-left transition-colors hover:bg-bg-hover"
+        >
+          <ChannelAvatar channel={channel} size={28} title={title} />
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            {isGroup ? null : <Hash size={12} className="shrink-0 text-text-tertiary" />}
+            <span className="truncate text-sm text-text-primary">{title}</span>
+          </div>
+          <span className="shrink-0 text-[11px] text-text-tertiary">跳转 ›</span>
+        </button>
+      ) : (
+        <div className="rounded-md border border-dashed border-border-default px-4 py-8 text-center text-xs text-text-tertiary">
+          暂无关联群聊
+        </div>
+      )}
     </div>
   );
 }

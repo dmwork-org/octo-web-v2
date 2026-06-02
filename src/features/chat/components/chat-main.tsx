@@ -4,6 +4,7 @@ import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { ChatHeader } from "@/features/chat/components/chat-header";
+import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologram";
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
@@ -15,7 +16,8 @@ import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel"
  * 共用的"右侧主区"。
  *
  * 数据来源:chatSelectedStore.channel
- * - null  → "选择对话,激活连接"占位
+ * - null  → 渲染 ChatEmptyHologram(1:1 旧 wk-chat-empty-hologram:中心圆 +
+ *           左侧用户节点 + 右侧 AI 方块 + 虚线连接 + pulse/dash 动效)
  * - chan  → ChatHeader + MessageList + (selection active ? SelectionToolbar : Composer)
  *
  * **侧边 panel(互斥渲染)** — 由 chatSidePanelStore.kind 决定:
@@ -34,11 +36,7 @@ export function ChatMain() {
   const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
 
   if (!channel) {
-    return (
-      <section className="flex flex-1 flex-col items-center justify-center text-sm text-text-tertiary">
-        选择对话,激活连接
-      </section>
-    );
+    return <ChatEmptyHologram />;
   }
 
   const showThreadIcon = channel.channelType === ChannelTypeGroup;

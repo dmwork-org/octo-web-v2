@@ -358,8 +358,15 @@ export function Composer({ channel }: ComposerProps) {
   );
 
   const sendText = async (ed: Editor) => {
+    // 单条文本消息长度上限(对齐旧 MessageInput MAX_MESSAGE_LENGTH=5000);
+    // 超出直接 toast + return,不发送
+    const MAX_MESSAGE_LENGTH = 5000;
     const { text, uids, all } = extractFromEditor(ed);
     if (!text || sending) return;
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      toast.error(`输入内容长度不能大于 ${MAX_MESSAGE_LENGTH} 字符!`);
+      return;
+    }
     setSending(true);
     try {
       const content = new MessageText(text);

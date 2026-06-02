@@ -76,10 +76,6 @@ const VOICE_MAX_DURATION = 60;
 const ALT_KEY =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌥" : "Alt";
 
-/** Mac 上 Cmd 显示 ⌘,其他平台显示 Ctrl。 */
-const META_KEY =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘" : "Ctrl";
-
 /**
  * 三态 sticky 候选项(对齐旧 buildMentionDropdownItems):
  *   @所有人 → mention.humans=1(纯人,不含 AI)
@@ -621,7 +617,7 @@ export function Composer({ channel }: ComposerProps) {
         ? "准备中..."
         : voiceState === "recording"
           ? `点击停止 · ${modeLabel}`
-          : `语音输入(Shift+${META_KEY}+Space)`;
+          : "语音输入 (长按 Shift)";
 
   return (
     <div className="shrink-0 px-4 pb-2">
@@ -740,7 +736,6 @@ export function Composer({ channel }: ComposerProps) {
             ) : null}
             <VoiceButtonGroup
               state={voiceState}
-              duration={voiceRec.duration}
               onMicClick={() => void onClickMic()}
               onModeSelect={onModeSelect}
               modeMenuDisabled={transcribing}

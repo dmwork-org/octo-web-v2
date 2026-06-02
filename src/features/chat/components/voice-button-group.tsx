@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Loader2, Mic, MicOff } from "lucide-react";
+import { ChevronDown, Loader2, Mic } from "lucide-react";
 import type { VoiceMode } from "@/features/base/api/endpoints/voice.api";
 
 interface VoiceButtonGroupProps {
   /** 当前状态(决定渲染哪种 UI / 是否可点) */
   state: "idle" | "preparing" | "recording" | "transcribing";
-  /** 当前录音时长(秒,仅 recording 时显示) */
-  duration: number;
   /** mic 按钮点击 — 由 composer 决定:idle 时启 append_only;recording 时停录 */
   onMicClick: () => void;
   /** 模式下拉选中(语音输入 / 语音编辑) */
@@ -66,28 +64,37 @@ function useHoverDropdown(): {
   };
 }
 
-function formatRecordTime(sec: number): string {
-  const mm = Math.floor(sec / 60);
-  const ss = sec % 60;
-  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+/**
+ * Mic icon + 向下小三角(对齐旧 wk-voice-button--recording 内部:Mic 18 + svg 6×4 三角)。
+ * 默认态和录音/转写态视觉一致,只是配色变化 + cursor 变 pointer。
+ */
+function MicWithArrow({ size = 18 }: { size?: number }) {
+  return (
+    <>
+      <Mic size={size} />
+      <svg width="6" height="4" viewBox="0 0 6 4" fill="currentColor">
+        <path d="M0.5 0.5L3 3.5L5.5 0.5H0.5Z" />
+      </svg>
+    </>
+  );
 }
 
 /**
- * Mic 按钮组(对齐旧 dmworkbase MessageInput VoiceInputIndicator 默认态):
+ * Mic 按钮组(1:1 对齐旧 dmworkbase MessageInput VoiceInputIndicator):
  *
  *   ┌──────── wrapper(hover 弹下拉) ────────┐
  *   │  🎤  ▼                                │
  *   └────────────────────────────────────────┘
  *
  * 行为:
- * - idle:点 🎤 直接 append_only 启录;hover wrapper 弹下拉,点 [语音输入]/[语音编辑] 指定 mode
+ * - idle:点 🎤 直接 append_only 启录;hover wrapper 弹下拉,点 [语音输入]/[语音编辑] 启指定 mode
  * - preparing:Mic + opacity 60 + pulse(getUserMedia 等权限期间)
- * - recording:整个 mic 可点 → 停录 + 转写;内部 MicOff + 录音时长
- * - transcribing:Loader2 spin,disabled
+ * - recording:整个按钮区可点 → 停录+转写;**只显 Mic + 向下三角(无时长)**;
+ *   配色变红 + cursor pointer;时长 / 模式提示在 floating indicator(卡片上方浮窗)
+ * - transcribing:同 recording 形态 + disabled,等浮窗 spinner 跑完
  */
 export function VoiceButtonGroup({
   state,
-  duration,
   onMicClick,
   onModeSelect,
   modeMenuDisabled,
@@ -116,9 +123,9 @@ export function VoiceButtonGroup({
         title={micTitle}
         disabled={state === "transcribing" || state === "preparing"}
         className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
-          state === "recording"
+          state === "recording" || state === "transcribing"
             ? "text-error"
-            : state === "transcribing"
+            : state === "preparing"
               ? "text-text-tertiary"
               : "text-text-tertiary hover:text-text-primary"
         }`}
@@ -128,10 +135,7 @@ export function VoiceButtonGroup({
         ) : state === "preparing" ? (
           <Mic size={20} className="animate-pulse opacity-60" />
         ) : state === "recording" ? (
-          <>
-            <MicOff size={20} className="animate-pulse" />
-            <span className="text-[11px] tabular-nums">{formatRecordTime(duration)}</span>
-          </>
+          <MicWithArrow size={20} />
         ) : (
           <Mic size={20} />
         )}

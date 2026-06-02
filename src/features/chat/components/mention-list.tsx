@@ -1,17 +1,17 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Users } from "lucide-react";
+import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { MENTION_UID_AIS, isStickyMentionUid } from "@/features/base/lib/mention-three-state";
 
 /**
- * Mention 候选项 — 字段对齐 TipTap `MentionNodeAttrs = { id, label }`,
- * 这样 suggestion.command 默认行为(把 item 直接作为 attrs 插入 node)就能用。
+ * Mention 候选项 — 字段对齐 TipTap `MentionNodeAttrs = { id, label }`。
  *
  * - 普通成员:`{ id: uid, label: name }`
- * - @所有人:`{ id: "@all", label: "所有人" }` — extractFromEditor 见到 id==="@all" 设
- *   SDK Mention.all=true,不入 uids
- * - AI bot:`{ id: uid, label: name, isBot: true }` — id/label 与普通成员同口径
- *   (mention.uids 走 bot 的 uid),仅 UI 加 AI 角标区分
+ * - @所有人(三态新): `{ id: "-2", label: "所有人" }` — extractOrderedBlocks 见到设 humans=1
+ * - @所有AI(三态新): `{ id: "-3", label: "所有AI" }` — extractOrderedBlocks 见到设 ais=1
+ * - @所有人(legacy):`{ id: "-1" 或 "@all", label: "所有人" }` — 设 mention.all=1
+ * - AI bot 成员:`{ id: uid, label: name, isBot: true }`(普通成员路径 + UI AI 角标)
  */
 export interface MentionItem {
   id: string;
@@ -40,6 +40,10 @@ function useResetActiveOnItemsChange(items: MentionItem[], setActiveIndex: (i: n
  * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover):
  * - 渲染候选项,↑↓ 改 activeIndex,Enter / Tab 触发 command 插入 Mention node
  * - command 由 TipTap suggestion 提供,默认会把 item({id,label})作为 attrs 插入
+ * - sticky 三态:
+ *     "-1" / "@all" → Users 图标(legacy @所有人,mention.all=1)
+ *     "-2"          → Users 图标(@所有人,mention.humans=1)
+ *     "-3"          → Bot 图标 + AI 角标(@所有AI,mention.ais=1)
  */
 export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
@@ -78,7 +82,8 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
       >
         {items.map((c, i) => {
           const active = i === activeIndex;
-          const isAll = c.id === "@all";
+          const isSticky = isStickyMentionUid(c.id);
+          const isAis = c.id === MENTION_UID_AIS;
           return (
             <li
               key={c.id}
@@ -93,9 +98,9 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 active ? "bg-brand-tint" : "hover:bg-bg-hover"
               }`}
             >
-              {isAll ? (
+              {isSticky ? (
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-secondary">
-                  <Users size={14} />
+                  {isAis ? <Bot size={14} /> : <Users size={14} />}
                 </span>
               ) : (
                 <ChannelAvatar
@@ -105,12 +110,12 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 />
               )}
               <span className="min-w-0 flex-1 truncate text-text-primary">{c.label}</span>
-              {c.isBot ? (
+              {isAis || c.isBot ? (
                 <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
                   AI
                 </span>
               ) : null}
-              {!isAll ? (
+              {!isSticky ? (
                 <span className="shrink-0 truncate font-mono text-[10px] text-text-tertiary">
                   {c.id}
                 </span>

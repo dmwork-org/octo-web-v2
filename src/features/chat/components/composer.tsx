@@ -55,6 +55,14 @@ import { useSlashCommand } from "@/features/chat/hooks/use-slash-command.hook";
 import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attachments.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
+import {
+  MENTION_LABEL_AIS,
+  MENTION_LABEL_HUMANS,
+  MENTION_UID_AIS,
+  MENTION_UID_HUMANS,
+  MENTION_UID_LEGACY_ALL,
+  MENTION_UID_OLD_ALL_ALIAS,
+} from "@/features/base/lib/mention-three-state";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -69,6 +77,18 @@ const ALT_KEY =
 /** Mac 上 Cmd 显示 ⌘,其他平台显示 Ctrl。 */
 const META_KEY =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘" : "Ctrl";
+
+/**
+ * 三态 sticky 候选项(对齐旧 buildMentionDropdownItems):
+ *   @所有人 → mention.humans=1(纯人,不含 AI)
+ *   @所有AI → mention.ais=1(全部 bot)
+ *
+ * 仅 query 为空时置顶;用户已输入过滤词时只显匹配的成员,避免误选 sticky。
+ */
+const STICKY_MENTIONS: MentionItem[] = [
+  { id: MENTION_UID_HUMANS, label: MENTION_LABEL_HUMANS },
+  { id: MENTION_UID_AIS, label: MENTION_LABEL_AIS, isBot: true },
+];
 
 interface ComposerProps {
   channel: Channel;
@@ -156,6 +176,11 @@ function formatRecordTime(sec: number): string {
 //
 // 工具栏:[😀] [@] [📎] [✓] [🎤▼] [⤢] 全靠右,无 Send 按钮(Enter 直发)。
 //
+// Mention 三态(A4,对齐旧 mentionRender):
+// - sticky 候选:@所有人("-2",humans=1) / @所有AI("-3",ais=1) — 仅 query 空时置顶
+// - legacy @所有人("-1" / "@all"):mention.all=1(server 端 rewrite 成 humans=1)
+// - 普通成员:mention.uids[]
+//
 // 附件流(A3):
 // - 粘贴图片 → inline AttachmentNode 进 editor(缩略图 + 可拖排序/删)
 // - 拖入 / 上传按钮 / 粘贴非图 → 顶部附件区(可删,带预览)
@@ -189,22 +214,19 @@ export function Composer({ channel }: ComposerProps) {
   })();
   const placeholder = buildPlaceholder(channel, channelName);
 
+  // 仅成员候选(不含 sticky);sticky 由 suggestion 回调按 query 决定是否 prepend
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
-    const all: MentionItem = { id: "@all", label: "所有人" };
-    return [
-      all,
-      ...subscribers
-        .filter((s) => s.uid !== myUid && !s.isDeleted)
-        .map((s) => {
-          const og = s.orgData as { robot?: number } | undefined;
-          return {
-            id: s.uid,
-            label: s.remark || s.name || s.uid,
-            isBot: og?.robot === 1,
-          };
-        }),
-    ];
+    return subscribers
+      .filter((s) => s.uid !== myUid && !s.isDeleted)
+      .map((s) => {
+        const og = s.orgData as { robot?: number } | undefined;
+        return {
+          id: s.uid,
+          label: s.remark || s.name || s.uid,
+          isBot: og?.robot === 1,
+        };
+      });
   }, [subscribers, myUid, isMentionable]);
 
   const sendRef = useRef<() => void>(() => {});
@@ -236,13 +258,21 @@ export function Composer({ channel }: ComposerProps) {
               renderText: ({ node }) => {
                 const label = (node.attrs as { label?: string; id?: string }).label;
                 const id = (node.attrs as { id?: string }).id;
-                if (id === "@all") return "@所有人";
+                if (id === MENTION_UID_AIS) return `@${MENTION_LABEL_AIS}`;
+                if (
+                  id === MENTION_UID_HUMANS ||
+                  id === MENTION_UID_LEGACY_ALL ||
+                  id === MENTION_UID_OLD_ALL_ALIAS
+                ) {
+                  return `@${MENTION_LABEL_HUMANS}`;
+                }
                 return `@${label ?? id ?? ""}`;
               },
+              // query 为空时 prepend sticky;非空只过滤成员(避免误选 sticky)。对齐旧 buildMentionDropdownItems。
               suggestion: createMentionSuggestion((query) => {
                 const kw = query.toLowerCase();
                 const list = candidatesRef.current;
-                if (!kw) return list.slice(0, 8);
+                if (!kw) return [...STICKY_MENTIONS, ...list.slice(0, 8)];
                 return list
                   .filter(
                     (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
@@ -330,10 +360,14 @@ export function Composer({ channel }: ComposerProps) {
       for (const b of blocks) {
         if (b.type === "text") {
           const content = new MessageText(b.text);
-          if (isMentionable && (b.all || b.uids.length > 0)) {
-            const m = new ImMention();
+          const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
+          if (hasMention) {
+            // SDK Mention 类只定义 all/uids;humans/ais 是三态扩展,JSON 序列化时透传给服务端。
+            const m = new ImMention() as ImMention & { humans?: number; ais?: number };
             if (b.all) m.all = true;
             if (b.uids.length > 0) m.uids = b.uids;
+            if (b.humans) m.humans = 1;
+            if (b.ais) m.ais = 1;
             content.mention = m;
           }
           attachReplyOnce(content);

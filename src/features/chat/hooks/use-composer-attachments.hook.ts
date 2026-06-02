@@ -8,10 +8,28 @@ import {
   type AttachmentAttributes,
   type TopAttachmentItem,
 } from "@/features/chat/lib/composer-files";
+import {
+  MENTION_UID_AIS,
+  MENTION_UID_HUMANS,
+  MENTION_UID_LEGACY_ALL,
+  MENTION_UID_OLD_ALL_ALIAS,
+  MENTION_LABEL_AIS,
+  MENTION_LABEL_HUMANS,
+} from "@/features/base/lib/mention-three-state";
 
 /** 编辑器内按顺序拆出的发送块。 */
 export type OrderedBlock =
-  | { type: "text"; text: string; uids: string[]; all: boolean }
+  | {
+      type: "text";
+      text: string;
+      uids: string[];
+      /** legacy "@所有人"(server 端会 rewrite 成 humans=1) */
+      all: boolean;
+      /** 新三态:"@所有人"(纯人,不含 AI) */
+      humans: boolean;
+      /** 新三态:"@所有AI"(全部 bot) */
+      ais: boolean;
+    }
   | { type: "image"; file: File }
   | { type: "file"; file: File };
 
@@ -31,12 +49,12 @@ export interface UseComposerAttachmentsReturn {
   /**
    * 按文档顺序提取发送块(对齐旧 extractOrderedBlocks)。
    * 文本段和 inline attachment 交替拆分,连续段落合并(\n 分隔)。
-   * mention node 解析为 uids/all。
+   * mention node 解析为 uids / all / humans / ais 三态。
    */
   extractOrderedBlocks: (editor: Editor) => OrderedBlock[];
   /** 顶部 + 编辑器内是否有任意附件(给 send 按钮 / send 路径分流判用)。 */
   hasAnyAttachment: (editor: Editor | null) => boolean;
-  /** 发送成功后清:revoke 所有 ObjectURL,清空顶部 + 内部 File map。editor 内 attachment node 由调用方 clearContent 顺带清。 */
+  /** 发送成功后清:revoke 所有 ObjectURL,清空顶部 + 内部 File map。 */
   clearAll: () => void;
 }
 
@@ -47,20 +65,32 @@ interface TipTapNode {
   text?: string;
 }
 
-function inlineToText(node: TipTapNode, uids: string[], allRef: { v: boolean }): string {
+interface MentionFlags {
+  all: boolean;
+  humans: boolean;
+  ais: boolean;
+}
+
+function inlineToText(node: TipTapNode, uids: string[], flags: MentionFlags): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "mention") {
     const id = node.attrs?.id as string | undefined;
     const label = (node.attrs?.label as string | undefined) ?? id ?? "";
-    if (id === "@all") {
-      allRef.v = true;
-      return "@所有人";
+    if (!id) return "";
+    if (id === MENTION_UID_AIS) {
+      flags.ais = true;
+      return `@${MENTION_LABEL_AIS}`;
     }
-    if (id) {
-      uids.push(id);
-      return `@${label}`;
+    if (id === MENTION_UID_HUMANS) {
+      flags.humans = true;
+      return `@${MENTION_LABEL_HUMANS}`;
     }
-    return "";
+    if (id === MENTION_UID_LEGACY_ALL || id === MENTION_UID_OLD_ALL_ALIAS) {
+      flags.all = true;
+      return `@${MENTION_LABEL_HUMANS}`;
+    }
+    uids.push(id);
+    return `@${label}`;
   }
   if (node.type === "hardBreak") return "\n";
   return "";
@@ -82,12 +112,12 @@ function hasAttachmentNode(json: JSONContent): boolean {
  * - paste 图片 → inline AttachmentNode(编辑区显缩略图,可拖拽);File 实体存 ref Map
  * - 其他(paste 非图 / drag 拖入 / 上传按钮) → 顶部附件卡片
  * - send 时:editor 内部走 extractOrderedBlocks(text 段 + image 块交替);顶部独立发
+ *   mention 三态(all/humans/ais)按文档顺序拆,与文本段对应
  * - clearAll:revoke ObjectURL + 清 state + 清 File map
  */
 export function useComposerAttachments(): UseComposerAttachmentsReturn {
   const [topAttachments, setTopAttachments] = useState<TopAttachmentItem[]>([]);
   const filesRef = useRef<Map<string, File>>(new Map());
-  // 跟踪所有 ObjectURL,clearAll 时一次 revoke,防 memory leak
   const objectUrlsRef = useRef<string[]>([]);
 
   const addAttachments = useCallback(
@@ -113,14 +143,12 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
           continue;
         }
 
-        // upload 路径 / paste 非图:全部进顶部
         let previewUrl: string | undefined;
         if (isImage) {
           previewUrl = URL.createObjectURL(file);
           objectUrlsRef.current.push(previewUrl);
         } else if (isVideo) {
           previewUrl = await generateVideoCover(file);
-          // dataURL 不需 revoke
         }
 
         const item: TopAttachmentItem = {
@@ -153,21 +181,27 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
     const blocks: OrderedBlock[] = [];
     let pendingText = "";
     let pendingUids: string[] = [];
-    const allRef = { v: false };
+    let pendingFlags: MentionFlags = { all: false, humans: false, ais: false };
 
     const flushText = () => {
       const text = pendingText.trim();
       if (text) {
-        blocks.push({ type: "text", text, uids: pendingUids, all: allRef.v });
+        blocks.push({
+          type: "text",
+          text,
+          uids: pendingUids,
+          all: pendingFlags.all,
+          humans: pendingFlags.humans,
+          ais: pendingFlags.ais,
+        });
       }
       pendingText = "";
       pendingUids = [];
-      allRef.v = false;
+      pendingFlags = { all: false, humans: false, ais: false };
     };
 
     for (let i = 0; i < json.content.length; i++) {
       const topNode = json.content[i] as TipTapNode;
-      // 段落间用 \n 分隔(已经累积 text 时才追加)
       if (pendingText) pendingText += "\n";
       const children = topNode.content ?? [];
       for (const child of children) {
@@ -175,12 +209,11 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
           const attrs = child.attrs as unknown as AttachmentAttributes;
           const file = filesRef.current.get(attrs.id);
           if (!file) continue;
-          // 遇到 inline 附件,先冲刷前面文本
           flushText();
           const isImage = isImageMime(file.type, file.name);
           blocks.push({ type: isImage ? "image" : "file", file });
         } else {
-          pendingText += inlineToText(child, pendingUids, allRef);
+          pendingText += inlineToText(child, pendingUids, pendingFlags);
         }
       }
     }

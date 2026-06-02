@@ -88,11 +88,21 @@ export function useSlashCommand(
     (cmd: BotCommand) => {
       if (!editor) return;
       const text = cmd.command.startsWith("/") ? cmd.command : `/${cmd.command}`;
-      editor.commands.setContent(`${text} `);
+      // 用 JSON 节点 + chain,确保 doc 结构干净(paragraph + text)、触发 onUpdate
+      // 关菜单、且光标落在末尾(便于用户接着输入参数或按 Enter 发送)。
+      editor
+        .chain()
+        .focus()
+        .clearContent()
+        .insertContent({
+          type: "paragraph",
+          content: [{ type: "text", text: `${text} ` }],
+        })
+        .focus("end")
+        .run();
       setVisible(false);
       setFilter("");
       setActiveIndex(0);
-      editor.commands.focus();
     },
     [editor],
   );

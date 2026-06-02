@@ -52,6 +52,7 @@ import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook"
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
 import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
 import { useSlashCommand } from "@/features/chat/hooks/use-slash-command.hook";
+import { useEditorMultiline } from "@/features/chat/hooks/use-editor-multiline.hook";
 import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attachments.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
@@ -312,6 +313,7 @@ export function Composer({ channel }: ComposerProps) {
   });
 
   const slash = useSlashCommand(editor, botCommands);
+  const isMultiLine = useEditorMultiline(editor);
   useSyncRef(slashKeyDownRef, slash.handleKeyDown);
   useSyncRef(slashIsOpenRef, slash.isOpen);
 
@@ -610,12 +612,12 @@ export function Composer({ channel }: ComposerProps) {
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileChange} />
 
-        <div className="flex items-center gap-2">
+        <div className={`flex gap-2 ${isMultiLine ? "flex-col items-stretch" : "items-center"}`}>
           <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
             <EditorContent editor={editor} />
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className={`flex shrink-0 items-center gap-2 ${isMultiLine ? "self-end" : ""}`}>
             <button
               type="button"
               onClick={() => setEmojiOpen((v) => !v)}

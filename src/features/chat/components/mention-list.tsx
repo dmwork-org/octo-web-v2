@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -36,6 +36,18 @@ function useResetActiveOnItemsChange(items: MentionItem[], setActiveIndex: (i: n
   }, [items, setActiveIndex]);
 }
 
+/** activeIndex 变化时把对应 li 滚到视口内(对齐旧 MentionList scrollIntoView)。 */
+function useScrollActiveIntoView(
+  itemRefs: React.MutableRefObject<(HTMLLIElement | null)[]>,
+  activeIndex: number,
+) {
+  useEffect(() => {
+    const el = itemRefs.current[activeIndex];
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]);
+}
+
 /**
  * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover):
  * - 渲染候选项,↑↓ 改 activeIndex,Enter / Tab 触发 command 插入 Mention node
@@ -44,11 +56,14 @@ function useResetActiveOnItemsChange(items: MentionItem[], setActiveIndex: (i: n
  *     "-1" / "@all" → Users 图标(legacy @所有人,mention.all=1)
  *     "-2"          → Users 图标(@所有人,mention.humans=1)
  *     "-3"          → Bot 图标 + AI 角标(@所有AI,mention.ais=1)
+ * - activeIndex 变化时自动滚动锚点行到视口(A8,对齐旧 MentionList)
  */
 export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
     const [activeIndex, setActiveIndex] = useState(0);
+    const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
     useResetActiveOnItemsChange(items, setActiveIndex);
+    useScrollActiveIntoView(itemRefs, activeIndex);
 
     const selectItem = (index: number) => {
       const item = items[index];
@@ -87,6 +102,9 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
           return (
             <li
               key={c.id}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
               role="option"
               aria-selected={active}
               onMouseEnter={() => setActiveIndex(i)}

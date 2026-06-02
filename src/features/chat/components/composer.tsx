@@ -292,7 +292,22 @@ export function Composer({ channel }: ComposerProps) {
         class:
           "min-h-5 max-h-[100px] overflow-y-auto py-1 text-[14px] leading-5 text-text-primary outline-none",
       },
-      handleKeyDown: (_view, event) => slashKeyDownRef.current(event),
+      handleKeyDown: (_view, event) => {
+        if (slashKeyDownRef.current(event)) return true;
+        // Alt+Enter:创建任务(对齐旧 MessageInput onAltEnter,A5)
+        // 占位 — 先 emit DOM event + toast,C1 阶段会订阅这个事件打开 SmartCreateModal
+        if (event.key === "Enter" && event.altKey && !event.shiftKey) {
+          event.preventDefault();
+          window.dispatchEvent(
+            new CustomEvent("chat:create-matter-from-composer", {
+              detail: { channelId: channel.channelID, channelType: channel.channelType },
+            }),
+          );
+          toast.info("创建任务功能即将接入(P5-C1)");
+          return true;
+        }
+        return false;
+      },
     },
   });
 

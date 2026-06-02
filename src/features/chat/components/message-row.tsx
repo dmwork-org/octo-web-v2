@@ -27,6 +27,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
@@ -167,7 +168,7 @@ function formatSenderTime(ts: number): string {
 
 /**
  * sender 是否 AI bot(对齐旧 conversation `channelInfo.orgData.robot === 1`)。
- * 用于在 sender name 旁渲染紫色 "AI" 徽标。
+ * 用于在 sender name 旁渲染共用 AiBadge(渐变紫色 "AI")。
  */
 function isBotSender(fromUID: string): boolean {
   if (!fromUID) return false;
@@ -176,15 +177,6 @@ function isBotSender(fromUID: string): boolean {
   );
   const org = info?.orgData as { robot?: number } | undefined;
   return org?.robot === 1;
-}
-
-/** 紫色 "AI" 小徽标(对齐截图 octopush-麒麟 名字旁)。 */
-function AiBadge() {
-  return (
-    <span className="inline-flex h-4 shrink-0 items-center rounded-[3px] bg-[#7f3bf5] px-1 text-[10px] leading-none font-semibold text-white">
-      AI
-    </span>
-  );
 }
 
 /**

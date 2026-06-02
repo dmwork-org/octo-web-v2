@@ -1,4 +1,5 @@
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { TypingRenderer } from "@/features/chat/message-renderers/typing-renderer";
 import type { TypingInfo } from "@/features/chat/services/typing-manager";
@@ -14,7 +15,7 @@ interface TypingIndicatorProps {
  *                [3 跳动点]
  *
  * 通过 channelInfo.title 拿昵称(fromUID 兜底);AI badge 由
- * `channelInfo.orgData.robot === 1` 判定。
+ * `channelInfo.orgData.robot === 1` 判定,统一走共用 `<AiBadge />`。
  *
  * 跟普通 MessageRow 视觉一致(头像 + sender + body),只是 body 是
  * TypingRenderer 跳动点。
@@ -41,11 +42,7 @@ export function TypingIndicator({ info }: TypingIndicatorProps) {
           <span className="truncate text-[15px] font-semibold text-text-primary">
             {displayName}
           </span>
-          {isBot ? (
-            <span className="inline-flex h-4 shrink-0 items-center rounded-[3px] bg-[#7f3bf5] px-1 text-[10px] leading-none font-semibold text-white">
-              AI
-            </span>
-          ) : null}
+          {isBot ? <AiBadge /> : null}
         </header>
         <TypingRenderer />
       </div>

@@ -15,6 +15,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { bucketLetter, sortLetters } from "@/features/base/lib/pinyin-bucket";
 import { VirtualizedLetterList } from "@/components/data/virtualized-letter-list";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { GroupCardModal } from "@/features/base/components/modals/group-card-modal";
 import { BotDetailModal } from "@/features/base/components/modals/bot-detail-modal";
@@ -112,21 +113,6 @@ function indexByLetter(items: ContactItem[]): { letter: string; items: ContactIt
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name)),
   }));
-}
-
-/**
- * AI 徽标(对齐旧 dmworkbase/Components/AiBadge):紫色渐变 #7B89F4 → #9D78F5,
- * 白字 12px / 600,16px 高,圆角 3px。inline style 因为渐变色固定不随主题。
- */
-function AiBadge() {
-  return (
-    <span
-      style={{ background: "linear-gradient(90deg, #7B89F4 0%, #9D78F5 100%)" }}
-      className="inline-flex h-4 shrink-0 items-center rounded-[3px] px-1 text-[12px] leading-4 font-semibold tracking-[0.02em] text-white"
-    >
-      AI
-    </span>
-  );
 }
 
 /**

@@ -10,6 +10,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { ArrowLeft, X } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { api } from "@/features/base/api/client";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
@@ -102,15 +103,6 @@ function usePrefetchSenderInfos(content: MergeforwardContent): void {
       if (!mgr.getChannelInfo(ch)) void mgr.fetchChannelInfo(ch);
     }
   }, [content]);
-}
-
-/** AI 徽标(对齐 message-row AiBadge,简化版)。 */
-function AiBadge() {
-  return (
-    <span className="inline-flex h-4 shrink-0 items-center rounded-[3px] bg-[#7f3bf5] px-1 text-[10px] leading-none font-semibold text-white">
-      AI
-    </span>
-  );
 }
 
 /**

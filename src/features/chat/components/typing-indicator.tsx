@@ -42,7 +42,7 @@ export function TypingIndicator({ info }: TypingIndicatorProps) {
           <span className="truncate text-[15px] font-semibold text-text-primary">
             {displayName}
           </span>
-          {isBot ? <AiBadge /> : null}
+          {isBot ? <AiBadge size="small" /> : null}
         </header>
         <TypingRenderer />
       </div>

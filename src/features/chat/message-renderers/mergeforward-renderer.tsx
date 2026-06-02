@@ -280,7 +280,7 @@ function MergeforwardList({
                 <header className="flex items-center gap-2">
                   <span className="flex items-center gap-1 text-[14px] font-semibold text-[#1c1c23]">
                     {senderNameOf(m.fromUID, users)}
-                    {isBotSender(m.fromUID) ? <AiBadge /> : null}
+                    {isBotSender(m.fromUID) ? <AiBadge size="small" /> : null}
                   </span>
                   <span className="text-[14px] text-[rgba(28,28,35,0.4)]">
                     {formatInnerTime(m.timestamp)}

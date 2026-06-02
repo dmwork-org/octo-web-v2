@@ -649,7 +649,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
             {senderTitle}
           </span>
           {isVerified ? <RealnameBadge /> : null}
-          {isBot ? <AiBadge /> : null}
+          {isBot ? <AiBadge size="small" /> : null}
           <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">
             {formatSenderTime(message.timestamp)}
           </span>

@@ -3,6 +3,16 @@ import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
 import type { ChannelInfoListener } from "wukongimjssdk";
 import type { BotCommand } from "@/features/chat/components/slash-command-menu";
 
+/** 浅相等:length + 同 index command+description 字符串一致(rebuild parse 同源 JSON 时大概率命中)。 */
+function sameCommands(a: BotCommand[], b: BotCommand[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].command !== b[i].command || a[i].description !== b[i].description) return false;
+  }
+  return true;
+}
+
 /**
  * 解析 channelInfo.orgData.bot_commands(JSON 字符串)为 BotCommand[]。
  *
@@ -17,7 +27,7 @@ export function useBotCommands(channel: Channel): BotCommand[] {
 
   useEffect(() => {
     if (channel.channelType !== ChannelTypePerson) {
-      setCommands([]);
+      setCommands((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
@@ -25,13 +35,13 @@ export function useBotCommands(channel: Channel): BotCommand[] {
       const info = WKSDK.shared().channelManager.getChannelInfo(channel);
       const og = info?.orgData as { robot?: number; bot_commands?: string } | undefined;
       if (!og || og.robot !== 1 || !og.bot_commands) {
-        setCommands([]);
+        setCommands((prev) => (prev.length === 0 ? prev : []));
         return;
       }
       try {
         const parsed: unknown = JSON.parse(og.bot_commands);
         if (!Array.isArray(parsed)) {
-          setCommands([]);
+          setCommands((prev) => (prev.length === 0 ? prev : []));
           return;
         }
         const valid = parsed.filter((c): c is BotCommand => {
@@ -39,9 +49,9 @@ export function useBotCommands(channel: Channel): BotCommand[] {
           const r = c as { command?: unknown; description?: unknown };
           return typeof r.command === "string" && typeof r.description === "string";
         });
-        setCommands(valid);
+        setCommands((prev) => (sameCommands(prev, valid) ? prev : valid));
       } catch {
-        setCommands([]);
+        setCommands((prev) => (prev.length === 0 ? prev : []));
       }
     };
 

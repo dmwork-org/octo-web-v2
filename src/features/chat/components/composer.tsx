@@ -50,6 +50,8 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
+import { spaceStore } from "@/features/base/stores/space";
 import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
 import { useSlashCommand } from "@/features/chat/hooks/use-slash-command.hook";
 import { useEditorMultiline } from "@/features/chat/hooks/use-editor-multiline.hook";
@@ -205,6 +207,7 @@ export function Composer({ channel }: ComposerProps) {
   const isMentionable = isGroup || isThread;
 
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const subscribers = useGroupSubscribers(channel, isMentionable);
   const botCommands = useBotCommands(channel);
   const attachments = useComposerAttachments();
@@ -351,6 +354,20 @@ export function Composer({ channel }: ComposerProps) {
       }
     }
 
+    // 包装 content 注入 space_id(DM)+ mention.humans/ais 三态(任意 channel)。
+    // 对齐旧 dmworkbase sendContentProxy:
+    //   - SYSTEM_BOTS(BotFather)私聊必须带 space_id,否则后端 filterPersonMessagesBySpace
+    //     丢弃 + 本地 isMessageOfSpace 也判 SYSTEM_BOTS+无 space_id → 自发消息看不到
+    //   - SDK encode() 整段覆盖 mention,humans/ais 不带 space_id 也保不住
+    const wrapInject = (c: MessageContent) => {
+      const m = (c as { mention?: { humans?: number; ais?: number } }).mention;
+      return wrapSendContentForInjection(c, {
+        spaceId: channel.channelType === ChannelTypePerson ? spaceId : null,
+        mentionHumans: !!m?.humans,
+        mentionAis: !!m?.ais,
+      });
+    };
+
     setSending(true);
     let isFirst = true;
     const attachReplyOnce = (c: MessageContent) => {
@@ -364,12 +381,12 @@ export function Composer({ channel }: ComposerProps) {
       const { width, height } = await readImageSize(file);
       const image = new MessageImage(file, width, height);
       attachReplyOnce(image);
-      await WKSDK.shared().chatManager.send(image, channel);
+      await WKSDK.shared().chatManager.send(wrapInject(image), channel);
     };
     const sendRegularFile = async (file: File) => {
       const content = new FileContent(file, file.name, extOf(file.name), file.size);
       attachReplyOnce(content);
-      await WKSDK.shared().chatManager.send(content, channel);
+      await WKSDK.shared().chatManager.send(wrapInject(content), channel);
     };
 
     try {
@@ -387,7 +404,7 @@ export function Composer({ channel }: ComposerProps) {
             content.mention = m;
           }
           attachReplyOnce(content);
-          await WKSDK.shared().chatManager.send(content, channel);
+          await WKSDK.shared().chatManager.send(wrapInject(content), channel);
         } else if (b.type === "image") {
           await sendImageFile(b.file);
         } else {

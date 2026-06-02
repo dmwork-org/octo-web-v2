@@ -246,8 +246,8 @@ export function MessageList({ channel }: MessageListProps) {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col" style={{ backgroundColor: "#f6f6f6" }}>
-      <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto pb-3">
+    <div className="relative flex min-h-0 flex-1 flex-col" style={{ backgroundColor: "#f6f6f6" }}>
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
         {hasNextPage ? (
           <div className="flex justify-center py-2 text-xs text-text-tertiary">
             {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}

@@ -304,7 +304,6 @@ export function Composer({ channel }: ComposerProps) {
               detail: { channelId: channel.channelID, channelType: channel.channelType },
             }),
           );
-          toast.info("创建任务功能即将接入(P5-C1)");
           return true;
         }
         return false;

@@ -405,15 +405,21 @@ function AssigneeMultiSelect({ value, onChange, channel }: AssigneeMultiSelectPr
             selectedMembers.map((m) => (
               <span
                 key={m.uid}
-                className="inline-flex items-center gap-1 rounded bg-bg-elevated px-1.5 py-0.5 text-xs"
+                className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-brand/[0.06] px-2 py-[3px] text-xs leading-5 font-medium text-text-primary transition-colors hover:bg-brand/10"
               >
-                {m.name}
+                <ChannelAvatar
+                  channel={new Channel(m.uid, ChannelTypePerson)}
+                  size={16}
+                  title={m.name}
+                />
+                <span className="max-w-[120px] truncate">{m.name}</span>
                 <button
                   type="button"
                   onClick={(e) => remove(m.uid, e)}
-                  className="flex h-3 w-3 items-center justify-center text-text-tertiary hover:text-text-primary"
+                  title="移除"
+                  className="flex items-center px-0.5 text-[10px] leading-none text-text-tertiary transition-colors hover:text-error"
                 >
-                  <X size={10} />
+                  ✕
                 </button>
               </span>
             ))

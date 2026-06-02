@@ -171,7 +171,7 @@ export function SmartCreateModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onKeyDown={onKeyDown}
     >
-      <div className="flex w-[480px] max-w-full flex-col overflow-hidden rounded-lg bg-bg-surface shadow-xl ring-1 ring-brand/10">
+      <div className="flex w-[480px] max-w-full flex-col rounded-lg bg-bg-surface shadow-xl ring-1 ring-brand/10">
         {/* Header */}
         <header className="flex items-center justify-between p-4">
           <h3 className="m-0 text-base font-semibold text-text-strong">
@@ -435,7 +435,7 @@ function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiS
       </button>
 
       {open ? (
-        <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border-default bg-bg-surface py-1 shadow-lg">
+        <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg">
           {candidates.length === 0 ? (
             <div className="px-3 py-2 text-center text-xs text-text-tertiary">无可选成员</div>
           ) : (
@@ -446,11 +446,11 @@ function AssigneeMultiSelect({ value, onChange, myUid, channel }: AssigneeMultiS
                   key={m.uid}
                   type="button"
                   onClick={() => toggle(m.uid)}
-                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${checked ? "bg-brand-tint/40" : ""}`}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-bg-hover ${checked ? "bg-brand-tint/40" : ""}`}
                 >
                   <ChannelAvatar
                     channel={new Channel(m.uid, ChannelTypePerson)}
-                    size={20}
+                    size={32}
                     title={m.name}
                   />
                   <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>

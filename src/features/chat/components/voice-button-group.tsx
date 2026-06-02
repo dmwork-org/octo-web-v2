@@ -122,18 +122,18 @@ export function VoiceButtonGroup({
         aria-label="语音输入"
         title={micTitle}
         disabled={state === "transcribing" || state === "preparing"}
-        className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
+        className={`flex h-6 items-center justify-center gap-0.5 rounded px-1 transition-colors disabled:cursor-not-allowed ${
           state === "recording" || state === "transcribing"
-            ? "text-error"
+            ? "bg-brand/[0.06] text-brand"
             : state === "preparing"
-              ? "text-text-tertiary"
-              : "text-text-tertiary hover:text-text-primary"
+              ? "text-brand opacity-60"
+              : "text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
         }`}
       >
         {state === "transcribing" ? (
           <Loader2 size={20} className="animate-spin" />
         ) : state === "preparing" ? (
-          <Mic size={20} className="animate-pulse opacity-60" />
+          <Mic size={20} className="animate-pulse" />
         ) : state === "recording" ? (
           <MicWithArrow size={20} />
         ) : (

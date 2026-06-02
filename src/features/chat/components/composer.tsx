@@ -19,14 +19,11 @@ import { useStore } from "@tanstack/react-store";
 import {
   AtSign,
   CheckSquare,
-  ChevronDown,
   FileText,
   Image as ImageIcon,
-  Loader2,
   Maximize2,
   Minimize2,
   Mic,
-  MicOff,
   Paperclip,
   Smile,
   X,
@@ -37,7 +34,9 @@ import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu"
 import { ComposerTopAttachmentBar } from "@/features/chat/components/composer-top-attachment-bar";
 import { FileContent } from "@/features/base/im/file-content";
 import { authStore } from "@/features/base/stores/auth";
-import { transcribeVoice } from "@/features/base/api/endpoints/voice.api";
+import { transcribeVoice, type VoiceMode } from "@/features/base/api/endpoints/voice.api";
+import { VoiceButtonGroup } from "@/features/chat/components/voice-button-group";
+import { VoiceFloatingIndicator } from "@/features/chat/components/voice-floating-indicator";
 import {
   chatReplyActions,
   chatReplyStore,
@@ -167,12 +166,6 @@ function createSubmitOnEnter(onSubmit: () => void) {
       };
     },
   });
-}
-
-function formatRecordTime(sec: number): string {
-  const mm = Math.floor(sec / 60);
-  const ss = sec % 60;
-  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
 // Composer:TipTap + Mention + 草稿 + 媒体增强 + 斜杠命令 + 附件混排(1:1 旧 UI)。
@@ -434,30 +427,41 @@ export function Composer({ channel }: ComposerProps) {
 
   useSyncSendRef(send, sendRef);
 
-  const transcribeAndInsert = async (file: File) => {
+  const transcribeAndInsert = async (file: File, mode: VoiceMode) => {
     setTranscribing(true);
     try {
-      const { text } = await transcribeVoice(file, { channelType: channel.channelType });
-      if (text && editor) {
-        if (isMentionable) {
-          // 群/子区:解析 "@张三" 等 mention 标记(对齐旧 parseMentionMarkers,A6)。
-          // 用 dynamic import 避免顶部 import 段膨胀(parser 仅 voice 流量小路径用)。
-          const [{ parseVoiceMentions }, { isStickyMentionUid }] = await Promise.all([
-            import("@/features/chat/lib/voice-mention-parser"),
-            import("@/features/base/lib/mention-three-state"),
-          ]);
-          const members = candidatesRef.current
-            .filter((c) => !isStickyMentionUid(c.id))
-            .map((c) => ({ uid: c.id, name: c.label }));
-          const content = parseVoiceMentions(text, members);
-          editor
-            .chain()
-            .focus()
-            .insertContent(content as never)
-            .run();
-        } else {
-          editor.chain().focus().insertContent(text).run();
-        }
+      // edit_only 把当前 editor 文本作 contextText 传给后端(LLM 据此做"编辑");
+      // append_only / smart 不传 — 后端按"插入"语义处理。
+      const contextText = mode === "edit_only" ? (editor?.getText() ?? "") : undefined;
+      const { text } = await transcribeVoice(file, {
+        channelType: channel.channelType,
+        contextText,
+        mode,
+      });
+      if (!text || !editor) return;
+
+      if (mode === "edit_only") {
+        // 整段替换:对齐旧 onTranscribed 'all' 模式(语音编辑场景)
+        editor.chain().focus().clearContent().insertContent(text).run();
+        return;
+      }
+      // append_only / smart:解析 @mention 后按当前光标插入
+      if (isMentionable) {
+        const [{ parseVoiceMentions }, { isStickyMentionUid }] = await Promise.all([
+          import("@/features/chat/lib/voice-mention-parser"),
+          import("@/features/base/lib/mention-three-state"),
+        ]);
+        const members = candidatesRef.current
+          .filter((c) => !isStickyMentionUid(c.id))
+          .map((c) => ({ uid: c.id, name: c.label }));
+        const content = parseVoiceMentions(text, members);
+        editor
+          .chain()
+          .focus()
+          .insertContent(content as never)
+          .run();
+      } else {
+        editor.chain().focus().insertContent(text).run();
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "转写失败");
@@ -467,6 +471,10 @@ export function Composer({ channel }: ComposerProps) {
   };
 
   const [preparing, setPreparing] = useState(false);
+  // 本次录音使用的 mode(在 start 时定;stop → transcribe 用同一个值,避免菜单切换中间态)
+  const [currentMode, setCurrentMode] = useState<VoiceMode>("append_only");
+  const currentModeRef = useRef<VoiceMode>("append_only");
+  currentModeRef.current = currentMode;
 
   const voiceRec = useVoiceRecorder({
     maxDuration: VOICE_MAX_DURATION,
@@ -474,15 +482,26 @@ export function Composer({ channel }: ComposerProps) {
     onAutoStop: () => {
       void (async () => {
         const file = await voiceRec.stop(false);
-        if (file) await transcribeAndInsert(file);
+        await afterStop(file);
       })();
     },
   });
 
+  /** stop 拿到 file 后:< 1s toast "未检测到语音";否则进 transcribe。 */
+  const afterStop = async (file: File | null) => {
+    if (!file) return;
+    if (voiceRec.duration < 1) {
+      toast.warning("未检测到语音");
+      return;
+    }
+    await transcribeAndInsert(file, currentModeRef.current);
+  };
+
   // start 包一层 preparing:对齐旧 VoiceInputIndicator 的 preparing 态 — getUserMedia
   // 申请权限 / 启动音轨期间显示"准备中..." UI(A7)。
-  const safeStartVoice = async () => {
-    if (preparing) return;
+  const safeStartVoice = async (mode: VoiceMode) => {
+    if (preparing || voiceRec.isRecording) return;
+    setCurrentMode(mode);
     setPreparing(true);
     try {
       await voiceRec.start();
@@ -494,24 +513,31 @@ export function Composer({ channel }: ComposerProps) {
   useVoiceShortcut(
     voiceRec.isRecording,
     transcribing || preparing,
-    () => void safeStartVoice(),
+    () => void safeStartVoice("append_only"),
     () => {
       void (async () => {
         const file = await voiceRec.stop(false);
-        if (file) await transcribeAndInsert(file);
+        await afterStop(file);
       })();
     },
     () => void voiceRec.stop(true),
   );
 
+  /** mic 主按钮点击:idle → append_only 启录;recording → 停录 + 转写。 */
   const onClickMic = async () => {
     if (transcribing || preparing) return;
     if (!voiceRec.isRecording) {
-      await safeStartVoice();
+      await safeStartVoice("append_only");
       return;
     }
     const file = await voiceRec.stop(false);
-    if (file) await transcribeAndInsert(file);
+    await afterStop(file);
+  };
+
+  /** 模式菜单选 mode:idle 时直接以指定 mode 启录(对齐旧 handleModeSelect)。 */
+  const onModeSelect = (mode: VoiceMode) => {
+    if (transcribing || preparing || voiceRec.isRecording) return;
+    void safeStartVoice(mode);
   };
 
   const onClickMention = () => {
@@ -578,14 +604,24 @@ export function Composer({ channel }: ComposerProps) {
   const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
-  const micRecording = voiceRec.isRecording;
-  const micTitle = transcribing
-    ? "正在听写..."
+  const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing
+    ? "transcribing"
     : preparing
-      ? "准备中..."
-      : micRecording
-        ? `录音中 ${formatRecordTime(voiceRec.duration)}`
-        : `语音输入(Shift+${META_KEY}+Space)`;
+      ? "preparing"
+      : voiceRec.isRecording
+        ? "recording"
+        : "idle";
+  const modeLabel = currentMode === "edit_only" ? "语音编辑" : "语音输入";
+  const micTitle =
+    voiceState === "transcribing"
+      ? currentMode === "edit_only"
+        ? "编辑中..."
+        : "转写中..."
+      : voiceState === "preparing"
+        ? "准备中..."
+        : voiceState === "recording"
+          ? `点击停止 · ${modeLabel}`
+          : `语音输入(Shift+${META_KEY}+Space)`;
 
   return (
     <div className="shrink-0 px-4 pb-2">
@@ -702,47 +738,14 @@ export function Composer({ channel }: ComposerProps) {
                 <CheckSquare size={20} />
               </button>
             ) : null}
-            <div className="flex h-6 items-center text-text-tertiary">
-              <button
-                type="button"
-                onClick={() => void onClickMic()}
-                aria-label="语音输入"
-                title={micTitle}
-                disabled={transcribing || preparing}
-                className={`flex h-6 items-center justify-center gap-1 transition-colors disabled:cursor-not-allowed ${
-                  micRecording
-                    ? "text-error"
-                    : transcribing || preparing
-                      ? "text-text-tertiary"
-                      : "text-text-tertiary hover:text-text-primary"
-                }`}
-              >
-                {transcribing ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : preparing ? (
-                  <Mic size={20} className="animate-pulse opacity-60" />
-                ) : micRecording ? (
-                  <>
-                    <MicOff size={20} className="animate-pulse" />
-                    <span className="text-[11px] tabular-nums">
-                      {formatRecordTime(voiceRec.duration)}
-                    </span>
-                  </>
-                ) : (
-                  <Mic size={20} />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => toast.info("语音模式选择即将接入(P3+)")}
-                aria-label="语音模式"
-                title="语音模式"
-                disabled={micRecording || transcribing}
-                className="flex h-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
+            <VoiceButtonGroup
+              state={voiceState}
+              duration={voiceRec.duration}
+              onMicClick={() => void onClickMic()}
+              onModeSelect={onModeSelect}
+              modeMenuDisabled={transcribing}
+              micTitle={micTitle}
+            />
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
@@ -770,6 +773,20 @@ export function Composer({ channel }: ComposerProps) {
           onClose={() => setEmojiOpen(false)}
         />
       </form>
+
+      {voiceState === "recording" || voiceState === "transcribing" ? (
+        <VoiceFloatingIndicator
+          state={voiceState}
+          label={
+            voiceState === "transcribing"
+              ? currentMode === "edit_only"
+                ? "编辑中"
+                : "转写中"
+              : modeLabel
+          }
+          anchorRef={formRef}
+        />
+      ) : null}
     </div>
   );
 }

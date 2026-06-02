@@ -30,15 +30,18 @@ export interface TranscribeResult {
   m?: string;
 }
 
+/** 转写模式 — 对齐旧 dmworktodo VoiceService.VoiceMode 简化版。 */
+export type VoiceMode = "append_only" | "edit_only" | "smart";
+
 export async function transcribeVoice(
   audio: Blob,
-  opts: { contextText?: string; channelType?: number } = {},
+  opts: { contextText?: string; channelType?: number; mode?: VoiceMode } = {},
 ): Promise<TranscribeResult> {
   const fd = new FormData();
   const ext = audio.type.includes("mp4") ? "mp4" : "webm";
   fd.append("audio", audio, `recording.${ext}`);
   if (opts.contextText) fd.append("context_text", opts.contextText);
-  fd.append("mode", "smart");
+  fd.append("mode", opts.mode ?? "smart");
   if (opts.channelType !== undefined) fd.append("channel_type", String(opts.channelType));
   return api<TranscribeResult>("voice/transcribe", { method: "POST", body: fd });
 }

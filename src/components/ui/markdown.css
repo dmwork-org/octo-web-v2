@@ -7,8 +7,12 @@
    ============================================================ */
 
 .wk-markdown {
-  font-size: inherit;
+  /* 旧 var(--wk-msg-text-content) 实际 14px 字号 + rgba(28,28,35,0.8) 正文色;
+     旧仓 css 写 font-size: inherit 是因为外层 .wk-message-text-richtext 已显式 14px,
+     新仓父级没设字号 → inherit 拿到浏览器默认 16px,需要在这里显式钉死。 */
+  font-size: 14px;
   line-height: 1.6;
+  color: rgba(28, 28, 35, 0.8);
   word-break: break-word;
   min-width: 0;
 }

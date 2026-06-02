@@ -612,6 +612,20 @@ export function Composer({ channel }: ComposerProps) {
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileChange} />
 
         <div className={`flex gap-2 ${isMultiLine ? "flex-col items-stretch" : "items-center"}`}>
+          {/* 斜杠命令入口(对齐旧 .wk-messageinput-menu-btn):仅 bot 私聊 + 有 bot_commands 时显;
+              点击 setContent("/") 触发 menu(走 onUpdate → useSlashCommand 自然展开)。 */}
+          {botCommands.length > 0 && editor ? (
+            <button
+              type="button"
+              onClick={() => {
+                editor.chain().focus().setContent("/").run();
+              }}
+              title="斜杠命令"
+              className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-border-default text-base font-semibold text-text-secondary transition-colors hover:border-text-tertiary hover:bg-bg-hover active:bg-bg-elevated"
+            >
+              /
+            </button>
+          ) : null}
           <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
             <EditorContent editor={editor} />
           </div>

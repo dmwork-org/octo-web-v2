@@ -255,11 +255,21 @@ export function registerImCallbacks(): void {
         category: raw.category,
         be_deleted: raw.be_deleted,
         be_blacklist: raw.be_blacklist,
+        // Space 归属:isChannelOfSpace 第 2 层 fallback 必读字段,优先 raw 顶层,
+        // 兼容 extra 嵌套(不同后端版本字段位置不一致)
+        space_id: raw.space_id ?? (extra as { space_id?: string }).space_id,
         // 透传后端可能在顶层 / extra 里的 member_count 字段(channel setting "成员" 行用)
         member_count:
           (raw as { member_count?: number }).member_count ??
           (extra as { member_count?: number }).member_count,
       };
+
+      // channelSpaceMap 回填:channelInfoCallback 是 fetchChannelInfo 的实际回调,
+      // 拿到 space_id 立即回填反查表,避免后续 listener 重复 fetch
+      const orgSpace = orgData.space_id as string | undefined;
+      if (orgSpace && channel.channelType === ChannelTypeGroup) {
+        channelSpaceMap.set(channelSpaceKey(channel.channelID, channel.channelType), orgSpace);
+      }
 
       // robot 字段:raw 显式给则用,否则从群成员缓存兜底(只对 person)
       if (raw.robot != null) {

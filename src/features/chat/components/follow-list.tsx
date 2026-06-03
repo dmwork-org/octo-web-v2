@@ -1122,10 +1122,12 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       }
     };
 
-    // 分支 C:over 是 drop::cat::xxx
+    // 分支 C:over 是 drop::cat::xxx(整个 section 区域 droppable)或 cat::xxx(分组 header 自身,
+    // 老仓 ConversationListGrouped 行 235-237 同样支持 cat:: 前缀作为跨分组目标)
     const overIdStr = String(over.id);
-    if (overIdStr.startsWith("drop::cat::")) {
-      const catIdRaw = overIdStr.slice("drop::cat::".length);
+    if (overIdStr.startsWith("drop::cat::") || overIdStr.startsWith("cat::")) {
+      const prefix = overIdStr.startsWith("drop::cat::") ? "drop::cat::" : "cat::";
+      const catIdRaw = overIdStr.slice(prefix.length);
       doMove(catIdRaw === "default" ? null : catIdRaw);
       return;
     }

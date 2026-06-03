@@ -20,6 +20,14 @@ import { conversationsQueryOptions } from "@/features/chat/queries/conversations
 import { sidebarFollowQueryOptions } from "@/features/chat/queries/sidebar.query";
 import { effectiveMute } from "@/features/chat/lib/conversation-last-content";
 import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
+import { useResizablePanel } from "@/features/chat/hooks/use-resizable-panel.hook";
+import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
+
+/** sidebar 拖拽 range / 默认 — 1:1 对齐老仓 layoutWidth.ts SPLITTER_* */
+const SIDEBAR_MIN_WIDTH = 190;
+const SIDEBAR_MAX_WIDTH = 360;
+const SIDEBAR_DEFAULT_WIDTH = 300;
+const SIDEBAR_STORAGE_KEY = "wk-layout-left-width";
 
 interface ConversationSidebarProps {
   selectedChannelId?: string;
@@ -63,6 +71,16 @@ const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<ConvTab>("follow");
+
+  // sidebar 宽度拖拽(右边缘 splitter,对齐老仓 WKLayout)
+  const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
+    useResizablePanel({
+      storageKey: SIDEBAR_STORAGE_KEY,
+      defaultWidth: SIDEBAR_DEFAULT_WIDTH,
+      minWidth: SIDEBAR_MIN_WIDTH,
+      getMaxWidth: () => SIDEBAR_MAX_WIDTH,
+      edge: "right",
+    });
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
@@ -139,7 +157,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
     // 整个 sidebar bg = bg-bg-base(对齐老仓 .wk-chat-content-left bg=--wk-bg-base)
     // 不加左侧 border-r(右侧聊天区有自己的 border-l,避免双线;老仓 .wk-chat-content
     // 用 display:flex 直接邻接,无 border)
-    <aside className="flex w-72 shrink-0 flex-col bg-bg-base">
+    <aside ref={panelRef} style={{ width }} className="relative flex shrink-0 flex-col bg-bg-base">
       {/* Header — 透明背景、无 border-bottom、12px padding all(对齐老仓 .wk-chat-search) */}
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 p-3">
         <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
@@ -235,6 +253,15 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
           onCancel={() => setCreateCategoryOpen(false)}
         />
       ) : null}
+
+      {/* 右边缘 splitter:hover/drag 显紫色细线;双击重置默认 300 */}
+      <PanelSplitter
+        side="right"
+        isDragging={isDragging}
+        onMouseDown={onSplitterMouseDown}
+        onDoubleClick={onSplitterDoubleClick}
+      />
+      {isDragging ? <DragOverlay /> : null}
     </aside>
   );
 }

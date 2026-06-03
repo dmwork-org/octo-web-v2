@@ -7,6 +7,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { channelSpaceKey, channelSpaceMap } from "@/features/base/stores/space";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 /** 子区 channel type(对齐旧 dmworkbase ChannelTypeCommunityTopic = 5)。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -63,8 +64,8 @@ export function isChannelOfSpace(channel: Channel, spaceId: string | null): bool
       channelSpaceMap.set(key, orgSpace);
       return orgSpace === spaceId;
     }
-    // 都未命中 → 主动 fetch + fail-close(避免渗漏;listener 拉到后下次 snapshot 加回来)
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    // 都未命中 → 主动 fetch(dedup,attempted set 防 listener 风暴) + fail-close
+    tryFetchChannelInfo(channel);
     return false;
   }
 

@@ -28,7 +28,7 @@ import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadIcon } from "@/components/ui/thread-icon";
-import { getLiveTitle } from "@/features/chat/lib/live-channel-title";
+import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
 import {
@@ -130,7 +130,7 @@ function buildFollowedThreadsByParent(
     const parent = it.parent_channel_id ?? parseThreadChannelId(it.target_id)?.groupNo ?? undefined;
     if (!parent) continue;
     const channel = new Channel(it.target_id, CHANNEL_TYPE_THREAD);
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
     const stub: Conversation = {
       channel,
       channelInfo: undefined,

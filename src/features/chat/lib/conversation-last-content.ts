@@ -6,6 +6,7 @@ import WKSDK, {
   ReminderType,
 } from "wukongimjssdk";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 /**
  * conversation-list 行内"最后一条消息"展示文本(1:1 对齐旧 dmworkbase
@@ -110,14 +111,11 @@ function personDisplayName(uid: string): string {
 
 function getFromName(last: Message): string {
   if (!last.fromUID) return "";
-  const info = WKSDK.shared().channelManager.getChannelInfo(
-    new Channel(last.fromUID, ChannelTypePerson),
-  );
+  const personChannel = new Channel(last.fromUID, ChannelTypePerson);
+  const info = WKSDK.shared().channelManager.getChannelInfo(personChannel);
   if (!info) {
-    // 异步预拉 — 下次 channelInfoListener 触发重渲拿到 name
-    void WKSDK.shared().channelManager.fetchChannelInfo(
-      new Channel(last.fromUID, ChannelTypePerson),
-    );
+    // 异步预拉(模块级 attempted set dedup,防 listener writeSnapshot 重渲风暴)
+    tryFetchChannelInfo(personChannel);
     return "";
   }
   return info.title || "";

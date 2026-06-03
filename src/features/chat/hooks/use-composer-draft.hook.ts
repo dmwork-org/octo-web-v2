@@ -1,42 +1,14 @@
 import { useEffect, useRef } from "react";
 import type { Editor, JSONContent } from "@tiptap/react";
 import type { Channel } from "wukongimjssdk";
+import { chatDraftActions } from "@/features/chat/stores/chat-draft";
 
-const DRAFT_PREFIX = "octo:chat:draft:";
-/** 不可见字符(zero-width / BOM / soft hyphen 等)— 跟旧 stripInvisibleChars 同源。 */
-const INVISIBLE_CHARS_RE =
-  /\u200B|\u200C|\u200D|\u200E|\u200F|\uFEFF|\u00AD|\u2060|\u2061|\u2062|\u2063|\u2064|\u034F|\u061C|\u180E/g;
-
-function draftKey(channel: Channel): string {
-  return `${DRAFT_PREFIX}${channel.channelID}_${channel.channelType}`;
-}
-
-function readDraft(channel: Channel): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(draftKey(channel));
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft(channel: Channel, text: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(draftKey(channel), text);
-  } catch {
-    // 私密模式 / quota 等错误静默
-  }
-}
-
-function clearDraftKey(channel: Channel): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(draftKey(channel));
-  } catch {
-    // ignore
-  }
-}
+/**
+ * 不可见字符(zero-width / BOM / soft hyphen 等)— 跟旧 stripInvisibleChars 同源。
+ * 用 alternation 而不是 character class,避免 oxlint no-misleading-character-class
+ * 把 ZWJ / 双向控制符识别为组合字符序列。
+ */
+const INVISIBLE_CHARS_RE = /​|‌|‍|‎|‏|﻿|­|⁠|⁡|⁢|⁣|⁤|͏|؜|᠎/g;
 
 interface MentionAttrs {
   id?: string;
@@ -120,13 +92,8 @@ function deserializeDraft(text: string): JSONContent {
   return { type: "doc", content: paragraphs } as JSONContent;
 }
 
-/** 草稿非空判定:序列化后 trim 不为空(避免空文本反复存)。 */
-function isEmptyDraftText(text: string): boolean {
-  return text.trim() === "";
-}
-
 /**
- * Composer 草稿恢复(per-channel localStorage)— 1:1 对齐旧 dmworkbase
+ * Composer 草稿恢复(per-channel)— 1:1 对齐旧 dmworkbase
  * Conversation.markConversationExtra + MessageInput restoreDraft 行为。
  *
  * 调用方:
@@ -139,56 +106,52 @@ function isEmptyDraftText(text: string): boolean {
  *   也只存 text;老仓 extractMentionsFromEditor 不 traverse atom inline node)
  * - reply / 顶部附件区不持久化(reply 跟随 chatReply store,顶部附件 File map 内存态)
  *
- * 行为:
- * - channel 切换 → 先把当前 editor 序列化成 `@[uid:label]` 文本存到旧 channel 的 draftKey
- *   (空文本不写,避免误覆盖);然后从新 channel 的 draftKey 读 → setContent(emitUpdate=false
- *   防止恢复时触发 onUpdate → slash menu 误闪)
- * - 编辑器为空时切走 → clearDraftKey(已发送的不会留草稿)
+ * **存储**(经 [chat-draft.ts](../stores/chat-draft.ts) store + localStorage 双写):
+ * - composer mount → 从 store 读 → setContent
+ * - composer unmount(channel 切换 by key 重建)→ effect cleanup 序列化 editor → 写 store
  *
- * 设计取舍:不用 debounce 写,channel 切换才写一次。同一 channel 输入到 90% 时崩浏览器
- * 会丢草稿(旧 textarea 也一样);真要实时持久化需 onUpdate 高频写,代价 IO/JSON 序列化。
+ * **关键**:Composer 是 `<Composer key={channelKey} />` 重建,所以 channel 切换走
+ * unmount → mount 而不是同 hook 跑 deps change。cleanup 函数里 capture 的 editor +
+ * channel 都是旧的(指针不变),可以安全序列化。
  *
- * 旧仓存到后端 conversationExtra(跨设备),新仓暂走 localStorage(单设备)— 后端 API
- * 待补,现阶段语义对齐 95%。
+ * **conversation-list 联动**:store 更新即 useStore 重渲,会话项右侧出现红色 [草稿]
+ * label(对齐旧 wk-reminder.draft 显示)。
  */
 export function useComposerDraft(
   editor: Editor | null,
   channel: Channel,
 ): { clearDraft: () => void } {
-  // 上一个 channel 的引用,用于"切换前先 save 旧的"
-  const prevChannelRef = useRef<Channel | null>(null);
+  // capture 当前 channel,cleanup 用(channel 是 prop,deps 变化 cleanup 时仍持有旧值)
+  const channelRef = useRef(channel);
+  channelRef.current = channel;
 
   useEffect(() => {
     if (!editor) return;
-    // 1) 切换前 save 旧 channel(prevChannelRef 非空 且 != new)
-    const prev = prevChannelRef.current;
-    if (
-      prev &&
-      (prev.channelID !== channel.channelID || prev.channelType !== channel.channelType)
-    ) {
-      const text = serializeDraft(editor);
-      if (isEmptyDraftText(text)) clearDraftKey(prev);
-      else writeDraft(prev, text);
-    }
-    prevChannelRef.current = channel;
-
-    // 2) 从新 channel 读草稿
-    const draft = readDraft(channel);
-    if (draft && !isEmptyDraftText(draft)) {
+    // mount:从 store 读草稿
+    const draft = chatDraftActions.get(channel);
+    if (draft && draft.trim() !== "") {
       try {
         const doc = deserializeDraft(draft);
         editor.commands.setContent(doc, { emitUpdate: false });
       } catch {
         // 损坏的 draft → 清掉,空 editor
-        clearDraftKey(channel);
+        chatDraftActions.remove(channel);
         editor.commands.clearContent();
       }
     } else {
       editor.commands.clearContent();
     }
+
+    // unmount(channel 切走 by key 重建)→ 序列化 editor → 写 store
+    return () => {
+      // editor 在此 closure 中是旧 instance 的引用;destroy 前调 getJSON 仍可用
+      const text = serializeDraft(editor);
+      if (text.trim() === "") chatDraftActions.remove(channel);
+      else chatDraftActions.set(channel, text);
+    };
   }, [editor, channel]);
 
   return {
-    clearDraft: () => clearDraftKey(channel),
+    clearDraft: () => chatDraftActions.remove(channelRef.current),
   };
 }

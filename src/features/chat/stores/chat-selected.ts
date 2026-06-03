@@ -1,6 +1,8 @@
 import { Store } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
+import { chatPendingAttachmentRegistry } from "@/features/chat/stores/chat-pending-attachment";
+import { chatConfirmDialogActions } from "@/features/chat/stores/chat-confirm-dialog";
 
 /**
  * 全局当前选中的 chat channel。
@@ -12,6 +14,14 @@ import { spaceStore } from "@/features/base/stores/space";
  * - chatSelectedActions.clear() — 进入"无选中"占位状态
  *
  * 不持久化(刷新页面后丢失选中);P3 后续如有需要再加 storage。
+ *
+ * **未发送附件守卫**(对齐旧 dmworkbase Pages/Chat `pendingAttachmentGuard` 模式):
+ * - `select` 内部检查 [chat-pending-attachment.ts](./chat-pending-attachment.ts)
+ *   注册的 guard,有未发送附件时 → 改走 confirm dialog(`chatConfirmDialogActions.show`)
+ *   确认后才真切;取消则 channel 不变。
+ * - 同 channel 重选(channelID + type 一致)直接跳过 guard,不弹 modal。
+ * - clear(Space 切换 / 退出登录)不走 guard:Space 已变,旧 channel 已无意义,
+ *   不应阻塞用户(对齐旧 ChatVM.spaceChangedHandler 强清行为)。
  */
 
 interface ChatSelectedState {
@@ -20,8 +30,28 @@ interface ChatSelectedState {
 
 export const chatSelectedStore = new Store<ChatSelectedState>({ channel: null });
 
+function isSameChannel(a: Channel | null, b: Channel): boolean {
+  return !!a && a.channelID === b.channelID && a.channelType === b.channelType;
+}
+
+function doSelect(channel: Channel): void {
+  chatSelectedStore.setState(() => ({ channel }));
+}
+
 export const chatSelectedActions = {
-  select: (channel: Channel) => chatSelectedStore.setState(() => ({ channel })),
+  select: (channel: Channel) => {
+    if (isSameChannel(chatSelectedStore.state.channel, channel)) return;
+    if (chatPendingAttachmentRegistry.hasPending()) {
+      chatConfirmDialogActions.show({
+        title: "有未发送的附件",
+        message: "切换会话后,未发送的附件将被丢弃,是否继续?",
+        okText: "继续切换",
+        onOk: () => doSelect(channel),
+      });
+      return;
+    }
+    doSelect(channel);
+  },
   clear: () => chatSelectedStore.setState(() => ({ channel: null })),
 };
 

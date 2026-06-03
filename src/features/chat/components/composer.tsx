@@ -55,6 +55,7 @@ import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
 import { useSlashCommand } from "@/features/chat/hooks/use-slash-command.hook";
 import { useEditorMultiline } from "@/features/chat/hooks/use-editor-multiline.hook";
 import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attachments.hook";
+import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
 import {
@@ -311,6 +312,9 @@ export function Composer({ channel }: ComposerProps) {
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
+
+  // 注册"切 channel 前 confirm 未发送附件"守卫(对齐旧 pendingAttachmentGuard)
+  usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 
   const buildReply = useMemo(
     () => () => {

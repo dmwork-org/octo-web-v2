@@ -1,6 +1,9 @@
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
+import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Channel,
   ChannelTypeGroup,
@@ -37,6 +40,7 @@ import {
   renameCategory,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
+import { useSortFollow } from "@/features/chat/hooks/use-sort-follow.hook";
 
 interface FollowListProps {
   selectedChannelId?: string;
@@ -146,6 +150,43 @@ function findConv(channelId: string, channelType: number): Conversation | undefi
 function unreadBadge(unread: number): string {
   if (unread <= 0) return "";
   return unread > 99 ? "99+" : String(unread);
+}
+
+/**
+ * 拖拽 sort id 约定:`item::${target_type}::${target_id}` — 跟老仓
+ * ConversationListGrouped 行 429 同款,handleDragEnd 解析 active/over.id 反向。
+ * thread 行不可拖,不进 SortableContext.items 也不包 SortableRow。
+ */
+function makeDragId(targetType: number, targetId: string): string {
+  return `item::${targetType}::${targetId}`;
+}
+
+function parseDragId(id: string): { targetType: number; targetId: string } | null {
+  if (!id.startsWith("item::")) return null;
+  const parts = id.slice("item::".length).split("::");
+  if (parts.length < 2) return null;
+  return { targetType: Number(parts[0]), targetId: parts.slice(1).join("::") };
+}
+
+/** 单个可拖 row 容器 — 用 useSortable 包 children(group/dm CompactRow,thread 不包) */
+function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
 }
 
 interface CompactRowProps {
@@ -361,134 +402,159 @@ function CategorySection({
           {count === 0 ? (
             <div className="px-3 py-2 text-[12px] text-text-tertiary">分组为空</div>
           ) : (
-            sidebarItems.map((it) => {
-              if (it.target_type === SidebarTargetType.CHANNEL) {
-                const groupNo = it.target_id;
-                const conv = findConv(groupNo, ChannelTypeGroup);
-                const channel = conv?.channel ?? new Channel(groupNo, ChannelTypeGroup);
-                const title =
-                  conv?.channelInfo?.title ??
-                  category.groups.find((g) => g.group_no === groupNo)?.name ??
-                  groupNo;
-                const muted = !!conv?.channelInfo?.mute;
-                const threads = followedThreadsByParent.get(groupNo) ?? [];
-                const expanded = isExpanded(groupNo);
-                const groupUnread = conv?.unread ?? it.unread;
-                const aggThreadUnread = expanded ? 0 : aggregateThreadUnread(threads, groupNo);
-                return (
-                  <div key={`group-${groupNo}`} className="flex flex-col">
-                    <CompactRow
-                      variant="group"
-                      channel={channel}
-                      title={title}
-                      unread={groupUnread + aggThreadUnread}
-                      isMuted={muted}
-                      isExternal={
-                        (conv?.channelInfo?.orgData as { is_external_group?: number } | undefined)
-                          ?.is_external_group === 1
-                      }
-                      isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                      hasThreads={threads.length > 0}
-                      threadsExpanded={expanded}
-                      onToggleThreads={() => onToggleExpand(groupNo)}
-                      selected={groupNo === selectedChannelId}
-                      onClick={() => onSelectGroup(groupNo)}
-                    />
-                    {expanded
-                      ? (() => {
-                          const showAll = expandedThreadsSet.has(groupNo);
-                          const MAX = 5;
-                          const visible = showAll ? threads : threads.slice(0, MAX);
-                          const hidden = threads.length - visible.length;
-                          return (
-                            <>
-                              {visible.map((t) => (
-                                <CompactRow
-                                  key={`thread-${t.channel.channelID}`}
-                                  variant="thread"
-                                  channel={t.channel}
-                                  title={t.channelInfo?.title ?? t.channel.channelID}
-                                  unread={t.unread || 0}
-                                  isMuted={isThreadEffectivelyMuted(t, groupNo)}
-                                  isMentionMe={computeMentionMe(t, myUid)}
-                                  selected={t.channel.channelID === selectedChannelId}
-                                  onClick={() => onSelectThread(t.channel.channelID)}
-                                />
-                              ))}
-                              {hidden > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedThreadsSet((prev) => {
-                                      const next = new Set(prev);
-                                      next.add(groupNo);
-                                      return next;
-                                    })
-                                  }
-                                  className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
-                                >
-                                  查看更多 +{hidden}
-                                </button>
-                              ) : null}
-                            </>
-                          );
-                        })()
-                      : null}
-                  </div>
-                );
-              }
-              if (it.target_type === SidebarTargetType.DM) {
-                const peerUid = it.target_id;
-                const conv = findConv(peerUid, ChannelTypePerson);
-                const channel = conv?.channel ?? new Channel(peerUid, ChannelTypePerson);
-                const title = conv?.channelInfo?.title ?? peerUid;
-                const muted = !!conv?.channelInfo?.mute;
-                const unread = conv?.unread ?? it.unread;
-                return (
-                  <CompactRow
-                    key={`dm-${peerUid}`}
-                    variant="dm"
-                    channel={channel}
-                    title={title}
-                    unread={unread}
-                    isMuted={muted}
-                    isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                    selected={peerUid === selectedChannelId}
-                    onClick={() => onSelectDM(peerUid)}
-                  />
-                );
-              }
-              if (it.target_type === SidebarTargetType.THREAD) {
-                const tid = it.target_id;
-                // **dedup**:已嵌在某个父群下渲染过的子区,不再 standalone(对齐旧 seenIds)
-                if (nestedThreadIds.has(tid)) return null;
-                // 真孤儿子区(父群没关注 + sidebar 没 parent_channel_id + parseThreadChannelId
-                // 失败):平铺渲染,不嵌套
-                const conv = findConv(tid, CHANNEL_TYPE_THREAD);
-                const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
-                const title = conv?.channelInfo?.title ?? tid;
-                const parsed = parseThreadChannelId(tid);
-                const muted = isThreadEffectivelyMuted(
-                  conv ?? ({ channelInfo: undefined } as unknown as Conversation),
-                  parsed?.groupNo,
-                );
-                const unread = conv?.unread ?? it.unread;
-                return (
-                  <CompactRow
-                    key={`thread-standalone-${tid}`}
-                    variant="thread"
-                    channel={channel}
-                    title={title}
-                    unread={unread}
-                    isMuted={muted}
-                    isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                    selected={tid === selectedChannelId}
-                    onClick={() => onSelectThread(tid)}
-                  />
-                );
-              }
-              return null;
-            })
+            (() => {
+              const draggableIds = sidebarItems
+                .filter(
+                  (it) =>
+                    it.target_type === SidebarTargetType.CHANNEL ||
+                    it.target_type === SidebarTargetType.DM,
+                )
+                .map((it) => makeDragId(it.target_type, it.target_id));
+              return (
+                <SortableContext items={draggableIds}>
+                  {sidebarItems.map((it) => {
+                    if (it.target_type === SidebarTargetType.CHANNEL) {
+                      const groupNo = it.target_id;
+                      const conv = findConv(groupNo, ChannelTypeGroup);
+                      const channel = conv?.channel ?? new Channel(groupNo, ChannelTypeGroup);
+                      const title =
+                        conv?.channelInfo?.title ??
+                        category.groups.find((g) => g.group_no === groupNo)?.name ??
+                        groupNo;
+                      const muted = !!conv?.channelInfo?.mute;
+                      const threads = followedThreadsByParent.get(groupNo) ?? [];
+                      const expanded = isExpanded(groupNo);
+                      const groupUnread = conv?.unread ?? it.unread;
+                      const aggThreadUnread = expanded
+                        ? 0
+                        : aggregateThreadUnread(threads, groupNo);
+                      return (
+                        <SortableRow
+                          key={`group-${groupNo}`}
+                          id={makeDragId(SidebarTargetType.CHANNEL, groupNo)}
+                        >
+                          <CompactRow
+                            variant="group"
+                            channel={channel}
+                            title={title}
+                            unread={groupUnread + aggThreadUnread}
+                            isMuted={muted}
+                            isExternal={
+                              (
+                                conv?.channelInfo?.orgData as
+                                  | { is_external_group?: number }
+                                  | undefined
+                              )?.is_external_group === 1
+                            }
+                            isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                            hasThreads={threads.length > 0}
+                            threadsExpanded={expanded}
+                            onToggleThreads={() => onToggleExpand(groupNo)}
+                            selected={groupNo === selectedChannelId}
+                            onClick={() => onSelectGroup(groupNo)}
+                          />
+                          {expanded
+                            ? (() => {
+                                const showAll = expandedThreadsSet.has(groupNo);
+                                const MAX = 5;
+                                const visible = showAll ? threads : threads.slice(0, MAX);
+                                const hidden = threads.length - visible.length;
+                                return (
+                                  <>
+                                    {visible.map((t) => (
+                                      <CompactRow
+                                        key={`thread-${t.channel.channelID}`}
+                                        variant="thread"
+                                        channel={t.channel}
+                                        title={t.channelInfo?.title ?? t.channel.channelID}
+                                        unread={t.unread || 0}
+                                        isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                        isMentionMe={computeMentionMe(t, myUid)}
+                                        selected={t.channel.channelID === selectedChannelId}
+                                        onClick={() => onSelectThread(t.channel.channelID)}
+                                      />
+                                    ))}
+                                    {hidden > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExpandedThreadsSet((prev) => {
+                                            const next = new Set(prev);
+                                            next.add(groupNo);
+                                            return next;
+                                          })
+                                        }
+                                        className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
+                                      >
+                                        查看更多 +{hidden}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                );
+                              })()
+                            : null}
+                        </SortableRow>
+                      );
+                    }
+                    if (it.target_type === SidebarTargetType.DM) {
+                      const peerUid = it.target_id;
+                      const conv = findConv(peerUid, ChannelTypePerson);
+                      const channel = conv?.channel ?? new Channel(peerUid, ChannelTypePerson);
+                      const title = conv?.channelInfo?.title ?? peerUid;
+                      const muted = !!conv?.channelInfo?.mute;
+                      const unread = conv?.unread ?? it.unread;
+                      return (
+                        <SortableRow
+                          key={`dm-${peerUid}`}
+                          id={makeDragId(SidebarTargetType.DM, peerUid)}
+                        >
+                          <CompactRow
+                            variant="dm"
+                            channel={channel}
+                            title={title}
+                            unread={unread}
+                            isMuted={muted}
+                            isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                            selected={peerUid === selectedChannelId}
+                            onClick={() => onSelectDM(peerUid)}
+                          />
+                        </SortableRow>
+                      );
+                    }
+                    if (it.target_type === SidebarTargetType.THREAD) {
+                      const tid = it.target_id;
+                      // **dedup**:已嵌在某个父群下渲染过的子区,不再 standalone(对齐旧 seenIds)
+                      if (nestedThreadIds.has(tid)) return null;
+                      // 真孤儿子区(父群没关注 + sidebar 没 parent_channel_id + parseThreadChannelId
+                      // 失败):平铺渲染,不嵌套
+                      const conv = findConv(tid, CHANNEL_TYPE_THREAD);
+                      const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
+                      const title = conv?.channelInfo?.title ?? tid;
+                      const parsed = parseThreadChannelId(tid);
+                      const muted = isThreadEffectivelyMuted(
+                        conv ?? ({ channelInfo: undefined } as unknown as Conversation),
+                        parsed?.groupNo,
+                      );
+                      const unread = conv?.unread ?? it.unread;
+                      return (
+                        <CompactRow
+                          key={`thread-standalone-${tid}`}
+                          variant="thread"
+                          channel={channel}
+                          title={title}
+                          unread={unread}
+                          isMuted={muted}
+                          isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                          selected={tid === selectedChannelId}
+                          onClick={() => onSelectThread(tid)}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </SortableContext>
+              );
+            })()
           )}
         </div>
       ) : null}
@@ -536,6 +602,11 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
   // 分组 collapsed 状态(本地,内存,刷新页面后重置)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggleCollapse = (id: string) => setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // 拖拽排序(同分组内 group/dm,跨分组继续走右键菜单)
+  const { sortCategory } = useSortFollow(spaceId);
+  // PointerSensor activation 距离 5px:防止单击误触拖拽(老仓 ConversationListGrouped 同款)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; cat?: CategoryItem }>({
     open: false,
@@ -672,82 +743,132 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
     );
   }
 
+  // 同分组内 group/dm 重排 — 跨分组移动 / 子区不参与(子区跟父群,由 sortCategory 内附加)
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const activeParsed = parseDragId(String(active.id));
+    const overParsed = parseDragId(String(over.id));
+    if (!activeParsed || !overParsed) return;
+    // 找 active 所在 category(从 sidebar 数据反查),over 必须在同 category
+    const items = sidebarQ.data?.items ?? [];
+    const activeItem = items.find(
+      (it) => it.target_type === activeParsed.targetType && it.target_id === activeParsed.targetId,
+    );
+    const overItem = items.find(
+      (it) => it.target_type === overParsed.targetType && it.target_id === overParsed.targetId,
+    );
+    if (!activeItem || !overItem) return;
+    const activeCatId = activeItem.category_id ?? "";
+    const overCatId = overItem.category_id ?? "";
+    if (activeCatId !== overCatId) return; // 跨分组拖拽走右键菜单,不在此处理
+    const catList = sidebarQ.data?.itemsByCategory.get(activeCatId) ?? [];
+    // 只重排 group + dm(thread 不进 SortableContext)
+    const draggable = catList.filter(
+      (it) =>
+        it.target_type === SidebarTargetType.CHANNEL || it.target_type === SidebarTargetType.DM,
+    );
+    const oldIndex = draggable.findIndex(
+      (it) => it.target_type === activeParsed.targetType && it.target_id === activeParsed.targetId,
+    );
+    const newIndex = draggable.findIndex(
+      (it) => it.target_type === overParsed.targetType && it.target_id === overParsed.targetId,
+    );
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const reordered = arrayMove(draggable, oldIndex, newIndex);
+    const orderedTargets = reordered.map((it) => ({
+      target_type: it.target_type,
+      target_id: it.target_id,
+    }));
+    // 父群下需跟其已关注子区:用 followedThreadsByParent
+    const threadsByGroup = new Map<string, { channelID: string }[]>();
+    for (const [parentGroupNo, threads] of followedThreadsByParent) {
+      threadsByGroup.set(
+        parentGroupNo,
+        threads.map((t) => ({ channelID: t.channel.channelID })),
+      );
+    }
+    sortCategory(activeCatId, sidebarQ.data?.followVersion ?? 0, orderedTargets, threadsByGroup);
+  };
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-2">
-      {orderedCategories.map((cat) => {
-        const sidebarKey = cat.category_id ?? "";
-        const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
-        return (
-          <CategorySection
-            key={cat.category_id ?? `default-${cat.name}`}
-            category={cat}
-            collapsed={!!collapsed[cat.category_id ?? "default"]}
-            onToggle={() => toggleCollapse(cat.category_id ?? "default")}
-            onContextMenu={onCategoryContextMenu(cat)}
-            sidebarItems={sidebarItems}
-            followedThreadsByParent={followedThreadsByParent}
-            selectedChannelId={selectedChannelId}
-            myUid={myUid}
-            isExpanded={isExpanded}
-            onToggleExpand={toggleExpand}
-            onSelectGroup={handleSelectGroup}
-            onSelectDM={handleSelectDM}
-            onSelectThread={handleSelectThread}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex flex-1 flex-col overflow-y-auto p-2">
+        {orderedCategories.map((cat) => {
+          const sidebarKey = cat.category_id ?? "";
+          const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
+          return (
+            <CategorySection
+              key={cat.category_id ?? `default-${cat.name}`}
+              category={cat}
+              collapsed={!!collapsed[cat.category_id ?? "default"]}
+              onToggle={() => toggleCollapse(cat.category_id ?? "default")}
+              onContextMenu={onCategoryContextMenu(cat)}
+              sidebarItems={sidebarItems}
+              followedThreadsByParent={followedThreadsByParent}
+              selectedChannelId={selectedChannelId}
+              myUid={myUid}
+              isExpanded={isExpanded}
+              onToggleExpand={toggleExpand}
+              onSelectGroup={handleSelectGroup}
+              onSelectDM={handleSelectDM}
+              onSelectThread={handleSelectThread}
+            />
+          );
+        })}
+
+        {menu.open && menu.cat && menu.cat.category_id ? (
+          <ContextMenu
+            open
+            x={menu.x}
+            y={menu.y}
+            items={
+              [
+                {
+                  label: "重命名",
+                  icon: <Pencil size={13} />,
+                  onClick: () => menu.cat && setRenaming(menu.cat),
+                },
+                {
+                  label: "删除分组",
+                  icon: <Trash2 size={13} />,
+                  danger: true,
+                  onClick: () => menu.cat && setConfirmDelete(menu.cat),
+                },
+              ] as ContextMenuItem[]
+            }
+            onClose={() => setMenu((m) => ({ ...m, open: false }))}
           />
-        );
-      })}
+        ) : null}
 
-      {menu.open && menu.cat && menu.cat.category_id ? (
-        <ContextMenu
-          open
-          x={menu.x}
-          y={menu.y}
-          items={
-            [
-              {
-                label: "重命名",
-                icon: <Pencil size={13} />,
-                onClick: () => menu.cat && setRenaming(menu.cat),
-              },
-              {
-                label: "删除分组",
-                icon: <Trash2 size={13} />,
-                danger: true,
-                onClick: () => menu.cat && setConfirmDelete(menu.cat),
-              },
-            ] as ContextMenuItem[]
-          }
-          onClose={() => setMenu((m) => ({ ...m, open: false }))}
-        />
-      ) : null}
+        {renaming ? (
+          <InputModal
+            open
+            title="重命名分组"
+            placeholder="输入新分组名"
+            initialValue={renaming.name}
+            validate={(v) => v.trim().length > 0 && v.trim() !== renaming.name}
+            okLoading={renameMu.isPending}
+            onOk={(v) => {
+              if (renaming.category_id) renameMu.mutate({ catId: renaming.category_id, name: v });
+            }}
+            onCancel={() => setRenaming(null)}
+          />
+        ) : null}
 
-      {renaming ? (
-        <InputModal
-          open
-          title="重命名分组"
-          placeholder="输入新分组名"
-          initialValue={renaming.name}
-          validate={(v) => v.trim().length > 0 && v.trim() !== renaming.name}
-          okLoading={renameMu.isPending}
-          onOk={(v) => {
-            if (renaming.category_id) renameMu.mutate({ catId: renaming.category_id, name: v });
-          }}
-          onCancel={() => setRenaming(null)}
-        />
-      ) : null}
-
-      {confirmDelete ? (
-        <ConfirmModal
-          open
-          title="确认删除分组"
-          content={`确定删除分组「${confirmDelete.name}」吗?分组内会话会取消关注。`}
-          okText="删除"
-          okDanger
-          okLoading={deleteMu.isPending}
-          onOk={() => confirmDelete.category_id && deleteMu.mutate(confirmDelete.category_id)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      ) : null}
-    </div>
+        {confirmDelete ? (
+          <ConfirmModal
+            open
+            title="确认删除分组"
+            content={`确定删除分组「${confirmDelete.name}」吗?分组内会话会取消关注。`}
+            okText="删除"
+            okDanger
+            okLoading={deleteMu.isPending}
+            onOk={() => confirmDelete.category_id && deleteMu.mutate(confirmDelete.category_id)}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        ) : null}
+      </div>
+    </DndContext>
   );
 }

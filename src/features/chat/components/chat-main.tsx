@@ -15,6 +15,18 @@ import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 
 /**
+ * Channel 切换时关掉所有右侧 panel(对齐旧 ChatContentPage 用 key={channel.getChannelKey()}
+ * 重建组件让 showThreadPanel / previewFile / showMatterPanel 等 local state 归零的语义)。
+ * 新仓 chatSidePanelStore 是全局 store,不绑 channel,必须显式 close,否则切群后还看到
+ * 上一个群的 thread / matter / filePreview。命名 hook 满足 no-useeffect-in-component。
+ */
+function useResetSidePanelOnChannelChange(channelKey: string): void {
+  useEffect(() => {
+    chatSidePanelActions.close();
+  }, [channelKey]);
+}
+
+/**
  * 监听 composer 派发的 chat:create-matter-from-composer 事件(A5 Alt+Enter / 工具栏 ✓)。
  * 命中后用当前 channel 打开 CreateMatterModal(手动 4 字段表单,本群成员候选)。
  *
@@ -61,6 +73,8 @@ export function ChatMain() {
   const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
   const [createMatterChannel, setCreateMatterChannel] = useState<Channel | null>(null);
   useListenCreateMatterFromComposer(channel ?? null, setCreateMatterChannel);
+  // channel 切换 → 关掉所有右侧 panel(对齐旧 ChatContentPage key 重建语义)
+  useResetSidePanelOnChannelChange(channel ? `${channel.channelID}_${channel.channelType}` : "_");
 
   if (!channel) {
     return <ChatEmptyHologram />;

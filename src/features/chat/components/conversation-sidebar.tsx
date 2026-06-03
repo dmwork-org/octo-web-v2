@@ -136,19 +136,24 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
   });
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
-        <span className="min-w-0 truncate text-sm font-semibold text-text-primary">
+    // 整个 sidebar bg = bg-bg-base(对齐老仓 .wk-chat-content-left bg=--wk-bg-base)
+    // 不加左侧 border-r(右侧聊天区有自己的 border-l,避免双线;老仓 .wk-chat-content
+    // 用 display:flex 直接邻接,无 border)
+    <aside className="flex w-72 shrink-0 flex-col bg-bg-base">
+      {/* Header — 透明背景、无 border-bottom、12px padding all(对齐老仓 .wk-chat-search) */}
+      <header className="flex h-12 shrink-0 items-center justify-between gap-2 p-3">
+        <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
           {currentSpaceName}
         </span>
-        <div className="flex shrink-0 items-center gap-1">
+        {/* 右侧 actions:gap=8px,按钮 16×16 透明背景 hover 只换色,对齐老仓 .wk-chat-header-actions */}
+        <div className="flex shrink-0 items-center gap-2">
           <ConnectionStatusBadge />
           <button
             type="button"
             aria-label="搜索"
             title="全局搜索"
             onClick={() => setSearchOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            className="flex h-4 w-4 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
           >
             <Search size={16} />
           </button>
@@ -158,10 +163,8 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
               aria-label="新增"
               title="发起群聊 / 添加朋友"
               onClick={() => setAddOpen((v) => !v)}
-              className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-                addOpen
-                  ? "bg-bg-hover text-text-primary"
-                  : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              className={`flex h-4 w-4 cursor-pointer items-center justify-center transition-colors ${
+                addOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
               }`}
             >
               <Plus size={16} />
@@ -179,9 +182,9 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
         </div>
       </header>
 
-      {/* 胶囊 tab 栏(对齐老仓 .wk-sidebar-tabbar):outer padding 12 8 8 / inner pill */}
-      <nav className="flex shrink-0 justify-center px-3 pt-1.5 pb-2">
-        <div className="flex w-full items-center gap-0 rounded-full bg-bg-elevated p-0.5">
+      {/* 胶囊 tab 栏(对齐老仓 .wk-sidebar-tabbar):outer pad 0 12px 8 / inner pill */}
+      <nav className="flex shrink-0 justify-center px-3 pb-2">
+        <div className="flex w-full items-center gap-0 rounded-full bg-[rgba(52,59,58,0.05)] p-0.5">
           {TABS.map((t) => {
             const isActive = activeTab === t.id;
             const unread = t.id === "follow" ? followUnread : recentUnread;
@@ -190,7 +193,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
-                className={`relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
+                className={`relative inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
                   isActive
                     ? "bg-bg-surface text-text-primary shadow-sm"
                     : "text-text-tertiary hover:text-text-primary"

@@ -546,7 +546,9 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto p-2">
+    // 对齐老仓 .wk-conversationlist:padding=0,item 自身管 padding(行 1-10 of CSS)
+    // 新仓保留 px-2 / py-1 让 selected/hover bg 内缩,不贴 sidebar 边缘
+    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
       {filtered.map((c) => (
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}

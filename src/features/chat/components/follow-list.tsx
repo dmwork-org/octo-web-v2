@@ -876,7 +876,8 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex flex-1 flex-col overflow-y-auto p-2">
+      {/* 对齐老仓 .wk-conversationlist:padding=0;新仓保留 px-2 py-1 让 selected bg 不贴边 */}
+      <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
         {orderedCategories.map((cat) => {
           const sidebarKey = cat.category_id ?? "";
           const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];

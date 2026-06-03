@@ -19,31 +19,8 @@ import {
   type ThreadRaw,
 } from "@/features/base/api/endpoints/group.api";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-import { useResizablePanel } from "@/features/chat/hooks/use-resizable-panel.hook";
+import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
-
-/** thread / file preview 共用 panel 宽度(对齐老仓 ThreadPanel + FilePreviewPanel 同一组件,
-    共享 localStorage key wk-thread-panel-width)。range/默认 = 老仓 layoutWidth.ts THREAD_*。
-    动态 max:(window - sidebar) * 0.5,保 chat 区 ≥ 50%。 */
-const RIGHT_PANEL_MIN_WIDTH = 432;
-const RIGHT_PANEL_DEFAULT_WIDTH = 432;
-const RIGHT_PANEL_STORAGE_KEY = "wk-thread-panel-width";
-const RIGHT_PANEL_MAX_HARD = 1600;
-function getRightPanelMaxWidth(windowWidth: number): number {
-  // 读 sidebar 当前宽度,扣减后取 50%(对齐老仓 getMaxThreadWidth)
-  let leftPanelWidth = 300;
-  try {
-    const stored = window.localStorage.getItem("wk-layout-left-width");
-    if (stored) {
-      const n = parseInt(stored, 10);
-      if (!Number.isNaN(n) && n >= 190 && n <= 360) leftPanelWidth = n;
-    }
-  } catch {
-    // ignore stored width parse error
-  }
-  const dynamicMax = Math.floor((windowWidth - leftPanelWidth) * 0.5);
-  return Math.max(RIGHT_PANEL_MIN_WIDTH, Math.min(RIGHT_PANEL_MAX_HARD, dynamicMax));
-}
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -75,13 +52,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   const qc = useQueryClient();
   // 宽度拖拽(左边缘,共享 file-preview-panel localStorage,对齐老仓 ThreadPanel)
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
-    useResizablePanel({
-      storageKey: RIGHT_PANEL_STORAGE_KEY,
-      defaultWidth: RIGHT_PANEL_DEFAULT_WIDTH,
-      minWidth: RIGHT_PANEL_MIN_WIDTH,
-      getMaxWidth: getRightPanelMaxWidth,
-      edge: "left",
-    });
+    useRightPanelResize();
   const [view, setView] = useState<View>("list");
   const [activeThread, setActiveThread] = useState<ThreadRaw | null>(null);
   const [createOpen, setCreateOpen] = useState(false);

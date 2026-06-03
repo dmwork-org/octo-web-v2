@@ -16,31 +16,8 @@ import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
 import { getExtension } from "@/features/chat/file-preview/types";
 import type { FilePreviewInfo, TocItem } from "@/features/chat/file-preview/types";
 import { useReplyToFileMessage } from "@/features/chat/hooks/use-reply-to-file-message.hook";
-import { useResizablePanel } from "@/features/chat/hooks/use-resizable-panel.hook";
+import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
-
-/** thread / file preview 共用 panel 宽度(对齐老仓 ThreadPanel + FilePreviewPanel 同一组件,
-    共享 localStorage key wk-thread-panel-width)。range/默认 = 老仓 layoutWidth.ts THREAD_*。
-    动态 max:(window - sidebar) * 0.5,保 chat 区 ≥ 50%。 */
-const RIGHT_PANEL_MIN_WIDTH = 432;
-const RIGHT_PANEL_DEFAULT_WIDTH = 432;
-const RIGHT_PANEL_STORAGE_KEY = "wk-thread-panel-width";
-const RIGHT_PANEL_MAX_HARD = 1600;
-function getRightPanelMaxWidth(windowWidth: number): number {
-  // 读 sidebar 当前宽度,扣减后取 50%(对齐老仓 getMaxThreadWidth)
-  let leftPanelWidth = 300;
-  try {
-    const stored = window.localStorage.getItem("wk-layout-left-width");
-    if (stored) {
-      const n = parseInt(stored, 10);
-      if (!Number.isNaN(n) && n >= 190 && n <= 360) leftPanelWidth = n;
-    }
-  } catch {
-    // ignore stored width parse error
-  }
-  const dynamicMax = Math.floor((windowWidth - leftPanelWidth) * 0.5);
-  return Math.max(RIGHT_PANEL_MIN_WIDTH, Math.min(RIGHT_PANEL_MAX_HARD, dynamicMax));
-}
 
 /**
  * 文件预览面板(1:1 对齐旧 dmworkbase Components/FilePreviewPanel + FilePreviewHeader)。
@@ -78,13 +55,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
   // 宽度拖拽(左边缘 splitter,共享 thread-panel localStorage 实现联动 — 对齐老仓 1:1
   // ThreadPanel + FilePreviewPanel 同一组件 + 同一 wk-thread-panel-width key)
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
-    useResizablePanel({
-      storageKey: RIGHT_PANEL_STORAGE_KEY,
-      defaultWidth: RIGHT_PANEL_DEFAULT_WIDTH,
-      minWidth: RIGHT_PANEL_MIN_WIDTH,
-      getMaxWidth: getRightPanelMaxWidth,
-      edge: "left",
-    });
+    useRightPanelResize();
 
   const supportsViewToggle = type === "markdown";
   const supportsToc = type === "markdown";

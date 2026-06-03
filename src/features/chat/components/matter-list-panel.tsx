@@ -4,11 +4,15 @@ import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { MatterList } from "@/features/matter/components/matter-list";
 import { MatterDetailPanel as MatterDetailInner } from "@/features/matter/components/matter-detail-panel";
+import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
+import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 
 /**
  * Chat 右侧 matter 面板(对齐旧 dmworkbase registerChatMatterPanel)。
  *
- * 与 ThreadListPanel / FilePreviewPanel 同形态:380px 横向 flex sibling,
+ * 与 ThreadListPanel / FilePreviewPanel 同形态 + **共享同款拖拽 hook**
+ * (useRightPanelResize → wk-thread-panel-width localStorage 联动:
+ * 三个 panel 切换 width 不变,跟老仓 ThreadPanel 共用同一组件同款行为),
  * 由 chatSidePanelStore.kind === "matter" 触发渲染。
  *
  * 内部双栈导航:
@@ -22,11 +26,18 @@ export function MatterListPanel() {
   // chat 当前 channel — 传给 MatterList,触发"按 channel_id 过滤 + 默认 tab=all + 本地切 tab"
   // (对齐旧 ChatMatterPanel { initialFilters: { channel_id }, default tab="all" })
   const channel = useStore(chatSelectedStore, (s) => s.channel);
+  // 宽度拖拽(左边缘,共享 thread/file localStorage 联动)
+  const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
+    useRightPanelResize();
   if (state.kind !== "matter") return null;
   const { matterId } = state;
 
   return (
-    <aside className="flex h-full w-[380px] shrink-0 flex-col border-l border-border-default bg-bg-base">
+    <aside
+      ref={panelRef}
+      style={{ width }}
+      className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
+    >
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
         <div className="flex min-w-0 items-center gap-2">
           {matterId ? (
@@ -64,6 +75,15 @@ export function MatterListPanel() {
           />
         )}
       </div>
+
+      {/* 左边缘 splitter:hover/drag 显紫色细线;双击重置默认 432 */}
+      <PanelSplitter
+        side="left"
+        isDragging={isDragging}
+        onMouseDown={onSplitterMouseDown}
+        onDoubleClick={onSplitterDoubleClick}
+      />
+      {isDragging ? <DragOverlay /> : null}
     </aside>
   );
 }

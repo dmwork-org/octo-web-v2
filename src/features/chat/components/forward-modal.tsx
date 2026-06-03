@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -81,11 +81,14 @@ function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
   return c;
 }
 
-/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。 */
+/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。
+ *  reset 回调用 ref 持有,避免调用方传匿名箭头函数导致 effect deps 不稳引发循环。 */
 function useResetOnClose(open: boolean, reset: () => void): void {
+  const resetRef = useRef(reset);
+  resetRef.current = reset;
   useEffect(() => {
-    if (!open) reset();
-  }, [open, reset]);
+    if (!open) resetRef.current();
+  }, [open]);
 }
 
 /**

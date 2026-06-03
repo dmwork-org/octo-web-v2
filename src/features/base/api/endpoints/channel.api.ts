@@ -47,6 +47,8 @@ export interface ChannelInfoRaw {
   // Space 归属(后端透传;im-callbacks 构造 orgData 时存到 orgData.space_id,
   // 给 isChannelOfSpace 第 2 层 fallback 用,实现跨 Space 渗漏防护)
   space_id?: string;
+  // bot 命令清单(person+robot=1 时后端透传 JSON 字符串,composer 解析后给 / 斜杠菜单消费)
+  bot_commands?: string;
 }
 
 export async function getChannelInfoRaw(

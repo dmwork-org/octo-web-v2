@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
-import { extractMatter, updateMatter } from "@/features/matter/api/matter.api";
+import { addAssignee, extractMatter, updateMatter } from "@/features/matter/api/matter.api";
+import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
+import { spaceStore } from "@/features/base/stores/space";
+import { MatterFormBody } from "@/features/matter/components/matter-form-body";
+import {
+  buildDeadlineISO,
+  isMatterFormValid,
+  type MatterFormValues,
+} from "@/features/matter/lib/matter-form";
 import type {
   ExtractMatterReq,
   ExtractMessage,
@@ -17,6 +25,7 @@ interface SmartCreateModalProps {
   open: boolean;
   channel: Channel;
   channelName?: string;
+  /** 必须非空 — 触发 AI 抽取的源消息(老仓 selection-toolbar "创建新事项")。 */
   messages: Message[];
   onClose: () => void;
 }
@@ -37,12 +46,17 @@ function toExtractMsgs(msgs: Message[]): ExtractMessage[] {
 }
 
 /**
- * 智能创建事项 modal(对应旧 dmworktodo SmartCreateModal):
+ * AI 智能创建事项 modal — 对齐旧 dmworktodo SmartCreateModal。
  *
- * 1. open 时立即调 extractMatter(后端 LLM 抽取并直接创建 matter 返回 id)
- * 2. 显示 loading → 显示 AI 抽取的 title / description,用户可编辑
- * 3. 保存 → updateMatter 落地
- * 4. 取消 → onClose(本期不删孤儿,旧版 onClose 删,P4+ 补)
+ * 触发:**selection-toolbar 多选消息 → "创建新事项"** 唯一入口
+ * (chat ✓ / Alt+Enter 走 CreateMatterModal,messages 空时不在本组件)。
+ *
+ * 流程:
+ *   1. open 即调 extractMatter(LLM 抽取并落 matter 拿 id)
+ *   2. extract 返 title/description prefill 进 MatterFormBody(共享 4 字段表单)
+ *   3. 用户补齐 assignee(默认 prefill 自己)+ deadline
+ *   4. 保存:updateMatter(id) {title/description/deadline} + addAssignee batch
+ *      (extract 创建出来的 matter 没有 assignee,需 batch 加)
  */
 export function SmartCreateModal({
   open,
@@ -51,8 +65,14 @@ export function SmartCreateModal({
   messages,
   onClose,
 }: SmartCreateModalProps) {
+  const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
-  const [draft, setDraft] = useState<ExtractResult | null>(null);
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [values, setValues] = useState<MatterFormValues>(emptyValues(myUid));
+
+  useResetOnOpen(open, myUid, setDraftId, setValues);
 
   const extractMu = useMutation({
     mutationFn: async (): Promise<ExtractResult> => {
@@ -65,24 +85,35 @@ export function SmartCreateModal({
       };
       return extractMatter(req);
     },
-    onSuccess: (result) => setDraft(result),
+    onSuccess: (result) => {
+      setDraftId(result.id);
+      setValues((prev) => ({
+        ...prev,
+        title: result.title || prev.title,
+        description: result.description || prev.description,
+      }));
+    },
     onError: (err) => toast.error(err instanceof Error ? err.message : "AI 抽取失败"),
   });
-
-  useTriggerExtract(open, !!draft, extractMu.mutate);
+  useTriggerExtract(open, !!draftId, extractMu.mutate);
 
   const saveMu = useMutation({
     mutationFn: async () => {
-      if (!draft) return;
-      await updateMatter(draft.id, {
-        title: draft.title,
-        description: draft.description ?? null,
-        deadline: draft.deadline ? new Date(draft.deadline).toISOString() : null,
+      if (!draftId) throw new Error("缺少 matter id");
+      await updateMatter(draftId, {
+        title: values.title.trim(),
+        description: values.description.trim(),
+        deadline: buildDeadlineISO(values.deadline),
       });
+      // extract 出来的 matter 默认无 assignee;批量 add
+      if (values.assigneeUids.length > 0) {
+        await Promise.all(values.assigneeUids.map((uid) => addAssignee(draftId, uid)));
+      }
     },
     onSuccess: () => {
-      toast.success("已保存事项");
-      setDraft(null);
+      void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
+      void qc.invalidateQueries({ queryKey: ["matter", "list"] });
+      toast.success("事项已创建");
       onClose();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
@@ -90,84 +121,114 @@ export function SmartCreateModal({
 
   if (!open) return null;
 
-  const isExtracting = extractMu.isPending && !draft;
+  const isExtracting = extractMu.isPending && !draftId;
+  const canSave = !!draftId && !saveMu.isPending && isMatterFormValid(values);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "TEXTAREA") return;
+      if (tag === "INPUT") {
+        e.preventDefault();
+        if (canSave) saveMu.mutate();
+      }
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onKeyDown={onKeyDown}
+    >
+      <div className="flex w-[480px] max-w-full flex-col rounded-lg bg-bg-surface shadow-xl ring-1 ring-brand/10">
+        <header className="flex items-center justify-between p-4">
+          <h3 className="m-0 text-base font-semibold text-text-strong">
             AI 智能创建事项 ({messages.length} 条消息)
-          </h2>
+          </h3>
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <X size={16} />
           </button>
         </header>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5">
+        <div className="flex flex-col gap-4 px-4 py-[10px]">
           {isExtracting ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+            <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
               AI 正在抽取事项...
             </div>
-          ) : extractMu.error ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          ) : extractMu.error && !draftId ? (
+            <div className="flex h-32 flex-col items-center justify-center gap-3">
               <span className="text-sm text-error">
                 {extractMu.error instanceof Error ? extractMu.error.message : "AI 抽取失败"}
               </span>
               <Button onClick={() => extractMu.mutate()}>重试</Button>
             </div>
-          ) : draft ? (
-            <>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-text-tertiary">标题</span>
-                <input
-                  value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-text-tertiary">主要目标</span>
-                <textarea
-                  value={draft.description}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  rows={5}
-                  className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-                />
-              </label>
-              <div className="text-[11px] text-text-tertiary">
-                #{draft.seq_no} · 由 AI 从 {draft.source_msgs.length} 条消息抽取
-              </div>
-            </>
+          ) : draftId ? (
+            <MatterFormBody
+              values={values}
+              onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+              channel={channel}
+              autoFocus
+            />
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
-          </Button>
-          <Button
-            type="primary"
-            theme="solid"
-            disabled={!draft || saveMu.isPending}
-            loading={saveMu.isPending}
-            onClick={() => saveMu.mutate()}
+        <div className="flex items-center justify-end gap-3 p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-7 items-center rounded-full border border-brand/10 bg-bg-surface px-3 text-[13px] font-semibold text-text-strong transition-colors hover:bg-bg-hover"
           >
-            保存
-          </Button>
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => saveMu.mutate()}
+            disabled={!canSave}
+            className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saveMu.isPending ? "保存中..." : "保存"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function useTriggerExtract(open: boolean, hasDraft: boolean, trigger: () => void): void {
+function emptyValues(myUid: string): MatterFormValues {
+  return {
+    title: "",
+    description: "",
+    assigneeUids: myUid ? [myUid] : [],
+    deadline: "",
+  };
+}
+
+function useTriggerExtract(shouldRun: boolean, hasDraft: boolean, trigger: () => void): void {
   useEffect(() => {
-    if (open && !hasDraft) trigger();
-  }, [open, hasDraft, trigger]);
+    if (shouldRun && !hasDraft) trigger();
+  }, [shouldRun, hasDraft, trigger]);
+}
+
+function useResetOnOpen(
+  open: boolean,
+  myUid: string,
+  setDraftId: (v: string | null) => void,
+  setValues: (v: MatterFormValues) => void,
+): void {
+  useEffect(() => {
+    if (!open) return;
+    setDraftId(null);
+    setValues(emptyValues(myUid));
+    // setters 稳定,跟 open + myUid 即可
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, myUid]);
 }

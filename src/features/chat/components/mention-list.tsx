@@ -1,17 +1,18 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Users } from "lucide-react";
+import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { MENTION_UID_AIS, isStickyMentionUid } from "@/features/base/lib/mention-three-state";
 
 /**
- * Mention 候选项 — 字段对齐 TipTap `MentionNodeAttrs = { id, label }`,
- * 这样 suggestion.command 默认行为(把 item 直接作为 attrs 插入 node)就能用。
+ * Mention 候选项 — 字段对齐 TipTap `MentionNodeAttrs = { id, label }`。
  *
  * - 普通成员:`{ id: uid, label: name }`
- * - @所有人:`{ id: "@all", label: "所有人" }` — extractFromEditor 见到 id==="@all" 设
- *   SDK Mention.all=true,不入 uids
- * - AI bot:`{ id: uid, label: name, isBot: true }` — id/label 与普通成员同口径
- *   (mention.uids 走 bot 的 uid),仅 UI 加 AI 角标区分
+ * - @所有人(三态新): `{ id: "-2", label: "所有人" }` — extractOrderedBlocks 见到设 humans=1
+ * - @所有AI(三态新): `{ id: "-3", label: "所有AI" }` — extractOrderedBlocks 见到设 ais=1
+ * - @所有人(legacy):`{ id: "-1" 或 "@all", label: "所有人" }` — 设 mention.all=1
+ * - AI bot 成员:`{ id: uid, label: name, isBot: true }`(普通成员路径 + UI AI 角标)
  */
 export interface MentionItem {
   id: string;
@@ -36,15 +37,35 @@ function useResetActiveOnItemsChange(items: MentionItem[], setActiveIndex: (i: n
   }, [items, setActiveIndex]);
 }
 
+/** activeIndex 变化时把对应 li 滚到视口内(对齐旧 MentionList scrollIntoView)。 */
+function useScrollActiveIntoView(
+  itemRefs: React.MutableRefObject<(HTMLLIElement | null)[]>,
+  activeIndex: number,
+) {
+  useEffect(() => {
+    const el = itemRefs.current[activeIndex];
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]);
+}
+
 /**
- * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover):
- * - 渲染候选项,↑↓ 改 activeIndex,Enter / Tab 触发 command 插入 Mention node
- * - command 由 TipTap suggestion 提供,默认会把 item({id,label})作为 attrs 插入
+ * 候选列表(由 mention-suggestion 通过 ReactRenderer 挂到 tippy popover)。
+ *
+ * 1:1 对齐旧 dmworkbase MentionList + MentionList.css:
+ *   - 容器:min-w 420px / radius 4px / shadow / padding 5px 0
+ *   - 行:padding 5px 16px / icon 24×24 圆 / mb 10px(行之间留空隙)
+ *   - 命中(active 或 hover):brand 实色背景 + 反白文字
+ *   - icon + name + AiBadge(共用组件)— 不显 uid 灰小字(老仓没有)
+ *   - sticky 三态(-1/-2/@all → Users / -3 → Bot)用 lucide 图标 + 同 24×24 圆
+ *   - 空态行:"没有找到成员"(items.length === 0 直接 null,与候选 popover 自动隐藏一致)
  */
 export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
     const [activeIndex, setActiveIndex] = useState(0);
+    const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
     useResetActiveOnItemsChange(items, setActiveIndex);
+    useScrollActiveIntoView(itemRefs, activeIndex);
 
     const selectItem = (index: number) => {
       const item = items[index];
@@ -74,14 +95,18 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
     return (
       <ul
         role="listbox"
-        className="max-h-64 min-w-[220px] overflow-y-auto rounded-md border border-border-default bg-bg-surface py-1 shadow-lg"
+        className="max-h-[220px] min-w-[420px] overflow-y-auto rounded-md bg-bg-surface py-[5px] shadow-lg"
       >
         {items.map((c, i) => {
           const active = i === activeIndex;
-          const isAll = c.id === "@all";
+          const isSticky = isStickyMentionUid(c.id);
+          const isAis = c.id === MENTION_UID_AIS;
           return (
             <li
               key={c.id}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
               role="option"
               aria-selected={active}
               onMouseEnter={() => setActiveIndex(i)}
@@ -89,13 +114,19 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 e.preventDefault();
                 selectItem(i);
               }}
-              className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-sm ${
-                active ? "bg-brand-tint" : "hover:bg-bg-hover"
+              className={`mb-[10px] flex cursor-pointer items-center gap-2 px-4 py-[5px] transition-colors ${
+                active ? "bg-brand text-text-inverse" : "text-text-primary hover:bg-brand-tint"
               }`}
             >
-              {isAll ? (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-secondary">
-                  <Users size={14} />
+              {isSticky ? (
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                    active
+                      ? "bg-text-inverse/20 text-text-inverse"
+                      : "bg-bg-elevated text-text-secondary"
+                  }`}
+                >
+                  {isAis ? <Bot size={14} /> : <Users size={14} />}
                 </span>
               ) : (
                 <ChannelAvatar
@@ -104,17 +135,10 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                   title={c.label}
                 />
               )}
-              <span className="min-w-0 flex-1 truncate text-text-primary">{c.label}</span>
-              {c.isBot ? (
-                <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                  AI
-                </span>
-              ) : null}
-              {!isAll ? (
-                <span className="shrink-0 truncate font-mono text-[10px] text-text-tertiary">
-                  {c.id}
-                </span>
-              ) : null}
+              <strong className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+                {c.label}
+              </strong>
+              {isAis || c.isBot ? <AiBadge size="small" /> : null}
             </li>
           );
         })}

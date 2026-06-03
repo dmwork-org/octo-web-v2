@@ -49,6 +49,9 @@ export function FileRenderer({ message }: FileRendererProps) {
       ext,
       size,
       messageId: message.messageID,
+      messageSeq: message.messageSeq,
+      fromUID: message.fromUID,
+      conversationDigest: name,
       sourceChannelId: message.channel.channelID,
       sourceChannelType: message.channel.channelType,
     });

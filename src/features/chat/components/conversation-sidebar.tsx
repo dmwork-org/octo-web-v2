@@ -155,9 +155,13 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
 
   return (
     // 整个 sidebar bg = bg-bg-base(对齐老仓 .wk-chat-content-left bg=--wk-bg-base)
-    // 不加左侧 border-r(右侧聊天区有自己的 border-l,避免双线;老仓 .wk-chat-content
-    // 用 display:flex 直接邻接,无 border)
-    <aside ref={panelRef} style={{ width }} className="relative flex shrink-0 flex-col bg-bg-base">
+    // border-r 1px subtle — 对齐老仓 .wk-layout-content-left border-right
+    // = rgba(0,0,0,0.05)(分隔 sidebar 与右侧聊天区,splitter hide 时仍有视觉边界)
+    <aside
+      ref={panelRef}
+      style={{ width }}
+      className="relative flex shrink-0 flex-col border-r border-border-subtle bg-bg-base"
+    >
       {/* Header — 透明背景、无 border-bottom、12px padding all(对齐老仓 .wk-chat-search) */}
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 p-3">
         <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">

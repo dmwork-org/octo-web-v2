@@ -41,6 +41,7 @@ import {
   isMentionMe,
   lastMessageDigest,
 } from "@/features/chat/lib/conversation-last-content";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 export type ConvTab = "follow" | "recent";
 
@@ -145,7 +146,7 @@ function ConversationRow({
     ? WKSDK.shared().channelManager.getChannelInfo(parentChannel)
     : undefined;
   if (parentChannel && !parentChannelInfo) {
-    void WKSDK.shared().channelManager.fetchChannelInfo(parentChannel);
+    tryFetchChannelInfo(parentChannel);
   }
   const avatarChannel = isThread && parentChannel ? parentChannel : channel;
   const avatarTitle = isThread ? (parentChannelInfo?.title ?? title) : title;

@@ -8,6 +8,7 @@ import { persistAuth } from "./features/base/stores/auth";
 import { persistSpace, spaceStore } from "./features/base/stores/space";
 import { persistEndpoint, endpointStore } from "./features/base/stores/endpoint";
 import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-selected";
+import { clearFetchedTitleCache } from "./features/chat/lib/live-channel-title";
 import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
 import "./index.css";
 
@@ -20,6 +21,7 @@ wireChatSelectionResetOnChannelChange();
 
 spaceStore.subscribe(() => {
   queryClient.clear();
+  clearFetchedTitleCache();
 });
 endpointStore.subscribe(() => {
   queryClient.clear();

@@ -28,6 +28,7 @@ import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadIcon } from "@/components/ui/thread-icon";
+import { getLiveTitle } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
 import {
@@ -155,31 +156,6 @@ function buildFollowedThreadsByParent(
 function findConv(channelId: string, channelType: number): Conversation | undefined {
   const channel = new Channel(channelId, channelType);
   return WKSDK.shared().conversationManager.findConversation(channel);
-}
-
-/**
- * 实时取 channel 真实 title — 不依赖 conv.channelInfo 字段(stub conv 的 channelInfo
- * 字段永远 undefined,即便 SDK channelInfoCallback 已拉到 info,stub 也不会更新)。
- *
- * 直接走 SDK channelManager.getChannelInfo;未拉到主动 fetch,channelInfoListener
- * 触发上层 useConversationsSync 重渲后再次进入本函数即取到。
- *
- * 返回 `{ title, loading }`:
- *   - title:displayName 优先(orgData),fallback channelInfo.title
- *   - loading:title 为空 → 显 skeleton
- *
- * 头像走 ChannelAvatar 自身的 SDK 调用,跟 title 独立 — 头像可能先出来(logo 命中),
- * title 后到,骨架持续到 title 真有值(对齐老仓 wk-conv-compact-name-skeleton 体验)。
- */
-function getLiveTitle(channel: Channel): { title: string; loading: boolean } {
-  const info = WKSDK.shared().channelManager.getChannelInfo(channel);
-  if (!info) {
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
-    return { title: "", loading: true };
-  }
-  const display = (info.orgData as { displayName?: string } | undefined)?.displayName;
-  const t = display || info.title || "";
-  return { title: t, loading: !t };
 }
 
 function unreadBadge(unread: number): string {

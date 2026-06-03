@@ -15,9 +15,15 @@ export interface FilePreviewInfo {
   name: string;
   ext: string;
   size?: number;
-  /** 消息 ID — 标记激活的卡片(高亮当前预览的那张 file 卡片);P4 暂未消费 */
+  /** 消息 ID — reply 时优先查 message cache,找不到走 fakeMessage 路径 */
   messageId?: string;
-  /** 来源频道 ID — 旧仓用于判定是否子区面板内触发,新仓暂未消费 */
+  /** 消息 seq — reply 构造 Reply 用 */
+  messageSeq?: number;
+  /** 发送者 UID — reply 时:非自己消息会自动 @mention 发送者 */
+  fromUID?: string;
+  /** 消息摘要 — reply 走 fakeMessage 路径时作 MessageText 内容(quoted bar 显示) */
+  conversationDigest?: string;
+  /** 来源频道 — 旧仓用于判定是否子区面板内触发,新仓暂未消费 */
   sourceChannelId?: string;
   sourceChannelType?: number;
 }

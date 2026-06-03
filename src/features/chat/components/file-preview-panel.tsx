@@ -1,12 +1,21 @@
 import { useCallback, useState } from "react";
 import { useStore } from "@tanstack/react-store";
-import { Code as CodeIcon, Download, Eye, ExternalLink, List, X } from "lucide-react";
+import {
+  Code as CodeIcon,
+  Download,
+  Eye,
+  ExternalLink,
+  List,
+  MessageSquare,
+  X,
+} from "lucide-react";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { openInNewWindow, triggerDownload } from "@/features/chat/lib/file-download";
 import { FileTypeIcon } from "@/features/chat/file-preview/file-type-icon";
 import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
 import { getExtension } from "@/features/chat/file-preview/types";
 import type { FilePreviewInfo, TocItem } from "@/features/chat/file-preview/types";
+import { useReplyToFileMessage } from "@/features/chat/hooks/use-reply-to-file-message.hook";
 
 /**
  * 文件预览面板(1:1 对齐旧 dmworkbase Components/FilePreviewPanel + FilePreviewHeader)。
@@ -55,6 +64,10 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
   }, []);
 
   const tocAvailable = supportsToc && tocItems.length > 0;
+
+  // 回复按钮:hook 返回 null 即条件不齐全(messageId/seq/fromUID/sourceChannel*),按钮隐藏
+  const onReply = useReplyToFileMessage(file);
+
   const onTocPick = (id: string) => {
     setTocOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -95,6 +108,11 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
               disabled={!file.url}
             >
               <ExternalLink size={16} />
+            </IconBtn>
+          ) : null}
+          {onReply ? (
+            <IconBtn label="回复" onClick={onReply}>
+              <MessageSquare size={16} />
             </IconBtn>
           ) : null}
           <IconBtn

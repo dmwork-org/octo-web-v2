@@ -128,7 +128,11 @@ function ConversationRow({
         identitySize?: { width: string; height: string };
       }
     | undefined;
-  const title = orgData?.displayName || info?.title || channel.channelID;
+  // 真 title(displayName 或 channelInfo.title);**没拉到走 skeleton**,不显 channelID
+  // (避免先闪 raw ID 再 pop 到真 title — 用户视觉跳变)
+  const realTitle = orgData?.displayName || info?.title || "";
+  const titleLoading = !realTitle;
+  const title = realTitle || channel.channelID; // channelID 仅作 aria 兜底,不直接显
   const isExternal = isGroup && orgData?.is_external_group === 1;
   const isBot = isPerson && orgData?.robot === 1;
   const identityIcon = orgData?.identityIcon;
@@ -215,7 +219,15 @@ function ConversationRow({
               hasUnread && !isMuted ? "font-semibold" : "font-medium"
             } ${isMuted ? "text-text-tertiary" : "text-text-primary"}`}
           >
-            <span className="min-w-0 truncate">{title}</span>
+            {titleLoading ? (
+              <span
+                aria-hidden
+                className="conv-list-skeleton h-3 w-24 shrink rounded-sm"
+                aria-label={title}
+              />
+            ) : (
+              <span className="min-w-0 truncate">{title}</span>
+            )}
             {isBot ? <AiBadge size="small" /> : null}
             {isExternal ? (
               <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-brand-primary">
@@ -575,6 +587,8 @@ export function ConversationList({
     // 对齐老仓 .wk-conversationlist:padding=0,item 自身管 padding(行 1-10 of CSS)
     // 新仓保留 px-2 / py-1 让 selected/hover bg 内缩,不贴 sidebar 边缘
     <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
+      {/* skeleton shimmer 始终 inject,row 内 title 没拉到时即用 conv-list-skeleton class */}
+      <style>{LIST_SKELETON_STYLE}</style>
       {filtered.map((c) => (
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}

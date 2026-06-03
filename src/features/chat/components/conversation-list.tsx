@@ -271,6 +271,22 @@ function isVisibleInRecentTab(c: Conversation, now: number): boolean {
 }
 
 const TOP_BOOST = 1_000_000_000_000;
+
+/** 列表加载骨架 shimmer 动画(对齐 follow-list 同款,老仓 wk-skeleton-shimmer 1.2s linear) */
+const LIST_SKELETON_STYLE = `
+.conv-list-skeleton {
+  background: linear-gradient(90deg,
+    rgba(46,50,56,0.06) 25%,
+    rgba(46,50,56,0.12) 50%,
+    rgba(46,50,56,0.06) 75%);
+  background-size: 200% 100%;
+  animation: conv-list-skeleton-shimmer 1.2s infinite linear;
+}
+@keyframes conv-list-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+`;
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
     const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
@@ -525,9 +541,19 @@ export function ConversationList({
   };
 
   if (isLoading) {
+    // 骨架占位行(对齐 follow-list 同款 shimmer);避免文字"加载会话…"突兀
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        加载会话…
+      <div className="flex flex-1 flex-col gap-1 px-2 py-1">
+        <style>{LIST_SKELETON_STYLE}</style>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2.5 px-2 py-[7px]">
+            <span className="conv-list-skeleton h-8 w-8 shrink-0 rounded-md" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className="conv-list-skeleton h-3 w-2/5 rounded-sm" />
+              <span className="conv-list-skeleton h-3 w-3/4 rounded-sm" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

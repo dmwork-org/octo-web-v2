@@ -177,8 +177,25 @@ function parseDragId(id: string): { targetType: number; targetId: string } | nul
   return { targetType: Number(parts[0]), targetId: parts.slice(1).join("::") };
 }
 
-/** 单个可拖 row 容器 — 用 useSortable 包 children(group/dm CompactRow,thread 不包) */
-function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
+/**
+ * 单个可拖 row 容器 — 用 useSortable 包 group/dm row(thread 不包,跟随父群)。
+ *
+ * **关键**:listeners 只透传给 children 的 drag handle(老仓 wk-conv-compact-drag-handle
+ * hover 才显的小 6 点),不挂整 row — 否则整行可拖,点击/选中冲突。
+ * children 是 render-prop:(dragProps) => ReactNode,dragProps 用 {...} 散到 handle span 上。
+ */
+interface DragProps {
+  attributes: ReturnType<typeof useSortable>["attributes"];
+  listeners: ReturnType<typeof useSortable>["listeners"];
+}
+
+function SortableRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: (dragProps: DragProps) => React.ReactNode;
+}) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -188,15 +205,67 @@ function SortableRow({ id, children }: { id: string; children: React.ReactNode }
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.4 : 1,
       }}
-      {...attributes}
-      {...listeners}
     >
-      {children}
+      {children({ attributes, listeners })}
     </div>
   );
 }
+
+/**
+ * 6 点 grip 拖拽手柄(对齐老仓 wk-conv-compact-drag-handle,默认 opacity 0,
+ * group/dm row hover 时 opacity 1 + pointer-events auto;点击 stopPropagation 防选中)。
+ *
+ * 通过 CSS group hover 联动 — 调用方在 row 上加 `group/row`,handle 用 `opacity-0
+ * group-hover/row:opacity-100`。
+ */
+function DragHandle({ attributes, listeners }: DragProps) {
+  return (
+    <span
+      {...attributes}
+      {...listeners}
+      onClick={(e) => e.stopPropagation()}
+      className="-ml-1 flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-text-tertiary opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 active:cursor-grabbing"
+      aria-label="拖动排序"
+    >
+      <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+        <circle cx="3" cy="3" r="1.2" />
+        <circle cx="7" cy="3" r="1.2" />
+        <circle cx="3" cy="7" r="1.2" />
+        <circle cx="7" cy="7" r="1.2" />
+        <circle cx="3" cy="11" r="1.2" />
+        <circle cx="7" cy="11" r="1.2" />
+      </svg>
+    </span>
+  );
+}
+
+/** 列表骨架行(对齐老仓 wk-conv-compact-name-skeleton shimmer 动画,加载中占位) */
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5">
+      <span className="skeleton-shimmer h-[22px] w-[22px] shrink-0 rounded-[5px]" />
+      <span className="skeleton-shimmer h-3 w-24 rounded-sm" />
+    </div>
+  );
+}
+
+/** 全局 skeleton shimmer 样式(对齐老仓 @keyframes wk-skeleton-shimmer 1.2s 渐变扫光) */
+const SKELETON_STYLE = `
+.skeleton-shimmer {
+  background: linear-gradient(90deg,
+    rgba(46,50,56,0.06) 25%,
+    rgba(46,50,56,0.12) 50%,
+    rgba(46,50,56,0.06) 75%);
+  background-size: 200% 100%;
+  animation: wk-skeleton-shimmer 1.2s infinite linear;
+}
+@keyframes wk-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+`;
 
 interface CompactRowProps {
   /** 'group' = 群行(渲染头像),'dm' = DM 行(渲染头像,圆形),'thread' = 子区行(# 图标) */
@@ -218,13 +287,44 @@ interface CompactRowProps {
 }
 
 /**
- * Compact 行(对齐旧 .wk-conv-compact-item):
+ * Compact 行(1:1 对齐老仓 .wk-conv-compact-item):
  *
- * - 群/DM 头像 24×24;子区行用 Hash icon 替代头像
- * - 子区行缩进 pl-7
- * - 子区指示图标:**永远品牌紫色** — 旧版同语义(fill="#6569E8" 不随展开切换),
- *   展开/折叠语义靠"下方是否有子区行"自然表达,不靠图标变色;hover bg 变化让 affordance 显著
+ * 布局(老仓 CSS 行 430-453):
+ *   - padding 5px 8px / min-h 30px / rounded-xs / gap 8px / position relative
+ *   - selected:bg rgba(28,28,35,0.06)(老仓 brand-tint-06)
+ *   - hover(非 selected):bg rgba(46,50,56,0.09)(老仓 bg-item-hover)
+ *
+ * 头像(老仓 wk-conv-compact-icon):
+ *   - container 22×22
+ *   - group avatar 5px 圆角矩形 / DM avatar 圆形(由 ChannelAvatar 自带 rounded-full 决定)
+ *   - 子区:14×14 Hash icon(.wk-conv-compact-item--thread .wk-conv-compact-icon)
+ *
+ * **未读 reddot**(老仓 wk-conv-compact-icon--reddot::after,有未读时):
+ *   icon 左上角 6×6 红圆点(1px white border),不论静音都显
+ *
+ * 名字(wk-conv-compact-name):
+ *   - text-size-base 14px / weight 500;未读时 weight 600
+ *   - 子区:weight 400 / 灰色;未读子区 weight 500 / 强色
+ *   - **titleLoading=true 时显 shimmer skeleton 占位条**(老仓 wk-conv-compact-name-skeleton)
+ *
+ * 右侧装饰:
+ *   - @我 紫红 badge(unread > 0 && !muted)
+ *   - 外部群 紫底 "外部" badge
+ *   - 静音 BellOff icon
+ *   - 未读 badge(rounded-full 16×16,bg-error/15 淡红底 + text-error;静音用红点)
+ *   - 父群 thread-tag(展开/收起子区按钮)
+ *
+ * 子区行(thread):padding-left 36px / min-h 26px / gap 6px(深缩进对齐父群头像下方)
+ *
+ * dragProps:由 SortableRow 透传,挂在 DragHandle 上(hover 时显)— 仅 group/dm 有,thread null
  */
+interface CompactRowProps2 extends CompactRowProps {
+  /** channelInfo 异步未拉到时 title=channelID 兜底,UI 显 shimmer 骨架代替 raw channelID */
+  titleLoading?: boolean;
+  /** group/dm 可拖,thread 不可拖(thread 跟随父群)— 传 null 不渲 handle */
+  dragProps?: DragProps | null;
+}
+
 function CompactRow({
   variant,
   channel,
@@ -238,39 +338,80 @@ function CompactRow({
   onToggleThreads,
   selected,
   onClick,
-}: CompactRowProps) {
+  titleLoading,
+  dragProps,
+}: CompactRowProps2) {
   const hasUnread = unread > 0;
   const isThread = variant === "thread";
   const onThreadTagClick = (e: MouseEvent) => {
     e.stopPropagation();
     onToggleThreads?.();
   };
+  // 老仓 selected bg = brand-tint-06(6%),hover bg = bg-item-hover(9%);精确像素值
+  const bgClass = selected ? "bg-[rgba(28,28,35,0.06)]" : "hover:bg-[rgba(46,50,56,0.09)]";
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors ${
-        selected ? "bg-brand-tint" : "hover:bg-bg-hover"
-      } ${isThread ? "pl-7" : ""}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`group/row relative flex w-full cursor-pointer items-center gap-2 rounded-[4px] px-2 text-left transition-colors duration-120 ${bgClass} ${
+        isThread ? "min-h-[26px] py-[3px] pl-9 gap-1.5" : "min-h-[30px] py-[5px]"
+      }`}
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-        {isThread ? (
-          <Hash size={14} className="text-text-tertiary" />
-        ) : (
-          <ChannelAvatar channel={channel} size={24} title={title} />
-        )}
-      </span>
+      {/* drag handle:仅 group/dm,thread 不渲 */}
+      {dragProps ? <DragHandle {...dragProps} /> : null}
+
+      {/* icon container 22×22(子区 14×14) + 左上 6×6 reddot(未读时) */}
       <span
-        className={`min-w-0 flex-1 truncate text-[13px] ${
-          isMuted ? "text-text-tertiary" : "text-text-primary"
-        } ${hasUnread && !isMuted ? "font-semibold" : "font-normal"}`}
+        className={`relative flex shrink-0 items-center justify-center ${
+          isThread
+            ? "h-[14px] w-[14px] text-text-tertiary"
+            : "h-[22px] w-[22px] text-text-secondary"
+        }`}
       >
-        {title}
+        {isThread ? (
+          <Hash size={14} />
+        ) : (
+          <ChannelAvatar channel={channel} size={22} title={title} />
+        )}
+        {hasUnread ? (
+          <span
+            aria-hidden
+            className="absolute -top-[1px] -left-[1px] h-[6px] w-[6px] rounded-full border border-bg-base bg-error"
+          />
+        ) : null}
       </span>
+
+      {/* 名字 — titleLoading 时 shimmer 骨架(老仓 wk-conv-compact-name-skeleton 80×12) */}
+      {titleLoading ? (
+        <span className="skeleton-shimmer h-[12px] w-[80px] shrink-[1000] rounded-sm" aria-hidden />
+      ) : (
+        <span
+          className={`min-w-0 flex-1 truncate text-sm leading-[1.4] ${
+            isThread
+              ? hasUnread && !isMuted
+                ? "font-medium text-text-primary"
+                : "font-normal text-text-secondary"
+              : isMuted
+                ? "text-text-tertiary"
+                : "text-text-primary"
+          } ${hasUnread && !isMuted && !isThread ? "font-semibold" : ""}`}
+        >
+          {title}
+        </span>
+      )}
+
+      {/* 装饰 — 外部 / @我 / 静音 / 未读 badge / thread-tag */}
       {isExternal ? (
         <span
           aria-label="外部群"
-          className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-brand-primary"
+          className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary"
         >
           外部
         </span>
@@ -280,44 +421,44 @@ function CompactRow({
           @我
         </span>
       ) : null}
-      <span className="flex shrink-0 items-center gap-1 text-text-tertiary">
-        {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}
-        {hasUnread && !isMuted ? (
-          <span
-            aria-label={`${unread} 条未读`}
-            className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse"
-          >
-            {unreadBadge(unread)}
-          </span>
-        ) : null}
-        {hasUnread && isMuted ? (
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-error" />
-        ) : null}
-        {hasThreads ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={threadsExpanded ? "收起子区" : "展开子区"}
-            title={threadsExpanded ? "收起子区" : "展开子区"}
-            onClick={onThreadTagClick}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleThreads?.();
-              }
-            }}
-            className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded text-brand-primary transition-colors ${
-              threadsExpanded ? "bg-brand-tint" : "hover:bg-bg-elevated"
-            }`}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2.81a1 1 0 0 1 0-1.41l.36-.36a1 1 0 0 1 1.41 0l9.2 9.2a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.3.13l-9.54-6.72a1 1 0 0 1-.08-1.58l1-1L12 2.8ZM12 21.2a1 1 0 0 1 0 1.41l-.35.35a1 1 0 0 1-1.41 0l-9.2-9.19a1 1 0 0 1 0-1.41l.7-.7a1 1 0 0 1 1.3-.12l9.54 6.72a1 1 0 0 1 .07 1.58l-1 1 .35.36ZM15.66 16.8a1 1 0 0 1-1.38.28l-8.49-5.66A1 1 0 1 1 6.9 9.76l8.49 5.65a1 1 0 0 1 .27 1.39ZM17.1 14.25a1 1 0 1 0 1.11-1.66L9.73 6.93a1 1 0 0 0-1.11 1.66l8.49 5.66Z" />
-            </svg>
-          </span>
-        ) : null}
-      </span>
-    </button>
+      {isMuted ? (
+        <BellOff size={11} aria-label="免打扰" className="shrink-0 text-text-tertiary" />
+      ) : null}
+      {hasUnread && !isMuted ? (
+        <span
+          aria-label={`${unread} 条未读`}
+          className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error"
+        >
+          {unreadBadge(unread)}
+        </span>
+      ) : null}
+      {hasUnread && isMuted ? (
+        <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-error" />
+      ) : null}
+      {hasThreads ? (
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label={threadsExpanded ? "收起子区" : "展开子区"}
+          title={threadsExpanded ? "收起子区" : "展开子区"}
+          onClick={onThreadTagClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleThreads?.();
+            }
+          }}
+          className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-accent opacity-85 transition-all ${
+            threadsExpanded ? "bg-accent/12" : "hover:bg-accent/12 hover:opacity-100"
+          }`}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M12 2.81a1 1 0 0 1 0-1.41l.36-.36a1 1 0 0 1 1.41 0l9.2 9.2a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.3.13l-9.54-6.72a1 1 0 0 1-.08-1.58l1-1L12 2.8ZM12 21.2a1 1 0 0 1 0 1.41l-.35.35a1 1 0 0 1-1.41 0l-9.2-9.19a1 1 0 0 1 0-1.41l.7-.7a1 1 0 0 1 1.3-.12l9.54 6.72a1 1 0 0 1 .07 1.58l-1 1 .35.36ZM15.66 16.8a1 1 0 0 1-1.38.28l-8.49-5.66A1 1 0 1 1 6.9 9.76l8.49 5.65a1 1 0 0 1 .27 1.39ZM17.1 14.25a1 1 0 1 0 1.11-1.66L9.73 6.93a1 1 0 0 0-1.11 1.66l8.49 5.66Z" />
+          </svg>
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -450,66 +591,72 @@ function CategorySection({
                           key={`group-${groupNo}`}
                           id={makeDragId(SidebarTargetType.CHANNEL, groupNo)}
                         >
-                          <CompactRow
-                            variant="group"
-                            channel={channel}
-                            title={title}
-                            unread={groupUnread + aggThreadUnread}
-                            isMuted={muted}
-                            isExternal={
-                              (
-                                conv?.channelInfo?.orgData as
-                                  | { is_external_group?: number }
-                                  | undefined
-                              )?.is_external_group === 1
-                            }
-                            isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                            hasThreads={threads.length > 0}
-                            threadsExpanded={expanded}
-                            onToggleThreads={() => onToggleExpand(groupNo)}
-                            selected={groupNo === selectedChannelId}
-                            onClick={() => onSelectGroup(groupNo)}
-                          />
-                          {expanded
-                            ? (() => {
-                                const showAll = expandedThreadsSet.has(groupNo);
-                                const MAX = 5;
-                                const visible = showAll ? threads : threads.slice(0, MAX);
-                                const hidden = threads.length - visible.length;
-                                return (
-                                  <>
-                                    {visible.map((t) => (
-                                      <CompactRow
-                                        key={`thread-${t.channel.channelID}`}
-                                        variant="thread"
-                                        channel={t.channel}
-                                        title={t.channelInfo?.title ?? t.channel.channelID}
-                                        unread={t.unread || 0}
-                                        isMuted={isThreadEffectivelyMuted(t, groupNo)}
-                                        isMentionMe={computeMentionMe(t, myUid)}
-                                        selected={t.channel.channelID === selectedChannelId}
-                                        onClick={() => onSelectThread(t.channel.channelID)}
-                                      />
-                                    ))}
-                                    {hidden > 0 ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setExpandedThreadsSet((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(groupNo);
-                                            return next;
-                                          })
-                                        }
-                                        className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
-                                      >
-                                        查看更多 +{hidden}
-                                      </button>
-                                    ) : null}
-                                  </>
-                                );
-                              })()
-                            : null}
+                          {(dragProps) => (
+                            <>
+                              <CompactRow
+                                variant="group"
+                                channel={channel}
+                                title={title}
+                                titleLoading={!conv?.channelInfo}
+                                unread={groupUnread + aggThreadUnread}
+                                isMuted={muted}
+                                isExternal={
+                                  (
+                                    conv?.channelInfo?.orgData as
+                                      | { is_external_group?: number }
+                                      | undefined
+                                  )?.is_external_group === 1
+                                }
+                                isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                                hasThreads={threads.length > 0}
+                                threadsExpanded={expanded}
+                                onToggleThreads={() => onToggleExpand(groupNo)}
+                                selected={groupNo === selectedChannelId}
+                                onClick={() => onSelectGroup(groupNo)}
+                                dragProps={dragProps}
+                              />
+                              {expanded
+                                ? (() => {
+                                    const showAll = expandedThreadsSet.has(groupNo);
+                                    const MAX = 5;
+                                    const visible = showAll ? threads : threads.slice(0, MAX);
+                                    const hidden = threads.length - visible.length;
+                                    return (
+                                      <>
+                                        {visible.map((t) => (
+                                          <CompactRow
+                                            key={`thread-${t.channel.channelID}`}
+                                            variant="thread"
+                                            channel={t.channel}
+                                            title={t.channelInfo?.title ?? t.channel.channelID}
+                                            unread={t.unread || 0}
+                                            isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                            isMentionMe={computeMentionMe(t, myUid)}
+                                            selected={t.channel.channelID === selectedChannelId}
+                                            onClick={() => onSelectThread(t.channel.channelID)}
+                                          />
+                                        ))}
+                                        {hidden > 0 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setExpandedThreadsSet((prev) => {
+                                                const next = new Set(prev);
+                                                next.add(groupNo);
+                                                return next;
+                                              })
+                                            }
+                                            className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
+                                          >
+                                            查看更多 +{hidden}
+                                          </button>
+                                        ) : null}
+                                      </>
+                                    );
+                                  })()
+                                : null}
+                            </>
+                          )}
                         </SortableRow>
                       );
                     }
@@ -525,16 +672,20 @@ function CategorySection({
                           key={`dm-${peerUid}`}
                           id={makeDragId(SidebarTargetType.DM, peerUid)}
                         >
-                          <CompactRow
-                            variant="dm"
-                            channel={channel}
-                            title={title}
-                            unread={unread}
-                            isMuted={muted}
-                            isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                            selected={peerUid === selectedChannelId}
-                            onClick={() => onSelectDM(peerUid)}
-                          />
+                          {(dragProps) => (
+                            <CompactRow
+                              variant="dm"
+                              channel={channel}
+                              title={title}
+                              titleLoading={!conv?.channelInfo}
+                              unread={unread}
+                              isMuted={muted}
+                              isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                              selected={peerUid === selectedChannelId}
+                              onClick={() => onSelectDM(peerUid)}
+                              dragProps={dragProps}
+                            />
+                          )}
                         </SortableRow>
                       );
                     }
@@ -758,9 +909,13 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
   }, [categoriesQ.data, sidebarQ.data]);
 
   if (categoriesQ.isLoading || sidebarQ.isLoading) {
+    // 老仓 .wk-conv-compact-name-skeleton shimmer 占位行 — 比"加载分组…"文字更优雅
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        加载分组…
+      <div className="flex flex-1 flex-col gap-1 px-2 py-1">
+        <style>{SKELETON_STYLE}</style>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
       </div>
     );
   }

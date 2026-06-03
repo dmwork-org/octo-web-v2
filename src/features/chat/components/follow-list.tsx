@@ -19,7 +19,7 @@ import {
   type ConversationAction,
 } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
-import { BellOff, ChevronDown, ChevronRight, Hash, Pencil, Trash2 } from "lucide-react";
+import { BellOff, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
@@ -27,6 +27,7 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { ThreadIcon } from "@/components/ui/thread-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
 import {
@@ -361,13 +362,13 @@ function CompactRow({
         }
       }}
       className={`group/row relative flex w-full cursor-pointer items-center gap-2 rounded-[4px] px-2 text-left transition-colors duration-120 ${bgClass} ${
-        isThread ? "min-h-[26px] py-[3px] pl-9 gap-1.5" : "min-h-[30px] py-[5px]"
+        isThread ? "min-h-[26px] gap-1.5 py-[3px] pl-9" : "min-h-[30px] py-[5px]"
       }`}
     >
       {/* drag handle:仅 group/dm,thread 不渲 */}
       {dragProps ? <DragHandle {...dragProps} /> : null}
 
-      {/* icon container 22×22(子区 14×14) + 左上 6×6 reddot(未读时) */}
+      {/* icon container 22×22(子区 14×14) + 左上 6×6 reddot(未读时,不论静音) */}
       <span
         className={`relative flex shrink-0 items-center justify-center ${
           isThread
@@ -376,7 +377,7 @@ function CompactRow({
         }`}
       >
         {isThread ? (
-          <Hash size={14} />
+          <ThreadIcon size={13} />
         ) : (
           <ChannelAvatar channel={channel} size={22} title={title} />
         )}
@@ -388,9 +389,22 @@ function CompactRow({
         ) : null}
       </span>
 
-      {/* 名字 — titleLoading 时 shimmer 骨架(老仓 wk-conv-compact-name-skeleton 80×12) */}
+      {/* @我 紧贴 icon 后(对齐老仓行 175-177 wk-mention-badge,在 name 前)— 静音也显 */}
+      {isMentionMe && hasUnread ? (
+        <span className="inline-flex h-[14px] shrink-0 items-center rounded-[4px] bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+          @我
+        </span>
+      ) : null}
+
+      {/* 名字 — titleLoading 时 shimmer 骨架占 flex-1(对齐老仓 wk-conv-compact-name-skeleton);
+          loading 时**右侧装饰全部跳过**,避免跟 skeleton 挤布局(老仓 channelInfo 未拉到时
+          isExternal/effectiveMute/hasThreads(注:hasThreads 由父层传,跟 channelInfo 无关,
+          loading 时也可能 true → 仍要隐藏避免错位)) */}
       {titleLoading ? (
-        <span className="skeleton-shimmer h-[12px] w-[80px] shrink-[1000] rounded-sm" aria-hidden />
+        <span
+          aria-hidden
+          className={`skeleton-shimmer h-[12px] flex-1 rounded-sm ${isThread ? "max-w-[64px]" : "max-w-[120px]"}`}
+        />
       ) : (
         <span
           className={`min-w-0 flex-1 truncate text-sm leading-[1.4] ${
@@ -407,56 +421,52 @@ function CompactRow({
         </span>
       )}
 
-      {/* 装饰 — 外部 / @我 / 静音 / 未读 badge / thread-tag */}
-      {isExternal ? (
-        <span
-          aria-label="外部群"
-          className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary"
-        >
-          外部
-        </span>
-      ) : null}
-      {isMentionMe && hasUnread && !isMuted ? (
-        <span className="shrink-0 rounded-sm bg-error px-1 text-[10px] font-semibold text-text-inverse">
-          @我
-        </span>
-      ) : null}
-      {isMuted ? (
-        <BellOff size={11} aria-label="免打扰" className="shrink-0 text-text-tertiary" />
-      ) : null}
-      {hasUnread && !isMuted ? (
-        <span
-          aria-label={`${unread} 条未读`}
-          className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error"
-        >
-          {unreadBadge(unread)}
-        </span>
-      ) : null}
-      {hasUnread && isMuted ? (
-        <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-error" />
-      ) : null}
-      {hasThreads ? (
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label={threadsExpanded ? "收起子区" : "展开子区"}
-          title={threadsExpanded ? "收起子区" : "展开子区"}
-          onClick={onThreadTagClick}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              onToggleThreads?.();
-            }
-          }}
-          className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-accent opacity-85 transition-all ${
-            threadsExpanded ? "bg-accent/12" : "hover:bg-accent/12 hover:opacity-100"
-          }`}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M12 2.81a1 1 0 0 1 0-1.41l.36-.36a1 1 0 0 1 1.41 0l9.2 9.2a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.3.13l-9.54-6.72a1 1 0 0 1-.08-1.58l1-1L12 2.8ZM12 21.2a1 1 0 0 1 0 1.41l-.35.35a1 1 0 0 1-1.41 0l-9.2-9.19a1 1 0 0 1 0-1.41l.7-.7a1 1 0 0 1 1.3-.12l9.54 6.72a1 1 0 0 1 .07 1.58l-1 1 .35.36ZM15.66 16.8a1 1 0 0 1-1.38.28l-8.49-5.66A1 1 0 1 1 6.9 9.76l8.49 5.65a1 1 0 0 1 .27 1.39ZM17.1 14.25a1 1 0 1 0 1.11-1.66L9.73 6.93a1 1 0 0 0-1.11 1.66l8.49 5.66Z" />
-          </svg>
-        </span>
+      {/* 右侧装饰 — loading 时不渲染,避免跟 skeleton 挤布局 */}
+      {!titleLoading ? (
+        <>
+          {isExternal ? (
+            <span
+              aria-label="外部群"
+              className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary"
+            >
+              外部
+            </span>
+          ) : null}
+          {isMuted ? (
+            <BellOff size={11} aria-label="免打扰" className="shrink-0 text-text-tertiary" />
+          ) : null}
+          {/* 未读 badge:**只在非静音 + 有未读**才显数字(对齐老仓 wk-conv-compact-badge);
+              静音状态只靠 icon 左上 reddot 提示(老仓同) */}
+          {hasUnread && !isMuted ? (
+            <span
+              aria-label={`${unread} 条未读`}
+              className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error"
+            >
+              {unreadBadge(unread)}
+            </span>
+          ) : null}
+          {hasThreads ? (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={threadsExpanded ? "收起子区" : "展开子区"}
+              title={threadsExpanded ? "收起子区" : "展开子区"}
+              onClick={onThreadTagClick}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleThreads?.();
+                }
+              }}
+              className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-accent opacity-85 transition-all ${
+                threadsExpanded ? "bg-accent/12" : "hover:bg-accent/12 hover:opacity-100"
+              }`}
+            >
+              <ThreadIcon size={13} />
+            </span>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

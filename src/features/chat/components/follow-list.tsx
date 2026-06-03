@@ -19,7 +19,7 @@ import {
   type ConversationAction,
 } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
-import { BellOff, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { BellOff, Pencil, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
@@ -615,11 +615,15 @@ function CategorySection({
             <circle cx="7" cy="11" r="1.2" />
           </svg>
         </span>
-        {collapsed ? (
-          <ChevronRight size={12} className="shrink-0" />
-        ) : (
-          <ChevronDown size={12} className="shrink-0" />
-        )}
+        {/* 实心小三角(对齐老仓 wk-category-header__arrow):默认 ▼,折叠 rotate -90 → ▶ */}
+        <span
+          aria-hidden
+          className={`flex h-[10px] w-[10px] shrink-0 items-center justify-center text-text-tertiary transition-transform ${collapsed ? "-rotate-90" : ""}`}
+        >
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
+            <path d="M4 6l4 5 4-5z" />
+          </svg>
+        </span>
         <span className="min-w-0 flex-1 truncate font-semibold">
           {category.name}
           {/* 空时 (空) 斜体;非空 + 折叠时 (N) */}

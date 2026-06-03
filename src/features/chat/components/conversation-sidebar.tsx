@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { type Conversation } from "wukongimjssdk";
@@ -16,6 +16,10 @@ import { SidebarAddPopover } from "@/features/chat/components/sidebar-add-popove
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { createCategory } from "@/features/base/api/endpoints/follow.api";
 import { categoriesQueryKey } from "@/features/chat/queries/categories.query";
+import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
+import { sidebarFollowQueryOptions } from "@/features/chat/queries/sidebar.query";
+import { effectiveMute } from "@/features/chat/lib/conversation-last-content";
+import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 
 interface ConversationSidebarProps {
   selectedChannelId?: string;
@@ -32,24 +36,29 @@ const TABS: TabDef[] = [
   { id: "recent", label: "最近" },
 ];
 
+/** 最近 tab 显示阈值:群聊 3 天不活跃隐藏(跟 conversation-list 内部 RECENT_INACTIVE_THRESHOLD_MS 同) */
+const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
+
 /**
  * 会话 sidebar 容器(对应旧 .wk-chat-content-left):
  *   ┌ Header                                    ┐
  *   │ Space 名               ▁▃▅ 13ms 🔍 ➕    │
- *   ├ TabBar(SidebarTabBar)                     │  关注 / 最近
+ *   ├ SidebarTabBar(胶囊 pill)                  │  [关注 N] [最近 M]
  *   └ Conversation/Follow list                   ┘
  *
- * Space 名:拉 GET /v1/space/my,按 spaceStore.spaceId 找匹配;无则取第一个;
- * 列表空 fallback "默认空间"(用户首次未加入任何空间)。
+ * **Tab 形态 1:1 对齐老仓 SidebarTabBar(设计稿 v3.1)**:
+ *   - 胶囊容器:bg-bg-elevated/60 + rounded-full + p-0.5(2px outer padding)
+ *   - 按钮:flex-1 + rounded-full + 居中,激活 → 白色 bg-bg-surface + shadow-sm,非激活 → 透明 + 灰字
+ *   - badge:淡红底(error/15) + 红字(error) + 16×16 圆角胶囊,follow/recent 未读 count
+ *     · 99+ 截断,99+ 三字符同款
  *
- * 连接状态:右侧 ConnectionStatusBadge(信号格 + ms),hover tooltip 看详情。
+ * **未读计算(对齐老仓 Pages/Chat 行 127-151)**:
+ *   - recentUnread:conversations 过滤 isVisibleInRecentTab(3 天不活跃群隐藏)+ effectiveMute(静音不计)
+ *     再 sum unread
+ *   - followUnread:sidebar items 中 reduce — IM cache 有 conv 用 live unread,否则 fallback sidebar
+ *     的 unread 快照(sidebar-only 关注 / 从未聊过场景);静音不计
  *
- * 列表切换:
- * - 最近 → ConversationList(全量会话,按时间序)
- * - 关注 → FollowList(分组视图,/v1/spaces/{}/categories;P3+ 拖拽 + DM/子区关注)
- *
- * 🔍 触发 GlobalSearchModal(全局,联系人/群组/文件 3 tab)。
- * ➕ 弹出 SidebarAddPopover(发起群聊 / 添加朋友 / 创建分组)。
+ * Space 名 / 连接状态 / 列表切换 / 🔍 / ➕ 同旧。
  */
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const qc = useQueryClient();
@@ -63,11 +72,53 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
 
+  // tab badge 用:conversations(用于 recent + follow live unread)+ sidebar(follow 兜底)
+  const { data: conversations } = useQuery(conversationsQueryOptions(currentSpaceId));
+  const { data: sidebarFollow } = useQuery({
+    ...sidebarFollowQueryOptions(currentSpaceId),
+    enabled: !!currentSpaceId,
+  });
+
   const currentSpaceName = (() => {
     if (!currentSpaceId) return "全部消息";
     const found = spaces?.find((s) => s.space_id === currentSpaceId);
     return found?.name ?? "全部消息";
   })();
+
+  const recentUnread = useMemo(() => {
+    const list = conversations ?? [];
+    const now = Date.now();
+    return list.reduce((sum, c) => {
+      // 群聊 3 天不活跃隐藏(对齐 conversation-list isVisibleInRecentTab):列表不显的不算 badge
+      if (
+        c.channel.channelType === 2 &&
+        now - (c.timestamp || 0) * 1000 >= RECENT_INACTIVE_THRESHOLD_MS
+      ) {
+        return sum;
+      }
+      if (effectiveMute(c)) return sum;
+      return sum + (c.unread || 0);
+    }, 0);
+  }, [conversations]);
+
+  const followUnread = useMemo(() => {
+    const items = sidebarFollow?.items ?? [];
+    const list = conversations ?? [];
+    return items.reduce((sum, it) => {
+      let channelType: number | null = null;
+      if (it.target_type === SidebarTargetType.DM) channelType = 1;
+      else if (it.target_type === SidebarTargetType.CHANNEL) channelType = 2;
+      else if (it.target_type === SidebarTargetType.THREAD) channelType = 5;
+      if (channelType == null) return sum;
+      // IM cache 有 live conv 用 live unread,否则 fallback sidebar snapshot(对齐老仓 Pages/Chat 行 132-138)
+      const liveConv = list.find(
+        (c) => c.channel.channelType === channelType && c.channel.channelID === it.target_id,
+      );
+      if (liveConv && effectiveMute(liveConv)) return sum;
+      const unread = liveConv ? liveConv.unread || 0 : it.unread || 0;
+      return sum + unread;
+    }, 0);
+  }, [sidebarFollow, conversations]);
 
   const createCategoryMu = useMutation({
     mutationFn: (name: string) => {
@@ -128,21 +179,33 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
         </div>
       </header>
 
-      <nav className="flex shrink-0 items-center gap-1 border-b border-border-subtle bg-bg-surface px-2 py-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={`relative flex-1 rounded-md py-1.5 text-xs font-medium transition-colors duration-150 ease-(--ease-emphasized) ${
-              activeTab === t.id
-                ? "bg-brand-tint text-text-primary"
-                : "text-text-secondary hover:bg-bg-hover"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* 胶囊 tab 栏(对齐老仓 .wk-sidebar-tabbar):outer padding 12 8 8 / inner pill */}
+      <nav className="flex shrink-0 justify-center px-3 pt-1.5 pb-2">
+        <div className="flex w-full items-center gap-0 rounded-full bg-bg-elevated p-0.5">
+          {TABS.map((t) => {
+            const isActive = activeTab === t.id;
+            const unread = t.id === "follow" ? followUnread : recentUnread;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
+                  isActive
+                    ? "bg-bg-surface text-text-primary shadow-sm"
+                    : "text-text-tertiary hover:text-text-primary"
+                }`}
+              >
+                <span className="shrink-0">{t.label}</span>
+                {unread > 0 ? (
+                  <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-md bg-error/15 px-1 text-[10px] font-semibold leading-none text-error">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {activeTab === "follow" ? (

@@ -157,6 +157,31 @@ function findConv(channelId: string, channelType: number): Conversation | undefi
   return WKSDK.shared().conversationManager.findConversation(channel);
 }
 
+/**
+ * 实时取 channel 真实 title — 不依赖 conv.channelInfo 字段(stub conv 的 channelInfo
+ * 字段永远 undefined,即便 SDK channelInfoCallback 已拉到 info,stub 也不会更新)。
+ *
+ * 直接走 SDK channelManager.getChannelInfo;未拉到主动 fetch,channelInfoListener
+ * 触发上层 useConversationsSync 重渲后再次进入本函数即取到。
+ *
+ * 返回 `{ title, loading }`:
+ *   - title:displayName 优先(orgData),fallback channelInfo.title
+ *   - loading:title 为空 → 显 skeleton
+ *
+ * 头像走 ChannelAvatar 自身的 SDK 调用,跟 title 独立 — 头像可能先出来(logo 命中),
+ * title 后到,骨架持续到 title 真有值(对齐老仓 wk-conv-compact-name-skeleton 体验)。
+ */
+function getLiveTitle(channel: Channel): { title: string; loading: boolean } {
+  const info = WKSDK.shared().channelManager.getChannelInfo(channel);
+  if (!info) {
+    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    return { title: "", loading: true };
+  }
+  const display = (info.orgData as { displayName?: string } | undefined)?.displayName;
+  const t = display || info.title || "";
+  return { title: t, loading: !t };
+}
+
 function unreadBadge(unread: number): string {
   if (unread <= 0) return "";
   return unread > 99 ? "99+" : String(unread);
@@ -585,10 +610,14 @@ function CategorySection({
                       const groupNo = it.target_id;
                       const conv = findConv(groupNo, ChannelTypeGroup);
                       const channel = conv?.channel ?? new Channel(groupNo, ChannelTypeGroup);
+                      // 实时 title(SDK 异步到达 → useConversationsSync 重渲再取)
+                      const live = getLiveTitle(channel);
                       const title =
-                        conv?.channelInfo?.title ??
-                        category.groups.find((g) => g.group_no === groupNo)?.name ??
+                        live.title ||
+                        category.groups.find((g) => g.group_no === groupNo)?.name ||
                         groupNo;
+                      // 真 title 才隐 skeleton(category fallback 名仅作显示兜底,仍 loading)
+                      const titleLoading = live.loading;
                       const muted = !!conv?.channelInfo?.mute;
                       const threads = followedThreadsByParent.get(groupNo) ?? [];
                       const expanded = isExpanded(groupNo);
@@ -607,7 +636,7 @@ function CategorySection({
                                 variant="group"
                                 channel={channel}
                                 title={title}
-                                titleLoading={!conv?.channelInfo}
+                                titleLoading={titleLoading}
                                 unread={groupUnread + aggThreadUnread}
                                 isMuted={muted}
                                 isExternal={
@@ -633,19 +662,23 @@ function CategorySection({
                                     const hidden = threads.length - visible.length;
                                     return (
                                       <>
-                                        {visible.map((t) => (
-                                          <CompactRow
-                                            key={`thread-${t.channel.channelID}`}
-                                            variant="thread"
-                                            channel={t.channel}
-                                            title={t.channelInfo?.title ?? t.channel.channelID}
-                                            unread={t.unread || 0}
-                                            isMuted={isThreadEffectivelyMuted(t, groupNo)}
-                                            isMentionMe={computeMentionMe(t, myUid)}
-                                            selected={t.channel.channelID === selectedChannelId}
-                                            onClick={() => onSelectThread(t.channel.channelID)}
-                                          />
-                                        ))}
+                                        {visible.map((t) => {
+                                          const tLive = getLiveTitle(t.channel);
+                                          return (
+                                            <CompactRow
+                                              key={`thread-${t.channel.channelID}`}
+                                              variant="thread"
+                                              channel={t.channel}
+                                              title={tLive.title || t.channel.channelID}
+                                              titleLoading={tLive.loading}
+                                              unread={t.unread || 0}
+                                              isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                              isMentionMe={computeMentionMe(t, myUid)}
+                                              selected={t.channel.channelID === selectedChannelId}
+                                              onClick={() => onSelectThread(t.channel.channelID)}
+                                            />
+                                          );
+                                        })}
                                         {hidden > 0 ? (
                                           <button
                                             type="button"
@@ -674,7 +707,9 @@ function CategorySection({
                       const peerUid = it.target_id;
                       const conv = findConv(peerUid, ChannelTypePerson);
                       const channel = conv?.channel ?? new Channel(peerUid, ChannelTypePerson);
-                      const title = conv?.channelInfo?.title ?? peerUid;
+                      const live = getLiveTitle(channel);
+                      const title = live.title || peerUid;
+                      const titleLoading = live.loading;
                       const muted = !!conv?.channelInfo?.mute;
                       const unread = conv?.unread ?? it.unread;
                       return (
@@ -687,7 +722,7 @@ function CategorySection({
                               variant="dm"
                               channel={channel}
                               title={title}
-                              titleLoading={!conv?.channelInfo}
+                              titleLoading={titleLoading}
                               unread={unread}
                               isMuted={muted}
                               isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
@@ -707,7 +742,9 @@ function CategorySection({
                       // 失败):平铺渲染,不嵌套
                       const conv = findConv(tid, CHANNEL_TYPE_THREAD);
                       const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
-                      const title = conv?.channelInfo?.title ?? tid;
+                      const live = getLiveTitle(channel);
+                      const title = live.title || tid;
+                      const titleLoading = live.loading;
                       const parsed = parseThreadChannelId(tid);
                       const muted = isThreadEffectivelyMuted(
                         conv ?? ({ channelInfo: undefined } as unknown as Conversation),
@@ -720,6 +757,7 @@ function CategorySection({
                           variant="thread"
                           channel={channel}
                           title={title}
+                          titleLoading={titleLoading}
                           unread={unread}
                           isMuted={muted}
                           isMentionMe={conv ? computeMentionMe(conv, myUid) : false}

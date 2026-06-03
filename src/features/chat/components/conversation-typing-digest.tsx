@@ -1,4 +1,4 @@
-import type { Channel } from "wukongimjssdk";
+import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channel.hook";
 import { chatDraftStore, selectDraftForChannel } from "@/features/chat/stores/chat-draft";
@@ -12,7 +12,9 @@ interface ConversationTypingDigestProps {
 
 /**
  * 会话列表行 "lastMessage 摘要 ↔ 正在输入 ↔ 草稿" 切换器:
- *   - typing 中(TypingManager.hasTyping 当前 channel)→ "··· 正在输入"
+ *   - typing 中(TypingManager.hasTyping 当前 channel)→
+ *     person:"··· 正在输入" / group/topic:"··· {fromName} 正在输入"
+ *     (对齐旧 _getTypingUI 行 362-364:`channelType !== Person ? typing?.fromName : ""`)
  *   - 否则有草稿(chatDraftStore.map.get(channelKey))→ "[草稿] {text}"
  *     ([草稿] 红色 + 文本灰色,对齐旧 wk-reminder.draft + lastmsg 排版)
  *   - 否则 → 渲染 fallback(传入的原始 digest 文本)
@@ -20,13 +22,15 @@ interface ConversationTypingDigestProps {
  * 优先级 typing > draft > fallback — 对齐旧 ConversationList:
  *   line 660 `!typing ? <label className="wk-reminder">[草稿]</label> : undefined`
  *
- * UI 对齐截图 #37:typing 用 3 个紫灰跳动点 + "正在输入" 灰字。
+ * UI 对齐截图 #37:typing 用 3 个紫灰跳动点 + 灰字。
  */
 export function ConversationTypingDigest({ channel, fallback }: ConversationTypingDigestProps) {
   const typing = useTypingForChannel(channel);
   const draft = useStore(chatDraftStore, selectDraftForChannel(channel));
 
   if (typing) {
+    const isGroup = channel.channelType !== ChannelTypePerson;
+    const label = isGroup && typing.fromName ? `${typing.fromName} 正在输入` : "正在输入";
     return (
       <span className="inline-flex items-center gap-1.5">
         <style>{TYPING_DIGEST_KEYFRAMES}</style>
@@ -35,7 +39,7 @@ export function ConversationTypingDigest({ channel, fallback }: ConversationTypi
           <span className="wk-typing-digest-dot" />
           <span className="wk-typing-digest-dot" />
         </span>
-        <span>正在输入</span>
+        <span className="truncate">{label}</span>
       </span>
     );
   }

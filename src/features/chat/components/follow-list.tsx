@@ -917,20 +917,11 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
 
   const orderedCategories = useMemo<CategoryItem[]>(() => {
     const cats = categoriesQ.data ?? [];
-    const haveDefault = cats.some((c) => c.is_default);
-    const sidebarItems = sidebarQ.data?.itemsByCategory.get("") ?? [];
-    if (haveDefault || sidebarItems.length === 0) return cats;
-    return [
-      ...cats,
-      {
-        category_id: null,
-        name: "默认分组",
-        sort: Number.MAX_SAFE_INTEGER,
-        groups: [],
-        is_default: true,
-      } as CategoryItem,
-    ];
-  }, [categoriesQ.data, sidebarQ.data]);
+    // 关注 tab 不显示默认分组(对齐老仓 ConversationListGrouped 行 461-463 PM #337:
+    // "按 PM #337 spec 不展示默认分组(含真实 is_default 与虚拟兜底分组)")。
+    // 未归组的会话只走右键"添加到关注 + 选分组"流程,不在 follow tab 散显。
+    return cats.filter((c) => !c.is_default);
+  }, [categoriesQ.data]);
 
   if (categoriesQ.isLoading || sidebarQ.isLoading) {
     // 老仓 .wk-conv-compact-name-skeleton shimmer 占位行 — 比"加载分组…"文字更优雅

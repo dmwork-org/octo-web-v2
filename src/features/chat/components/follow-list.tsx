@@ -1,7 +1,14 @@
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -37,6 +44,8 @@ import { useExpandedGroupIds } from "@/features/chat/hooks/use-expanded-group-id
 import {
   type CategoryItem,
   deleteCategory,
+  followDM,
+  moveGroupToCategory,
   renameCategory,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
@@ -382,8 +391,16 @@ function CategorySection({
     return s;
   }, [followedThreadsByParent]);
 
+  // 整个 section 注册为 drop 区(drop::cat::{id})— 跨分组拖拽 item 到这里触发 move
+  // 对齐老仓 ConversationListGrouped 行 233-237 `drop::cat::` 解析
+  const dropId = `drop::cat::${category.category_id ?? "default"}`;
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({ id: dropId });
+
   return (
-    <section className="flex flex-col">
+    <section
+      ref={setDropRef}
+      className={`flex flex-col rounded-sm transition-colors ${isDropOver ? "bg-brand-tint/30" : ""}`}
+    >
       <header
         className="flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
         onClick={onToggle}
@@ -603,10 +620,38 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggleCollapse = (id: string) => setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  // 拖拽排序(同分组内 group/dm,跨分组继续走右键菜单)
+  // 拖拽排序(同分组 — group/dm 重排 by /follow/sort + version CAS)
   const { sortCategory } = useSortFollow(spaceId);
   // PointerSensor activation 距离 5px:防止单击误触拖拽(老仓 ConversationListGrouped 同款)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // 跨分组移动 — group 走 /follow/channel/move,DM 走 /follow/dm 覆盖式更新
+  // 1:1 对齐老仓 ConversationListGrouped handleDragEnd 行 219-225 跨分组分支
+  const moveGroupMu = useMutation({
+    mutationFn: (args: { groupNo: string; categoryId: string }) =>
+      moveGroupToCategory(args.groupNo, args.categoryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+      toast.success("已移动到分组");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "移动失败");
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    },
+  });
+  const moveDmMu = useMutation({
+    mutationFn: (args: { peerUid: string; categoryId: string | null }) =>
+      followDM(args.peerUid, args.categoryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      toast.success("已移动 DM 到分组");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "移动失败");
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    },
+  });
 
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; cat?: CategoryItem }>({
     open: false,
@@ -743,27 +788,66 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
     );
   }
 
-  // 同分组内 group/dm 重排 — 跨分组移动 / 子区不参与(子区跟父群,由 sortCategory 内附加)
+  /**
+   * 拖拽结束:三个分支(1:1 对齐老仓 ConversationListGrouped handleDragEnd 行 140-244):
+   *
+   *   分支 A — item → item 同 category:`/follow/sort` 同分组重排(群下面紧跟子区)
+   *   分支 B — item → item 跨 category:按 over item 的 category 作目标
+   *     · group → /follow/channel/move
+   *     · dm    → /follow/dm 覆盖式更新(category_id)
+   *     · thread 不跨分组(对齐老仓行 231:`if (channelType === ChannelTypeCommunityTopic) return`)
+   *   分支 C — item → drop::cat::xxx(分组 header drop 区):同 B 但目标 categoryId 从 drop id 取
+   *
+   * 跨分组失败由各 mutation 的 onError invalidate sidebar 兜底回到服务端真值。
+   */
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const activeParsed = parseDragId(String(active.id));
-    const overParsed = parseDragId(String(over.id));
-    if (!activeParsed || !overParsed) return;
-    // 找 active 所在 category(从 sidebar 数据反查),over 必须在同 category
+    if (!activeParsed) return;
     const items = sidebarQ.data?.items ?? [];
     const activeItem = items.find(
       (it) => it.target_type === activeParsed.targetType && it.target_id === activeParsed.targetId,
     );
+    if (!activeItem) return;
+    const activeCatId = activeItem.category_id ?? "";
+
+    // 共用 mover — 按 channelType 分流(thread 不跨,老仓行 231)
+    const doMove = (targetCatId: string | null) => {
+      if ((targetCatId ?? "") === activeCatId) return;
+      if (activeParsed.targetType === SidebarTargetType.CHANNEL) {
+        if (!targetCatId) return; // 群必须有目标 category
+        moveGroupMu.mutate({ groupNo: activeParsed.targetId, categoryId: targetCatId });
+      } else if (activeParsed.targetType === SidebarTargetType.DM) {
+        moveDmMu.mutate({ peerUid: activeParsed.targetId, categoryId: targetCatId });
+      }
+    };
+
+    // 分支 C:over 是 drop::cat::xxx
+    const overIdStr = String(over.id);
+    if (overIdStr.startsWith("drop::cat::")) {
+      const catIdRaw = overIdStr.slice("drop::cat::".length);
+      doMove(catIdRaw === "default" ? null : catIdRaw);
+      return;
+    }
+
+    // 分支 A / B:over 是另一个 item
+    const overParsed = parseDragId(overIdStr);
+    if (!overParsed) return;
     const overItem = items.find(
       (it) => it.target_type === overParsed.targetType && it.target_id === overParsed.targetId,
     );
-    if (!activeItem || !overItem) return;
-    const activeCatId = activeItem.category_id ?? "";
+    if (!overItem) return;
     const overCatId = overItem.category_id ?? "";
-    if (activeCatId !== overCatId) return; // 跨分组拖拽走右键菜单,不在此处理
+
+    if (activeCatId !== overCatId) {
+      // 分支 B:跨分组 — 目标 categoryId 取 over item 所属
+      doMove(overItem.category_id ?? null);
+      return;
+    }
+
+    // 分支 A:同分组重排
     const catList = sidebarQ.data?.itemsByCategory.get(activeCatId) ?? [];
-    // 只重排 group + dm(thread 不进 SortableContext)
     const draggable = catList.filter(
       (it) =>
         it.target_type === SidebarTargetType.CHANNEL || it.target_type === SidebarTargetType.DM,
@@ -780,7 +864,6 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       target_type: it.target_type,
       target_id: it.target_id,
     }));
-    // 父群下需跟其已关注子区:用 followedThreadsByParent
     const threadsByGroup = new Map<string, { channelID: string }[]>();
     for (const [parentGroupNo, threads] of followedThreadsByParent) {
       threadsByGroup.set(

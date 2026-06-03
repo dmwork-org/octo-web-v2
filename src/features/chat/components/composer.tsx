@@ -701,7 +701,7 @@ export function Composer({ channel }: ComposerProps) {
                 onClick={onClickMention}
                 aria-label="@提及"
                 title="@提及"
-                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
               >
                 <AtSign size={20} />
               </button>
@@ -711,7 +711,7 @@ export function Composer({ channel }: ComposerProps) {
               onClick={() => fileInputRef.current?.click()}
               aria-label="发送文件"
               title="发送文件 / 图片"
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
             >
               <Paperclip size={20} />
             </button>
@@ -733,7 +733,7 @@ export function Composer({ channel }: ComposerProps) {
                 }
                 aria-label="创建任务"
                 title={`创建任务(${ALT_KEY}+↵)`}
-                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
               >
                 <CheckSquare size={20} />
               </button>
@@ -750,7 +750,7 @@ export function Composer({ channel }: ComposerProps) {
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? "收起" : "展开"}
               title={expanded ? "收起" : "展开"}
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
             >
               {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>

@@ -631,7 +631,7 @@ export function Composer({ channel }: ComposerProps) {
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className={`relative flex w-full cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary ${expanded ? "min-h-[280px]" : "min-h-10"}`}
+        className={`relative flex w-full cursor-text flex-col rounded-[12px] border border-[#1c1c23]/10 bg-bg-surface px-4 py-2 transition-colors focus-within:border-brand ${expanded ? "min-h-[280px]" : "min-h-10"}`}
       >
         {replyingTo ? (
           <div className="mb-2 flex items-center gap-2 rounded-sm bg-bg-elevated px-3 py-1.5 text-[14px] leading-tight">

@@ -27,6 +27,7 @@ import {
 } from "@/features/base/api/endpoints/follow.api";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ThreadIcon } from "@/components/ui/thread-icon";
+import { MuteIcon } from "@/components/ui/mute-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
@@ -254,7 +255,7 @@ function ConversationRow({
               />
             ) : null}
             {isMuted ? (
-              <BellOff size={11} aria-label="免打扰" className="shrink-0 text-[#1c1c23]/40" />
+              <MuteIcon size={11} aria-label="免打扰" className="shrink-0 text-[#1c1c23]/40" />
             ) : null}
           </h3>
           <span className="ml-auto shrink-0 text-[11px] leading-none font-normal text-[#1c1c23]/60">

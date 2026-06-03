@@ -24,7 +24,7 @@ import {
   type ConversationAction,
 } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
-import { BellOff, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
@@ -33,6 +33,7 @@ import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadIcon } from "@/components/ui/thread-icon";
+import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
@@ -447,9 +448,7 @@ function CompactRow({
               外部
             </span>
           ) : null}
-          {isMuted ? (
-            <BellOff size={11} aria-label="免打扰" className="shrink-0 text-text-tertiary" />
-          ) : null}
+          {isMuted ? <MuteIcon size={11} className="shrink-0 text-text-tertiary" /> : null}
           {/* 未读 badge:**只在非静音 + 有未读**才显数字(对齐老仓 wk-conv-compact-badge);
               静音状态只靠 icon 左上 reddot 提示(老仓同) */}
           {hasUnread && !isMuted ? (

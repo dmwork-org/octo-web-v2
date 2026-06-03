@@ -26,6 +26,7 @@ import {
   unfollowChannel,
 } from "@/features/base/api/endpoints/follow.api";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { ThreadIcon } from "@/components/ui/thread-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
@@ -114,7 +115,6 @@ function ConversationRow({
   const isPerson = channel.channelType === ChannelTypePerson;
   const isGroup = channel.channelType === ChannelTypeGroup;
   const isMuted = effectiveMute(conversation);
-  const isTop = conversation.extra?.top === 1 || !!info?.top;
   const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
   const mentionMe = isMentionMe(conversation, myUid);
@@ -167,71 +167,80 @@ function ConversationRow({
   const showCountHint = isMuted && conversation.unread > 1;
 
   return (
+    // 行(对齐老仓 .wk-conversationlist-item):py-[7px] px-2 + rounded-md(--wk-r-sm=6) +
+    //   mb-[1px] + hover bg item-hover(rgba(46,50,56,0.09))+ selected bg brand-tint-06
+    //   (rgba(28,28,35,0.06));置顶**不做特殊背景**(老仓 css 行 76-78 注释)
     <button
       type="button"
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
-        active
-          ? "bg-brand-tint"
-          : isTop
-            ? "bg-bg-elevated/40 hover:bg-bg-hover"
-            : "hover:bg-bg-hover"
+      className={`mb-[1px] flex w-full items-center gap-[10px] rounded-md px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
+        active ? "bg-[rgba(28,28,35,0.06)]" : "hover:bg-[rgba(46,50,56,0.09)]"
       }`}
     >
-      <div className="relative flex h-8 w-8 shrink-0">
+      {/* avatar-box 32×32(对齐 .wk-conversationlist-item-avatar-box) */}
+      <div className="relative h-8 w-8 shrink-0">
         <ChannelAvatar channel={avatarChannel} size={32} title={avatarTitle} />
-        {/* 头像右下:子区 # 角标(优先) / person 在线点(互斥,person 不会有 #) */}
+        {/* 子区头像下挂 # 角标(.wk-conv-group-hash-badge:16x16 圆 + 1.5px ring base + GroupIcon size 10) */}
         {isThread ? (
           <span
             aria-hidden
-            className="absolute -right-[3px] -bottom-[3px] flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-bg-base bg-bg-elevated text-text-secondary"
+            className="absolute right-[-3px] bottom-[-3px] flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-bg-base bg-bg-elevated text-text-secondary"
           >
-            <span className="text-[10px] leading-none">#</span>
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden>
+              <path d="M9 6h6v2H9zM7 11h10v2H7zM9 16h6v2H9z" />
+            </svg>
           </span>
         ) : showOnline ? (
           <ConversationOnlineBadge />
         ) : null}
-        {/* 头像右上未读:静音红点 / 非静音数字胶囊 */}
+        {/* 未读 — 静音:9×9 红点(.wk-conv-unread-dot) / 非静音:数字 -6 -6 + 2px ring base(.wk-conv-unread-num) */}
         {hasUnread &&
           (isMuted ? (
             <span
               aria-hidden
-              className="absolute -top-[2px] -right-[2px] h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error box-border"
+              className="box-border absolute -top-[2px] -right-[2px] h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error"
             />
           ) : (
             <span
               aria-label={`${conversation.unread} 条未读`}
-              className="absolute -top-[6px] -right-[6px] inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse ring-2 ring-bg-base"
+              className="absolute -top-[6px] -right-[6px] box-border inline-flex h-4 min-w-4 items-center justify-center rounded-[9px] border-2 border-bg-base bg-error px-1 text-[10px] leading-none font-semibold text-white"
             >
               {unread}
             </span>
           ))}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+
+      {/* right(flex-col gap 2px,对齐 .wk-conversationlist-item-right) */}
+      <div className="flex min-w-0 flex-1 flex-col gap-[2px] overflow-hidden">
+        {/* 子区面包屑 — 父群 displayName(对齐 .wk-conv-breadcrumb:size xs=11 / color icon-default=0.6 / mb-[3px]) */}
         {breadcrumb ? (
-          <span className="truncate text-[10px] leading-tight text-text-tertiary">
+          <span className="mb-[3px] truncate text-[11px] leading-none text-[#1c1c23]/60">
             {breadcrumb}
           </span>
         ) : null}
-        <div className="flex items-center justify-between gap-2">
+
+        {/* first-line:flex items-center gap-1.5(6px),time margin-left:auto(老仓
+            .wk-conversationlist-item-right-first-line + .wk-conversationlist-item-time) */}
+        <div className="flex items-center gap-1.5 overflow-hidden">
           <h3
-            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[13px] leading-tight ${
+            className={`m-0 flex min-w-0 flex-1 items-center gap-1.5 truncate text-[13px] leading-[1.4] text-[#1c1c23]/90 ${
               hasUnread && !isMuted ? "font-semibold" : "font-medium"
-            } ${isMuted ? "text-text-tertiary" : "text-text-primary"}`}
+            }`}
           >
+            {isThread ? <ThreadIcon size={13} className="shrink-0 text-[#1c1c23]/60" /> : null}
             {titleLoading ? (
               <span
                 aria-hidden
-                className="conv-list-skeleton h-3 w-24 shrink rounded-sm"
                 aria-label={title}
+                className="conv-list-skeleton h-3 w-24 shrink rounded-sm"
               />
             ) : (
               <span className="min-w-0 truncate">{title}</span>
             )}
             {isBot ? <AiBadge size="small" /> : null}
             {isExternal ? (
-              <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-brand-primary">
+              <span className="ml-1 shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary">
                 外部
               </span>
             ) : null}
@@ -245,20 +254,17 @@ function ConversationRow({
               />
             ) : null}
             {isMuted ? (
-              <BellOff size={11} aria-label="免打扰" className="shrink-0 text-text-tertiary" />
+              <BellOff size={11} aria-label="免打扰" className="shrink-0 text-[#1c1c23]/40" />
             ) : null}
           </h3>
-          <div className="flex shrink-0 items-center gap-1 text-text-tertiary">
-            {isTop ? <Pin size={11} aria-label="置顶" /> : null}
-            <span className="text-[11px] leading-none">{timeLabel(conversation.timestamp)}</span>
-          </div>
+          <span className="ml-auto shrink-0 text-[11px] leading-none font-normal text-[#1c1c23]/60">
+            {timeLabel(conversation.timestamp)}
+          </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-xs leading-tight ${
-              isMuted ? "text-text-tertiary" : "text-text-secondary"
-            }`}
-          >
+
+        {/* second-line:lastmsg flex-1(size sm=12 / color icon-default=0.6 / weight 400)+ @我 badge ml-1 */}
+        <div className="flex items-center overflow-hidden">
+          <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-none font-normal text-[#1c1c23]/60">
             <ConversationTypingDigest
               channel={channel}
               fallback={digest}
@@ -266,8 +272,9 @@ function ConversationRow({
               countHint={showCountHint ? conversation.unread : 0}
             />
           </span>
+          {/* @我 badge(.wk-mention-badge:bg-danger / white / h-14 / rounded-[3px] / size tiny=10 / weight 600 / ml-1) */}
           {mentionMe && hasUnread && !isMuted ? (
-            <span className="shrink-0 rounded-sm bg-error px-1 text-[10px] font-semibold text-text-inverse">
+            <span className="ml-1 inline-flex h-[14px] shrink-0 items-center rounded-[3px] bg-error px-1 text-[10px] leading-none font-semibold text-white">
               @我
             </span>
           ) : null}

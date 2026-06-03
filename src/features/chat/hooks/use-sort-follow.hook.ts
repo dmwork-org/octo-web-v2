@@ -111,7 +111,11 @@ export function useSortFollow(spaceId: string | null) {
       orderedItems: { target_type: number; target_id: string }[],
       threadsByGroup: Map<string, { channelID: string }[]>,
     ) => {
-      versionRef.current = version;
+      // **关键**:只在 ref 首次为 0(未初始化)时用入参 version 兜底。后续完全靠
+      // internal counter +1(mutationFn 内同步 bump)— 否则 sidebarQ.data
+      // 未及时 invalidate 时,入参 followVersion 仍是旧值,会把已 bump 的 ref
+      // 覆盖回去,下次 mutate 必 400 version conflict。
+      if (versionRef.current === 0) versionRef.current = version;
       // 群下面紧跟其已关注子区,保证子区 follow_sort 不漂(老仓 sortItems 拼装逻辑)
       const expanded: { target_type: number; target_id: string }[] = [];
       for (const it of orderedItems) {

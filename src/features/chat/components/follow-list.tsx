@@ -9,7 +9,12 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   Channel,
@@ -663,7 +668,7 @@ function CategorySection({
                 )
                 .map((it) => makeDragId(it.target_type, it.target_id));
               return (
-                <SortableContext items={draggableIds}>
+                <SortableContext items={draggableIds} strategy={verticalListSortingStrategy}>
                   {sidebarItems.map((it) => {
                     if (it.target_type === SidebarTargetType.CHANNEL) {
                       const groupNo = it.target_id;
@@ -1175,7 +1180,10 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       <style>{SKELETON_STYLE}</style>
       {/* 对齐老仓 .wk-conversationlist:padding=0;新仓保留 px-2 py-1 让 selected bg 不贴边 */}
       <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
-        <SortableContext items={orderedCategories.map((c) => `cat::${c.category_id ?? "default"}`)}>
+        <SortableContext
+          items={orderedCategories.map((c) => `cat::${c.category_id ?? "default"}`)}
+          strategy={verticalListSortingStrategy}
+        >
           {orderedCategories.map((cat) => {
             const sidebarKey = cat.category_id ?? "";
             const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];

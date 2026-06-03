@@ -90,3 +90,46 @@ body {
   white-space: pre-wrap;
   color: var(--color-text-tertiary);
 }
+
+/*
+ * 全局自定义滚动条 — 1:1 整合老仓散落在 ConversationList / MessageInput /
+ * FileViewer 等组件的 ::-webkit-scrollbar 样式(老仓没有全局,各组件重复定义)。
+ *
+ * 规则:
+ * - 4px 细滚动条(老仓 ConversationList 同款)
+ * - track 永远 transparent
+ * - thumb 默认 transparent(空闲态完全隐藏)
+ * - 容器 hover 时 thumb 才显:rgba(28,28,35,0.15)15% 黑色,圆角 full
+ * - transition 0.3s,顺滑出现
+ *
+ * Firefox:scrollbar-width thin + scrollbar-color 双 transparent + hover 同款过渡
+ *
+ * 默认对所有可滚动容器生效。需要保留浏览器默认滚动条的位置(如 textarea 内部)
+ * 可加 class "use-native-scrollbar" 跳过(本规则下方 :not 排除)。
+ */
+*:not(.use-native-scrollbar) {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s;
+}
+*:not(.use-native-scrollbar):hover {
+  scrollbar-color: rgba(28, 28, 35, 0.15) transparent;
+}
+*:not(.use-native-scrollbar)::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*:not(.use-native-scrollbar)::-webkit-scrollbar-track {
+  background: transparent;
+}
+*:not(.use-native-scrollbar)::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background 0.3s;
+}
+*:not(.use-native-scrollbar):hover::-webkit-scrollbar-thumb {
+  background: rgba(28, 28, 35, 0.15);
+}
+*:not(.use-native-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background: rgba(28, 28, 35, 0.25);
+}

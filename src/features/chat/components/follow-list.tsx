@@ -1083,8 +1083,16 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       const newIndex = orderedCategories.findIndex((c) => (c.category_id ?? "default") === oId);
       if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
         const newOrder = arrayMove(orderedCategories, oldIndex, newIndex);
-        const newIds = newOrder.map((c) => c.category_id).filter((x): x is string => !!x);
-        sortCategoriesMu.mutate(newIds);
+        const visibleIds = newOrder.map((c) => c.category_id).filter((x): x is string => !!x);
+        // 后端要求 sort 列表必须含**全部**真实 category(含被前端隐藏的 is_default,
+        // 否则 400 err.server.category.sort_list_mismatch "分类列表数量不匹配")。
+        // 老仓 ConversationListGrouped 行 465-467 注释:"提交 /categories/sort 时
+        // 仍要把真实存在但被隐藏的默认分组带上,否则后端会误删"
+        const hiddenDefaultIds = (categoriesQ.data ?? [])
+          .filter((c) => c.is_default && !!c.category_id && !visibleIds.includes(c.category_id))
+          .map((c) => c.category_id!)
+          .filter((id): id is string => !!id);
+        sortCategoriesMu.mutate([...visibleIds, ...hiddenDefaultIds]);
       }
       return;
     }

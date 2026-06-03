@@ -246,12 +246,12 @@ function ConversationRow({
               isMuted ? "text-text-tertiary" : "text-text-secondary"
             }`}
           >
-            {showCountHint ? (
-              <span className="shrink-0 font-medium text-error">
-                [{conversation.unread > 99 ? "99+" : conversation.unread} 条]
-              </span>
-            ) : null}
-            <ConversationTypingDigest channel={channel} fallback={digest} />
+            <ConversationTypingDigest
+              channel={channel}
+              fallback={digest}
+              reminders={conversation.simpleReminders}
+              countHint={showCountHint ? conversation.unread : 0}
+            />
           </span>
           {mentionMe && hasUnread && !isMuted ? (
             <span className="shrink-0 rounded-sm bg-error px-1 text-[10px] font-semibold text-text-inverse">

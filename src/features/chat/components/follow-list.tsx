@@ -474,9 +474,7 @@ function CompactRow({
                   onToggleThreads?.();
                 }
               }}
-              className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-[#6569E8] opacity-85 transition-all ${
-                threadsExpanded ? "bg-accent/12" : "hover:bg-accent/12 hover:opacity-100"
-              }`}
+              className="ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-[#6569E8] opacity-85 transition-all hover:bg-accent/12 hover:opacity-100"
             >
               <ThreadIcon size={13} />
             </span>

@@ -378,9 +378,7 @@ function CompactRow({
       {/* icon container 22×22(子区 14×14) + 左上 6×6 reddot(未读时,不论静音) */}
       <span
         className={`relative flex shrink-0 items-center justify-center ${
-          isThread
-            ? "h-[14px] w-[14px] text-text-tertiary"
-            : "h-[22px] w-[22px] text-text-secondary"
+          isThread ? "h-[14px] w-[14px] text-[#1c1c23]/40" : "h-[22px] w-[22px] text-text-secondary"
         }`}
       >
         {isThread ? (
@@ -414,15 +412,25 @@ function CompactRow({
         />
       ) : (
         <span
-          className={`min-w-0 flex-1 truncate text-sm leading-[1.4] ${
-            isThread
-              ? hasUnread && !isMuted
-                ? "font-medium text-text-primary"
-                : "font-normal text-text-secondary"
-              : isMuted
-                ? "text-text-tertiary"
-                : "text-text-primary"
-          } ${hasUnread && !isMuted && !isThread ? "font-semibold" : ""}`}
+          className={`min-w-0 flex-1 truncate text-[13px] leading-[1.4] ${
+            // 老仓 1:1 对齐(.wk-conv-compact-name + --thread + --unread + --muted 4 套):
+            //
+            //   群/DM 默认  → text-[#1c1c23]/90 + font-medium       (text-strong 0.9 / 500)
+            //   群/DM 未读  → text-text-primary + font-semibold      (text-primary 1.0 / 600)
+            //   群/DM 静音  → text-text-tertiary + font-normal + opacity-45(覆盖未读 600)
+            //   子区 默认   → text-[#1c1c23]/60 + font-normal         (icon-default 0.6 / 400)
+            //   子区 未读   → text-[#1c1c23]/90 + font-medium         (text-strong 0.9 / 500)
+            //   子区 静音   → text-text-tertiary + font-normal + opacity-45
+            isMuted
+              ? "text-text-tertiary font-normal opacity-45"
+              : isThread
+                ? hasUnread
+                  ? "font-medium text-[#1c1c23]/90"
+                  : "font-normal text-[#1c1c23]/60"
+                : hasUnread
+                  ? "font-semibold text-text-primary"
+                  : "font-medium text-[#1c1c23]/90"
+          }`}
         >
           {title}
         </span>
@@ -466,7 +474,7 @@ function CompactRow({
                   onToggleThreads?.();
                 }
               }}
-              className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-accent opacity-85 transition-all ${
+              className={`ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-[#6569E8] opacity-85 transition-all ${
                 threadsExpanded ? "bg-accent/12" : "hover:bg-accent/12 hover:opacity-100"
               }`}
             >

@@ -1055,6 +1055,9 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      {/* skeleton shimmer 始终 inject — row 内 titleLoading 时的 .skeleton-shimmer
+          才能拿到 CSS 规则(否则灰条没 background,看起来像空白) */}
+      <style>{SKELETON_STYLE}</style>
       {/* 对齐老仓 .wk-conversationlist:padding=0;新仓保留 px-2 py-1 让 selected bg 不贴边 */}
       <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
         {orderedCategories.map((cat) => {

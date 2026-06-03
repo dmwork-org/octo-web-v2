@@ -308,6 +308,7 @@ export function ConversationList({
   });
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
+  const [confirmCloseAndClear, setConfirmCloseAndClear] = useState<Conversation | null>(null);
 
   const filtered = useMemo(() => {
     const all = data ?? [];
@@ -513,6 +514,13 @@ export function ConversationList({
       icon: <X size={13} />,
       onClick: () => setConfirmClose(conv),
     });
+    // 关闭+清空二合一(对齐老仓 ConversationList 行 1187-1206)
+    items.push({
+      label: "关闭窗口并清空记录",
+      icon: <Trash2 size={13} />,
+      danger: true,
+      onClick: () => setConfirmCloseAndClear(conv),
+    });
     return items;
   };
 
@@ -577,6 +585,23 @@ export function ConversationList({
         okLoading={closeChatMu.isPending}
         onOk={() => confirmClose && closeChatMu.mutate(confirmClose)}
         onCancel={() => setConfirmClose(null)}
+      />
+
+      <ConfirmModal
+        open={!!confirmCloseAndClear}
+        title="确认关闭并清空"
+        content="确定要关闭窗口并清空所有聊天记录吗?此操作不可撤销。"
+        okText="关闭并清空"
+        okDanger
+        okLoading={closeChatMu.isPending || clearMessagesMu.isPending}
+        onOk={() => {
+          if (!confirmCloseAndClear) return;
+          // 双 mutation 顺序:先 clear messages,再 close(老仓 onCloseChat → onClearMessages 顺序)
+          clearMessagesMu.mutate(confirmCloseAndClear);
+          closeChatMu.mutate(confirmCloseAndClear);
+          setConfirmCloseAndClear(null);
+        }}
+        onCancel={() => setConfirmCloseAndClear(null)}
       />
     </div>
   );

@@ -18,6 +18,7 @@ import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
 import {
   categoriesQueryKey,
   categoriesQueryOptions,
@@ -154,6 +155,10 @@ interface CompactRowProps {
   title: string;
   unread: number;
   isMuted: boolean;
+  /** @我 提及态(对齐老仓 wk-mention-badge,行 175-177:icon 后紧贴的紫红 @我) */
+  isMentionMe?: boolean;
+  /** 外部群标(对齐老仓 wk-conv-compact-external-badge,行 187-192:name 后紫底 "外部") */
+  isExternal?: boolean;
   /** 父群行末尾子区指示图标 + 切换展开按钮(仅 variant=group 有意义) */
   hasThreads?: boolean;
   threadsExpanded?: boolean;
@@ -176,6 +181,8 @@ function CompactRow({
   title,
   unread,
   isMuted,
+  isMentionMe,
+  isExternal,
   hasThreads,
   threadsExpanded,
   onToggleThreads,
@@ -210,6 +217,19 @@ function CompactRow({
       >
         {title}
       </span>
+      {isExternal ? (
+        <span
+          aria-label="外部群"
+          className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-brand-primary"
+        >
+          外部
+        </span>
+      ) : null}
+      {isMentionMe && hasUnread && !isMuted ? (
+        <span className="shrink-0 rounded-sm bg-error px-1 text-[10px] font-semibold text-text-inverse">
+          @我
+        </span>
+      ) : null}
       <span className="flex shrink-0 items-center gap-1 text-text-tertiary">
         {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}
         {hasUnread && !isMuted ? (
@@ -282,6 +302,8 @@ interface CategorySectionProps {
   sidebarItems: SidebarItem[];
   followedThreadsByParent: Map<string, Conversation[]>;
   selectedChannelId?: string;
+  /** 当前登录用户 uid — isMentionMe 计算用(reminders + mention.uids includes myUid) */
+  myUid: string;
   isExpanded: (groupId: string) => boolean;
   onToggleExpand: (groupId: string) => void;
   onSelectGroup: (groupNo: string) => void;
@@ -298,6 +320,7 @@ function CategorySection({
   sidebarItems,
   followedThreadsByParent,
   selectedChannelId,
+  myUid,
   isExpanded,
   onToggleExpand,
   onSelectGroup,
@@ -360,6 +383,11 @@ function CategorySection({
                       title={title}
                       unread={groupUnread + aggThreadUnread}
                       isMuted={muted}
+                      isExternal={
+                        (conv?.channelInfo?.orgData as { is_external_group?: number } | undefined)
+                          ?.is_external_group === 1
+                      }
+                      isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
                       hasThreads={threads.length > 0}
                       threadsExpanded={expanded}
                       onToggleThreads={() => onToggleExpand(groupNo)}
@@ -382,6 +410,7 @@ function CategorySection({
                                   title={t.channelInfo?.title ?? t.channel.channelID}
                                   unread={t.unread || 0}
                                   isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                  isMentionMe={computeMentionMe(t, myUid)}
                                   selected={t.channel.channelID === selectedChannelId}
                                   onClick={() => onSelectThread(t.channel.channelID)}
                                 />
@@ -423,6 +452,7 @@ function CategorySection({
                     title={title}
                     unread={unread}
                     isMuted={muted}
+                    isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
                     selected={peerUid === selectedChannelId}
                     onClick={() => onSelectDM(peerUid)}
                   />
@@ -451,6 +481,7 @@ function CategorySection({
                     title={title}
                     unread={unread}
                     isMuted={muted}
+                    isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
                     selected={tid === selectedChannelId}
                     onClick={() => onSelectThread(tid)}
                   />
@@ -656,6 +687,7 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
             sidebarItems={sidebarItems}
             followedThreadsByParent={followedThreadsByParent}
             selectedChannelId={selectedChannelId}
+            myUid={myUid}
             isExpanded={isExpanded}
             onToggleExpand={toggleExpand}
             onSelectGroup={handleSelectGroup}

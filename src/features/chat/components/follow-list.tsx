@@ -49,6 +49,7 @@ import {
   followDM,
   moveGroupToCategory,
   renameCategory,
+  sortCategories,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 import { useSortFollow } from "@/features/chat/hooks/use-sort-follow.hook";
@@ -513,7 +514,29 @@ interface CategorySectionProps {
   onSelectThread: (threadChannelId: string) => void;
 }
 
-/** 单个分组 section(折叠/展开 + 右键菜单) */
+/** 分组聚合未读 + @我:折叠状态下分组 header 右侧显（展开后子项各自有 badge）。 */
+function aggregateCategoryStats(
+  sidebarItems: SidebarItem[],
+  myUid: string,
+): { unread: number; hasMention: boolean } {
+  let unread = 0;
+  let hasMention = false;
+  for (const it of sidebarItems) {
+    let channelType: number;
+    if (it.target_type === SidebarTargetType.DM) channelType = ChannelTypePerson;
+    else if (it.target_type === SidebarTargetType.CHANNEL) channelType = ChannelTypeGroup;
+    else if (it.target_type === SidebarTargetType.THREAD) channelType = CHANNEL_TYPE_THREAD;
+    else continue;
+    const conv = findConv(it.target_id, channelType);
+    // 静音的群不计 unread(对齐老仓 effectiveMute 跳过)
+    const isMuted = !!conv?.channelInfo?.mute;
+    if (!isMuted) unread += conv?.unread ?? it.unread ?? 0;
+    if (conv && computeMentionMe(conv, myUid)) hasMention = true;
+  }
+  return { unread, hasMention };
+}
+
+/** 单个分组 section(折叠/展开 + 右键菜单 + 自身可拖排序) */
 function CategorySection({
   category,
   collapsed,
@@ -531,6 +554,19 @@ function CategorySection({
 }: CategorySectionProps) {
   const [expandedThreadsSet, setExpandedThreadsSet] = useState<Set<string>>(new Set());
   const count = sidebarItems.length;
+  const isEmpty = count === 0;
+  const stats = useMemo(() => aggregateCategoryStats(sidebarItems, myUid), [sidebarItems, myUid]);
+
+  // 分组自身可拖(对齐老仓 ConversationListGrouped 行 154-159:cat::id 排序)
+  const sortable = useSortable({
+    id: `cat::${category.category_id ?? "default"}`,
+    data: { type: "category", categoryId: category.category_id ?? "default" },
+  });
+  const catStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.4 : undefined,
+  };
 
   // **Dedup**:已嵌入在某个父群下渲染过的子区 channelID 集合,避免 target_type=5 standalone
   // 路径再渲染一次(对齐旧 ConversationListGrouped 的 seenIds:`${type}::${id}` 去重)。
@@ -550,26 +586,69 @@ function CategorySection({
 
   return (
     <section
-      ref={setDropRef}
-      className={`flex flex-col rounded-sm transition-colors ${isDropOver ? "bg-brand-tint/30" : ""}`}
+      ref={(node) => {
+        setDropRef(node);
+        sortable.setNodeRef(node);
+      }}
+      style={catStyle}
+      className={`group/cat flex flex-col rounded-sm transition-colors ${isDropOver ? "bg-brand-tint/30" : ""}`}
     >
       <header
-        className="flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+        className={`flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] transition-colors hover:bg-bg-hover ${isEmpty ? "text-text-tertiary" : "text-text-secondary"}`}
         onClick={onToggle}
         onContextMenu={onContextMenu}
       >
+        {/* drag handle(hover 显,对齐老仓 wk-category-header__drag-handle) */}
+        <span
+          {...sortable.attributes}
+          {...sortable.listeners}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="拖动分组"
+          className="-ml-1 flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-text-tertiary opacity-0 transition-opacity duration-150 group-hover/cat:opacity-100 active:cursor-grabbing"
+        >
+          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+            <circle cx="3" cy="3" r="1.2" />
+            <circle cx="7" cy="3" r="1.2" />
+            <circle cx="3" cy="7" r="1.2" />
+            <circle cx="7" cy="7" r="1.2" />
+            <circle cx="3" cy="11" r="1.2" />
+            <circle cx="7" cy="11" r="1.2" />
+          </svg>
+        </span>
         {collapsed ? (
           <ChevronRight size={12} className="shrink-0" />
         ) : (
           <ChevronDown size={12} className="shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate font-semibold">{category.name}</span>
-        <span className="shrink-0 text-text-tertiary">{count}</span>
+        <span className="min-w-0 flex-1 truncate font-semibold">
+          {category.name}
+          {/* 空时 (空) 斜体;非空 + 折叠时 (N) */}
+          {isEmpty ? (
+            <span className="ml-1 font-normal italic text-text-tertiary">(空)</span>
+          ) : collapsed ? (
+            <span className="ml-1 font-normal text-text-tertiary">({count})</span>
+          ) : null}
+        </span>
+        {/* 折叠 + 非空 + 有未读 → 显 unread + @我 badge(对齐老仓只在折叠时显) */}
+        {collapsed && !isEmpty && stats.unread > 0 ? (
+          <span className="flex shrink-0 items-center gap-1">
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error">
+              {stats.unread > 99 ? "99+" : stats.unread}
+            </span>
+            {stats.hasMention ? (
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+                @
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </header>
       {!collapsed ? (
         <div className="flex flex-col">
           {count === 0 ? (
-            <div className="px-3 py-2 text-[12px] text-text-tertiary">分组为空</div>
+            <div className="flex items-center justify-center px-3 py-2 text-[12px] italic text-text-tertiary">
+              暂无群聊
+            </div>
           ) : (
             (() => {
               const draggableIds = sidebarItems
@@ -828,6 +907,22 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
     },
   });
 
+  // 分组排序(关注 tab 内 categories 自身重排,对齐老仓 onSortCategories →
+  // PUT /spaces/{spaceId}/categories/sort,新仓 follow.api 已有 sortCategories API)
+  const sortCategoriesMu = useMutation({
+    mutationFn: (categoryIds: string[]) => {
+      if (!spaceId) return Promise.reject(new Error("无 spaceId"));
+      return sortCategories(spaceId, categoryIds);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "排序分组失败");
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+    },
+  });
+
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; cat?: CategoryItem }>({
     open: false,
     x: 0,
@@ -973,7 +1068,24 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const activeParsed = parseDragId(String(active.id));
+
+    // 分支 D:分组排序(cat::id → cat::id)— 对齐老仓 ConversationListGrouped 行 150-162
+    const activeStr = String(active.id);
+    const overStr = String(over.id);
+    if (activeStr.startsWith("cat::") && overStr.startsWith("cat::")) {
+      const aId = activeStr.slice("cat::".length);
+      const oId = overStr.slice("cat::".length);
+      const oldIndex = orderedCategories.findIndex((c) => (c.category_id ?? "default") === aId);
+      const newIndex = orderedCategories.findIndex((c) => (c.category_id ?? "default") === oId);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const newOrder = arrayMove(orderedCategories, oldIndex, newIndex);
+        const newIds = newOrder.map((c) => c.category_id).filter((x): x is string => !!x);
+        sortCategoriesMu.mutate(newIds);
+      }
+      return;
+    }
+
+    const activeParsed = parseDragId(activeStr);
     if (!activeParsed) return;
     const items = sidebarQ.data?.items ?? [];
     const activeItem = items.find(
@@ -1051,28 +1163,30 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       <style>{SKELETON_STYLE}</style>
       {/* 对齐老仓 .wk-conversationlist:padding=0;新仓保留 px-2 py-1 让 selected bg 不贴边 */}
       <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
-        {orderedCategories.map((cat) => {
-          const sidebarKey = cat.category_id ?? "";
-          const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
-          return (
-            <CategorySection
-              key={cat.category_id ?? `default-${cat.name}`}
-              category={cat}
-              collapsed={!!collapsed[cat.category_id ?? "default"]}
-              onToggle={() => toggleCollapse(cat.category_id ?? "default")}
-              onContextMenu={onCategoryContextMenu(cat)}
-              sidebarItems={sidebarItems}
-              followedThreadsByParent={followedThreadsByParent}
-              selectedChannelId={selectedChannelId}
-              myUid={myUid}
-              isExpanded={isExpanded}
-              onToggleExpand={toggleExpand}
-              onSelectGroup={handleSelectGroup}
-              onSelectDM={handleSelectDM}
-              onSelectThread={handleSelectThread}
-            />
-          );
-        })}
+        <SortableContext items={orderedCategories.map((c) => `cat::${c.category_id ?? "default"}`)}>
+          {orderedCategories.map((cat) => {
+            const sidebarKey = cat.category_id ?? "";
+            const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
+            return (
+              <CategorySection
+                key={cat.category_id ?? `default-${cat.name}`}
+                category={cat}
+                collapsed={!!collapsed[cat.category_id ?? "default"]}
+                onToggle={() => toggleCollapse(cat.category_id ?? "default")}
+                onContextMenu={onCategoryContextMenu(cat)}
+                sidebarItems={sidebarItems}
+                followedThreadsByParent={followedThreadsByParent}
+                selectedChannelId={selectedChannelId}
+                myUid={myUid}
+                isExpanded={isExpanded}
+                onToggleExpand={toggleExpand}
+                onSelectGroup={handleSelectGroup}
+                onSelectDM={handleSelectDM}
+                onSelectThread={handleSelectThread}
+              />
+            );
+          })}
+        </SortableContext>
 
         {menu.open && menu.cat && menu.cat.category_id ? (
           <ContextMenu

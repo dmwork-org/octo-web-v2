@@ -62,20 +62,65 @@ function unreadBadge(unread: number): string {
   return unread > 99 ? "99+" : String(unread);
 }
 
+/**
+ * 1:1 对齐老仓 `Utils/time.ts::getTimeStringAutoShort2(timestamp, mustIncludeTime=true)`:
+ *
+ *   <60s     → "刚刚"
+ *   当天     → "HH:MM"
+ *   昨天     → "昨天 HH:MM"
+ *   前天     → "前天 HH:MM"
+ *   7 天内   → "星期X HH:MM"
+ *   当年其他 → "yyyy/M/d HH:MM"(老仓 fallback 用完整年份)
+ *   往年     → "yyyy/M/d HH:MM"
+ *
+ * 老仓注释强调:用月日**直接比较**判昨天/前天,**不能**用时间戳差值
+ * (跨日 1h 边界场景会判错)。
+ */
+const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+function formatHHMM(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 function timeLabel(ts: number): string {
   if (!ts) return "";
-  const d = new Date(ts * 1000);
+  const src = new Date(ts * 1000);
   const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const sameYear = src.getFullYear() === now.getFullYear();
+  const timeExtra = ` ${formatHHMM(src)}`;
+
+  if (!sameYear) {
+    return `${src.getFullYear()}/${src.getMonth() + 1}/${src.getDate()}${timeExtra}`;
   }
-  const sameYear = d.getFullYear() === now.getFullYear();
-  if (sameYear) return `${d.getMonth() + 1}/${d.getDate()}`;
-  return `${d.getFullYear() % 100}/${d.getMonth() + 1}/${d.getDate()}`;
+
+  const sameMonth = src.getMonth() === now.getMonth();
+  const sameDay = sameMonth && src.getDate() === now.getDate();
+  if (sameDay) {
+    if (now.getTime() - src.getTime() < 60 * 1000) return "刚刚";
+    return formatHHMM(src);
+  }
+
+  // 昨天 / 前天 — 用月日直接比较(老仓注释:不能用 deltaTime/3600/1000 > 24 的跨日 1h 错判)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (src.getMonth() === yesterday.getMonth() && src.getDate() === yesterday.getDate()) {
+    return `昨天${timeExtra}`;
+  }
+  const before = new Date();
+  before.setDate(before.getDate() - 2);
+  if (src.getMonth() === before.getMonth() && src.getDate() === before.getDate()) {
+    return `前天${timeExtra}`;
+  }
+
+  // 7 天内 → 星期X
+  const deltaHour = (now.getTime() - src.getTime()) / (3600 * 1000);
+  if (deltaHour <= 7 * 24) {
+    return `${WEEKDAY_ZH[src.getDay()]}${timeExtra}`;
+  }
+  return `${src.getFullYear()}/${src.getMonth() + 1}/${src.getDate()}${timeExtra}`;
 }
 
 /**

@@ -90,7 +90,11 @@ export function ConversationTypingDigest({
         </span>
       ))}
       {showCountHint ? (
-        <span className="shrink-0 font-medium text-error">
+        // [N 条] — 老仓 .wk-conv-count-hint 默认 color-danger 红;
+        // **但 .wk-conversationlist-item-muted .wk-conv-count-hint 整行 override
+        // 成 icon-muted(0.4 灰)**(老仓 css 行 197-198)。countHint 触发条件就是
+        // muted+unread>1,所以**永远在 muted 行内显**,实际永远是灰色。
+        <span className="shrink-0 font-medium text-[#1c1c23]/40">
           [{countHint > 99 ? "99+" : countHint} 条]
         </span>
       ) : null}

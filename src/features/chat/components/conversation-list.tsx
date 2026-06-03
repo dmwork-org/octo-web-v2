@@ -225,9 +225,9 @@ function ConversationRow({
             .wk-conversationlist-item-right-first-line + .wk-conversationlist-item-time) */}
         <div className="flex items-center gap-1.5 overflow-hidden">
           <h3
-            className={`m-0 flex min-w-0 flex-1 items-center gap-1.5 truncate text-[13px] leading-[1.4] text-[#1c1c23]/90 ${
-              hasUnread && !isMuted ? "font-semibold" : "font-medium"
-            }`}
+            className={`m-0 flex min-w-0 flex-1 items-center gap-1.5 truncate text-[13px] leading-[1.4] ${
+              isMuted ? "text-[#1c1c23]/40" : "text-[#1c1c23]/90"
+            } ${hasUnread && !isMuted ? "font-semibold" : "font-medium"}`}
           >
             {isThread ? <ThreadIcon size={13} className="shrink-0 text-[#1c1c23]/60" /> : null}
             {titleLoading ? (
@@ -265,7 +265,11 @@ function ConversationRow({
 
         {/* second-line:lastmsg flex-1(size sm=12 / color icon-default=0.6 / weight 400)+ @我 badge ml-1 */}
         <div className="flex items-center overflow-hidden">
-          <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-none font-normal text-[#1c1c23]/60">
+          <span
+            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-none font-normal ${
+              isMuted ? "text-[#1c1c23]/40" : "text-[#1c1c23]/60"
+            }`}
+          >
             <ConversationTypingDigest
               channel={channel}
               fallback={digest}

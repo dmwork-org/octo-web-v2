@@ -289,9 +289,9 @@ const TOP_BOOST = 1_000_000_000_000;
 const LIST_SKELETON_STYLE = `
 .conv-list-skeleton {
   background: linear-gradient(90deg,
-    rgba(46,50,56,0.06) 25%,
-    rgba(46,50,56,0.12) 50%,
-    rgba(46,50,56,0.06) 75%);
+    rgba(28,28,35,0.10) 25%,
+    rgba(28,28,35,0.22) 50%,
+    rgba(28,28,35,0.10) 75%);
   background-size: 200% 100%;
   animation: conv-list-skeleton-shimmer 1.2s infinite linear;
 }

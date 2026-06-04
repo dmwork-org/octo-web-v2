@@ -114,7 +114,16 @@ function useResumeEffect(
 }
 
 export function useResumeOidc(options: UseResumeOidcOptions): ResumeOidcState {
-  const [state, setState] = useState<ResumeOidcState>({ resuming: false, error: null });
+  // 初始 state lazy initializer:同步检 sessionStorage 的 pending session,有就
+  // initial resuming=true,这样第一帧 LoginView 就显 loading 而非账号密码登录
+  // 表单(防 SSO 回调进 /login → useResumeOidc effect 还没跑那一帧的闪烁)。
+  const [state, setState] = useState<ResumeOidcState>(() => {
+    const pending = getPendingOidcLogin();
+    if (pending && !isPendingExpired(pending)) {
+      return { resuming: true, providerName: "SSO", error: null };
+    }
+    return { resuming: false, error: null };
+  });
   const startedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   useResumeEffect(options, setState, startedRef, abortRef);

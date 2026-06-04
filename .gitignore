@@ -40,3 +40,4 @@ src/**/*.preview-tmp-*.tsx
 
 # scratch — chrome devtools 调研截图等
 .cache/
+.tanstack/tmp/

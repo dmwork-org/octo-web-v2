@@ -10,6 +10,7 @@ import { QrcodeView } from "@/features/login/views/qrcode.view";
 import { RegisterView } from "@/features/login/views/register.view";
 import { ForgetPasswordView } from "@/features/login/views/forget-password.view";
 import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
+import { LoginShell } from "@/features/login/components/login-shell";
 import { Button } from "@/components/semi-bridge/button";
 
 interface LoginViewProps {
@@ -19,19 +20,24 @@ interface LoginViewProps {
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx LoginType 4 态 + inviteInfo banner):
- *   - `phone` — 默认:SSO 主路径 + 本地账号密码表单
- *   - `qrcode` — 扫码登录
- *   - `register` — 邮箱注册
- *   - `forgetPassword` — 找回密码
+ * 登录页(对齐老仓 dmworklogin login.tsx 1:1):
  *
- * **inviteCode 透传**:URL `?invite_code=X` → 顶部 banner + 所有登录成功路径
- * 自动 `joinSpace(X)`(SSO 跳走前写 `localStorage.pendingInviteCode = X`,
- * BindPage 也会读)。
+ * **两栏布局**(LoginShell):
+ *   左 55% — brand panel(紫蓝渐变 + logo + headline + 聊天气泡装饰)
+ *   右 45% — form panel(slogan + view 切换)
+ *
+ * **View 切换**(LoginType 4 态):phone / qrcode / register / forgetPassword
+ *
+ * **SSO 双层 gate**(对齐老仓 ENTERPRISE_SSO_ENABLED + hasSsoProvider):
+ *  1. build-time env `VITE_ENABLE_ENTERPRISE_SSO === 'true'`(useSsoProviders 内部 gate)
+ *  2. runtime appconfig.oidc_providers 非空 → primaryProvider 存在
+ *  两者都满足 → 显主 CTA + slogan-sub 文案改成"使用手机号或邮箱即可登录"
+ *  + legacyPasswordLoginOff=1 进一步隐藏密码表单
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const loginMu = useLoginMutation();
-  const { providers, primaryProvider, legacyPasswordLoginOff } = useSsoProviders();
+  const { providers, primaryProvider, legacyPasswordLoginOff, ssoModuleEnabled } =
+    useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
   const { data: inviteInfo } = useInviteInfo(inviteCode);
   const finalize = useFinalizeLogin(inviteCode, redirect);
@@ -50,12 +56,12 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
 
   if (resuming) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg-base">
-        <div className="flex w-80 flex-col items-center gap-3 rounded-lg border border-border-default bg-bg-surface p-8 shadow-sm">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-          <p className="text-sm text-text-secondary">正在通过 {providerName} 登录…</p>
+      <LoginShell>
+        <div className="flex flex-col items-center gap-3 py-10">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7A5CFF] border-t-transparent" />
+          <p className="text-sm text-[#8a8fa8]">正在通过 {providerName} 登录…</p>
         </div>
-      </div>
+      </LoginShell>
     );
   }
   if (view === LoginType.Qrcode) {
@@ -86,11 +92,12 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void finalize(raw);
   };
 
-  const showPasswordForm = !primaryProvider || !legacyPasswordLoginOff;
+  // 双层 gate:env 启用 + 后端下发 provider
+  const hasSso = ssoModuleEnabled && !!primaryProvider;
+  const showPasswordForm = !hasSso || !legacyPasswordLoginOff;
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
 
-  // 点 SSO 前把 inviteCode 写 localStorage 中转(跨域回来后 BindPage 或 LoginView resume 都能读)
   const onStartOidc = () => {
     if (!primaryProvider) return;
     writePendingInviteCode(inviteCode);
@@ -105,120 +112,127 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     setView(LoginType.ForgetPassword);
   };
 
+  const inviteBanner = inviteInfo ? (
+    <div className="rounded-md border border-[#7A5CFF]/20 bg-[#7A5CFF]/[0.06] px-3 py-2 text-xs text-[#1a1a2e]">
+      你被邀请加入 <strong>{inviteInfo.space_name}</strong>
+      {typeof inviteInfo.member_count === "number" && typeof inviteInfo.max_users === "number" ? (
+        <span className="text-[#8a8fa8]">
+          {" "}
+          ({inviteInfo.member_count}/{inviteInfo.max_users} 人)
+        </span>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-base">
-      <div className="flex w-80 flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm">
-        {inviteInfo ? (
-          <div className="rounded-md bg-brand-tint px-3 py-2 text-xs text-text-primary">
-            邀请你加入 <strong>{inviteInfo.space_name}</strong>
-            {typeof inviteInfo.member_count === "number" &&
-            typeof inviteInfo.max_users === "number" ? (
-              <span className="text-text-tertiary">
-                {" "}
-                ({inviteInfo.member_count}/{inviteInfo.max_users})
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+    <LoginShell topBanner={inviteBanner}>
+      {/* Slogan + sub(对齐老仓 .wk-login-content-slogan / -sub) */}
+      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
+        欢迎回来
+      </div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">
+        {hasSso ? "使用手机号或邮箱即可登录" : "登录你的账号以继续"}
+      </div>
 
-        <h1 className="text-xl font-semibold text-text-primary">登录</h1>
-
-        {primaryProvider ? (
-          <div className="flex flex-col gap-2">
-            <Button
-              type="primary"
-              theme="solid"
-              loading={oidcStarting}
-              className="w-full"
-              onClick={onStartOidc}
-            >
-              {oidcStarting ? "跳转中…" : "登录 / 注册"}
-            </Button>
-            <p className="text-center text-xs text-text-tertiary">
-              已有账号将自动登录，新用户将自动注册
-            </p>
-            <p
-              className="text-center text-[11px] text-text-tertiary"
-              title={`由 ${primaryProvider.name} 提供`}
-            >
-              由 {primaryProvider.name} 提供
-            </p>
-          </div>
-        ) : null}
-
-        {ssoErrorText ? <p className="text-xs text-error">{ssoErrorText}</p> : null}
-
-        {primaryProvider && showPasswordForm ? (
-          <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
-            <span className="flex-1 border-t border-border-subtle" />
-            <span>或</span>
-            <span className="flex-1 border-t border-border-subtle" />
-          </div>
-        ) : null}
-
-        {showPasswordForm ? (
-          <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-3">
-            <label className="block text-sm text-text-secondary">
-              用户名
-              <input
-                type="text"
-                className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-              />
-            </label>
-            <label className="block text-sm text-text-secondary">
-              密码
-              <input
-                type="password"
-                className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </label>
-            {loginErrorText ? <p className="text-xs text-error">{loginErrorText}</p> : null}
-            <Button
-              htmlType="submit"
-              type="primary"
-              theme="solid"
-              loading={loginMu.isPending}
-              className="w-full"
-            >
-              {loginMu.isPending ? "登录中…" : "登录"}
-            </Button>
-          </form>
-        ) : null}
-
-        <div className="flex justify-between text-xs text-text-tertiary">
-          <button
-            type="button"
-            onClick={() => setView(LoginType.Qrcode)}
-            className="hover:text-text-primary hover:underline"
+      {/* SSO 主路径 */}
+      {hasSso ? (
+        <div className="flex flex-col">
+          <Button
+            type="primary"
+            theme="solid"
+            loading={oidcStarting}
+            className="h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+            onClick={onStartOidc}
           >
-            扫码登录
-          </button>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setView(LoginType.Register)}
-              className="hover:text-text-primary hover:underline"
+            {oidcStarting ? "跳转中…" : "登录 / 注册"}
+          </Button>
+          {/* meta + trust 同一行 · 分隔(对齐老仓 .wk-login-content-sso-meta) */}
+          <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
+            <span>已有账号将自动登录，新用户将自动注册</span>
+            <span className="text-[#b0b4c8]">·</span>
+            <span
+              className="cursor-help underline decoration-dotted underline-offset-2"
+              title={`${primaryProvider!.name} 是 Mininglamp 统一身份服务，登录后可在所有 Mininglamp 产品中通用`}
             >
-              注册
-            </button>
-            <button
-              type="button"
-              onClick={onClickForget}
-              className="hover:text-text-primary hover:underline"
-            >
-              忘记密码
-            </button>
+              由 {primaryProvider!.name} 提供
+            </span>
           </div>
         </div>
+      ) : null}
+
+      {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
+
+      {/* SSO + 本地表单分隔 */}
+      {hasSso && showPasswordForm ? (
+        <div className="my-6 flex items-center gap-2 text-[11px] text-[#b0b4c8]">
+          <span className="flex-1 border-t border-[#e4e6ef]" />
+          <span>或</span>
+          <span className="flex-1 border-t border-[#e4e6ef]" />
+        </div>
+      ) : null}
+
+      {/* 本地密码表单(对齐老仓 .wk-login-content-form input 样式) */}
+      {showPasswordForm ? (
+        <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-0">
+          <input
+            type="text"
+            name="username"
+            placeholder="邮箱或用户名"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoComplete="username"
+            className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="密码"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
+          />
+          {loginErrorText ? <p className="mb-2 text-xs text-error">{loginErrorText}</p> : null}
+          <Button
+            htmlType="submit"
+            type="primary"
+            theme="solid"
+            loading={loginMu.isPending}
+            className="mt-2 h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+          >
+            {loginMu.isPending ? "登录中…" : "登录"}
+          </Button>
+        </form>
+      ) : null}
+
+      {/* 底部链接(扫码 | 注册 | 忘记密码,| 分隔对齐老仓 .wk-login-content-form-others) */}
+      <div className="mt-5 flex items-center justify-center text-sm text-[#8a8fa8]">
+        <button
+          type="button"
+          onClick={() => setView(LoginType.Qrcode)}
+          className="transition-colors hover:text-[#1C1C23]"
+        >
+          扫码登录
+        </button>
+        <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
+        <button
+          type="button"
+          onClick={() => setView(LoginType.Register)}
+          className="font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+        >
+          注册
+        </button>
+        <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
+        <button
+          type="button"
+          onClick={onClickForget}
+          className="transition-colors hover:text-[#1C1C23]"
+        >
+          忘记密码
+        </button>
       </div>
-    </div>
+    </LoginShell>
   );
 }

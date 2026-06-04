@@ -4,20 +4,21 @@ import { isValidEmail } from "@/features/login/lib/email-validator";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { CodeCountdownButton } from "@/features/login/components/code-countdown-button";
 import { PasswordStrengthIndicator } from "@/features/login/components/password-strength-indicator";
+import { LoginShell } from "@/features/login/components/login-shell";
 import { Button } from "@/components/semi-bridge/button";
 
 interface ForgetPasswordViewProps {
   onBackToLogin?: () => void;
 }
 
+const INPUT_CLS =
+  "h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]";
+
 /**
  * 找回密码视图(对齐老仓 dmworklogin login.tsx LoginType.forgetPassword 区块):
- *
- * - 邮箱(`isValidEmail` 实时校验)
- * - 60s 倒计时发送验证码(`code_type=2`,**注意跟注册的 code_type=0 不同**)
- * - 邮箱验证码
+ * - 邮箱(isValidEmail 实时校验)
+ * - 60s 倒计时验证码(code_type=2,**跟注册的 0 不同**)
  * - 新密码 + 确认密码(+ 强度指示)
- * - 成功 → 显成功 + 切回登录
  */
 export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
   const sendCodeMu = useSendEmailCodeMutation();
@@ -62,80 +63,73 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
 
   if (done) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg-base">
-        <div className="flex w-80 flex-col items-center gap-3 rounded-lg border border-border-default bg-bg-surface p-8 shadow-sm">
-          <p className="text-sm text-success">密码已重置,请使用新密码登录</p>
+      <LoginShell>
+        <div className="flex flex-col items-center gap-4 py-10">
+          <p className="text-base text-success">密码已重置,请使用新密码登录</p>
           {onBackToLogin ? (
-            <Button type="primary" theme="solid" onClick={onBackToLogin} className="w-full">
+            <Button
+              type="primary"
+              theme="solid"
+              onClick={onBackToLogin}
+              className="h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+            >
               返回登录
             </Button>
           ) : null}
         </div>
-      </div>
+      </LoginShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-base">
-      <form
-        onSubmit={onSubmit}
-        aria-label="forget password form"
-        className="flex w-80 flex-col gap-3 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm"
-      >
-        <h1 className="text-xl font-semibold text-text-primary">找回密码</h1>
+    <LoginShell>
+      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
+        找回密码
+      </div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">通过邮箱验证码重置密码</div>
 
-        <label className="block text-sm text-text-secondary">
-          邮箱
+      <form onSubmit={onSubmit} aria-label="forget password form" className="flex flex-col gap-3.5">
+        <input
+          type="email"
+          placeholder="邮箱"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          className={INPUT_CLS}
+        />
+        <div className="flex gap-2">
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-            autoComplete="email"
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="6 位验证码"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             required
+            className={`${INPUT_CLS} flex-1 tracking-widest`}
           />
-        </label>
-
-        <label className="block text-sm text-text-secondary">
-          验证码
-          <div className="mt-1 flex gap-2">
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className="flex-1 rounded border border-border-default bg-bg-surface px-2 py-1.5 tracking-widest text-text-primary"
-              required
-            />
-            <CodeCountdownButton onSend={sendCode} disabled={!emailValid} />
-          </div>
-        </label>
-
-        <label className="block text-sm text-text-secondary">
-          新密码
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-            autoComplete="new-password"
-            required
-          />
-        </label>
+          <CodeCountdownButton onSend={sendCode} disabled={!emailValid} />
+        </div>
+        <input
+          type="password"
+          placeholder="新密码(至少 6 位)"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          className={INPUT_CLS}
+        />
         <PasswordStrengthIndicator password={newPassword} />
-
-        <label className="block text-sm text-text-secondary">
-          确认新密码
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-            autoComplete="new-password"
-            required
-          />
-        </label>
+        <input
+          type="password"
+          placeholder="确认新密码"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          required
+          className={INPUT_CLS}
+        />
 
         {inlineError ? <p className="text-xs text-error">{inlineError}</p> : null}
 
@@ -144,7 +138,7 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
           type="primary"
           theme="solid"
           loading={resetMu.isPending}
-          className="w-full"
+          className="mt-2 h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
         >
           {resetMu.isPending ? "重置中…" : "重置密码"}
         </Button>
@@ -153,12 +147,12 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
           <button
             type="button"
             onClick={onBackToLogin}
-            className="text-center text-xs text-brand hover:underline"
+            className="mt-2 text-center text-sm text-[#1C1C23] transition-opacity hover:opacity-75"
           >
             返回登录
           </button>
         ) : null}
       </form>
-    </div>
+    </LoginShell>
   );
 }

@@ -30,9 +30,9 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
 
 function UserAvatar({ initial }: { initial: string }) {
   return (
-    <div className="relative">
+    <Link to="/settings" aria-label="设置" title="设置" className="relative block">
       <div
-        className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary"
+        className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105"
         aria-hidden
       >
         <div className="flex h-full w-full items-center justify-center">{initial}</div>
@@ -41,7 +41,7 @@ function UserAvatar({ initial }: { initial: string }) {
         className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-online ring-2 ring-bg-navrail"
         aria-label="在线"
       />
-    </div>
+    </Link>
   );
 }
 

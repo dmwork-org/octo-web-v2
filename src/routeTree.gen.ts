@@ -10,9 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as BindRouteImport } from './routes/bind'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AuthIndexRouteImport } from './routes/_auth.index'
 import { Route as AuthSummaryRouteImport } from './routes/_auth.summary'
+import { Route as AuthSpacesettingsRouteImport } from './routes/_auth.spacesettings'
+import { Route as AuthSettingsRouteImport } from './routes/_auth.settings'
+import { Route as AuthPersonadetailRouteImport } from './routes/_auth.personadetail'
+import { Route as AuthPersonaRouteImport } from './routes/_auth.persona'
+import { Route as AuthMeinfoRouteImport } from './routes/_auth.meinfo'
 import { Route as AuthMatterRouteImport } from './routes/_auth.matter'
 import { Route as AuthContactsRouteImport } from './routes/_auth.contacts'
 import { Route as AuthAppbotRouteImport } from './routes/_auth.appbot'
@@ -20,6 +26,11 @@ import { Route as AuthAppbotRouteImport } from './routes/_auth.appbot'
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BindRoute = BindRouteImport.update({
+  id: '/bind',
+  path: '/bind',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -34,6 +45,31 @@ const AuthIndexRoute = AuthIndexRouteImport.update({
 const AuthSummaryRoute = AuthSummaryRouteImport.update({
   id: '/summary',
   path: '/summary',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSpacesettingsRoute = AuthSpacesettingsRouteImport.update({
+  id: '/spacesettings',
+  path: '/spacesettings',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthPersonadetailRoute = AuthPersonadetailRouteImport.update({
+  id: '/personadetail',
+  path: '/personadetail',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthPersonaRoute = AuthPersonaRouteImport.update({
+  id: '/persona',
+  path: '/persona',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthMeinfoRoute = AuthMeinfoRouteImport.update({
+  id: '/meinfo',
+  path: '/meinfo',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthMatterRoute = AuthMatterRouteImport.update({
@@ -54,48 +90,97 @@ const AuthAppbotRoute = AuthAppbotRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute
+  '/bind': typeof BindRoute
   '/login': typeof LoginRoute
   '/appbot': typeof AuthAppbotRoute
   '/contacts': typeof AuthContactsRoute
   '/matter': typeof AuthMatterRoute
+  '/meinfo': typeof AuthMeinfoRoute
+  '/persona': typeof AuthPersonaRoute
+  '/personadetail': typeof AuthPersonadetailRoute
+  '/settings': typeof AuthSettingsRoute
+  '/spacesettings': typeof AuthSpacesettingsRoute
   '/summary': typeof AuthSummaryRoute
 }
 export interface FileRoutesByTo {
+  '/bind': typeof BindRoute
   '/login': typeof LoginRoute
   '/appbot': typeof AuthAppbotRoute
   '/contacts': typeof AuthContactsRoute
   '/matter': typeof AuthMatterRoute
+  '/meinfo': typeof AuthMeinfoRoute
+  '/persona': typeof AuthPersonaRoute
+  '/personadetail': typeof AuthPersonadetailRoute
+  '/settings': typeof AuthSettingsRoute
+  '/spacesettings': typeof AuthSpacesettingsRoute
   '/summary': typeof AuthSummaryRoute
   '/': typeof AuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
+  '/bind': typeof BindRoute
   '/login': typeof LoginRoute
   '/_auth/appbot': typeof AuthAppbotRoute
   '/_auth/contacts': typeof AuthContactsRoute
   '/_auth/matter': typeof AuthMatterRoute
+  '/_auth/meinfo': typeof AuthMeinfoRoute
+  '/_auth/persona': typeof AuthPersonaRoute
+  '/_auth/personadetail': typeof AuthPersonadetailRoute
+  '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/spacesettings': typeof AuthSpacesettingsRoute
   '/_auth/summary': typeof AuthSummaryRoute
   '/_auth/': typeof AuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/appbot' | '/contacts' | '/matter' | '/summary'
+  fullPaths:
+    | '/'
+    | '/bind'
+    | '/login'
+    | '/appbot'
+    | '/contacts'
+    | '/matter'
+    | '/meinfo'
+    | '/persona'
+    | '/personadetail'
+    | '/settings'
+    | '/spacesettings'
+    | '/summary'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/appbot' | '/contacts' | '/matter' | '/summary' | '/'
+  to:
+    | '/bind'
+    | '/login'
+    | '/appbot'
+    | '/contacts'
+    | '/matter'
+    | '/meinfo'
+    | '/persona'
+    | '/personadetail'
+    | '/settings'
+    | '/spacesettings'
+    | '/summary'
+    | '/'
   id:
     | '__root__'
     | '/_auth'
+    | '/bind'
     | '/login'
     | '/_auth/appbot'
     | '/_auth/contacts'
     | '/_auth/matter'
+    | '/_auth/meinfo'
+    | '/_auth/persona'
+    | '/_auth/personadetail'
+    | '/_auth/settings'
+    | '/_auth/spacesettings'
     | '/_auth/summary'
     | '/_auth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
+  BindRoute: typeof BindRoute
   LoginRoute: typeof LoginRoute
 }
 
@@ -106,6 +191,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bind': {
+      id: '/bind'
+      path: '/bind'
+      fullPath: '/bind'
+      preLoaderRoute: typeof BindRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -127,6 +219,41 @@ declare module '@tanstack/react-router' {
       path: '/summary'
       fullPath: '/summary'
       preLoaderRoute: typeof AuthSummaryRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/spacesettings': {
+      id: '/_auth/spacesettings'
+      path: '/spacesettings'
+      fullPath: '/spacesettings'
+      preLoaderRoute: typeof AuthSpacesettingsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/personadetail': {
+      id: '/_auth/personadetail'
+      path: '/personadetail'
+      fullPath: '/personadetail'
+      preLoaderRoute: typeof AuthPersonadetailRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/persona': {
+      id: '/_auth/persona'
+      path: '/persona'
+      fullPath: '/persona'
+      preLoaderRoute: typeof AuthPersonaRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/meinfo': {
+      id: '/_auth/meinfo'
+      path: '/meinfo'
+      fullPath: '/meinfo'
+      preLoaderRoute: typeof AuthMeinfoRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/matter': {
@@ -157,6 +284,11 @@ interface AuthRouteChildren {
   AuthAppbotRoute: typeof AuthAppbotRoute
   AuthContactsRoute: typeof AuthContactsRoute
   AuthMatterRoute: typeof AuthMatterRoute
+  AuthMeinfoRoute: typeof AuthMeinfoRoute
+  AuthPersonaRoute: typeof AuthPersonaRoute
+  AuthPersonadetailRoute: typeof AuthPersonadetailRoute
+  AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthSpacesettingsRoute: typeof AuthSpacesettingsRoute
   AuthSummaryRoute: typeof AuthSummaryRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
@@ -165,6 +297,11 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAppbotRoute: AuthAppbotRoute,
   AuthContactsRoute: AuthContactsRoute,
   AuthMatterRoute: AuthMatterRoute,
+  AuthMeinfoRoute: AuthMeinfoRoute,
+  AuthPersonaRoute: AuthPersonaRoute,
+  AuthPersonadetailRoute: AuthPersonadetailRoute,
+  AuthSettingsRoute: AuthSettingsRoute,
+  AuthSpacesettingsRoute: AuthSpacesettingsRoute,
   AuthSummaryRoute: AuthSummaryRoute,
   AuthIndexRoute: AuthIndexRoute,
 }
@@ -173,6 +310,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
+  BindRoute: BindRoute,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport

@@ -21,9 +21,14 @@ export const withAuthToken =
   };
 
 export const withSpaceHeader =
-  (store: Store<SpaceState>) =>
+  (spaceStore: Store<SpaceState>, authStore: Store<AuthState>) =>
   ({ options }: FetchContext) => {
-    const spaceId = store.state.spaceId;
+    // 无 token(匿名请求,如 /login / /sendcode / /loginuuid)不应带 X-Space-Id —
+    // 否则后端会用残留 space 上下文路由匿名请求,导致 500。对齐老仓
+    // logout 时清 spaceId 的语义(老仓 logout 之后 spaceIdCallback 返空,
+    // interceptor 行 60-65 跳过 header 注入)。
+    if (!authStore.state.token) return;
+    const spaceId = spaceStore.state.spaceId;
     if (!spaceId) return;
     const headers = ensureHeaders(options);
     headers.set("X-Space-Id", spaceId);

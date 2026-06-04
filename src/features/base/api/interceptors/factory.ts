@@ -24,7 +24,7 @@ export function createClientOptions(args: {
   const { authStore, spaceStore, baseURL } = args;
   return {
     baseURL,
-    onRequest: [withAuthToken(authStore), withSpaceHeader(spaceStore), withReqId()],
+    onRequest: [withAuthToken(authStore), withSpaceHeader(spaceStore, authStore), withReqId()],
     onResponseError: [with401Redirect(authStore), withErrorToast()],
   };
 }

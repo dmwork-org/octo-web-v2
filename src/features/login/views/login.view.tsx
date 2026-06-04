@@ -6,6 +6,8 @@ import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
 import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
+import { QrcodeView } from "@/features/login/views/qrcode.view";
+import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { Button } from "@/components/semi-bridge/button";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 import type { AuthUser } from "@/features/base/stores/auth";
@@ -27,24 +29,25 @@ function loginRespToAuthUser(resp: LoginResp): AuthUser {
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx LoginType.phone 区块)。
+ * 登录页(对齐老仓 dmworklogin login.tsx LoginType.phone / qrcode 区块)。
+ *
+ * **View 切换**(对齐老仓 LoginType 状态机):
+ *   - `phone` — 默认:SSO 主路径 + 本地账号密码表单
+ *   - `qrcode` — 扫码登录
+ *   - `register` / `forgetPassword` — 块 3/4 加入
  *
  * **SSO 主路径**(`primaryProvider` 存在):
  *   - 主 CTA:`登录 / 注册`(`startOidc(primaryProvider)`)
- *   - 说明:已有账号将自动登录,新用户将自动注册
- *   - 信任锚点:`由 {provider.name} 提供`
- *   - `legacyPasswordLoginOff` flag 为 true 时隐藏本地密码表单(只走 SSO)
+ *   - `legacyPasswordLoginOff=1` 时隐藏本地密码表单(只走 SSO)
  *
- * **本地密码表单**(无 SSO 或 SSO 未隐藏):用户名 / 密码 + 登录
- *
- * **OIDC resume**:mount 时检 pending session,有则 poll authstatus,成功
- * 触发 signIn + 跳转;失败 / 超时显错误文案。
+ * **OIDC resume**:mount 时检 pending session,有则 poll authstatus。
  */
 export function LoginView({ redirect }: LoginViewProps) {
   const navigate = useNavigate();
   const loginMu = useLoginMutation();
   const { providers, primaryProvider, legacyPasswordLoginOff } = useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
+  const [view, setView] = useState<LoginTypeT>(LoginType.Phone);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -65,14 +68,7 @@ export function LoginView({ redirect }: LoginViewProps) {
     onSuccess: onLoginSuccess,
   });
 
-  const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const { token, user } = await loginMu.mutateAsync({ username, password });
-    authActions.signIn(token, user);
-    void navigate({ href: redirect ?? "/", replace: true });
-  };
-
-  // resume 中显独立 banner 不让用户看到表单(避免重复触发)
+  // resume 中独立 loading banner — 不让用户看到表单(避免重复触发)
   if (resuming) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg-base">
@@ -83,6 +79,18 @@ export function LoginView({ redirect }: LoginViewProps) {
       </div>
     );
   }
+
+  // 二维码 view
+  if (view === LoginType.Qrcode) {
+    return <QrcodeView redirect={redirect} onSwitchToPassword={() => setView(LoginType.Phone)} />;
+  }
+
+  const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const { token, user } = await loginMu.mutateAsync({ username, password });
+    authActions.signIn(token, user);
+    void navigate({ href: redirect ?? "/", replace: true });
+  };
 
   const showPasswordForm = !primaryProvider || !legacyPasswordLoginOff;
   const ssoErrorText = oidcStartError ?? resumeError;
@@ -165,6 +173,18 @@ export function LoginView({ redirect }: LoginViewProps) {
             </Button>
           </form>
         ) : null}
+
+        {/* 底部:扫码登录 / 注册 / 找回密码(块 3/4 加入注册 + 找回) */}
+        <div className="flex justify-between text-xs text-text-tertiary">
+          <button
+            type="button"
+            onClick={() => setView(LoginType.Qrcode)}
+            className="hover:text-text-primary hover:underline"
+          >
+            扫码登录
+          </button>
+          {/* 注册 / 找回密码 链接在块 3/4 加入 */}
+        </div>
       </div>
     </div>
   );

@@ -119,6 +119,8 @@ export function useResumeOidc(options: UseResumeOidcOptions): ResumeOidcState {
   // 表单(防 SSO 回调进 /login → useResumeOidc effect 还没跑那一帧的闪烁)。
   const [state, setState] = useState<ResumeOidcState>(() => {
     const pending = getPendingOidcLogin();
+    // eslint-disable-next-line no-console
+    console.info("[resume-oidc] init pending=", pending);
     if (pending && !isPendingExpired(pending)) {
       return { resuming: true, providerName: "SSO", error: null };
     }

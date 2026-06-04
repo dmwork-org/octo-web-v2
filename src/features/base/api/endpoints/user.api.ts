@@ -59,3 +59,140 @@ export async function getUserDetail(uid: string, groupNo?: string): Promise<User
     query: groupNo ? { group_no: groupNo } : undefined,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Login / Register / Forget Password / QRCode / Update Current
+// 对齐老仓 dmworklogin Service。所有响应字段命名严格跟老仓后端契约。
+// ---------------------------------------------------------------------------
+
+/** 登录 / 注册 mutation 公共响应字段(对应老仓 loginSession.applyLoginResp 写入)。 */
+export interface LoginResp {
+  uid: string;
+  token: string;
+  name?: string;
+  username?: string;
+  app_id?: string;
+  short_no?: string;
+  zone?: string;
+  phone?: string;
+  sex?: number;
+  category?: string;
+  realname_verified?: boolean | number;
+  real_name?: string;
+  realname_verified_at?: number;
+}
+
+export interface LoginDevice {
+  device_id: string;
+  device_name: string;
+  device_model: string;
+}
+
+/** 二维码登录 — 用 authCode 换 token。 */
+export async function loginByAuthcode(authCode: string, device: LoginDevice): Promise<LoginResp> {
+  return api<LoginResp>(`user/login_authcode/${authCode}`, {
+    method: "POST",
+    body: { flag: 1, device },
+  });
+}
+
+/** 用户名注册(usernameregister)— 对齐老仓 requestRegister。 */
+export async function registerByUsername(payload: {
+  username: string;
+  name: string;
+  password: string;
+  device: LoginDevice;
+}): Promise<LoginResp> {
+  return api<LoginResp>("user/usernameregister", {
+    method: "POST",
+    body: { ...payload, flag: 1 },
+  });
+}
+
+/** 邮箱注册(emailregister)— 对齐老仓 requestEmailRegister。 */
+export async function registerByEmail(payload: {
+  email: string;
+  password: string;
+  name: string;
+  code: string;
+  device: LoginDevice;
+}): Promise<LoginResp> {
+  return api<LoginResp>("user/emailregister", {
+    method: "POST",
+    body: { ...payload, flag: 1 },
+  });
+}
+
+/** 邮箱+密码登录 — 对齐老仓 requestEmailLogin。 */
+export async function loginByEmail(payload: {
+  email: string;
+  password: string;
+  device: LoginDevice;
+}): Promise<LoginResp> {
+  return api<LoginResp>("user/emaillogin", {
+    method: "POST",
+    body: { ...payload, flag: 1 },
+  });
+}
+
+/**
+ * 发送邮箱验证码:
+ * - code_type=0:注册
+ * - code_type=2:找回密码
+ */
+export async function sendEmailCode(email: string, codeType: 0 | 2): Promise<void> {
+  await api("user/email/sendcode", {
+    method: "POST",
+    body: { email, code_type: codeType },
+  });
+}
+
+/** 重置密码(忘记密码流程)。 */
+export async function resetPassword(payload: {
+  email: string;
+  code: string;
+  new_password: string;
+}): Promise<void> {
+  await api("user/email/forgetpwd", { method: "POST", body: payload });
+}
+
+/** 获取二维码 UUID(loginuuid)。 */
+export interface LoginUuidResp {
+  uuid: string;
+  qrcode: string;
+}
+export async function getLoginUuid(device: LoginDevice): Promise<LoginUuidResp> {
+  return api<LoginUuidResp>("user/loginuuid", { query: { device_id: device.device_id } });
+}
+
+/**
+ * 二维码扫描状态轮询(loginstatus)。
+ * status:0=waitScan / 1=scanned(showAvatar)/ 2=authed(authCode 可用)/ 3=expired
+ */
+export interface LoginStatusResp {
+  status: number;
+  auth_code?: string;
+  uid?: string;
+  avatar?: string;
+  name?: string;
+}
+export async function getLoginStatus(uuid: string): Promise<LoginStatusResp> {
+  return api<LoginStatusResp>("user/loginstatus", { query: { uuid } });
+}
+
+/** 修改当前用户信息(name / sex / category 等)。 */
+export interface UpdateCurrentPayload {
+  name?: string;
+  sex?: number;
+  category?: string;
+}
+export async function updateCurrentUser(payload: UpdateCurrentPayload): Promise<void> {
+  await api("user/current", { method: "PUT", body: payload });
+}
+
+/** 上传头像(FormData multipart)。 */
+export async function uploadAvatar(uid: string, file: File | Blob): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  await api(`users/${uid}/avatar`, { method: "POST", body: form });
+}

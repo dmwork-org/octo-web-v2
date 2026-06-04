@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Check, Plus, LogIn } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Check, Plus, LogIn, Settings } from "lucide-react";
 import { spaceActions, spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { CreateSpaceModal } from "@/features/space/components/create-space-modal";
@@ -30,7 +31,6 @@ function useClickOutside(
   }, [enabled, onOutside, ref]);
 }
 
-/** Space 头像方块:logo 优先,否则首字母 fallback。 */
 function SpaceTile({
   space,
   size = 34,
@@ -59,7 +59,6 @@ function SpaceTile({
   );
 }
 
-/** 触发按钮:34×34 圆角方块。无 Space 时显示 "S" 占位。 */
 function SwitcherTrigger({ current, onClick }: { current: SpaceResp | null; onClick: () => void }) {
   if (!current) {
     return (
@@ -91,13 +90,11 @@ function SwitcherTrigger({ current, onClick }: { current: SpaceResp | null; onCl
  * Sidebar 底部的 Space 切换器(对应旧 NavRail 底部 NavSpaceSwitcher):
  *
  * - 触发:34×34 头像方块
- * - Popover:右侧弹出 Space 列表 + 加入 / 创建空间两个入口
+ * - Popover:右侧弹出 Space 列表 + 每条 row 齿轮跳设置 + 加入 / 创建空间入口
  * - 点击切换:写 spaceStore → main.tsx 订阅触发 queryClient.clear() + persist
- *
- * 加入 / 创建空间:打开对应 modal(JoinSpaceModal / CreateSpaceModal),
- * 完成后 invalidate 列表 + 自动切到新 space。
  */
 export function SpaceSwitcher() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -117,6 +114,11 @@ export function SpaceSwitcher() {
     if (sp.space_id !== currentSpaceId) {
       spaceActions.setSpace(sp.space_id);
     }
+  };
+
+  const handleOpenSettings = (sp: SpaceResp) => {
+    setOpen(false);
+    void navigate({ to: "/spacesettings", search: { id: sp.space_id } });
   };
 
   const list = spaces ?? [];
@@ -140,23 +142,36 @@ export function SpaceSwitcher() {
                     ? `${sp.member_count ?? 0}/${sp.max_users} 人`
                     : `${sp.member_count ?? 0} 人`;
                 return (
-                  <button
+                  <div
                     key={sp.space_id}
-                    type="button"
-                    onClick={() => handleSelect(sp)}
-                    className={`flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-bg-hover ${
+                    className={`flex items-center gap-2 px-3 py-2 transition-colors hover:bg-bg-hover ${
                       selected ? "bg-brand-tint" : ""
                     }`}
                   >
-                    <SpaceTile space={sp} size={32} selected={selected} />
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="truncate text-sm font-medium text-text-primary">
-                        {sp.name}
-                      </span>
-                      <span className="truncate text-[11px] text-text-tertiary">{meta}</span>
-                    </div>
-                    {selected ? <Check size={14} className="shrink-0 text-brand" /> : null}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(sp)}
+                      className="flex flex-1 items-center gap-3 text-left"
+                    >
+                      <SpaceTile space={sp} size={32} selected={selected} />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-sm font-medium text-text-primary">
+                          {sp.name}
+                        </span>
+                        <span className="truncate text-[11px] text-text-tertiary">{meta}</span>
+                      </div>
+                      {selected ? <Check size={14} className="shrink-0 text-brand" /> : null}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${sp.name} 设置`}
+                      title="空间设置"
+                      onClick={() => handleOpenSettings(sp)}
+                      className="shrink-0 text-text-tertiary transition-colors hover:text-text-primary"
+                    >
+                      <Settings size={14} />
+                    </button>
+                  </div>
                 );
               })
             )}

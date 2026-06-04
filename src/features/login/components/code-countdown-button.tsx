@@ -55,7 +55,7 @@ export function CodeCountdownButton({
       onClick={onClick}
       disabled={disabled || sending || ticking}
       loading={sending}
-      className="shrink-0"
+      className="shrink-0 cursor-pointer"
     >
       {ticking ? `${remaining}s 后重试` : label}
     </Button>

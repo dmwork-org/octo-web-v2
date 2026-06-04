@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useLoginMutation } from "@/features/login/mutations";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
@@ -6,10 +7,6 @@ import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
 import { useInviteInfo } from "@/features/login/hooks/use-invite-info.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { useFinalizeLogin, writePendingInviteCode } from "@/features/login/lib/post-login-flow";
-import { QrcodeView } from "@/features/login/views/qrcode.view";
-import { RegisterView } from "@/features/login/views/register.view";
-import { ForgetPasswordView } from "@/features/login/views/forget-password.view";
-import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { LoginShell } from "@/features/login/components/login-shell";
 import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
@@ -21,26 +18,22 @@ interface LoginViewProps {
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx 1:1):
+ * 登录页 — 仅 phone(账号密码 / SSO)。其他 3 种 view 已拆独立路由:
+ *   /qrcode / /register / /forgetpassword
  *
- * **两栏布局**(LoginShell):
- *   左 55% — brand panel(紫蓝渐变 + logo + headline + 聊天气泡装饰)
- *   右 45% — form panel(slogan + view 切换 + 下载按钮)
+ * 底部链接 navigate 跳转,redirect + invite_code 通过 search 透传。
  *
- * **View 切换**(LoginType 4 态):phone / qrcode / register / forgetPassword
- *
- * **SSO 双层 gate**(对齐老仓 ENTERPRISE_SSO_ENABLED + hasSsoProvider):
- *  1. build-time env `VITE_ENABLE_ENTERPRISE_SSO === 'true'`(useSsoProviders 内部 gate)
- *  2. runtime appconfig.oidc_providers 非空 → primaryProvider 存在
+ * **SSO 双层 gate**:env `VITE_ENABLE_ENTERPRISE_SSO === 'true'` +
+ * appconfig.oidc_providers 非空 → 显主 CTA。
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
+  const navigate = useNavigate();
   const loginMu = useLoginMutation();
   const { providers, primaryProvider, legacyPasswordLoginOff, ssoModuleEnabled } =
     useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
   const { data: inviteInfo } = useInviteInfo(inviteCode);
   const finalize = useFinalizeLogin(inviteCode, redirect);
-  const [view, setView] = useState<LoginTypeT>(LoginType.Phone);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -57,32 +50,11 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     return (
       <LoginShell>
         <div className="flex flex-col items-center gap-3 py-10">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7A5CFF] border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5b5be5] border-t-transparent" />
           <p className="text-sm text-[#8a8fa8]">正在通过 {providerName} 登录…</p>
         </div>
       </LoginShell>
     );
-  }
-  if (view === LoginType.Qrcode) {
-    return (
-      <QrcodeView
-        redirect={redirect}
-        inviteCode={inviteCode}
-        onSwitchToPassword={() => setView(LoginType.Phone)}
-      />
-    );
-  }
-  if (view === LoginType.Register) {
-    return (
-      <RegisterView
-        redirect={redirect}
-        inviteCode={inviteCode}
-        onBackToLogin={() => setView(LoginType.Phone)}
-      />
-    );
-  }
-  if (view === LoginType.ForgetPassword) {
-    return <ForgetPasswordView onBackToLogin={() => setView(LoginType.Phone)} />;
   }
 
   const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -102,12 +74,17 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void startOidc(primaryProvider);
   };
 
+  // 子路由 navigate 时透传 redirect + invite_code(供子页登录成功后继续走 finalize)
+  const subSearch: { redirect?: string; invite_code?: string } = {};
+  if (redirect) subSearch.redirect = redirect;
+  if (inviteCode) subSearch.invite_code = inviteCode;
+
   const onClickForget = () => {
     if (primaryProvider?.resetPasswordUrl) {
       window.open(primaryProvider.resetPasswordUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    setView(LoginType.ForgetPassword);
+    void navigate({ to: "/forgetpassword" });
   };
 
   const inviteBanner = inviteInfo ? (
@@ -127,8 +104,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
 
   return (
     <LoginShell topBanner={inviteBanner}>
-      {/* Slogan + sub */}
-      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
+      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
         欢迎回来
       </div>
       <div className="mb-7 text-left text-sm text-[#8a8fa8]">
@@ -141,7 +117,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             type="primary"
             theme="solid"
             loading={oidcStarting}
-            className="h-[50px] w-full rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
+            className="h-[50px] w-full cursor-pointer rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
             onClick={onStartOidc}
           >
             {oidcStarting ? "跳转中…" : "登录 / 注册"}
@@ -197,7 +173,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             type="primary"
             theme="solid"
             loading={loginMu.isPending}
-            className="mt-2 h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+            className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
           >
             {loginMu.isPending ? "登录中…" : "登录"}
           </Button>
@@ -208,16 +184,16 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
       <div className="mt-5 flex items-center justify-center text-sm">
         <button
           type="button"
-          onClick={() => setView(LoginType.Qrcode)}
-          className="text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
+          onClick={() => void navigate({ to: "/qrcode", search: subSearch })}
+          className="cursor-pointer text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
         >
           扫码登录
         </button>
         <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
         <button
           type="button"
-          onClick={() => setView(LoginType.Register)}
-          className="font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+          onClick={() => void navigate({ to: "/register", search: subSearch })}
+          className="cursor-pointer font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
           没有账号？注册
         </button>
@@ -225,7 +201,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         <button
           type="button"
           onClick={onClickForget}
-          className="font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+          className="cursor-pointer font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
           忘记密码
         </button>

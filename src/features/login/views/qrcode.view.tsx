@@ -1,5 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQrcodeLogin } from "@/features/login/hooks/use-qrcode-login.hook";
 import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { LoginShell } from "@/features/login/components/login-shell";
@@ -10,24 +11,30 @@ import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 interface QrcodeViewProps {
   redirect?: string;
   inviteCode?: string;
-  onSwitchToPassword?: () => void;
 }
 
 /**
  * 二维码扫码登录(1:1 对齐老仓 dmworklogin login.tsx LoginType.qrcode 区块):
- * - slogan 22px + sub `更安全、更快速的登录方式`(注意:**与其他 view 不同**,
- *   qrcode 的 slogan 是 22px 而非 30px;老仓 login.tsx:666-667)
- * - QR 卡片 280×280 圆角 20 + 内部 180×180 圆角 14 + QRCodeSVG size 176
+ * - slogan 22px + sub `更安全、更快速的登录方式`
+ * - QR 卡片 280×card,内 180×180 容器,QRCodeSVG size 176
  * - 3 步流程图:icon 44×44 圆角 12 + 1.5px border;title 12px weight 600 + desc 11px
- *   step 1 `打开 App` / `手机打开 Octo`
- *   step 2 `扫描二维码` / `聊天 → + → 扫一扫`
- *   step 3 `确认登录` / `手机端点击确认`
- * - 切回密码登录 + 底部下载按钮
+ * - "使用账号密码登录" navigate 回 /login(search 透传)
  */
-export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeViewProps) {
+export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
+  const navigate = useNavigate();
   const finalize = useFinalizeLogin(inviteCode, redirect);
   const onSuccess = useCallback((resp: LoginResp) => void finalize(resp), [finalize]);
   const { state, refresh } = useQrcodeLogin({ onSuccess });
+
+  const backToLogin = () => {
+    void navigate({
+      to: "/login",
+      search: {
+        ...(redirect ? { redirect } : {}),
+        ...(inviteCode ? { invite_code: inviteCode } : {}),
+      },
+    });
+  };
 
   return (
     <LoginShell>
@@ -36,7 +43,6 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
       </div>
       <div className="mb-7 text-left text-[13px] text-[#8a8fa8]">更安全、更快速的登录方式</div>
 
-      {/* 二维码卡片 — 对齐老仓 .wk-login-qr-card 280×card + 180×qr 容器 */}
       <div className="mx-auto mb-6 flex w-[280px] flex-col items-center rounded-[20px] border-[1.5px] border-[#eef0f8] bg-[#f8f9ff] px-8 pt-7 pb-5">
         <div className="relative flex h-[180px] w-[180px] items-center justify-center rounded-[14px] border-[1.5px] border-[#e4e8f5] bg-white">
           {state.loading || !state.qrcode ? (
@@ -62,7 +68,7 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
           {state.status === "expired" ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[14px] bg-black/40 text-white">
               <p className="text-sm">二维码已过期</p>
-              <Button onClick={refresh} type="primary" theme="solid">
+              <Button onClick={refresh} type="primary" theme="solid" className="cursor-pointer">
                 点击刷新
               </Button>
             </div>
@@ -73,7 +79,6 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
 
       {state.error ? <p className="mb-3 text-center text-xs text-error">{state.error}</p> : null}
 
-      {/* 3 步流程图 — icon 44×44 + title 12px / desc 11px */}
       <div className="mx-auto mb-6 flex w-full items-start justify-around gap-2">
         <QrStep n={1} title="打开 App" desc="手机打开 Octo" />
         <QrArrow />
@@ -82,15 +87,13 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
         <QrStep n={3} title="确认登录" desc="手机端点击确认" />
       </div>
 
-      {onSwitchToPassword ? (
-        <button
-          type="button"
-          onClick={onSwitchToPassword}
-          className="text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
-        >
-          使用账号密码登录
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={backToLogin}
+        className="cursor-pointer text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+      >
+        使用账号密码登录
+      </button>
 
       <DownloadButtons />
     </LoginShell>

@@ -9,7 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as QrcodeRouteImport } from './routes/qrcode'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgetpasswordRouteImport } from './routes/forgetpassword'
 import { Route as BindRouteImport } from './routes/bind'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AuthIndexRouteImport } from './routes/_auth.index'
@@ -23,9 +26,24 @@ import { Route as AuthMatterRouteImport } from './routes/_auth.matter'
 import { Route as AuthContactsRouteImport } from './routes/_auth.contacts'
 import { Route as AuthAppbotRouteImport } from './routes/_auth.appbot'
 
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QrcodeRoute = QrcodeRouteImport.update({
+  id: '/qrcode',
+  path: '/qrcode',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgetpasswordRoute = ForgetpasswordRouteImport.update({
+  id: '/forgetpassword',
+  path: '/forgetpassword',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BindRoute = BindRouteImport.update({
@@ -91,7 +109,10 @@ const AuthAppbotRoute = AuthAppbotRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute
   '/bind': typeof BindRoute
+  '/forgetpassword': typeof ForgetpasswordRoute
   '/login': typeof LoginRoute
+  '/qrcode': typeof QrcodeRoute
+  '/register': typeof RegisterRoute
   '/appbot': typeof AuthAppbotRoute
   '/contacts': typeof AuthContactsRoute
   '/matter': typeof AuthMatterRoute
@@ -104,7 +125,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/bind': typeof BindRoute
+  '/forgetpassword': typeof ForgetpasswordRoute
   '/login': typeof LoginRoute
+  '/qrcode': typeof QrcodeRoute
+  '/register': typeof RegisterRoute
   '/appbot': typeof AuthAppbotRoute
   '/contacts': typeof AuthContactsRoute
   '/matter': typeof AuthMatterRoute
@@ -120,7 +144,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
   '/bind': typeof BindRoute
+  '/forgetpassword': typeof ForgetpasswordRoute
   '/login': typeof LoginRoute
+  '/qrcode': typeof QrcodeRoute
+  '/register': typeof RegisterRoute
   '/_auth/appbot': typeof AuthAppbotRoute
   '/_auth/contacts': typeof AuthContactsRoute
   '/_auth/matter': typeof AuthMatterRoute
@@ -137,7 +164,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/bind'
+    | '/forgetpassword'
     | '/login'
+    | '/qrcode'
+    | '/register'
     | '/appbot'
     | '/contacts'
     | '/matter'
@@ -150,7 +180,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/bind'
+    | '/forgetpassword'
     | '/login'
+    | '/qrcode'
+    | '/register'
     | '/appbot'
     | '/contacts'
     | '/matter'
@@ -165,7 +198,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_auth'
     | '/bind'
+    | '/forgetpassword'
     | '/login'
+    | '/qrcode'
+    | '/register'
     | '/_auth/appbot'
     | '/_auth/contacts'
     | '/_auth/matter'
@@ -181,16 +217,40 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   BindRoute: typeof BindRoute
+  ForgetpasswordRoute: typeof ForgetpasswordRoute
   LoginRoute: typeof LoginRoute
+  QrcodeRoute: typeof QrcodeRoute
+  RegisterRoute: typeof RegisterRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qrcode': {
+      id: '/qrcode'
+      path: '/qrcode'
+      fullPath: '/qrcode'
+      preLoaderRoute: typeof QrcodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgetpassword': {
+      id: '/forgetpassword'
+      path: '/forgetpassword'
+      fullPath: '/forgetpassword'
+      preLoaderRoute: typeof ForgetpasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bind': {
@@ -311,7 +371,10 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   BindRoute: BindRoute,
+  ForgetpasswordRoute: ForgetpasswordRoute,
   LoginRoute: LoginRoute,
+  QrcodeRoute: QrcodeRoute,
+  RegisterRoute: RegisterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

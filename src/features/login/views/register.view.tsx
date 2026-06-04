@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useRegisterByEmailMutation, useSendEmailCodeMutation } from "@/features/login/mutations";
 import { isValidEmail } from "@/features/login/lib/email-validator";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
@@ -13,19 +14,20 @@ interface RegisterViewProps {
   redirect?: string;
   /** URL `?invite_code=` 透传 — 注册成功自动 join space。 */
   inviteCode?: string;
-  onBackToLogin?: () => void;
 }
 
 const INPUT_CLS =
   "h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]";
 
 /**
- * 邮箱注册视图(对齐老仓 dmworklogin login.tsx LoginType.register 区块):
+ * 邮箱注册视图 — 独立路由 /register(对齐老仓 dmworklogin LoginType.register):
  * - 邮箱(isValidEmail 实时校验)+ 60s 倒计时验证码(code_type=0)
- * - 昵称(20 限)+ 密码(强度指示)+ 确认密码
+ * - 昵称(20 限,maxLength 硬约束)+ 密码(强度指示)+ 确认密码
  * - 注册成功 → finalize(LoginResp);底部 Android/iOS 下载按钮
+ * - "已有账号？登录" navigate 回 /login(search 透传)
  */
-export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterViewProps) {
+export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
+  const navigate = useNavigate();
   const sendCodeMu = useSendEmailCodeMutation();
   const registerMu = useRegisterByEmailMutation();
   const finalize = useFinalizeLogin(inviteCode, redirect);
@@ -66,6 +68,16 @@ export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterVi
     } catch (err) {
       setInlineError(extractSafeErrorMessage(err));
     }
+  };
+
+  const backToLogin = () => {
+    void navigate({
+      to: "/login",
+      search: {
+        ...(redirect ? { redirect } : {}),
+        ...(inviteCode ? { invite_code: inviteCode } : {}),
+      },
+    });
   };
 
   return (
@@ -134,20 +146,18 @@ export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterVi
           type="primary"
           theme="solid"
           loading={registerMu.isPending}
-          className="mt-2 h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+          className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
         >
           {registerMu.isPending ? "注册中…" : "注册"}
         </Button>
 
-        {onBackToLogin ? (
-          <button
-            type="button"
-            onClick={onBackToLogin}
-            className="mt-2 text-center text-sm text-[#1C1C23] transition-opacity hover:opacity-75"
-          >
-            已有账号？登录
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={backToLogin}
+          className="mt-2 cursor-pointer text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+        >
+          已有账号？登录
+        </button>
       </form>
 
       <DownloadButtons />

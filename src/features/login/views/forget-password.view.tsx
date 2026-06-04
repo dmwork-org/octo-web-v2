@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useResetPasswordMutation, useSendEmailCodeMutation } from "@/features/login/mutations";
 import { isValidEmail } from "@/features/login/lib/email-validator";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
@@ -8,21 +9,19 @@ import { LoginShell } from "@/features/login/components/login-shell";
 import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
 
-interface ForgetPasswordViewProps {
-  onBackToLogin?: () => void;
-}
-
 const INPUT_CLS =
   "h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]";
 
 /**
- * 找回密码视图(对齐老仓 dmworklogin login.tsx LoginType.forgetPassword 区块):
+ * 找回密码视图 — 独立路由 /forgetpassword(对齐老仓 dmworklogin LoginType.forgetPassword):
  * - 邮箱(isValidEmail 实时校验)
  * - 60s 倒计时验证码(code_type=2,**跟注册的 0 不同**)
  * - 新密码 + 确认密码(+ 强度指示)
  * - 底部 Android/iOS 下载按钮
+ * - "返回登录" navigate 回 /login
  */
-export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
+export function ForgetPasswordView() {
+  const navigate = useNavigate();
   const sendCodeMu = useSendEmailCodeMutation();
   const resetMu = useResetPasswordMutation();
   const [email, setEmail] = useState("");
@@ -63,21 +62,21 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
     }
   };
 
+  const backToLogin = () => void navigate({ to: "/login" });
+
   if (done) {
     return (
       <LoginShell>
         <div className="flex flex-col items-center gap-4 py-10">
           <p className="text-base text-success">密码已重置,请使用新密码登录</p>
-          {onBackToLogin ? (
-            <Button
-              type="primary"
-              theme="solid"
-              onClick={onBackToLogin}
-              className="h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
-            >
-              返回登录
-            </Button>
-          ) : null}
+          <Button
+            type="primary"
+            theme="solid"
+            onClick={backToLogin}
+            className="h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
+          >
+            返回登录
+          </Button>
         </div>
         <DownloadButtons />
       </LoginShell>
@@ -141,20 +140,18 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
           type="primary"
           theme="solid"
           loading={resetMu.isPending}
-          className="mt-2 h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+          className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
         >
           {resetMu.isPending ? "重置中…" : "重置密码"}
         </Button>
 
-        {onBackToLogin ? (
-          <button
-            type="button"
-            onClick={onBackToLogin}
-            className="mt-2 text-center text-sm text-[#1C1C23] transition-opacity hover:opacity-75"
-          >
-            返回登录
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={backToLogin}
+          className="mt-2 cursor-pointer text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+        >
+          返回登录
+        </button>
       </form>
 
       <DownloadButtons />

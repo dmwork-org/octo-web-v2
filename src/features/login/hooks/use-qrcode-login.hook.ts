@@ -137,9 +137,11 @@ function useQrcodePollEffect(
   }, [status, uuid, cancelledRef, setState, onSuccess]);
 }
 
-/** 命名 hook:unmount 时 cancelledRef=true 中断所有 in-flight 轮询。 */
+/** 命名 hook:mount 时 reset cancelled=false(防 React 18 strict mode 二次 mount
+ *  被上一轮 cleanup 残留的 true 永久污染)+ unmount 时设 true 中断 in-flight 轮询。 */
 function useCancelOnUnmount(cancelledRef: React.MutableRefObject<boolean>) {
   useEffect(() => {
+    cancelledRef.current = false;
     return () => {
       cancelledRef.current = true;
     };

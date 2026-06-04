@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Check } from "lucide-react";
+import { Check, Plus, LogIn } from "lucide-react";
 import { spaceActions, spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
+import { CreateSpaceModal } from "@/features/space/components/create-space-modal";
+import { JoinSpaceModal } from "@/features/space/components/join-space-modal";
 import type { SpaceResp } from "@/features/base/api/endpoints/space.api";
 
 /**
@@ -89,13 +91,16 @@ function SwitcherTrigger({ current, onClick }: { current: SpaceResp | null; onCl
  * Sidebar 底部的 Space 切换器(对应旧 NavRail 底部 NavSpaceSwitcher):
  *
  * - 触发:34×34 头像方块
- * - Popover:右侧弹出 Space 列表,每项 = 头像 + 名字 + 成员数;勾标当前
+ * - Popover:右侧弹出 Space 列表 + 加入 / 创建空间两个入口
  * - 点击切换:写 spaceStore → main.tsx 订阅触发 queryClient.clear() + persist
  *
- * 创建 / 加入 Space 入口 P3 后续 wave(JoinSpaceModal / SpaceCreate)。
+ * 加入 / 创建空间:打开对应 modal(JoinSpaceModal / CreateSpaceModal),
+ * 完成后 invalidate 列表 + 自动切到新 space。
  */
 export function SpaceSwitcher() {
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
 
@@ -156,8 +161,35 @@ export function SpaceSwitcher() {
               })
             )}
           </div>
+          <footer className="flex shrink-0 flex-col border-t border-border-subtle">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setJoinOpen(true);
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <LogIn size={14} />
+              加入空间
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setCreateOpen(true);
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <Plus size={14} />
+              创建空间
+            </button>
+          </footer>
         </div>
       ) : null}
+
+      <JoinSpaceModal open={joinOpen} onClose={() => setJoinOpen(false)} />
+      <CreateSpaceModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

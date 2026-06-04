@@ -10,8 +10,14 @@ export default defineConfig(({ mode }) => {
   // 读取 .env / .env.local / .env.{mode} 三层(dev 时跟 import.meta.env 一致)。
   // 这里把 VITE_API_URL 拿出来给 dev server proxy 用 — 生产 build 出来的静态
   // 文件不带 proxy,部署到哪个网关由 nginx 决定,跟此处无关。
+  // **必填**:不提供时直接抛错(避免无声 fallback 到一个错误目标导致联调误判)。
   const env = loadEnv(mode, cwd(), "");
-  const apiTarget = env.VITE_API_URL || "https://im.deepminer.com.cn";
+  const apiTarget = env.VITE_API_URL;
+  if (!apiTarget) {
+    throw new Error(
+      "VITE_API_URL 未设置。请在 .env.local 里加 `VITE_API_URL=https://your-host.example.com` 后再启动 dev。",
+    );
+  }
 
   return {
     fmt: {

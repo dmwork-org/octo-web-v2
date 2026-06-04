@@ -11,6 +11,7 @@ import { RegisterView } from "@/features/login/views/register.view";
 import { ForgetPasswordView } from "@/features/login/views/forget-password.view";
 import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { LoginShell } from "@/features/login/components/login-shell";
+import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
 
 interface LoginViewProps {
@@ -24,15 +25,13 @@ interface LoginViewProps {
  *
  * **两栏布局**(LoginShell):
  *   左 55% — brand panel(紫蓝渐变 + logo + headline + 聊天气泡装饰)
- *   右 45% — form panel(slogan + view 切换)
+ *   右 45% — form panel(slogan + view 切换 + 下载按钮)
  *
  * **View 切换**(LoginType 4 态):phone / qrcode / register / forgetPassword
  *
  * **SSO 双层 gate**(对齐老仓 ENTERPRISE_SSO_ENABLED + hasSsoProvider):
  *  1. build-time env `VITE_ENABLE_ENTERPRISE_SSO === 'true'`(useSsoProviders 内部 gate)
  *  2. runtime appconfig.oidc_providers 非空 → primaryProvider 存在
- *  两者都满足 → 显主 CTA + slogan-sub 文案改成"使用手机号或邮箱即可登录"
- *  + legacyPasswordLoginOff=1 进一步隐藏密码表单
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const loginMu = useLoginMutation();
@@ -92,7 +91,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void finalize(raw);
   };
 
-  // 双层 gate:env 启用 + 后端下发 provider
   const hasSso = ssoModuleEnabled && !!primaryProvider;
   const showPasswordForm = !hasSso || !legacyPasswordLoginOff;
   const ssoErrorText = oidcStartError ?? resumeError;
@@ -126,7 +124,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
 
   return (
     <LoginShell topBanner={inviteBanner}>
-      {/* Slogan + sub(对齐老仓 .wk-login-content-slogan / -sub) */}
+      {/* Slogan + sub */}
       <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
         欢迎回来
       </div>
@@ -134,7 +132,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         {hasSso ? "使用手机号或邮箱即可登录" : "登录你的账号以继续"}
       </div>
 
-      {/* SSO 主路径 */}
       {hasSso ? (
         <div className="flex flex-col">
           <Button
@@ -146,7 +143,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           >
             {oidcStarting ? "跳转中…" : "登录 / 注册"}
           </Button>
-          {/* meta + trust 同一行 · 分隔(对齐老仓 .wk-login-content-sso-meta) */}
           <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
             <span>已有账号将自动登录，新用户将自动注册</span>
             <span className="text-[#b0b4c8]">·</span>
@@ -162,7 +158,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
 
       {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
 
-      {/* SSO + 本地表单分隔 */}
       {hasSso && showPasswordForm ? (
         <div className="my-6 flex items-center gap-2 text-[11px] text-[#b0b4c8]">
           <span className="flex-1 border-t border-[#e4e6ef]" />
@@ -171,7 +166,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         </div>
       ) : null}
 
-      {/* 本地密码表单(对齐老仓 .wk-login-content-form input 样式) */}
       {showPasswordForm ? (
         <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-0">
           <input
@@ -207,7 +201,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         </form>
       ) : null}
 
-      {/* 底部链接(扫码 | 注册 | 忘记密码,| 分隔对齐老仓 .wk-login-content-form-others) */}
+      {/* 底部链接(扫码登录 | 没有账号？注册 | 忘记密码) */}
       <div className="mt-5 flex items-center justify-center text-sm text-[#8a8fa8]">
         <button
           type="button"
@@ -222,7 +216,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           onClick={() => setView(LoginType.Register)}
           className="font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
-          注册
+          没有账号？注册
         </button>
         <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
         <button
@@ -233,6 +227,8 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           忘记密码
         </button>
       </div>
+
+      <DownloadButtons />
     </LoginShell>
   );
 }

@@ -5,6 +5,7 @@ import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { CodeCountdownButton } from "@/features/login/components/code-countdown-button";
 import { PasswordStrengthIndicator } from "@/features/login/components/password-strength-indicator";
 import { LoginShell } from "@/features/login/components/login-shell";
+import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
 
 interface ForgetPasswordViewProps {
@@ -19,6 +20,7 @@ const INPUT_CLS =
  * - 邮箱(isValidEmail 实时校验)
  * - 60s 倒计时验证码(code_type=2,**跟注册的 0 不同**)
  * - 新密码 + 确认密码(+ 强度指示)
+ * - 底部 Android/iOS 下载按钮
  */
 export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
   const sendCodeMu = useSendEmailCodeMutation();
@@ -77,6 +79,7 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
             </Button>
           ) : null}
         </div>
+        <DownloadButtons />
       </LoginShell>
     );
   }
@@ -153,6 +156,8 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
           </button>
         ) : null}
       </form>
+
+      <DownloadButtons />
     </LoginShell>
   );
 }

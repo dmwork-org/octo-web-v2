@@ -3,12 +3,12 @@ import { useCallback } from "react";
 import { useQrcodeLogin } from "@/features/login/hooks/use-qrcode-login.hook";
 import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { LoginShell } from "@/features/login/components/login-shell";
+import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 
 interface QrcodeViewProps {
   redirect?: string;
-  /** URL `?invite_code=` 透传 — 登录成功自动 join space。 */
   inviteCode?: string;
   onSwitchToPassword?: () => void;
 }
@@ -17,7 +17,7 @@ interface QrcodeViewProps {
  * 二维码扫码登录(对齐老仓 dmworklogin login.tsx LoginType.qrcode 区块):
  * - 二维码卡片(280×280,圆角 20)+ scanned 头像覆盖 + expired 遮罩
  * - 3 步流程图(打开 App → 扫一扫 → 确认登录)
- * - 切回密码登录链接
+ * - 切回密码登录链接 + 底部 Android/iOS 下载按钮
  */
 export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeViewProps) {
   const finalize = useFinalizeLogin(inviteCode, redirect);
@@ -31,7 +31,6 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
       </div>
       <div className="mb-7 text-left text-sm text-[#8a8fa8]">用 Octo App 扫一扫,立即登录</div>
 
-      {/* 二维码卡片 — 对齐老仓 .wk-login-qr-card */}
       <div className="mx-auto mb-6 flex w-[280px] flex-col items-center rounded-[20px] border-[1.5px] border-[#eef0f8] bg-[#f8f9ff] px-8 pt-7 pb-5">
         <div className="relative flex h-52 w-52 items-center justify-center">
           {state.loading || !state.qrcode ? (
@@ -68,7 +67,6 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
 
       {state.error ? <p className="mb-3 text-center text-xs text-error">{state.error}</p> : null}
 
-      {/* 3 步流程图(横向 step) */}
       <div className="mx-auto mb-6 flex w-[300px] items-stretch justify-around text-[11px] text-[#8a8fa8]">
         <Step n={1} label="打开 App" />
         <Arrow />
@@ -86,6 +84,8 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
           使用账号密码登录
         </button>
       ) : null}
+
+      <DownloadButtons />
     </LoginShell>
   );
 }

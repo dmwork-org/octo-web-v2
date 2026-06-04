@@ -6,6 +6,7 @@ import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { CodeCountdownButton } from "@/features/login/components/code-countdown-button";
 import { PasswordStrengthIndicator } from "@/features/login/components/password-strength-indicator";
 import { LoginShell } from "@/features/login/components/login-shell";
+import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
 
 interface RegisterViewProps {
@@ -22,7 +23,7 @@ const INPUT_CLS =
  * 邮箱注册视图(对齐老仓 dmworklogin login.tsx LoginType.register 区块):
  * - 邮箱(isValidEmail 实时校验)+ 60s 倒计时验证码(code_type=0)
  * - 昵称(20 限)+ 密码(强度指示)+ 确认密码
- * - 注册成功 → finalize(LoginResp)
+ * - 注册成功 → finalize(LoginResp);底部 Android/iOS 下载按钮
  */
 export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterViewProps) {
   const sendCodeMu = useSendEmailCodeMutation();
@@ -148,6 +149,8 @@ export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterVi
           </button>
         ) : null}
       </form>
+
+      <DownloadButtons />
     </LoginShell>
   );
 }

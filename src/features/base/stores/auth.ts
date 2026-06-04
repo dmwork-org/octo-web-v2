@@ -1,4 +1,5 @@
 import { Store } from "@tanstack/react-store";
+import { spaceActions } from "@/features/base/stores/space";
 
 export interface AuthUser {
   uid: string;
@@ -47,7 +48,17 @@ export const authStore = new Store<AuthState>(readPersisted());
 
 export const authActions = {
   signIn: (token: string, user: AuthUser) => authStore.setState(() => ({ token, user })),
-  signOut: () => authStore.setState(() => ({ token: null, user: null })),
+  /**
+   * 登出:清 auth + 同步清 spaceStore(内存 state + localStorage),
+   * 防下次匿名请求(login / sendcode / loginuuid)仍带上次的 X-Space-Id
+   * (对齐老仓 logout 清 currentSpaceId 的语义)。
+   *
+   * 安全:auth → space 单向依赖,space 不 import auth,无循环。
+   */
+  signOut: () => {
+    authStore.setState(() => ({ token: null, user: null }));
+    spaceActions.setSpace(null);
+  },
 };
 
 export function persistAuth(): void {

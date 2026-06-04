@@ -1,65 +1,43 @@
-import { useCallback, useState, type FormEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { authActions } from "@/features/base/stores/auth";
+import { useState, type FormEvent } from "react";
 import { useLoginMutation } from "@/features/login/mutations";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
 import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
+import { useInviteInfo } from "@/features/login/hooks/use-invite-info.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
+import { useFinalizeLogin, writePendingInviteCode } from "@/features/login/lib/post-login-flow";
 import { QrcodeView } from "@/features/login/views/qrcode.view";
 import { RegisterView } from "@/features/login/views/register.view";
 import { ForgetPasswordView } from "@/features/login/views/forget-password.view";
 import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { Button } from "@/components/semi-bridge/button";
-import type { LoginResp } from "@/features/base/api/endpoints/user.api";
-import type { AuthUser } from "@/features/base/stores/auth";
 
 interface LoginViewProps {
   redirect?: string;
-}
-
-function loginRespToAuthUser(resp: LoginResp): AuthUser {
-  return {
-    uid: resp.uid,
-    name: resp.name ?? "",
-    username: resp.username ?? "",
-    app_id: resp.app_id,
-    short_no: resp.short_no,
-    zone: resp.zone,
-    phone: resp.phone,
-  };
+  /** URL `?invite_code=` — 显 banner + 登录成功自动 join space。 */
+  inviteCode?: string;
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx LoginType 4 态状态机):
+ * 登录页(对齐老仓 dmworklogin login.tsx LoginType 4 态 + inviteInfo banner):
  *   - `phone` — 默认:SSO 主路径 + 本地账号密码表单
  *   - `qrcode` — 扫码登录
  *   - `register` — 邮箱注册
  *   - `forgetPassword` — 找回密码
  *
- * **SSO 主路径**(`primaryProvider` 存在):
- *   - 主 CTA:`登录 / 注册`(`startOidc(primaryProvider)`)
- *   - `legacyPasswordLoginOff=1` 时隐藏本地密码表单(只走 SSO)
- *   - provider.resetPasswordUrl 存在时优先把"忘记密码"指向 IdP 自身
- *
- * **OIDC resume**:mount 时检 pending session,有则 poll authstatus。
+ * **inviteCode 透传**:URL `?invite_code=X` → 顶部 banner + 所有登录成功路径
+ * 自动 `joinSpace(X)`(SSO 跳走前写 `localStorage.pendingInviteCode = X`,
+ * BindPage 也会读)。
  */
-export function LoginView({ redirect }: LoginViewProps) {
-  const navigate = useNavigate();
+export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const loginMu = useLoginMutation();
   const { providers, primaryProvider, legacyPasswordLoginOff } = useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
+  const { data: inviteInfo } = useInviteInfo(inviteCode);
+  const finalize = useFinalizeLogin(inviteCode, redirect);
   const [view, setView] = useState<LoginTypeT>(LoginType.Phone);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
-  const onLoginSuccess = useCallback(
-    (resp: LoginResp) => {
-      authActions.signIn(resp.token, loginRespToAuthUser(resp));
-      void navigate({ href: redirect ?? "/", replace: true });
-    },
-    [navigate, redirect],
-  );
 
   const {
     resuming,
@@ -67,7 +45,7 @@ export function LoginView({ redirect }: LoginViewProps) {
     error: resumeError,
   } = useResumeOidc({
     providers,
-    onSuccess: onLoginSuccess,
+    onSuccess: (resp) => void finalize(resp),
   });
 
   if (resuming) {
@@ -81,10 +59,22 @@ export function LoginView({ redirect }: LoginViewProps) {
     );
   }
   if (view === LoginType.Qrcode) {
-    return <QrcodeView redirect={redirect} onSwitchToPassword={() => setView(LoginType.Phone)} />;
+    return (
+      <QrcodeView
+        redirect={redirect}
+        inviteCode={inviteCode}
+        onSwitchToPassword={() => setView(LoginType.Phone)}
+      />
+    );
   }
   if (view === LoginType.Register) {
-    return <RegisterView redirect={redirect} onBackToLogin={() => setView(LoginType.Phone)} />;
+    return (
+      <RegisterView
+        redirect={redirect}
+        inviteCode={inviteCode}
+        onBackToLogin={() => setView(LoginType.Phone)}
+      />
+    );
   }
   if (view === LoginType.ForgetPassword) {
     return <ForgetPasswordView onBackToLogin={() => setView(LoginType.Phone)} />;
@@ -92,17 +82,21 @@ export function LoginView({ redirect }: LoginViewProps) {
 
   const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const { token, user } = await loginMu.mutateAsync({ username, password });
-    authActions.signIn(token, user);
-    void navigate({ href: redirect ?? "/", replace: true });
+    const { raw } = await loginMu.mutateAsync({ username, password });
+    void finalize(raw);
   };
 
   const showPasswordForm = !primaryProvider || !legacyPasswordLoginOff;
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
 
-  // SSO 用户优先把"忘记密码"指向 IdP 自身(对齐老仓 dmworklogin LoginType.phone
-  // 区块的 resetPasswordUrl 提示)
+  // 点 SSO 前把 inviteCode 写 localStorage 中转(跨域回来后 BindPage 或 LoginView resume 都能读)
+  const onStartOidc = () => {
+    if (!primaryProvider) return;
+    writePendingInviteCode(inviteCode);
+    void startOidc(primaryProvider);
+  };
+
   const onClickForget = () => {
     if (primaryProvider?.resetPasswordUrl) {
       window.open(primaryProvider.resetPasswordUrl, "_blank", "noopener,noreferrer");
@@ -114,6 +108,19 @@ export function LoginView({ redirect }: LoginViewProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-base">
       <div className="flex w-80 flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm">
+        {inviteInfo ? (
+          <div className="rounded-md bg-brand-tint px-3 py-2 text-xs text-text-primary">
+            邀请你加入 <strong>{inviteInfo.space_name}</strong>
+            {typeof inviteInfo.member_count === "number" &&
+            typeof inviteInfo.max_users === "number" ? (
+              <span className="text-text-tertiary">
+                {" "}
+                ({inviteInfo.member_count}/{inviteInfo.max_users})
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <h1 className="text-xl font-semibold text-text-primary">登录</h1>
 
         {primaryProvider ? (
@@ -123,7 +130,7 @@ export function LoginView({ redirect }: LoginViewProps) {
               theme="solid"
               loading={oidcStarting}
               className="w-full"
-              onClick={() => void startOidc(primaryProvider)}
+              onClick={onStartOidc}
             >
               {oidcStarting ? "跳转中…" : "登录 / 注册"}
             </Button>

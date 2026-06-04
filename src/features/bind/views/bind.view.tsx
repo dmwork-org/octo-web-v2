@@ -93,10 +93,28 @@ export function BindView({ initialSearch }: BindViewProps) {
   }, []);
 
   const finalize = useCallback(
-    (resp: LoginResp) => {
+    async (resp: LoginResp) => {
       setStage({ kind: "success" });
       clearPendingOidcLogin();
       authActions.signIn(resp.token, loginRespToAuthUser(resp));
+
+      // SSO 跳走前 LoginView 把 invite_code 写到 pendingInviteCode;此处读出来
+      // 自动 joinSpace(失败静默,不阻塞登录)。dynamic import 避免 bind 模块强依赖 space.api。
+      try {
+        const code = window.localStorage.getItem("pendingInviteCode");
+        if (code && /^[a-zA-Z0-9_-]+$/.test(code)) {
+          const { joinSpace } = await import("@/features/base/api/endpoints/space.api");
+          try {
+            await joinSpace(code);
+          } catch {
+            // ignore — 用户进首页可手动重试
+          }
+          window.localStorage.removeItem("pendingInviteCode");
+        }
+      } catch {
+        // localStorage unavailable(隐身模式 / quota)— 跳过
+      }
+
       const returnTo = entryRef.current?.returnTo ?? "/";
       // 用 replaceState 把当前 /bind 抹掉(不让回退 button 回到二次绑定页)
       void navigate({ href: returnTo, replace: true });
@@ -112,7 +130,7 @@ export function BindView({ initialSearch }: BindViewProps) {
       setInlineError(null);
       try {
         const r = await confirmBind(providerId(), token);
-        finalize(r.login_resp);
+        void finalize(r.login_resp);
       } catch (e) {
         handleError("confirm", e);
       }
@@ -128,7 +146,7 @@ export function BindView({ initialSearch }: BindViewProps) {
       setInlineError(null);
       try {
         const r = await createBoundAccount(providerId(), token);
-        finalize(r.login_resp);
+        void finalize(r.login_resp);
       } catch (e) {
         handleError("create", e);
       }

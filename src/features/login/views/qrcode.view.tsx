@@ -1,26 +1,15 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQrcodeLogin } from "@/features/login/hooks/use-qrcode-login.hook";
-import { authActions, type AuthUser } from "@/features/base/stores/auth";
+import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { Button } from "@/components/semi-bridge/button";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 
 interface QrcodeViewProps {
   redirect?: string;
+  /** URL `?invite_code=` 透传 — 登录成功自动 join space。 */
+  inviteCode?: string;
   onSwitchToPassword?: () => void;
-}
-
-function loginRespToAuthUser(resp: LoginResp): AuthUser {
-  return {
-    uid: resp.uid,
-    name: resp.name ?? "",
-    username: resp.username ?? "",
-    app_id: resp.app_id,
-    short_no: resp.short_no,
-    zone: resp.zone,
-    phone: resp.phone,
-  };
 }
 
 /**
@@ -33,16 +22,10 @@ function loginRespToAuthUser(resp: LoginResp): AuthUser {
  *   - 底部 3 步流程图("打开 App → 扫一扫 → 确认登录")
  *   - 切回密码登录链接
  */
-export function QrcodeView({ redirect, onSwitchToPassword }: QrcodeViewProps) {
-  const navigate = useNavigate();
+export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeViewProps) {
+  const finalize = useFinalizeLogin(inviteCode, redirect);
 
-  const onSuccess = useCallback(
-    (resp: LoginResp) => {
-      authActions.signIn(resp.token, loginRespToAuthUser(resp));
-      void navigate({ href: redirect ?? "/", replace: true });
-    },
-    [navigate, redirect],
-  );
+  const onSuccess = useCallback((resp: LoginResp) => void finalize(resp), [finalize]);
 
   const { state, refresh } = useQrcodeLogin({ onSuccess });
 

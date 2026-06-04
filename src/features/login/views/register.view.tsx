@@ -1,29 +1,17 @@
 import { useCallback, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useRegisterByEmailMutation, useSendEmailCodeMutation } from "@/features/login/mutations";
-import { authActions, type AuthUser } from "@/features/base/stores/auth";
 import { isValidEmail } from "@/features/login/lib/email-validator";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
+import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { CodeCountdownButton } from "@/features/login/components/code-countdown-button";
 import { PasswordStrengthIndicator } from "@/features/login/components/password-strength-indicator";
 import { Button } from "@/components/semi-bridge/button";
-import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 
 interface RegisterViewProps {
   redirect?: string;
+  /** URL `?invite_code=` 透传 — 注册成功自动 join space。 */
+  inviteCode?: string;
   onBackToLogin?: () => void;
-}
-
-function loginRespToAuthUser(resp: LoginResp): AuthUser {
-  return {
-    uid: resp.uid,
-    name: resp.name ?? "",
-    username: resp.username ?? "",
-    app_id: resp.app_id,
-    short_no: resp.short_no,
-    zone: resp.zone,
-    phone: resp.phone,
-  };
 }
 
 /**
@@ -34,12 +22,12 @@ function loginRespToAuthUser(resp: LoginResp): AuthUser {
  * - 邮箱验证码
  * - 昵称(name)
  * - 密码 + 确认密码(+ 强度指示器)
- * - 注册成功 → signIn(LoginResp) → 跳 redirect
+ * - 注册成功 → signIn(LoginResp) → 检 inviteCode → 跳 redirect
  */
-export function RegisterView({ redirect, onBackToLogin }: RegisterViewProps) {
-  const navigate = useNavigate();
+export function RegisterView({ redirect, inviteCode, onBackToLogin }: RegisterViewProps) {
   const sendCodeMu = useSendEmailCodeMutation();
   const registerMu = useRegisterByEmailMutation();
+  const finalize = useFinalizeLogin(inviteCode, redirect);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -73,8 +61,7 @@ export function RegisterView({ redirect, onBackToLogin }: RegisterViewProps) {
     if (password !== confirm) return setInlineError("两次密码不一致");
     try {
       const resp = await registerMu.mutateAsync({ email, code, name, password });
-      authActions.signIn(resp.token, loginRespToAuthUser(resp));
-      void navigate({ href: redirect ?? "/", replace: true });
+      void finalize(resp);
     } catch (err) {
       setInlineError(extractSafeErrorMessage(err));
     }

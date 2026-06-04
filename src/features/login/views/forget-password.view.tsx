@@ -27,13 +27,10 @@ import { toast } from "@/components/semi-bridge/toast";
  * SSO 提示(老仓行 587-599):当 ssoProvider.resetPasswordUrl 非空时,顶部显
  * "企业统一认证账号请前往 {provider.name} 账户中心 修改密码。"(account-url 链接)
  *
- * 校验错误统一 toast.error(对齐老仓 Toast.error);文案逐字老仓:
- *  - "请输入正确的邮箱地址！"
- *  - "验证码不能为空！"
- *  - validatePassword 返错文案
- *  - "两次密码输入不一致！"
+ * 校验错误统一 toast.error(对齐老仓 Toast.error)。
  *
- * 成功后页面切换到完成态(单按钮 "返回登录")。
+ * 成功后:`toast.success("密码重置成功，请登录")` + 立即跳 /login
+ * (1:1 对齐老仓 login.tsx 行 648-650;**无独立成功页**)。
  */
 export function ForgetPasswordView() {
   const navigate = useNavigate();
@@ -45,7 +42,6 @@ export function ForgetPasswordView() {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [done, setDone] = useState(false);
 
   const sendCode = async () => {
     if (!isValidEmail(email)) {
@@ -70,25 +66,16 @@ export function ForgetPasswordView() {
     if (newPassword !== confirm) return toast.error("两次密码输入不一致！");
     try {
       await resetMu.mutateAsync({ email, code, new_password: newPassword });
-      setDone(true);
+      // 老仓行为(login.tsx 行 648-650):toast.success + 立即切回登录页,
+      // 不显独立成功页。
+      toast.success("密码重置成功，请登录");
+      void navigate({ to: "/login" });
     } catch (err) {
       toast.error(extractSafeErrorMessage(err));
     }
   };
 
   const backToLogin = () => void navigate({ to: "/login" });
-
-  // 成功态 — 单按钮"返回登录"
-  if (done) {
-    return (
-      <LoginShell>
-        <div className="flex flex-col items-center gap-4 py-10">
-          <p className="text-base text-success">密码已重置，请使用新密码登录</p>
-          <LoginPrimaryButton onClick={backToLogin}>返回登录</LoginPrimaryButton>
-        </div>
-      </LoginShell>
-    );
-  }
 
   // SSO 启用 + 该 provider 暴露了 resetPasswordUrl → 顶部显提示
   const ssoResetHint =

@@ -306,10 +306,10 @@ export function registerImCallbacks(): void {
       // category=system/customerService/visitor 加 identity icon(对齐旧版静态 path)
       const cat = orgData.category;
       if (cat === "system" || cat === "customerService") {
-        orgData.identityIcon = "./identity_icon/official.png";
+        orgData.identityIcon = "/identity_icon/official.png";
         orgData.identitySize = { width: "18px", height: "18px" };
       } else if (cat === "visitor") {
-        orgData.identityIcon = "./identity_icon/visitor.png";
+        orgData.identityIcon = "/identity_icon/visitor.png";
         orgData.identitySize = { width: "48px", height: "24px" };
       }
 

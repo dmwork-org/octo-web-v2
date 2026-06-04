@@ -2,6 +2,21 @@ import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
@@ -9,7 +24,7 @@ import {
   type ConversationAction,
 } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
-import { BellOff, ChevronDown, ChevronRight, Hash, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
@@ -17,7 +32,11 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { ThreadIcon } from "@/components/ui/thread-icon";
+import { MuteIcon } from "@/components/ui/mute-icon";
+import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
 import {
   categoriesQueryKey,
   categoriesQueryOptions,
@@ -33,9 +52,13 @@ import { useExpandedGroupIds } from "@/features/chat/hooks/use-expanded-group-id
 import {
   type CategoryItem,
   deleteCategory,
+  followDM,
+  moveGroupToCategory,
   renameCategory,
+  sortCategories,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
+import { useSortFollow } from "@/features/chat/hooks/use-sort-follow.hook";
 
 interface FollowListProps {
   selectedChannelId?: string;
@@ -114,7 +137,7 @@ function buildFollowedThreadsByParent(
     const parent = it.parent_channel_id ?? parseThreadChannelId(it.target_id)?.groupNo ?? undefined;
     if (!parent) continue;
     const channel = new Channel(it.target_id, CHANNEL_TYPE_THREAD);
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
     const stub: Conversation = {
       channel,
       channelInfo: undefined,
@@ -147,6 +170,112 @@ function unreadBadge(unread: number): string {
   return unread > 99 ? "99+" : String(unread);
 }
 
+/**
+ * 拖拽 sort id 约定:`item::${target_type}::${target_id}` — 跟老仓
+ * ConversationListGrouped 行 429 同款,handleDragEnd 解析 active/over.id 反向。
+ * thread 行不可拖,不进 SortableContext.items 也不包 SortableRow。
+ */
+function makeDragId(targetType: number, targetId: string): string {
+  return `item::${targetType}::${targetId}`;
+}
+
+function parseDragId(id: string): { targetType: number; targetId: string } | null {
+  if (!id.startsWith("item::")) return null;
+  const parts = id.slice("item::".length).split("::");
+  if (parts.length < 2) return null;
+  return { targetType: Number(parts[0]), targetId: parts.slice(1).join("::") };
+}
+
+/**
+ * 单个可拖 row 容器 — 用 useSortable 包 group/dm row(thread 不包,跟随父群)。
+ *
+ * **关键**:listeners 只透传给 children 的 drag handle(老仓 wk-conv-compact-drag-handle
+ * hover 才显的小 6 点),不挂整 row — 否则整行可拖,点击/选中冲突。
+ * children 是 render-prop:(dragProps) => ReactNode,dragProps 用 {...} 散到 handle span 上。
+ */
+interface DragProps {
+  attributes: ReturnType<typeof useSortable>["attributes"];
+  listeners: ReturnType<typeof useSortable>["listeners"];
+}
+
+function SortableRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: (dragProps: DragProps) => React.ReactNode;
+}) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+      }}
+    >
+      {children({ attributes, listeners })}
+    </div>
+  );
+}
+
+/**
+ * 6 点 grip 拖拽手柄(对齐老仓 wk-conv-compact-drag-handle,默认 opacity 0,
+ * group/dm row hover 时 opacity 1 + pointer-events auto;点击 stopPropagation 防选中)。
+ *
+ * 通过 CSS group hover 联动 — 调用方在 row 上加 `group/row`,handle 用 `opacity-0
+ * group-hover/row:opacity-100`。
+ */
+function DragHandle({ attributes, listeners }: DragProps) {
+  return (
+    <span
+      {...attributes}
+      {...listeners}
+      onClick={(e) => e.stopPropagation()}
+      className="-ml-1 flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-text-tertiary opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 active:cursor-grabbing"
+      aria-label="拖动排序"
+    >
+      <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+        <circle cx="3" cy="3" r="1.2" />
+        <circle cx="7" cy="3" r="1.2" />
+        <circle cx="3" cy="7" r="1.2" />
+        <circle cx="7" cy="7" r="1.2" />
+        <circle cx="3" cy="11" r="1.2" />
+        <circle cx="7" cy="11" r="1.2" />
+      </svg>
+    </span>
+  );
+}
+
+/** 列表骨架行(对齐老仓 wk-conv-compact-name-skeleton shimmer 动画,加载中占位) */
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5">
+      <span className="skeleton-shimmer h-[22px] w-[22px] shrink-0 rounded-[5px]" />
+      <span className="skeleton-shimmer h-3 w-24 rounded-sm" />
+    </div>
+  );
+}
+
+/** 全局 skeleton shimmer 样式(对齐老仓 @keyframes wk-skeleton-shimmer 1.2s 渐变扫光) */
+const SKELETON_STYLE = `
+.skeleton-shimmer {
+  background: linear-gradient(90deg,
+    rgba(28,28,35,0.10) 25%,
+    rgba(28,28,35,0.22) 50%,
+    rgba(28,28,35,0.10) 75%);
+  background-size: 200% 100%;
+  animation: wk-skeleton-shimmer 1.2s infinite linear;
+}
+@keyframes wk-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+`;
+
 interface CompactRowProps {
   /** 'group' = 群行(渲染头像),'dm' = DM 行(渲染头像,圆形),'thread' = 子区行(# 图标) */
   variant: "group" | "dm" | "thread";
@@ -154,6 +283,10 @@ interface CompactRowProps {
   title: string;
   unread: number;
   isMuted: boolean;
+  /** @我 提及态(对齐老仓 wk-mention-badge,行 175-177:icon 后紧贴的紫红 @我) */
+  isMentionMe?: boolean;
+  /** 外部群标(对齐老仓 wk-conv-compact-external-badge,行 187-192:name 后紫底 "外部") */
+  isExternal?: boolean;
   /** 父群行末尾子区指示图标 + 切换展开按钮(仅 variant=group 有意义) */
   hasThreads?: boolean;
   threadsExpanded?: boolean;
@@ -163,91 +296,191 @@ interface CompactRowProps {
 }
 
 /**
- * Compact 行(对齐旧 .wk-conv-compact-item):
+ * Compact 行(1:1 对齐老仓 .wk-conv-compact-item):
  *
- * - 群/DM 头像 24×24;子区行用 Hash icon 替代头像
- * - 子区行缩进 pl-7
- * - 子区指示图标:**永远品牌紫色** — 旧版同语义(fill="#6569E8" 不随展开切换),
- *   展开/折叠语义靠"下方是否有子区行"自然表达,不靠图标变色;hover bg 变化让 affordance 显著
+ * 布局(老仓 CSS 行 430-453):
+ *   - padding 5px 8px / min-h 30px / rounded-xs / gap 8px / position relative
+ *   - selected:bg rgba(28,28,35,0.06)(老仓 brand-tint-06)
+ *   - hover(非 selected):bg rgba(46,50,56,0.09)(老仓 bg-item-hover)
+ *
+ * 头像(老仓 wk-conv-compact-icon):
+ *   - container 22×22
+ *   - group avatar 5px 圆角矩形 / DM avatar 圆形(由 ChannelAvatar 自带 rounded-full 决定)
+ *   - 子区:14×14 Hash icon(.wk-conv-compact-item--thread .wk-conv-compact-icon)
+ *
+ * **未读 reddot**(老仓 wk-conv-compact-icon--reddot::after,有未读时):
+ *   icon 左上角 6×6 红圆点(1px white border),不论静音都显
+ *
+ * 名字(wk-conv-compact-name):
+ *   - text-size-base 14px / weight 500;未读时 weight 600
+ *   - 子区:weight 400 / 灰色;未读子区 weight 500 / 强色
+ *   - **titleLoading=true 时显 shimmer skeleton 占位条**(老仓 wk-conv-compact-name-skeleton)
+ *
+ * 右侧装饰:
+ *   - @我 紫红 badge(unread > 0 && !muted)
+ *   - 外部群 紫底 "外部" badge
+ *   - 静音 BellOff icon
+ *   - 未读 badge(rounded-full 16×16,bg-error/15 淡红底 + text-error;静音用红点)
+ *   - 父群 thread-tag(展开/收起子区按钮)
+ *
+ * 子区行(thread):padding-left 36px / min-h 26px / gap 6px(深缩进对齐父群头像下方)
+ *
+ * dragProps:由 SortableRow 透传,挂在 DragHandle 上(hover 时显)— 仅 group/dm 有,thread null
  */
+interface CompactRowProps2 extends CompactRowProps {
+  /** channelInfo 异步未拉到时 title=channelID 兜底,UI 显 shimmer 骨架代替 raw channelID */
+  titleLoading?: boolean;
+  /** group/dm 可拖,thread 不可拖(thread 跟随父群)— 传 null 不渲 handle */
+  dragProps?: DragProps | null;
+}
+
 function CompactRow({
   variant,
   channel,
   title,
   unread,
   isMuted,
+  isMentionMe,
+  isExternal,
   hasThreads,
   threadsExpanded,
   onToggleThreads,
   selected,
   onClick,
-}: CompactRowProps) {
+  titleLoading,
+  dragProps,
+}: CompactRowProps2) {
   const hasUnread = unread > 0;
   const isThread = variant === "thread";
   const onThreadTagClick = (e: MouseEvent) => {
     e.stopPropagation();
     onToggleThreads?.();
   };
+  // 老仓 selected bg = brand-tint-06(6%),hover bg = bg-item-hover(9%);精确像素值
+  const bgClass = selected ? "bg-[rgba(28,28,35,0.06)]" : "hover:bg-[rgba(46,50,56,0.09)]";
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors ${
-        selected ? "bg-brand-tint" : "hover:bg-bg-hover"
-      } ${isThread ? "pl-7" : ""}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`group/row relative flex w-full cursor-pointer items-center gap-2 rounded-[4px] px-2 text-left transition-colors duration-120 ${bgClass} ${
+        isThread ? "min-h-[26px] gap-1.5 py-[3px] pl-9" : "min-h-[30px] py-[5px]"
+      }`}
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-        {isThread ? (
-          <Hash size={14} className="text-text-tertiary" />
-        ) : (
-          <ChannelAvatar channel={channel} size={24} title={title} />
-        )}
-      </span>
+      {/* drag handle:仅 group/dm,thread 不渲 */}
+      {dragProps ? <DragHandle {...dragProps} /> : null}
+
+      {/* icon container 22×22(子区 14×14) + 左上 6×6 reddot(未读时,不论静音) */}
       <span
-        className={`min-w-0 flex-1 truncate text-[13px] ${
-          isMuted ? "text-text-tertiary" : "text-text-primary"
-        } ${hasUnread && !isMuted ? "font-semibold" : "font-normal"}`}
+        className={`relative flex shrink-0 items-center justify-center ${
+          isThread ? "h-[14px] w-[14px] text-[#1c1c23]/40" : "h-[22px] w-[22px] text-text-secondary"
+        }`}
       >
-        {title}
-      </span>
-      <span className="flex shrink-0 items-center gap-1 text-text-tertiary">
-        {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}
-        {hasUnread && !isMuted ? (
+        {isThread ? (
+          <ThreadIcon size={13} />
+        ) : (
+          <ChannelAvatar channel={channel} size={22} title={title} />
+        )}
+        {hasUnread ? (
           <span
-            aria-label={`${unread} 条未读`}
-            className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse"
-          >
-            {unreadBadge(unread)}
-          </span>
-        ) : null}
-        {hasUnread && isMuted ? (
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-error" />
-        ) : null}
-        {hasThreads ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={threadsExpanded ? "收起子区" : "展开子区"}
-            title={threadsExpanded ? "收起子区" : "展开子区"}
-            onClick={onThreadTagClick}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleThreads?.();
-              }
-            }}
-            className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded text-brand-primary transition-colors ${
-              threadsExpanded ? "bg-brand-tint" : "hover:bg-bg-elevated"
-            }`}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2.81a1 1 0 0 1 0-1.41l.36-.36a1 1 0 0 1 1.41 0l9.2 9.2a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.3.13l-9.54-6.72a1 1 0 0 1-.08-1.58l1-1L12 2.8ZM12 21.2a1 1 0 0 1 0 1.41l-.35.35a1 1 0 0 1-1.41 0l-9.2-9.19a1 1 0 0 1 0-1.41l.7-.7a1 1 0 0 1 1.3-.12l9.54 6.72a1 1 0 0 1 .07 1.58l-1 1 .35.36ZM15.66 16.8a1 1 0 0 1-1.38.28l-8.49-5.66A1 1 0 1 1 6.9 9.76l8.49 5.65a1 1 0 0 1 .27 1.39ZM17.1 14.25a1 1 0 1 0 1.11-1.66L9.73 6.93a1 1 0 0 0-1.11 1.66l8.49 5.66Z" />
-            </svg>
-          </span>
+            aria-hidden
+            className="absolute -top-[1px] -left-[1px] h-[6px] w-[6px] rounded-full border border-bg-base bg-error"
+          />
         ) : null}
       </span>
-    </button>
+
+      {/* @我 紧贴 icon 后(对齐老仓行 175-177 wk-mention-badge,在 name 前)— 静音也显 */}
+      {isMentionMe && hasUnread ? (
+        <span className="inline-flex h-[14px] shrink-0 items-center rounded-[4px] bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+          @我
+        </span>
+      ) : null}
+
+      {/* 名字 — titleLoading 时 shimmer 骨架占 flex-1(对齐老仓 wk-conv-compact-name-skeleton);
+          loading 时**右侧装饰全部跳过**,避免跟 skeleton 挤布局(老仓 channelInfo 未拉到时
+          isExternal/effectiveMute/hasThreads(注:hasThreads 由父层传,跟 channelInfo 无关,
+          loading 时也可能 true → 仍要隐藏避免错位)) */}
+      {titleLoading ? (
+        <span
+          aria-hidden
+          className={`skeleton-shimmer h-[12px] flex-1 rounded-sm ${isThread ? "max-w-[64px]" : "max-w-[120px]"}`}
+        />
+      ) : (
+        <span
+          className={`min-w-0 flex-1 truncate text-[13px] leading-[1.4] ${
+            // 老仓 1:1 对齐(.wk-conv-compact-name + --thread + --unread + --muted 4 套):
+            //
+            //   群/DM 默认  → text-[#1c1c23]/90 + font-medium       (text-strong 0.9 / 500)
+            //   群/DM 未读  → text-text-primary + font-semibold      (text-primary 1.0 / 600)
+            //   群/DM 静音  → text-text-tertiary + font-normal + opacity-45(覆盖未读 600)
+            //   子区 默认   → text-[#1c1c23]/60 + font-normal         (icon-default 0.6 / 400)
+            //   子区 未读   → text-[#1c1c23]/90 + font-medium         (text-strong 0.9 / 500)
+            //   子区 静音   → text-text-tertiary + font-normal + opacity-45
+            isMuted
+              ? "text-text-tertiary font-normal opacity-45"
+              : isThread
+                ? hasUnread
+                  ? "font-medium text-[#1c1c23]/90"
+                  : "font-normal text-[#1c1c23]/60"
+                : hasUnread
+                  ? "font-semibold text-text-primary"
+                  : "font-medium text-[#1c1c23]/90"
+          }`}
+        >
+          {title}
+        </span>
+      )}
+
+      {/* 右侧装饰 — loading 时不渲染,避免跟 skeleton 挤布局 */}
+      {!titleLoading ? (
+        <>
+          {isExternal ? (
+            <span
+              aria-label="外部群"
+              className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary"
+            >
+              外部
+            </span>
+          ) : null}
+          {isMuted ? <MuteIcon size={11} className="shrink-0 text-text-tertiary" /> : null}
+          {/* 未读 badge:**只在非静音 + 有未读**才显数字(对齐老仓 wk-conv-compact-badge);
+              静音状态只靠 icon 左上 reddot 提示(老仓同) */}
+          {hasUnread && !isMuted ? (
+            <span
+              aria-label={`${unread} 条未读`}
+              className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error"
+            >
+              {unreadBadge(unread)}
+            </span>
+          ) : null}
+          {hasThreads ? (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={threadsExpanded ? "收起子区" : "展开子区"}
+              title={threadsExpanded ? "收起子区" : "展开子区"}
+              onClick={onThreadTagClick}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleThreads?.();
+                }
+              }}
+              className="ml-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] text-[#6569E8] opacity-85 transition-all hover:bg-accent/12 hover:opacity-100"
+            >
+              <ThreadIcon size={13} />
+            </span>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -282,6 +515,8 @@ interface CategorySectionProps {
   sidebarItems: SidebarItem[];
   followedThreadsByParent: Map<string, Conversation[]>;
   selectedChannelId?: string;
+  /** 当前登录用户 uid — isMentionMe 计算用(reminders + mention.uids includes myUid) */
+  myUid: string;
   isExpanded: (groupId: string) => boolean;
   onToggleExpand: (groupId: string) => void;
   onSelectGroup: (groupNo: string) => void;
@@ -289,7 +524,29 @@ interface CategorySectionProps {
   onSelectThread: (threadChannelId: string) => void;
 }
 
-/** 单个分组 section(折叠/展开 + 右键菜单) */
+/** 分组聚合未读 + @我:折叠状态下分组 header 右侧显（展开后子项各自有 badge）。 */
+function aggregateCategoryStats(
+  sidebarItems: SidebarItem[],
+  myUid: string,
+): { unread: number; hasMention: boolean } {
+  let unread = 0;
+  let hasMention = false;
+  for (const it of sidebarItems) {
+    let channelType: number;
+    if (it.target_type === SidebarTargetType.DM) channelType = ChannelTypePerson;
+    else if (it.target_type === SidebarTargetType.CHANNEL) channelType = ChannelTypeGroup;
+    else if (it.target_type === SidebarTargetType.THREAD) channelType = CHANNEL_TYPE_THREAD;
+    else continue;
+    const conv = findConv(it.target_id, channelType);
+    // 静音的群不计 unread(对齐老仓 effectiveMute 跳过)
+    const isMuted = !!conv?.channelInfo?.mute;
+    if (!isMuted) unread += conv?.unread ?? it.unread ?? 0;
+    if (conv && computeMentionMe(conv, myUid)) hasMention = true;
+  }
+  return { unread, hasMention };
+}
+
+/** 单个分组 section(折叠/展开 + 右键菜单 + 自身可拖排序) */
 function CategorySection({
   category,
   collapsed,
@@ -298,6 +555,7 @@ function CategorySection({
   sidebarItems,
   followedThreadsByParent,
   selectedChannelId,
+  myUid,
   isExpanded,
   onToggleExpand,
   onSelectGroup,
@@ -306,6 +564,19 @@ function CategorySection({
 }: CategorySectionProps) {
   const [expandedThreadsSet, setExpandedThreadsSet] = useState<Set<string>>(new Set());
   const count = sidebarItems.length;
+  const isEmpty = count === 0;
+  const stats = useMemo(() => aggregateCategoryStats(sidebarItems, myUid), [sidebarItems, myUid]);
+
+  // 分组自身可拖(对齐老仓 ConversationListGrouped 行 154-159:cat::id 排序)
+  const sortable = useSortable({
+    id: `cat::${category.category_id ?? "default"}`,
+    data: { type: "category", categoryId: category.category_id ?? "default" },
+  });
+  const catStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.4 : undefined,
+  };
 
   // **Dedup**:已嵌入在某个父群下渲染过的子区 channelID 集合,避免 target_type=5 standalone
   // 路径再渲染一次(对齐旧 ConversationListGrouped 的 seenIds:`${type}::${id}` 去重)。
@@ -318,146 +589,257 @@ function CategorySection({
     return s;
   }, [followedThreadsByParent]);
 
+  // 整个 section 注册为 drop 区(drop::cat::{id})— 跨分组拖拽 item 到这里触发 move
+  // 对齐老仓 ConversationListGrouped 行 233-237 `drop::cat::` 解析
+  const dropId = `drop::cat::${category.category_id ?? "default"}`;
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({ id: dropId });
+
   return (
-    <section className="flex flex-col">
+    <section
+      ref={(node) => {
+        setDropRef(node);
+        sortable.setNodeRef(node);
+      }}
+      style={catStyle}
+      className={`group/cat flex flex-col rounded-sm transition-colors ${isDropOver ? "bg-brand-tint/30" : ""}`}
+    >
       <header
-        className="flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+        className={`flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] transition-colors hover:bg-bg-hover ${isEmpty ? "text-text-tertiary" : "text-text-secondary"}`}
         onClick={onToggle}
         onContextMenu={onContextMenu}
       >
-        {collapsed ? (
-          <ChevronRight size={12} className="shrink-0" />
-        ) : (
-          <ChevronDown size={12} className="shrink-0" />
-        )}
-        <span className="min-w-0 flex-1 truncate font-semibold">{category.name}</span>
-        <span className="shrink-0 text-text-tertiary">{count}</span>
+        {/* drag handle(hover 显,对齐老仓 wk-category-header__drag-handle) */}
+        <span
+          {...sortable.attributes}
+          {...sortable.listeners}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="拖动分组"
+          className="-ml-1 flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-text-tertiary opacity-0 transition-opacity duration-150 group-hover/cat:opacity-100 active:cursor-grabbing"
+        >
+          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+            <circle cx="3" cy="3" r="1.2" />
+            <circle cx="7" cy="3" r="1.2" />
+            <circle cx="3" cy="7" r="1.2" />
+            <circle cx="7" cy="7" r="1.2" />
+            <circle cx="3" cy="11" r="1.2" />
+            <circle cx="7" cy="11" r="1.2" />
+          </svg>
+        </span>
+        {/* 实心小三角(对齐老仓 wk-category-header__arrow):默认 ▼,折叠 rotate -90 → ▶ */}
+        <span
+          aria-hidden
+          className={`flex h-[10px] w-[10px] shrink-0 items-center justify-center text-text-tertiary transition-transform ${collapsed ? "-rotate-90" : ""}`}
+        >
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
+            <path d="M4 6l4 5 4-5z" />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1 truncate font-semibold">
+          {category.name}
+          {/* 空时 (空) 斜体;非空 + 折叠时 (N) */}
+          {isEmpty ? (
+            <span className="ml-1 font-normal italic text-text-tertiary">(空)</span>
+          ) : collapsed ? (
+            <span className="ml-1 font-normal text-text-tertiary">({count})</span>
+          ) : null}
+        </span>
+        {/* 折叠 + 非空 + 有未读 → 显 unread + @我 badge(对齐老仓只在折叠时显) */}
+        {collapsed && !isEmpty && stats.unread > 0 ? (
+          <span className="flex shrink-0 items-center gap-1">
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error/15 px-1 text-[10px] font-semibold leading-none text-error">
+              {stats.unread > 99 ? "99+" : stats.unread}
+            </span>
+            {stats.hasMention ? (
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+                @
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </header>
       {!collapsed ? (
         <div className="flex flex-col">
           {count === 0 ? (
-            <div className="px-3 py-2 text-[12px] text-text-tertiary">分组为空</div>
+            <div className="flex items-center justify-center px-3 py-2 text-[12px] italic text-text-tertiary">
+              暂无群聊
+            </div>
           ) : (
-            sidebarItems.map((it) => {
-              if (it.target_type === SidebarTargetType.CHANNEL) {
-                const groupNo = it.target_id;
-                const conv = findConv(groupNo, ChannelTypeGroup);
-                const channel = conv?.channel ?? new Channel(groupNo, ChannelTypeGroup);
-                const title =
-                  conv?.channelInfo?.title ??
-                  category.groups.find((g) => g.group_no === groupNo)?.name ??
-                  groupNo;
-                const muted = !!conv?.channelInfo?.mute;
-                const threads = followedThreadsByParent.get(groupNo) ?? [];
-                const expanded = isExpanded(groupNo);
-                const groupUnread = conv?.unread ?? it.unread;
-                const aggThreadUnread = expanded ? 0 : aggregateThreadUnread(threads, groupNo);
-                return (
-                  <div key={`group-${groupNo}`} className="flex flex-col">
-                    <CompactRow
-                      variant="group"
-                      channel={channel}
-                      title={title}
-                      unread={groupUnread + aggThreadUnread}
-                      isMuted={muted}
-                      hasThreads={threads.length > 0}
-                      threadsExpanded={expanded}
-                      onToggleThreads={() => onToggleExpand(groupNo)}
-                      selected={groupNo === selectedChannelId}
-                      onClick={() => onSelectGroup(groupNo)}
-                    />
-                    {expanded
-                      ? (() => {
-                          const showAll = expandedThreadsSet.has(groupNo);
-                          const MAX = 5;
-                          const visible = showAll ? threads : threads.slice(0, MAX);
-                          const hidden = threads.length - visible.length;
-                          return (
+            (() => {
+              const draggableIds = sidebarItems
+                .filter(
+                  (it) =>
+                    it.target_type === SidebarTargetType.CHANNEL ||
+                    it.target_type === SidebarTargetType.DM,
+                )
+                .map((it) => makeDragId(it.target_type, it.target_id));
+              return (
+                <SortableContext items={draggableIds} strategy={verticalListSortingStrategy}>
+                  {sidebarItems.map((it) => {
+                    if (it.target_type === SidebarTargetType.CHANNEL) {
+                      const groupNo = it.target_id;
+                      const conv = findConv(groupNo, ChannelTypeGroup);
+                      const channel = conv?.channel ?? new Channel(groupNo, ChannelTypeGroup);
+                      // 实时 title(SDK 异步到达 → useConversationsSync 重渲再取)
+                      const live = getLiveTitle(channel);
+                      const title =
+                        live.title ||
+                        category.groups.find((g) => g.group_no === groupNo)?.name ||
+                        groupNo;
+                      // 真 title 才隐 skeleton(category fallback 名仅作显示兜底,仍 loading)
+                      const titleLoading = live.loading;
+                      const muted = !!conv?.channelInfo?.mute;
+                      const threads = followedThreadsByParent.get(groupNo) ?? [];
+                      const expanded = isExpanded(groupNo);
+                      const groupUnread = conv?.unread ?? it.unread;
+                      const aggThreadUnread = expanded
+                        ? 0
+                        : aggregateThreadUnread(threads, groupNo);
+                      return (
+                        <SortableRow
+                          key={`group-${groupNo}`}
+                          id={makeDragId(SidebarTargetType.CHANNEL, groupNo)}
+                        >
+                          {(dragProps) => (
                             <>
-                              {visible.map((t) => (
-                                <CompactRow
-                                  key={`thread-${t.channel.channelID}`}
-                                  variant="thread"
-                                  channel={t.channel}
-                                  title={t.channelInfo?.title ?? t.channel.channelID}
-                                  unread={t.unread || 0}
-                                  isMuted={isThreadEffectivelyMuted(t, groupNo)}
-                                  selected={t.channel.channelID === selectedChannelId}
-                                  onClick={() => onSelectThread(t.channel.channelID)}
-                                />
-                              ))}
-                              {hidden > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedThreadsSet((prev) => {
-                                      const next = new Set(prev);
-                                      next.add(groupNo);
-                                      return next;
-                                    })
-                                  }
-                                  className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
-                                >
-                                  查看更多 +{hidden}
-                                </button>
-                              ) : null}
+                              <CompactRow
+                                variant="group"
+                                channel={channel}
+                                title={title}
+                                titleLoading={titleLoading}
+                                unread={groupUnread + aggThreadUnread}
+                                isMuted={muted}
+                                isExternal={
+                                  (
+                                    conv?.channelInfo?.orgData as
+                                      | { is_external_group?: number }
+                                      | undefined
+                                  )?.is_external_group === 1
+                                }
+                                isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                                hasThreads={threads.length > 0}
+                                threadsExpanded={expanded}
+                                onToggleThreads={() => onToggleExpand(groupNo)}
+                                selected={groupNo === selectedChannelId}
+                                onClick={() => onSelectGroup(groupNo)}
+                                dragProps={dragProps}
+                              />
+                              {expanded
+                                ? (() => {
+                                    const showAll = expandedThreadsSet.has(groupNo);
+                                    const MAX = 5;
+                                    const visible = showAll ? threads : threads.slice(0, MAX);
+                                    const hidden = threads.length - visible.length;
+                                    return (
+                                      <>
+                                        {visible.map((t) => {
+                                          const tLive = getLiveTitle(t.channel);
+                                          return (
+                                            <CompactRow
+                                              key={`thread-${t.channel.channelID}`}
+                                              variant="thread"
+                                              channel={t.channel}
+                                              title={tLive.title || t.channel.channelID}
+                                              titleLoading={tLive.loading}
+                                              unread={t.unread || 0}
+                                              isMuted={isThreadEffectivelyMuted(t, groupNo)}
+                                              isMentionMe={computeMentionMe(t, myUid)}
+                                              selected={t.channel.channelID === selectedChannelId}
+                                              onClick={() => onSelectThread(t.channel.channelID)}
+                                            />
+                                          );
+                                        })}
+                                        {hidden > 0 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setExpandedThreadsSet((prev) => {
+                                                const next = new Set(prev);
+                                                next.add(groupNo);
+                                                return next;
+                                              })
+                                            }
+                                            className="ml-12 px-3 py-1 text-left text-[12px] text-text-tertiary hover:text-text-secondary"
+                                          >
+                                            查看更多 +{hidden}
+                                          </button>
+                                        ) : null}
+                                      </>
+                                    );
+                                  })()
+                                : null}
                             </>
-                          );
-                        })()
-                      : null}
-                  </div>
-                );
-              }
-              if (it.target_type === SidebarTargetType.DM) {
-                const peerUid = it.target_id;
-                const conv = findConv(peerUid, ChannelTypePerson);
-                const channel = conv?.channel ?? new Channel(peerUid, ChannelTypePerson);
-                const title = conv?.channelInfo?.title ?? peerUid;
-                const muted = !!conv?.channelInfo?.mute;
-                const unread = conv?.unread ?? it.unread;
-                return (
-                  <CompactRow
-                    key={`dm-${peerUid}`}
-                    variant="dm"
-                    channel={channel}
-                    title={title}
-                    unread={unread}
-                    isMuted={muted}
-                    selected={peerUid === selectedChannelId}
-                    onClick={() => onSelectDM(peerUid)}
-                  />
-                );
-              }
-              if (it.target_type === SidebarTargetType.THREAD) {
-                const tid = it.target_id;
-                // **dedup**:已嵌在某个父群下渲染过的子区,不再 standalone(对齐旧 seenIds)
-                if (nestedThreadIds.has(tid)) return null;
-                // 真孤儿子区(父群没关注 + sidebar 没 parent_channel_id + parseThreadChannelId
-                // 失败):平铺渲染,不嵌套
-                const conv = findConv(tid, CHANNEL_TYPE_THREAD);
-                const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
-                const title = conv?.channelInfo?.title ?? tid;
-                const parsed = parseThreadChannelId(tid);
-                const muted = isThreadEffectivelyMuted(
-                  conv ?? ({ channelInfo: undefined } as unknown as Conversation),
-                  parsed?.groupNo,
-                );
-                const unread = conv?.unread ?? it.unread;
-                return (
-                  <CompactRow
-                    key={`thread-standalone-${tid}`}
-                    variant="thread"
-                    channel={channel}
-                    title={title}
-                    unread={unread}
-                    isMuted={muted}
-                    selected={tid === selectedChannelId}
-                    onClick={() => onSelectThread(tid)}
-                  />
-                );
-              }
-              return null;
-            })
+                          )}
+                        </SortableRow>
+                      );
+                    }
+                    if (it.target_type === SidebarTargetType.DM) {
+                      const peerUid = it.target_id;
+                      const conv = findConv(peerUid, ChannelTypePerson);
+                      const channel = conv?.channel ?? new Channel(peerUid, ChannelTypePerson);
+                      const live = getLiveTitle(channel);
+                      const title = live.title || peerUid;
+                      const titleLoading = live.loading;
+                      const muted = !!conv?.channelInfo?.mute;
+                      const unread = conv?.unread ?? it.unread;
+                      return (
+                        <SortableRow
+                          key={`dm-${peerUid}`}
+                          id={makeDragId(SidebarTargetType.DM, peerUid)}
+                        >
+                          {(dragProps) => (
+                            <CompactRow
+                              variant="dm"
+                              channel={channel}
+                              title={title}
+                              titleLoading={titleLoading}
+                              unread={unread}
+                              isMuted={muted}
+                              isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                              selected={peerUid === selectedChannelId}
+                              onClick={() => onSelectDM(peerUid)}
+                              dragProps={dragProps}
+                            />
+                          )}
+                        </SortableRow>
+                      );
+                    }
+                    if (it.target_type === SidebarTargetType.THREAD) {
+                      const tid = it.target_id;
+                      // **dedup**:已嵌在某个父群下渲染过的子区,不再 standalone(对齐旧 seenIds)
+                      if (nestedThreadIds.has(tid)) return null;
+                      // 真孤儿子区(父群没关注 + sidebar 没 parent_channel_id + parseThreadChannelId
+                      // 失败):平铺渲染,不嵌套
+                      const conv = findConv(tid, CHANNEL_TYPE_THREAD);
+                      const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
+                      const live = getLiveTitle(channel);
+                      const title = live.title || tid;
+                      const titleLoading = live.loading;
+                      const parsed = parseThreadChannelId(tid);
+                      const muted = isThreadEffectivelyMuted(
+                        conv ?? ({ channelInfo: undefined } as unknown as Conversation),
+                        parsed?.groupNo,
+                      );
+                      const unread = conv?.unread ?? it.unread;
+                      return (
+                        <CompactRow
+                          key={`thread-standalone-${tid}`}
+                          variant="thread"
+                          channel={channel}
+                          title={title}
+                          titleLoading={titleLoading}
+                          unread={unread}
+                          isMuted={muted}
+                          isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
+                          selected={tid === selectedChannelId}
+                          onClick={() => onSelectThread(tid)}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </SortableContext>
+              );
+            })()
           )}
         </div>
       ) : null}
@@ -505,6 +887,55 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
   // 分组 collapsed 状态(本地,内存,刷新页面后重置)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggleCollapse = (id: string) => setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // 拖拽排序(同分组 — group/dm 重排 by /follow/sort + version CAS)
+  const { sortCategory } = useSortFollow(spaceId);
+  // PointerSensor activation 距离 5px:防止单击误触拖拽(老仓 ConversationListGrouped 同款)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // 跨分组移动 — group 走 /follow/channel/move,DM 走 /follow/dm 覆盖式更新
+  // 1:1 对齐老仓 ConversationListGrouped handleDragEnd 行 219-225 跨分组分支
+  const moveGroupMu = useMutation({
+    mutationFn: (args: { groupNo: string; categoryId: string }) =>
+      moveGroupToCategory(args.groupNo, args.categoryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+      toast.success("已移动到分组");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "移动失败");
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    },
+  });
+  const moveDmMu = useMutation({
+    mutationFn: (args: { peerUid: string; categoryId: string | null }) =>
+      followDM(args.peerUid, args.categoryId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      toast.success("已移动 DM 到分组");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "移动失败");
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    },
+  });
+
+  // 分组排序(关注 tab 内 categories 自身重排,对齐老仓 onSortCategories →
+  // PUT /spaces/{spaceId}/categories/sort,新仓 follow.api 已有 sortCategories API)
+  const sortCategoriesMu = useMutation({
+    mutationFn: (categoryIds: string[]) => {
+      if (!spaceId) return Promise.reject(new Error("无 spaceId"));
+      return sortCategories(spaceId, categoryIds);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "排序分组失败");
+      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
+    },
+  });
 
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; cat?: CategoryItem }>({
     open: false,
@@ -595,25 +1026,20 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
 
   const orderedCategories = useMemo<CategoryItem[]>(() => {
     const cats = categoriesQ.data ?? [];
-    const haveDefault = cats.some((c) => c.is_default);
-    const sidebarItems = sidebarQ.data?.itemsByCategory.get("") ?? [];
-    if (haveDefault || sidebarItems.length === 0) return cats;
-    return [
-      ...cats,
-      {
-        category_id: null,
-        name: "默认分组",
-        sort: Number.MAX_SAFE_INTEGER,
-        groups: [],
-        is_default: true,
-      } as CategoryItem,
-    ];
-  }, [categoriesQ.data, sidebarQ.data]);
+    // 关注 tab 不显示默认分组(对齐老仓 ConversationListGrouped 行 461-463 PM #337:
+    // "按 PM #337 spec 不展示默认分组(含真实 is_default 与虚拟兜底分组)")。
+    // 未归组的会话只走右键"添加到关注 + 选分组"流程,不在 follow tab 散显。
+    return cats.filter((c) => !c.is_default);
+  }, [categoriesQ.data]);
 
   if (categoriesQ.isLoading || sidebarQ.isLoading) {
+    // 老仓 .wk-conv-compact-name-skeleton shimmer 占位行 — 比"加载分组…"文字更优雅
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        加载分组…
+      <div className="flex flex-1 flex-col gap-1 px-2 py-1">
+        <style>{SKELETON_STYLE}</style>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
       </div>
     );
   }
@@ -641,81 +1067,206 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
     );
   }
 
+  /**
+   * 拖拽结束:三个分支(1:1 对齐老仓 ConversationListGrouped handleDragEnd 行 140-244):
+   *
+   *   分支 A — item → item 同 category:`/follow/sort` 同分组重排(群下面紧跟子区)
+   *   分支 B — item → item 跨 category:按 over item 的 category 作目标
+   *     · group → /follow/channel/move
+   *     · dm    → /follow/dm 覆盖式更新(category_id)
+   *     · thread 不跨分组(对齐老仓行 231:`if (channelType === ChannelTypeCommunityTopic) return`)
+   *   分支 C — item → drop::cat::xxx(分组 header drop 区):同 B 但目标 categoryId 从 drop id 取
+   *
+   * 跨分组失败由各 mutation 的 onError invalidate sidebar 兜底回到服务端真值。
+   */
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+
+    // 分支 D:分组排序(cat::id → cat::id)— 对齐老仓 ConversationListGrouped 行 150-162
+    const activeStr = String(active.id);
+    const overStr = String(over.id);
+    if (activeStr.startsWith("cat::") && overStr.startsWith("cat::")) {
+      const aId = activeStr.slice("cat::".length);
+      const oId = overStr.slice("cat::".length);
+      const oldIndex = orderedCategories.findIndex((c) => (c.category_id ?? "default") === aId);
+      const newIndex = orderedCategories.findIndex((c) => (c.category_id ?? "default") === oId);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const newOrder = arrayMove(orderedCategories, oldIndex, newIndex);
+        const visibleIds = newOrder.map((c) => c.category_id).filter((x): x is string => !!x);
+        // 后端要求 sort 列表必须含**全部**真实 category(含被前端隐藏的 is_default,
+        // 否则 400 err.server.category.sort_list_mismatch "分类列表数量不匹配")。
+        // 老仓 ConversationListGrouped 行 465-467 注释:"提交 /categories/sort 时
+        // 仍要把真实存在但被隐藏的默认分组带上,否则后端会误删"
+        const hiddenDefaultIds = (categoriesQ.data ?? [])
+          .filter((c) => c.is_default && !!c.category_id && !visibleIds.includes(c.category_id))
+          .map((c) => c.category_id!)
+          .filter((id): id is string => !!id);
+        sortCategoriesMu.mutate([...visibleIds, ...hiddenDefaultIds]);
+      }
+      return;
+    }
+
+    const activeParsed = parseDragId(activeStr);
+    if (!activeParsed) return;
+    const items = sidebarQ.data?.items ?? [];
+    const activeItem = items.find(
+      (it) => it.target_type === activeParsed.targetType && it.target_id === activeParsed.targetId,
+    );
+    if (!activeItem) return;
+    const activeCatId = activeItem.category_id ?? "";
+
+    // 共用 mover — 按 channelType 分流(thread 不跨,老仓行 231)
+    const doMove = (targetCatId: string | null) => {
+      if ((targetCatId ?? "") === activeCatId) return;
+      if (activeParsed.targetType === SidebarTargetType.CHANNEL) {
+        if (!targetCatId) return; // 群必须有目标 category
+        moveGroupMu.mutate({ groupNo: activeParsed.targetId, categoryId: targetCatId });
+      } else if (activeParsed.targetType === SidebarTargetType.DM) {
+        moveDmMu.mutate({ peerUid: activeParsed.targetId, categoryId: targetCatId });
+      }
+    };
+
+    // 分支 C:over 是 drop::cat::xxx(整个 section 区域 droppable)或 cat::xxx(分组 header 自身,
+    // 老仓 ConversationListGrouped 行 235-237 同样支持 cat:: 前缀作为跨分组目标)
+    const overIdStr = String(over.id);
+    if (overIdStr.startsWith("drop::cat::") || overIdStr.startsWith("cat::")) {
+      const prefix = overIdStr.startsWith("drop::cat::") ? "drop::cat::" : "cat::";
+      const catIdRaw = overIdStr.slice(prefix.length);
+      doMove(catIdRaw === "default" ? null : catIdRaw);
+      return;
+    }
+
+    // 分支 A / B:over 是另一个 item
+    const overParsed = parseDragId(overIdStr);
+    if (!overParsed) return;
+    const overItem = items.find(
+      (it) => it.target_type === overParsed.targetType && it.target_id === overParsed.targetId,
+    );
+    if (!overItem) return;
+    const overCatId = overItem.category_id ?? "";
+
+    if (activeCatId !== overCatId) {
+      // 分支 B:跨分组 — 目标 categoryId 取 over item 所属
+      doMove(overItem.category_id ?? null);
+      return;
+    }
+
+    // 分支 A:同分组重排
+    const catList = sidebarQ.data?.itemsByCategory.get(activeCatId) ?? [];
+    const draggable = catList.filter(
+      (it) =>
+        it.target_type === SidebarTargetType.CHANNEL || it.target_type === SidebarTargetType.DM,
+    );
+    const oldIndex = draggable.findIndex(
+      (it) => it.target_type === activeParsed.targetType && it.target_id === activeParsed.targetId,
+    );
+    const newIndex = draggable.findIndex(
+      (it) => it.target_type === overParsed.targetType && it.target_id === overParsed.targetId,
+    );
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const reordered = arrayMove(draggable, oldIndex, newIndex);
+    const orderedTargets = reordered.map((it) => ({
+      target_type: it.target_type,
+      target_id: it.target_id,
+    }));
+    const threadsByGroup = new Map<string, { channelID: string }[]>();
+    for (const [parentGroupNo, threads] of followedThreadsByParent) {
+      threadsByGroup.set(
+        parentGroupNo,
+        threads.map((t) => ({ channelID: t.channel.channelID })),
+      );
+    }
+    sortCategory(activeCatId, sidebarQ.data?.followVersion ?? 0, orderedTargets, threadsByGroup);
+  };
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-2">
-      {orderedCategories.map((cat) => {
-        const sidebarKey = cat.category_id ?? "";
-        const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
-        return (
-          <CategorySection
-            key={cat.category_id ?? `default-${cat.name}`}
-            category={cat}
-            collapsed={!!collapsed[cat.category_id ?? "default"]}
-            onToggle={() => toggleCollapse(cat.category_id ?? "default")}
-            onContextMenu={onCategoryContextMenu(cat)}
-            sidebarItems={sidebarItems}
-            followedThreadsByParent={followedThreadsByParent}
-            selectedChannelId={selectedChannelId}
-            isExpanded={isExpanded}
-            onToggleExpand={toggleExpand}
-            onSelectGroup={handleSelectGroup}
-            onSelectDM={handleSelectDM}
-            onSelectThread={handleSelectThread}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      {/* skeleton shimmer 始终 inject — row 内 titleLoading 时的 .skeleton-shimmer
+          才能拿到 CSS 规则(否则灰条没 background,看起来像空白) */}
+      <style>{SKELETON_STYLE}</style>
+      {/* 对齐老仓 .wk-conversationlist:padding=0;新仓保留 px-2 py-1 让 selected bg 不贴边 */}
+      <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
+        <SortableContext
+          items={orderedCategories.map((c) => `cat::${c.category_id ?? "default"}`)}
+          strategy={verticalListSortingStrategy}
+        >
+          {orderedCategories.map((cat) => {
+            const sidebarKey = cat.category_id ?? "";
+            const sidebarItems = sidebarQ.data?.itemsByCategory.get(sidebarKey) ?? [];
+            return (
+              <CategorySection
+                key={cat.category_id ?? `default-${cat.name}`}
+                category={cat}
+                collapsed={!!collapsed[cat.category_id ?? "default"]}
+                onToggle={() => toggleCollapse(cat.category_id ?? "default")}
+                onContextMenu={onCategoryContextMenu(cat)}
+                sidebarItems={sidebarItems}
+                followedThreadsByParent={followedThreadsByParent}
+                selectedChannelId={selectedChannelId}
+                myUid={myUid}
+                isExpanded={isExpanded}
+                onToggleExpand={toggleExpand}
+                onSelectGroup={handleSelectGroup}
+                onSelectDM={handleSelectDM}
+                onSelectThread={handleSelectThread}
+              />
+            );
+          })}
+        </SortableContext>
+
+        {menu.open && menu.cat && menu.cat.category_id ? (
+          <ContextMenu
+            open
+            x={menu.x}
+            y={menu.y}
+            items={
+              [
+                {
+                  label: "重命名",
+                  icon: <Pencil size={13} />,
+                  onClick: () => menu.cat && setRenaming(menu.cat),
+                },
+                {
+                  label: "删除分组",
+                  icon: <Trash2 size={13} />,
+                  danger: true,
+                  onClick: () => menu.cat && setConfirmDelete(menu.cat),
+                },
+              ] as ContextMenuItem[]
+            }
+            onClose={() => setMenu((m) => ({ ...m, open: false }))}
           />
-        );
-      })}
+        ) : null}
 
-      {menu.open && menu.cat && menu.cat.category_id ? (
-        <ContextMenu
-          open
-          x={menu.x}
-          y={menu.y}
-          items={
-            [
-              {
-                label: "重命名",
-                icon: <Pencil size={13} />,
-                onClick: () => menu.cat && setRenaming(menu.cat),
-              },
-              {
-                label: "删除分组",
-                icon: <Trash2 size={13} />,
-                danger: true,
-                onClick: () => menu.cat && setConfirmDelete(menu.cat),
-              },
-            ] as ContextMenuItem[]
-          }
-          onClose={() => setMenu((m) => ({ ...m, open: false }))}
-        />
-      ) : null}
+        {renaming ? (
+          <InputModal
+            open
+            title="重命名分组"
+            placeholder="输入新分组名"
+            initialValue={renaming.name}
+            validate={(v) => v.trim().length > 0 && v.trim() !== renaming.name}
+            okLoading={renameMu.isPending}
+            onOk={(v) => {
+              if (renaming.category_id) renameMu.mutate({ catId: renaming.category_id, name: v });
+            }}
+            onCancel={() => setRenaming(null)}
+          />
+        ) : null}
 
-      {renaming ? (
-        <InputModal
-          open
-          title="重命名分组"
-          placeholder="输入新分组名"
-          initialValue={renaming.name}
-          validate={(v) => v.trim().length > 0 && v.trim() !== renaming.name}
-          okLoading={renameMu.isPending}
-          onOk={(v) => {
-            if (renaming.category_id) renameMu.mutate({ catId: renaming.category_id, name: v });
-          }}
-          onCancel={() => setRenaming(null)}
-        />
-      ) : null}
-
-      {confirmDelete ? (
-        <ConfirmModal
-          open
-          title="确认删除分组"
-          content={`确定删除分组「${confirmDelete.name}」吗?分组内会话会取消关注。`}
-          okText="删除"
-          okDanger
-          okLoading={deleteMu.isPending}
-          onOk={() => confirmDelete.category_id && deleteMu.mutate(confirmDelete.category_id)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      ) : null}
-    </div>
+        {confirmDelete ? (
+          <ConfirmModal
+            open
+            title="确认删除分组"
+            content={`确定删除分组「${confirmDelete.name}」吗?分组内会话会取消关注。`}
+            okText="删除"
+            okDanger
+            okLoading={deleteMu.isPending}
+            onOk={() => confirmDelete.category_id && deleteMu.mutate(confirmDelete.category_id)}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        ) : null}
+      </div>
+    </DndContext>
   );
 }

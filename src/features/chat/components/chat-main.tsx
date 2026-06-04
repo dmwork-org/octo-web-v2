@@ -87,7 +87,7 @@ export function ChatMain() {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg-base">
         <ChatHeader
           channel={channel}
           showThreadIcon={showThreadIcon}

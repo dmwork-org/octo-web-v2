@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Search, X } from "lucide-react";
+import { Virtuoso } from "react-virtuoso";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
@@ -171,7 +172,7 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
           ))}
         </nav>
 
-        <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col">
           {isFetching && !data ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
               {keyword.trim().length === 0 ? "加载默认列表…" : "搜索中…"}
@@ -222,39 +223,42 @@ function FriendsList({ items, onClose }: { items: SearchFriend[]; onClose: () =>
       </div>
     );
   }
+  // 联系人 tab 空 keyword 时后端返全量(4000+),用 Virtuoso 虚拟化只挂视口内 DOM
+  // (对齐老仓 tab-contacts.tsx → Virtuoso increaseViewportBy 200)
   return (
-    <ul className="flex flex-col">
-      {items.map((f) => {
+    <Virtuoso
+      data={items}
+      style={{ height: "100%" }}
+      increaseViewportBy={200}
+      itemContent={(_idx: number, f: SearchFriend) => {
         const channel = new Channel(f.channel_id, ChannelTypePerson);
         const name = f.channel_remark || f.channel_name;
         return (
-          <li key={f.channel_id}>
-            <button
-              type="button"
-              onClick={() => {
-                chatSelectedActions.select(channel);
-                onClose();
-              }}
-              className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-bg-hover"
-            >
-              <ChannelAvatar channel={channel} size={36} title={name} />
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span
-                  className="truncate text-sm text-text-primary"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHighlight(name) }}
-                />
-                {f.robot === 1 ? <AiBadge size="small" /> : null}
-                {f.source_space_name ? (
-                  <span className="shrink-0 text-[11px] text-text-tertiary">
-                    @{f.source_space_name}
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          </li>
+          <button
+            type="button"
+            onClick={() => {
+              chatSelectedActions.select(channel);
+              onClose();
+            }}
+            className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-bg-hover"
+          >
+            <ChannelAvatar channel={channel} size={36} title={name.replace(/<\/?mark>/gi, "")} />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span
+                className="truncate text-sm text-text-primary"
+                dangerouslySetInnerHTML={{ __html: sanitizeHighlight(name) }}
+              />
+              {f.robot === 1 ? <AiBadge size="small" /> : null}
+              {f.source_space_name ? (
+                <span className="shrink-0 text-[11px] text-text-tertiary">
+                  @{f.source_space_name}
+                </span>
+              ) : null}
+            </span>
+          </button>
         );
-      })}
-    </ul>
+      }}
+    />
   );
 }
 
@@ -266,44 +270,59 @@ function GroupsList({ items, onClose }: { items: SearchGroup[]; onClose: () => v
       </div>
     );
   }
+  // 群组 tab 同样虚拟化,空 keyword 时后端可能返大量我加入的群(对齐老仓 tab-group.tsx)
   return (
-    <ul className="flex flex-col">
-      {items.map((g) => {
+    <Virtuoso
+      data={items}
+      style={{ height: "100%" }}
+      increaseViewportBy={200}
+      itemContent={(_idx: number, g: SearchGroup) => {
         const channel = new Channel(g.channel_id, ChannelTypeGroup);
         const name = g.channel_remark || g.channel_name;
         return (
-          <li key={g.channel_id}>
-            <button
-              type="button"
-              onClick={() => {
-                chatSelectedActions.select(channel);
-                onClose();
-              }}
-              className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-bg-hover"
-            >
-              <ChannelAvatar channel={channel} size={36} title={name} />
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span
-                  className="truncate text-sm text-text-primary"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHighlight(name) }}
-                />
-                <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                  群
-                </span>
+          <button
+            type="button"
+            onClick={() => {
+              chatSelectedActions.select(channel);
+              onClose();
+            }}
+            className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-bg-hover"
+          >
+            <ChannelAvatar channel={channel} size={36} title={name.replace(/<\/?mark>/gi, "")} />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span
+                className="truncate text-sm text-text-primary"
+                dangerouslySetInnerHTML={{ __html: sanitizeHighlight(name) }}
+              />
+              <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+                群
               </span>
-              {typeof g.member_count === "number" ? (
-                <span className="shrink-0 text-[11px] text-text-tertiary">{g.member_count}</span>
-              ) : null}
-            </button>
-          </li>
+            </span>
+            {typeof g.member_count === "number" ? (
+              <span className="shrink-0 text-[11px] text-text-tertiary">{g.member_count}</span>
+            ) : null}
+          </button>
         );
-      })}
-    </ul>
+      }}
+    />
   );
 }
 
+/** 单条消息 row 渲染(虚拟化所需,先按 channel 分组、再展平成 row 列表)。 */
+interface MessageRow {
+  kind: "header" | "message" | "more";
+  key: string;
+  /** header / message 共用 channel info;more 用于占位文案 */
+  channel: Channel;
+  channelName: string;
+  message?: SearchMessage;
+  moreCount?: number;
+}
+
 function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () => void }) {
-  const groupedByChannel = useMemo(() => {
+  // 老仓按 channel 分组,每组只展示前 3 条 + "还有 N 条"。这里把分组结果展平
+  // 成一维 row 列表喂给 Virtuoso,实现"分组样式 + 虚拟化"。
+  const rows: MessageRow[] = useMemo(() => {
     const map = new Map<string, SearchMessage[]>();
     for (const m of items) {
       const key = `${m.channel.channel_type}-${m.channel.channel_id}`;
@@ -311,7 +330,32 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
       list.push(m);
       map.set(key, list);
     }
-    return map;
+    const out: MessageRow[] = [];
+    for (const [key, msgs] of map.entries()) {
+      const first = msgs[0];
+      const ch = new Channel(first.channel.channel_id, first.channel.channel_type);
+      const chName = first.channel.channel_remark || first.channel.channel_name;
+      out.push({ kind: "header", key: `h-${key}`, channel: ch, channelName: chName });
+      msgs.slice(0, 3).forEach((m, idx) => {
+        out.push({
+          kind: "message",
+          key: `m-${key}-${m.message_id ?? idx}`,
+          channel: ch,
+          channelName: chName,
+          message: m,
+        });
+      });
+      if (msgs.length > 3) {
+        out.push({
+          kind: "more",
+          key: `more-${key}`,
+          channel: ch,
+          channelName: chName,
+          moreCount: msgs.length - 3,
+        });
+      }
+    }
+    return out;
   }, [items]);
 
   if (items.length === 0) {
@@ -322,58 +366,59 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
     );
   }
 
-  const blocks = [...groupedByChannel.entries()];
   return (
-    <ul className="flex flex-col gap-1 py-2">
-      {blocks.map(([key, msgs]) => {
-        const first = msgs[0];
-        const channel = new Channel(first.channel.channel_id, first.channel.channel_type);
-        const channelName = first.channel.channel_remark || first.channel.channel_name;
+    <Virtuoso
+      data={rows}
+      style={{ height: "100%" }}
+      increaseViewportBy={200}
+      itemContent={(_idx: number, row: MessageRow) => {
+        if (row.kind === "header") {
+          return (
+            <div className="px-5 py-1 text-[11px] font-semibold text-text-tertiary">
+              {row.channelName}
+            </div>
+          );
+        }
+        if (row.kind === "more") {
+          return (
+            <div className="px-5 py-1 text-[11px] text-text-tertiary">
+              还有 {row.moreCount} 条匹配...
+            </div>
+          );
+        }
+        const m = row.message!;
         return (
-          <li key={key} className="flex flex-col">
-            <header className="px-5 py-1 text-[11px] font-semibold text-text-tertiary">
-              {channelName}
-            </header>
-            {msgs.slice(0, 3).map((m, idx) => (
-              <button
-                key={`${m.message_id ?? idx}`}
-                type="button"
-                onClick={() => {
-                  chatSelectedActions.select(channel);
-                  onClose();
+          <button
+            type="button"
+            onClick={() => {
+              chatSelectedActions.select(row.channel);
+              onClose();
+            }}
+            className="flex w-full items-start gap-3 px-5 py-2 text-left transition-colors hover:bg-bg-hover"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-xs text-text-secondary">
+              {(m.from_name ?? m.from_uid ?? "?").slice(0, 1).toUpperCase()}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div className="flex items-baseline gap-2 text-[11px]">
+                <span className="truncate font-semibold text-text-primary">
+                  {m.from_name ?? m.from_uid}
+                </span>
+                {m.timestamp ? (
+                  <span className="text-text-tertiary">{formatTimestamp(m.timestamp)}</span>
+                ) : null}
+              </div>
+              <span
+                className="truncate text-xs text-text-secondary"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHighlight(m.conversationDigest ?? digestFromPayload(m)),
                 }}
-                className="flex w-full items-start gap-3 px-5 py-2 text-left transition-colors hover:bg-bg-hover"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-xs text-text-secondary">
-                  {(m.from_name ?? m.from_uid ?? "?").slice(0, 1).toUpperCase()}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <header className="flex items-baseline gap-2 text-[11px]">
-                    <span className="truncate font-semibold text-text-primary">
-                      {m.from_name ?? m.from_uid}
-                    </span>
-                    {m.timestamp ? (
-                      <span className="text-text-tertiary">{formatTimestamp(m.timestamp)}</span>
-                    ) : null}
-                  </header>
-                  <span
-                    className="truncate text-xs text-text-secondary"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeHighlight(m.conversationDigest ?? digestFromPayload(m)),
-                    }}
-                  />
-                </div>
-              </button>
-            ))}
-            {msgs.length > 3 ? (
-              <span className="px-5 py-1 text-[11px] text-text-tertiary">
-                还有 {msgs.length - 3} 条匹配...
-              </span>
-            ) : null}
-          </li>
+              />
+            </div>
+          </button>
         );
-      })}
-    </ul>
+      }}
+    />
   );
 }
 

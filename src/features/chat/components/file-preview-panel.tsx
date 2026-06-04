@@ -16,6 +16,8 @@ import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
 import { getExtension } from "@/features/chat/file-preview/types";
 import type { FilePreviewInfo, TocItem } from "@/features/chat/file-preview/types";
 import { useReplyToFileMessage } from "@/features/chat/hooks/use-reply-to-file-message.hook";
+import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
+import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 
 /**
  * 文件预览面板(1:1 对齐旧 dmworkbase Components/FilePreviewPanel + FilePreviewHeader)。
@@ -50,6 +52,11 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
   const ext = getExtension(file.ext, file.name);
   const { renderer: Renderer, type } = fileRendererRegistry.getRenderer(file.ext, file.name);
 
+  // 宽度拖拽(左边缘 splitter,共享 thread-panel localStorage 实现联动 — 对齐老仓 1:1
+  // ThreadPanel + FilePreviewPanel 同一组件 + 同一 wk-thread-panel-width key)
+  const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
+    useRightPanelResize();
+
   const supportsViewToggle = type === "markdown";
   const supportsToc = type === "markdown";
 
@@ -74,7 +81,11 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
   };
 
   return (
-    <aside className="relative flex h-full w-[380px] shrink-0 flex-col border-l border-border-default bg-bg-base">
+    <aside
+      ref={panelRef}
+      style={{ width }}
+      className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
+    >
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <FileTypeIcon extension={ext} size={20} />
@@ -139,6 +150,15 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
         />
       </div>
       {tocOpen && tocAvailable ? <TocPopup items={tocItems} onPick={onTocPick} /> : null}
+
+      {/* 左边缘 splitter:hover/drag 显紫色细线;双击重置默认 432 */}
+      <PanelSplitter
+        side="left"
+        isDragging={isDragging}
+        onMouseDown={onSplitterMouseDown}
+        onDoubleClick={onSplitterDoubleClick}
+      />
+      {isDragging ? <DragOverlay /> : null}
     </aside>
   );
 }

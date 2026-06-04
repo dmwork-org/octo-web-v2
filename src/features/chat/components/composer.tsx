@@ -631,7 +631,7 @@ export function Composer({ channel }: ComposerProps) {
         onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className={`relative flex w-full cursor-text flex-col rounded-xl border border-border-default/40 bg-bg-surface px-4 py-2 transition-colors focus-within:border-text-primary ${expanded ? "min-h-[280px]" : "min-h-10"}`}
+        className={`relative flex w-full cursor-text flex-col rounded-[12px] border border-[#1c1c23]/10 bg-bg-surface px-4 py-2 transition-colors focus-within:border-brand ${expanded ? "min-h-[280px]" : "min-h-10"}`}
       >
         {replyingTo ? (
           <div className="mb-2 flex items-center gap-2 rounded-sm bg-bg-elevated px-3 py-1.5 text-[14px] leading-tight">
@@ -701,7 +701,7 @@ export function Composer({ channel }: ComposerProps) {
                 onClick={onClickMention}
                 aria-label="@提及"
                 title="@提及"
-                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
               >
                 <AtSign size={20} />
               </button>
@@ -711,7 +711,7 @@ export function Composer({ channel }: ComposerProps) {
               onClick={() => fileInputRef.current?.click()}
               aria-label="发送文件"
               title="发送文件 / 图片"
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
             >
               <Paperclip size={20} />
             </button>
@@ -733,7 +733,7 @@ export function Composer({ channel }: ComposerProps) {
                 }
                 aria-label="创建任务"
                 title={`创建任务(${ALT_KEY}+↵)`}
-                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
               >
                 <CheckSquare size={20} />
               </button>
@@ -750,7 +750,7 @@ export function Composer({ channel }: ComposerProps) {
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? "收起" : "展开"}
               title={expanded ? "收起" : "展开"}
-              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
             >
               {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>

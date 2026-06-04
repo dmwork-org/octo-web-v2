@@ -91,6 +91,8 @@ export class ThreadCreatedContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return `${this.from_name || "有人"}创建了子区「${this.thread_name}」`;
+    // 1:1 对齐老仓 Messages/ThreadCreated/index.tsx 行 62-64:
+    //   return `[子区] ${this.thread_name}`
+    return `[子区] ${this.thread_name}`;
   }
 }

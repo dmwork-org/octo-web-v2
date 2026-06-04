@@ -7,18 +7,8 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
 } from "wukongimjssdk";
-import {
-  BellOff,
-  BellRing,
-  Eye,
-  FolderInput,
-  Hash,
-  Pin,
-  PinOff,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react";
+import { BellOff, BellRing, Eye, FolderInput, Pin, PinOff, Star, Trash2, X } from "lucide-react";
+import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -35,7 +25,11 @@ import {
   moveGroupToCategory,
   unfollowChannel,
 } from "@/features/base/api/endpoints/follow.api";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { ThreadIcon } from "@/components/ui/thread-icon";
+import { MuteIcon } from "@/components/ui/mute-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
 import {
   categoriesQueryKey,
@@ -44,6 +38,12 @@ import {
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import {
+  effectiveMute,
+  isMentionMe,
+  lastMessageDigest,
+} from "@/features/chat/lib/conversation-last-content";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 export type ConvTab = "follow" | "recent";
 
@@ -62,133 +62,272 @@ function unreadBadge(unread: number): string {
   return unread > 99 ? "99+" : String(unread);
 }
 
-function timeLabel(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  }
-  const sameYear = d.getFullYear() === now.getFullYear();
-  if (sameYear) return `${d.getMonth() + 1}/${d.getDate()}`;
-  return `${d.getFullYear() % 100}/${d.getMonth() + 1}/${d.getDate()}`;
+/**
+ * 1:1 对齐老仓 `Utils/time.ts::getTimeStringAutoShort2(timestamp, mustIncludeTime=true)`:
+ *
+ *   <60s     → "刚刚"
+ *   当天     → "HH:MM"
+ *   昨天     → "昨天 HH:MM"
+ *   前天     → "前天 HH:MM"
+ *   7 天内   → "星期X HH:MM"
+ *   当年其他 → "yyyy/M/d HH:MM"(老仓 fallback 用完整年份)
+ *   往年     → "yyyy/M/d HH:MM"
+ *
+ * 老仓注释强调:用月日**直接比较**判昨天/前天,**不能**用时间戳差值
+ * (跨日 1h 边界场景会判错)。
+ */
+const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+function formatHHMM(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-function digestOf(c: Conversation): string {
-  const last = c.lastMessage;
-  if (!last) return "";
-  const digest = (last.content as { conversationDigest?: string } | undefined)?.conversationDigest;
-  return digest ?? "";
+function timeLabel(ts: number): string {
+  if (!ts) return "";
+  const src = new Date(ts * 1000);
+  const now = new Date();
+  const sameYear = src.getFullYear() === now.getFullYear();
+  const timeExtra = ` ${formatHHMM(src)}`;
+
+  if (!sameYear) {
+    return `${src.getFullYear()}/${src.getMonth() + 1}/${src.getDate()}${timeExtra}`;
+  }
+
+  const sameMonth = src.getMonth() === now.getMonth();
+  const sameDay = sameMonth && src.getDate() === now.getDate();
+  if (sameDay) {
+    if (now.getTime() - src.getTime() < 60 * 1000) return "刚刚";
+    return formatHHMM(src);
+  }
+
+  // 昨天 / 前天 — 用月日直接比较(老仓注释:不能用 deltaTime/3600/1000 > 24 的跨日 1h 错判)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (src.getMonth() === yesterday.getMonth() && src.getDate() === yesterday.getDate()) {
+    return `昨天${timeExtra}`;
+  }
+  const before = new Date();
+  before.setDate(before.getDate() - 2);
+  if (src.getMonth() === before.getMonth() && src.getDate() === before.getDate()) {
+    return `前天${timeExtra}`;
+  }
+
+  // 7 天内 → 星期X
+  const deltaHour = (now.getTime() - src.getTime()) / (3600 * 1000);
+  if (deltaHour <= 7 * 24) {
+    return `${WEEKDAY_ZH[src.getDay()]}${timeExtra}`;
+  }
+  return `${src.getFullYear()}/${src.getMonth() + 1}/${src.getDate()}${timeExtra}`;
 }
 
 /**
- * 单行会话(对应旧 dmworkbase ConversationList::conversationItem):
+ * 单行会话(对应旧 dmworkbase ConversationList::conversationItem 非 compact 渲染):
  *
- * - 行 padding 7px 8px / rounded-sm / hover bg-bg-hover / selected bg-brand-tint
- * - 置顶行额外 bg-bg-elevated/30 / 头像 32×32 / 头像右上 unread badge
- * - 名字行末尾:置顶 Pin icon + 免打扰 BellOff icon
- * - 子区(ChannelTypeCommunityTopic)左侧头像取**父群**头像、名字前加 # 图标、
- *   名字上方一行小字面包屑显示父群名(对齐旧 .wk-conv-breadcrumb)
- * - 右键 onContextMenu → 父层 onContextMenu(打开 ContextMenu)
- * - **typing 中** → digest 行渲染 "··· 正在输入"(对齐截图 #37,
- *   走 ConversationTypingDigest 内部 useTypingForChannel hook)
+ * 装饰对齐老仓 1:1 — 行 padding 7×8 / rounded-sm / hover / 置顶底色 / 头像 32×32
+ *
+ * 头像区(.wk-conversationlist-item-avatar-box):
+ * - 子区(ChannelTypeCommunityTopic):头像借父群头像 + 右下叠 `#` 角标(wk-conv-group-hash-badge)
+ * - person 非子区且 online(channelInfo.online ‖ 1 小时内 lastOffline):右下叠 9×9 绿点
+ * - 未读右上:静音 → 9×9 红点(wk-conv-unread-dot);非静音 → 数字胶囊
+ *
+ * first-line:`[ThreadIcon] {displayName} [AiBadge] [外部] [identityIcon] [muteIcon]    {time}`
+ * second-line:`[N条]红字前缀 (静音多未读) + [typing/[草稿]/digest]    {@我}`
+ *
+ * effectiveMute:子区无显式 mute 时继承父群(由 lib/conversation-last-content effectiveMute 计算)
+ * isMentionMe:reminders 优先,fallback lastMessage.content.mention.uids 包含 myUid
+ * lastMessageDigest:撤回 → 撤回 tip;group/topic 自动加发送人前缀
+ *
+ * AI 协作 fold session 预览(老仓 wk-ai-collab-preview)— 数据源 AI 协作模块未搬,本期跳过。
  */
 function ConversationRow({
   conversation,
   active,
+  myUid,
   onClick,
   onContextMenu,
 }: {
   conversation: Conversation;
   active: boolean;
+  myUid: string;
   onClick: () => void;
   onContextMenu: (e: MouseEvent) => void;
 }) {
   const channel = conversation.channel;
+  const info = conversation.channelInfo;
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
-  const title = conversation.channelInfo?.title ?? channel.channelID;
-  const isMuted = !!conversation.channelInfo?.mute;
-  const isTop = conversation.extra?.top === 1;
+  const isPerson = channel.channelType === ChannelTypePerson;
+  const isGroup = channel.channelType === ChannelTypeGroup;
+  const isMuted = effectiveMute(conversation);
   const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
+  const mentionMe = isMentionMe(conversation, myUid);
 
-  // 子区:头像走父群、面包屑显示父群名(对齐旧版 design v3.1 扁平时间序)
+  // displayName 优先 orgData.displayName(remark > realName > name),fallback title
+  const orgData = info?.orgData as
+    | {
+        displayName?: string;
+        is_external_group?: number;
+        robot?: number;
+        identityIcon?: string;
+        identitySize?: { width: string; height: string };
+      }
+    | undefined;
+  // 真 title(displayName 或 channelInfo.title);**没拉到走 skeleton**,不显 channelID
+  // (避免先闪 raw ID 再 pop 到真 title — 用户视觉跳变)
+  const realTitle = orgData?.displayName || info?.title || "";
+  const titleLoading = !realTitle;
+  const title = realTitle || channel.channelID; // channelID 仅作 aria 兜底,不直接显
+  const isExternal = isGroup && orgData?.is_external_group === 1;
+  const isBot = isPerson && orgData?.robot === 1;
+  const identityIcon = orgData?.identityIcon;
+  const identitySize = orgData?.identitySize;
+
+  // 子区:头像借父群 + 面包屑(parentGroupInfo.orgData.displayName fallback title)
   const parentGroupNo = isThread ? parseThreadChannelId(channel.channelID)?.groupNo : undefined;
   const parentChannel = parentGroupNo ? new Channel(parentGroupNo, ChannelTypeGroup) : undefined;
   const parentChannelInfo = parentChannel
     ? WKSDK.shared().channelManager.getChannelInfo(parentChannel)
     : undefined;
-  // 父群 channelInfo 还没拉到 → 主动 fetch,channelInfoListener 会触发重渲(SDK 自带 dedupe)
   if (parentChannel && !parentChannelInfo) {
-    void WKSDK.shared().channelManager.fetchChannelInfo(parentChannel);
+    tryFetchChannelInfo(parentChannel);
   }
   const avatarChannel = isThread && parentChannel ? parentChannel : channel;
   const avatarTitle = isThread ? (parentChannelInfo?.title ?? title) : title;
-  const breadcrumb = isThread ? parentChannelInfo?.title : undefined;
+  const parentOrg = parentChannelInfo?.orgData as { displayName?: string } | undefined;
+  const breadcrumb = isThread ? parentOrg?.displayName || parentChannelInfo?.title : undefined;
+
+  // online 显示判定:online 或 1 小时内离线(对齐 needShowOnlineStatus)
+  const showOnline = (() => {
+    if (!isPerson || isThread || !info) return false;
+    if (info.online) return true;
+    const now = Date.now() / 1000;
+    const btw = now - (info.lastOffline ?? 0);
+    return btw > 0 && btw < 60 * 60;
+  })();
+
+  const digest = lastMessageDigest(conversation, myUid);
+  // 静音 + 多未读:digest 前置 [N 条] 红字(低打扰,对齐 wk-conv-count-hint)
+  const showCountHint = isMuted && conversation.unread > 1;
 
   return (
+    // 行(对齐老仓 .wk-conversationlist-item):py-[7px] px-2 + rounded-md(--wk-r-sm=6) +
+    //   mb-[1px] + hover bg item-hover(rgba(46,50,56,0.09))+ selected bg brand-tint-06
+    //   (rgba(28,28,35,0.06));置顶**不做特殊背景**(老仓 css 行 76-78 注释)
     <button
       type="button"
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
-        active
-          ? "bg-brand-tint"
-          : isTop
-            ? "bg-bg-elevated/40 hover:bg-bg-hover"
-            : "hover:bg-bg-hover"
+      className={`mb-[1px] flex w-full items-center gap-[10px] rounded-md px-2 py-[7px] text-left transition-colors duration-150 ease-(--ease-emphasized) ${
+        active ? "bg-[rgba(28,28,35,0.06)]" : "hover:bg-[rgba(46,50,56,0.09)]"
       }`}
     >
-      <div className="relative flex h-8 w-8 shrink-0">
+      {/* avatar-box 32×32(对齐 .wk-conversationlist-item-avatar-box) */}
+      <div className="relative h-8 w-8 shrink-0">
         <ChannelAvatar channel={avatarChannel} size={32} title={avatarTitle} />
+        {/* 子区头像下挂 # 角标(.wk-conv-group-hash-badge:16x16 圆 + 1.5px ring base + GroupIcon size 10) */}
+        {isThread ? (
+          <span
+            aria-hidden
+            className="absolute right-[-3px] bottom-[-3px] flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-bg-base bg-bg-elevated text-text-secondary"
+          >
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden>
+              <path d="M9 6h6v2H9zM7 11h10v2H7zM9 16h6v2H9z" />
+            </svg>
+          </span>
+        ) : showOnline ? (
+          <ConversationOnlineBadge />
+        ) : null}
+        {/* 未读 — 静音:9×9 红点(.wk-conv-unread-dot) / 非静音:数字 -6 -6 + 2px ring base(.wk-conv-unread-num) */}
         {hasUnread &&
           (isMuted ? (
             <span
               aria-hidden
-              className="absolute -top-[2px] -right-[2px] h-[9px] w-[9px] rounded-full bg-error ring-2 ring-bg-base"
+              className="box-border absolute -top-[2px] -right-[2px] h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error"
             />
           ) : (
             <span
               aria-label={`${conversation.unread} 条未读`}
-              className="absolute -top-[6px] -right-[6px] inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-text-inverse ring-2 ring-bg-base"
+              className="absolute -top-[6px] -right-[6px] box-border inline-flex h-4 min-w-4 items-center justify-center rounded-[9px] border-2 border-bg-base bg-error px-1 text-[10px] leading-none font-semibold text-white"
             >
               {unread}
             </span>
           ))}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+
+      {/* right(flex-col gap 2px,对齐 .wk-conversationlist-item-right) */}
+      <div className="flex min-w-0 flex-1 flex-col gap-[2px] overflow-hidden">
+        {/* 子区面包屑 — 父群 displayName(对齐 .wk-conv-breadcrumb:size xs=11 / color icon-default=0.6 / mb-[3px]) */}
         {breadcrumb ? (
-          <span className="truncate text-[10px] leading-tight text-text-tertiary">
+          <span className="mb-[3px] truncate text-[11px] leading-none text-[#1c1c23]/60">
             {breadcrumb}
           </span>
         ) : null}
-        <div className="flex items-center justify-between gap-2">
+
+        {/* first-line:flex items-center gap-1.5(6px),time margin-left:auto(老仓
+            .wk-conversationlist-item-right-first-line + .wk-conversationlist-item-time) */}
+        <div className="flex items-center gap-1.5 overflow-hidden">
           <h3
-            className={`flex min-w-0 flex-1 items-center gap-0.5 truncate text-[13px] leading-tight ${
-              hasUnread && !isMuted ? "font-semibold" : "font-medium"
-            } ${isMuted ? "text-text-tertiary" : "text-text-primary"}`}
+            className={`m-0 flex min-w-0 flex-1 items-center gap-1.5 truncate text-[13px] leading-[1.4] ${
+              isMuted ? "text-[#1c1c23]/40" : "text-[#1c1c23]/90"
+            } ${hasUnread && !isMuted ? "font-semibold" : "font-medium"}`}
           >
-            {isThread ? <Hash size={12} className="shrink-0 text-text-tertiary" /> : null}
-            <span className="truncate">{title}</span>
+            {isThread ? <ThreadIcon size={13} className="shrink-0 text-[#1c1c23]/60" /> : null}
+            {titleLoading ? (
+              <span
+                aria-hidden
+                aria-label={title}
+                className="conv-list-skeleton h-3 w-24 shrink rounded-sm"
+              />
+            ) : (
+              <span className="min-w-0 truncate">{title}</span>
+            )}
+            {isBot ? <AiBadge size="small" /> : null}
+            {isExternal ? (
+              <span className="ml-1 shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary">
+                外部
+              </span>
+            ) : null}
+            {identityIcon ? (
+              <img
+                src={identityIcon}
+                alt=""
+                aria-hidden
+                className="shrink-0"
+                style={{ width: identitySize?.width ?? 18, height: identitySize?.height ?? 18 }}
+              />
+            ) : null}
+            {isMuted ? (
+              <MuteIcon size={11} aria-label="免打扰" className="shrink-0 text-[#1c1c23]/40" />
+            ) : null}
           </h3>
-          <div className="flex shrink-0 items-center gap-1 text-text-tertiary">
-            {isMuted ? <BellOff size={11} aria-label="免打扰" /> : null}
-            {isTop ? <Pin size={11} aria-label="置顶" /> : null}
-            <span className="text-[11px] leading-none">{timeLabel(conversation.timestamp)}</span>
-          </div>
+          <span className="ml-auto shrink-0 text-[11px] leading-none font-normal text-[#1c1c23]/60">
+            {timeLabel(conversation.timestamp)}
+          </span>
         </div>
-        <div className="flex items-center">
+
+        {/* second-line:lastmsg flex-1(size sm=12 / color icon-default=0.6 / weight 400)+ @我 badge ml-1 */}
+        <div className="flex items-center overflow-hidden">
           <span
-            className={`truncate text-xs leading-tight ${
-              isMuted ? "text-text-tertiary" : "text-text-secondary"
+            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-none font-normal ${
+              isMuted ? "text-[#1c1c23]/40" : "text-[#1c1c23]/60"
             }`}
           >
-            <ConversationTypingDigest channel={channel} fallback={digestOf(conversation)} />
+            <ConversationTypingDigest
+              channel={channel}
+              fallback={digest}
+              reminders={conversation.simpleReminders}
+              countHint={showCountHint ? conversation.unread : 0}
+            />
           </span>
+          {/* @我 badge(.wk-mention-badge:bg-danger / white / h-14 / rounded-[3px] / size tiny=10 / weight 600 / ml-1) */}
+          {mentionMe && hasUnread && !isMuted ? (
+            <span className="ml-1 inline-flex h-[14px] shrink-0 items-center rounded-[3px] bg-error px-1 text-[10px] leading-none font-semibold text-white">
+              @我
+            </span>
+          ) : null}
         </div>
       </div>
     </button>
@@ -202,6 +341,22 @@ function isVisibleInRecentTab(c: Conversation, now: number): boolean {
 }
 
 const TOP_BOOST = 1_000_000_000_000;
+
+/** 列表加载骨架 shimmer 动画(对齐 follow-list 同款,老仓 wk-skeleton-shimmer 1.2s linear) */
+const LIST_SKELETON_STYLE = `
+.conv-list-skeleton {
+  background: linear-gradient(90deg,
+    rgba(28,28,35,0.10) 25%,
+    rgba(28,28,35,0.22) 50%,
+    rgba(28,28,35,0.10) 75%);
+  background-size: 200% 100%;
+  animation: conv-list-skeleton-shimmer 1.2s infinite linear;
+}
+@keyframes conv-list-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+`;
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
     const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
@@ -227,6 +382,7 @@ export function ConversationList({
   filter = "recent",
 }: ConversationListProps) {
   const qc = useQueryClient();
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   useConversationsSync();
   const { data, isLoading, error } = useQuery(conversationsQueryOptions(spaceId));
@@ -238,6 +394,7 @@ export function ConversationList({
   });
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
+  const [confirmCloseAndClear, setConfirmCloseAndClear] = useState<Conversation | null>(null);
 
   const filtered = useMemo(() => {
     const all = data ?? [];
@@ -443,13 +600,30 @@ export function ConversationList({
       icon: <X size={13} />,
       onClick: () => setConfirmClose(conv),
     });
+    // 关闭+清空二合一(对齐老仓 ConversationList 行 1187-1206)
+    items.push({
+      label: "关闭窗口并清空记录",
+      icon: <Trash2 size={13} />,
+      danger: true,
+      onClick: () => setConfirmCloseAndClear(conv),
+    });
     return items;
   };
 
   if (isLoading) {
+    // 骨架占位行(对齐 follow-list 同款 shimmer);避免文字"加载会话…"突兀
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        加载会话…
+      <div className="flex flex-1 flex-col gap-1 px-2 py-1">
+        <style>{LIST_SKELETON_STYLE}</style>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2.5 px-2 py-[7px]">
+            <span className="conv-list-skeleton h-8 w-8 shrink-0 rounded-md" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className="conv-list-skeleton h-3 w-2/5 rounded-sm" />
+              <span className="conv-list-skeleton h-3 w-3/4 rounded-sm" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -468,12 +642,17 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto p-2">
+    // 对齐老仓 .wk-conversationlist:padding=0,item 自身管 padding(行 1-10 of CSS)
+    // 新仓保留 px-2 / py-1 让 selected/hover bg 内缩,不贴 sidebar 边缘
+    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
+      {/* skeleton shimmer 始终 inject,row 内 title 没拉到时即用 conv-list-skeleton class */}
+      <style>{LIST_SKELETON_STYLE}</style>
       {filtered.map((c) => (
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}
           conversation={c}
           active={c.channel.channelID === selectedChannelId}
+          myUid={myUid}
           onClick={() => onSelect?.(c)}
           onContextMenu={onRowContextMenu(c)}
         />
@@ -506,6 +685,23 @@ export function ConversationList({
         okLoading={closeChatMu.isPending}
         onOk={() => confirmClose && closeChatMu.mutate(confirmClose)}
         onCancel={() => setConfirmClose(null)}
+      />
+
+      <ConfirmModal
+        open={!!confirmCloseAndClear}
+        title="确认关闭并清空"
+        content="确定要关闭窗口并清空所有聊天记录吗?此操作不可撤销。"
+        okText="关闭并清空"
+        okDanger
+        okLoading={closeChatMu.isPending || clearMessagesMu.isPending}
+        onOk={() => {
+          if (!confirmCloseAndClear) return;
+          // 双 mutation 顺序:先 clear messages,再 close(老仓 onCloseChat → onClearMessages 顺序)
+          clearMessagesMu.mutate(confirmCloseAndClear);
+          closeChatMu.mutate(confirmCloseAndClear);
+          setConfirmCloseAndClear(null);
+        }}
+        onCancel={() => setConfirmCloseAndClear(null)}
       />
     </div>
   );

@@ -191,10 +191,10 @@ export function userToChannelInfo(data: SyncedUserRaw): ChannelInfo {
   orgData.shortNo = data.short_no ?? "";
   info.logo = data.logo && data.logo !== "" ? data.logo : `users/${data.uid}/avatar`;
   if (data.category === "system" || data.category === "customerService") {
-    orgData.identityIcon = "./identity_icon/official.png";
+    orgData.identityIcon = "/identity_icon/official.png";
     orgData.identitySize = { width: "18px", height: "18px" };
   } else if (data.category === "visitor") {
-    orgData.identityIcon = "./identity_icon/visitor.png";
+    orgData.identityIcon = "/identity_icon/visitor.png";
     orgData.identitySize = { width: "48px", height: "24px" };
   }
   info.orgData = orgData;

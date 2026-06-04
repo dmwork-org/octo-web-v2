@@ -84,7 +84,10 @@ function useResumeEffect(
         });
         if (result.status === OIDC_AUTH_STATUS.SUCCESS && result.result) {
           clearPendingOidcLogin();
-          setState(() => ({ resuming: false, providerName, error: null }));
+          // **不**在这里 setState({resuming:false}) — 否则会触发 LoginView re-render
+          // 走默认分支显账密页,而 finalize 是 async(signIn + setSpace + getMySpaces
+          // 几百 ms 才 navigate),中间用户能看见账密页一闪。保持 resuming=true 直到
+          // navigate 让本组件 unmount。失败 / 超时分支照常 setState 显错误。
           options.onSuccess(result.result, pending.providerId);
         } else {
           clearPendingOidcLogin();
@@ -119,8 +122,6 @@ export function useResumeOidc(options: UseResumeOidcOptions): ResumeOidcState {
   // 表单(防 SSO 回调进 /login → useResumeOidc effect 还没跑那一帧的闪烁)。
   const [state, setState] = useState<ResumeOidcState>(() => {
     const pending = getPendingOidcLogin();
-    // eslint-disable-next-line no-console
-    console.info("[resume-oidc] init pending=", pending);
     if (pending && !isPendingExpired(pending)) {
       return { resuming: true, providerName: "SSO", error: null };
     }

@@ -1,78 +1,171 @@
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { authActions } from "@/features/base/stores/auth";
 import { useLoginMutation } from "@/features/login/mutations";
+import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
+import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
+import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
+import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { Button } from "@/components/semi-bridge/button";
+import type { LoginResp } from "@/features/base/api/endpoints/user.api";
+import type { AuthUser } from "@/features/base/stores/auth";
 
 interface LoginViewProps {
   redirect?: string;
 }
 
-function readBackendMessage(err: unknown): string {
-  if (!err || typeof err !== "object") return "Sign in failed";
-  const e = err as { data?: { msg?: unknown; message?: unknown }; message?: string };
-  const msg = e.data?.msg ?? e.data?.message;
-  if (typeof msg === "string" && msg.length > 0) return msg;
-  if (typeof e.message === "string" && e.message.length > 0) return e.message;
-  return "Sign in failed";
+function loginRespToAuthUser(resp: LoginResp): AuthUser {
+  return {
+    uid: resp.uid,
+    name: resp.name ?? "",
+    username: resp.username ?? "",
+    app_id: resp.app_id,
+    short_no: resp.short_no,
+    zone: resp.zone,
+    phone: resp.phone,
+  };
 }
 
+/**
+ * 登录页(对齐老仓 dmworklogin login.tsx LoginType.phone 区块)。
+ *
+ * **SSO 主路径**(`primaryProvider` 存在):
+ *   - 主 CTA:`登录 / 注册`(`startOidc(primaryProvider)`)
+ *   - 说明:已有账号将自动登录,新用户将自动注册
+ *   - 信任锚点:`由 {provider.name} 提供`
+ *   - `legacyPasswordLoginOff` flag 为 true 时隐藏本地密码表单(只走 SSO)
+ *
+ * **本地密码表单**(无 SSO 或 SSO 未隐藏):用户名 / 密码 + 登录
+ *
+ * **OIDC resume**:mount 时检 pending session,有则 poll authstatus,成功
+ * 触发 signIn + 跳转;失败 / 超时显错误文案。
+ */
 export function LoginView({ redirect }: LoginViewProps) {
   const navigate = useNavigate();
-  const mutation = useLoginMutation();
+  const loginMu = useLoginMutation();
+  const { providers, primaryProvider, legacyPasswordLoginOff } = useSsoProviders();
+  const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const onLoginSuccess = useCallback(
+    (resp: LoginResp) => {
+      authActions.signIn(resp.token, loginRespToAuthUser(resp));
+      void navigate({ href: redirect ?? "/", replace: true });
+    },
+    [navigate, redirect],
+  );
+
+  const {
+    resuming,
+    providerName,
+    error: resumeError,
+  } = useResumeOidc({
+    providers,
+    onSuccess: onLoginSuccess,
+  });
+
+  const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const { token, user } = await mutation.mutateAsync({ username, password });
+    const { token, user } = await loginMu.mutateAsync({ username, password });
     authActions.signIn(token, user);
     void navigate({ href: redirect ?? "/", replace: true });
   };
 
+  // resume 中显独立 banner 不让用户看到表单(避免重复触发)
+  if (resuming) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg-base">
+        <div className="flex w-80 flex-col items-center gap-3 rounded-lg border border-border-default bg-bg-surface p-8 shadow-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <p className="text-sm text-text-secondary">正在通过 {providerName} 登录…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const showPasswordForm = !primaryProvider || !legacyPasswordLoginOff;
+  const ssoErrorText = oidcStartError ?? resumeError;
+  const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-base">
-      <form
-        onSubmit={onSubmit}
-        className="w-80 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm"
-        aria-label="login form"
-      >
-        <h1 className="mb-4 text-xl font-semibold text-text-primary">登录</h1>
-        <label className="mb-3 block text-sm text-text-secondary">
-          用户名
-          <input
-            type="text"
-            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoComplete="username"
-          />
-        </label>
-        <label className="mb-4 block text-sm text-text-secondary">
-          密码
-          <input
-            type="password"
-            className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        {mutation.isError && (
-          <p className="mb-3 text-xs text-error">{readBackendMessage(mutation.error)}</p>
-        )}
-        <Button
-          htmlType="submit"
-          type="primary"
-          theme="solid"
-          loading={mutation.isPending}
-          className="w-full"
-        >
-          {mutation.isPending ? "登录中…" : "登录"}
-        </Button>
-      </form>
+      <div className="flex w-80 flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm">
+        <h1 className="text-xl font-semibold text-text-primary">登录</h1>
+
+        {/* SSO 主路径 — 有 provider 就显主 CTA */}
+        {primaryProvider ? (
+          <div className="flex flex-col gap-2">
+            <Button
+              type="primary"
+              theme="solid"
+              loading={oidcStarting}
+              className="w-full"
+              onClick={() => void startOidc(primaryProvider)}
+            >
+              {oidcStarting ? "跳转中…" : "登录 / 注册"}
+            </Button>
+            <p className="text-center text-xs text-text-tertiary">
+              已有账号将自动登录，新用户将自动注册
+            </p>
+            <p
+              className="text-center text-[11px] text-text-tertiary"
+              title={`由 ${primaryProvider.name} 提供`}
+            >
+              由 {primaryProvider.name} 提供
+            </p>
+          </div>
+        ) : null}
+
+        {ssoErrorText ? <p className="text-xs text-error">{ssoErrorText}</p> : null}
+
+        {/* SSO + 本地表单分隔 */}
+        {primaryProvider && showPasswordForm ? (
+          <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+            <span className="flex-1 border-t border-border-subtle" />
+            <span>或</span>
+            <span className="flex-1 border-t border-border-subtle" />
+          </div>
+        ) : null}
+
+        {/* 本地密码表单 */}
+        {showPasswordForm ? (
+          <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-3">
+            <label className="block text-sm text-text-secondary">
+              用户名
+              <input
+                type="text"
+                className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoComplete="username"
+              />
+            </label>
+            <label className="block text-sm text-text-secondary">
+              密码
+              <input
+                type="password"
+                className="mt-1 w-full rounded border border-border-default bg-bg-surface px-2 py-1.5 text-text-primary"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </label>
+            {loginErrorText ? <p className="text-xs text-error">{loginErrorText}</p> : null}
+            <Button
+              htmlType="submit"
+              type="primary"
+              theme="solid"
+              loading={loginMu.isPending}
+              className="w-full"
+            >
+              {loginMu.isPending ? "登录中…" : "登录"}
+            </Button>
+          </form>
+        ) : null}
+      </div>
     </div>
   );
 }

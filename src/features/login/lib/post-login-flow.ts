@@ -104,21 +104,24 @@ export function useFinalizeLogin(inviteCode: string | undefined, redirect: strin
           // ignore — 进首页后用户可手动重试
         }
         clearPendingInviteCode();
-      } else {
-        // 无邀请:拉 my spaces 选第一个(对齐老仓 checkSpaceAndLogin)
-        try {
-          const spaces = await getMySpaces();
-          if (spaces.length > 0) {
-            spaceActions.setSpace(spaces[0].space_id);
-          }
-          // spaces 空 → spaceId 保持 null,首页应渲染"加入/创建空间"引导
-        } catch {
-          // ignore — 同样不阻塞跳转
-        }
+        void navigate({ href: redirect ?? "/", replace: true });
+        return;
       }
 
-      // 4. 跳转
-      void navigate({ href: redirect ?? "/", replace: true });
+      // 无邀请:拉 my spaces 决定走向(对齐老仓 checkSpaceAndLogin)
+      try {
+        const spaces = await getMySpaces();
+        if (spaces.length > 0) {
+          spaceActions.setSpace(spaces[0].space_id);
+          void navigate({ href: redirect ?? "/", replace: true });
+        } else {
+          // 没空间 → 引导加入(对齐老仓 onNeedJoinSpace → JoinSpacePage)
+          void navigate({ to: "/joinspace", replace: true });
+        }
+      } catch {
+        // 拉 spaces 失败 → 兜底跳引导页让用户输邀请码,不留在登录页
+        void navigate({ to: "/joinspace", replace: true });
+      }
     },
     [navigate, inviteCode, redirect],
   );

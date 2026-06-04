@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as QrcodeRouteImport } from './routes/qrcode'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as JoinspaceRouteImport } from './routes/joinspace'
 import { Route as ForgetpasswordRouteImport } from './routes/forgetpassword'
 import { Route as BindRouteImport } from './routes/bind'
 import { Route as AuthRouteImport } from './routes/_auth'
@@ -39,6 +40,11 @@ const QrcodeRoute = QrcodeRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinspaceRoute = JoinspaceRouteImport.update({
+  id: '/joinspace',
+  path: '/joinspace',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgetpasswordRoute = ForgetpasswordRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute
   '/bind': typeof BindRoute
   '/forgetpassword': typeof ForgetpasswordRoute
+  '/joinspace': typeof JoinspaceRoute
   '/login': typeof LoginRoute
   '/qrcode': typeof QrcodeRoute
   '/register': typeof RegisterRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/bind': typeof BindRoute
   '/forgetpassword': typeof ForgetpasswordRoute
+  '/joinspace': typeof JoinspaceRoute
   '/login': typeof LoginRoute
   '/qrcode': typeof QrcodeRoute
   '/register': typeof RegisterRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/bind': typeof BindRoute
   '/forgetpassword': typeof ForgetpasswordRoute
+  '/joinspace': typeof JoinspaceRoute
   '/login': typeof LoginRoute
   '/qrcode': typeof QrcodeRoute
   '/register': typeof RegisterRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bind'
     | '/forgetpassword'
+    | '/joinspace'
     | '/login'
     | '/qrcode'
     | '/register'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
   to:
     | '/bind'
     | '/forgetpassword'
+    | '/joinspace'
     | '/login'
     | '/qrcode'
     | '/register'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/bind'
     | '/forgetpassword'
+    | '/joinspace'
     | '/login'
     | '/qrcode'
     | '/register'
@@ -218,6 +230,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   BindRoute: typeof BindRoute
   ForgetpasswordRoute: typeof ForgetpasswordRoute
+  JoinspaceRoute: typeof JoinspaceRoute
   LoginRoute: typeof LoginRoute
   QrcodeRoute: typeof QrcodeRoute
   RegisterRoute: typeof RegisterRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/joinspace': {
+      id: '/joinspace'
+      path: '/joinspace'
+      fullPath: '/joinspace'
+      preLoaderRoute: typeof JoinspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgetpassword': {
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   BindRoute: BindRoute,
   ForgetpasswordRoute: ForgetpasswordRoute,
+  JoinspaceRoute: JoinspaceRoute,
   LoginRoute: LoginRoute,
   QrcodeRoute: QrcodeRoute,
   RegisterRoute: RegisterRoute,

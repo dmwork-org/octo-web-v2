@@ -8,6 +8,7 @@ import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { QrcodeView } from "@/features/login/views/qrcode.view";
 import { RegisterView } from "@/features/login/views/register.view";
+import { ForgetPasswordView } from "@/features/login/views/forget-password.view";
 import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { Button } from "@/components/semi-bridge/button";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
@@ -30,15 +31,16 @@ function loginRespToAuthUser(resp: LoginResp): AuthUser {
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx LoginType 状态机):
+ * 登录页(对齐老仓 dmworklogin login.tsx LoginType 4 态状态机):
  *   - `phone` — 默认:SSO 主路径 + 本地账号密码表单
  *   - `qrcode` — 扫码登录
  *   - `register` — 邮箱注册
- *   - `forgetPassword` — 块 4 加入
+ *   - `forgetPassword` — 找回密码
  *
  * **SSO 主路径**(`primaryProvider` 存在):
  *   - 主 CTA:`登录 / 注册`(`startOidc(primaryProvider)`)
  *   - `legacyPasswordLoginOff=1` 时隐藏本地密码表单(只走 SSO)
+ *   - provider.resetPasswordUrl 存在时优先把"忘记密码"指向 IdP 自身
  *
  * **OIDC resume**:mount 时检 pending session,有则 poll authstatus。
  */
@@ -68,7 +70,6 @@ export function LoginView({ redirect }: LoginViewProps) {
     onSuccess: onLoginSuccess,
   });
 
-  // resume 中独立 loading banner — 不让用户看到表单(避免重复触发)
   if (resuming) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg-base">
@@ -79,15 +80,14 @@ export function LoginView({ redirect }: LoginViewProps) {
       </div>
     );
   }
-
-  // 二维码 view
   if (view === LoginType.Qrcode) {
     return <QrcodeView redirect={redirect} onSwitchToPassword={() => setView(LoginType.Phone)} />;
   }
-
-  // 注册 view
   if (view === LoginType.Register) {
     return <RegisterView redirect={redirect} onBackToLogin={() => setView(LoginType.Phone)} />;
+  }
+  if (view === LoginType.ForgetPassword) {
+    return <ForgetPasswordView onBackToLogin={() => setView(LoginType.Phone)} />;
   }
 
   const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -101,12 +101,21 @@ export function LoginView({ redirect }: LoginViewProps) {
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
 
+  // SSO 用户优先把"忘记密码"指向 IdP 自身(对齐老仓 dmworklogin LoginType.phone
+  // 区块的 resetPasswordUrl 提示)
+  const onClickForget = () => {
+    if (primaryProvider?.resetPasswordUrl) {
+      window.open(primaryProvider.resetPasswordUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setView(LoginType.ForgetPassword);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-base">
       <div className="flex w-80 flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm">
         <h1 className="text-xl font-semibold text-text-primary">登录</h1>
 
-        {/* SSO 主路径 — 有 provider 就显主 CTA */}
         {primaryProvider ? (
           <div className="flex flex-col gap-2">
             <Button
@@ -132,7 +141,6 @@ export function LoginView({ redirect }: LoginViewProps) {
 
         {ssoErrorText ? <p className="text-xs text-error">{ssoErrorText}</p> : null}
 
-        {/* SSO + 本地表单分隔 */}
         {primaryProvider && showPasswordForm ? (
           <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
             <span className="flex-1 border-t border-border-subtle" />
@@ -141,7 +149,6 @@ export function LoginView({ redirect }: LoginViewProps) {
           </div>
         ) : null}
 
-        {/* 本地密码表单 */}
         {showPasswordForm ? (
           <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-3">
             <label className="block text-sm text-text-secondary">
@@ -179,7 +186,6 @@ export function LoginView({ redirect }: LoginViewProps) {
           </form>
         ) : null}
 
-        {/* 底部链接(扫码 / 注册 / 找回密码 块 4 加入) */}
         <div className="flex justify-between text-xs text-text-tertiary">
           <button
             type="button"
@@ -188,13 +194,22 @@ export function LoginView({ redirect }: LoginViewProps) {
           >
             扫码登录
           </button>
-          <button
-            type="button"
-            onClick={() => setView(LoginType.Register)}
-            className="hover:text-text-primary hover:underline"
-          >
-            没有账号？注册
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setView(LoginType.Register)}
+              className="hover:text-text-primary hover:underline"
+            >
+              注册
+            </button>
+            <button
+              type="button"
+              onClick={onClickForget}
+              className="hover:text-text-primary hover:underline"
+            >
+              忘记密码
+            </button>
+          </div>
         </div>
       </div>
     </div>

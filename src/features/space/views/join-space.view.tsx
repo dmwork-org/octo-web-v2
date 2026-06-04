@@ -9,25 +9,32 @@ import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { toast } from "@/components/semi-bridge/toast";
 
 const INVITE_CODE_REGEX = /^[a-zA-Z0-9_-]+$/;
-const ACCENT_COLORS = ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#43e97b", "#fa709a"];
+const SPACE_ICON_COLORS = ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#43e97b", "#fa709a"];
 
 type View = "home" | "join" | "confirm";
 
 /**
- * 加入空间引导页(对齐老仓 apps/web JoinSpacePage,Wave 2):
+ * 加入空间引导页 — 1:1 对齐老仓 apps/web JoinSpacePage 视觉:
  *
  * **3 view 状态机**:
- *  - `home`:欢迎页 + "📩 输入邀请码加入" 按钮
- *  - `join`:输入邀请码 + "验证邀请码" 按钮(Enter 触发)
- *  - `confirm`:显示空间信息(icon 字母 + 空间名 + 人数)+ "确认加入"
+ *  - `home`:emoji 👋 + 欢迎标题 + "📩 输入邀请码加入"
+ *  - `join`:返回链接 + 标题 + 邀请码 input(Enter 触发)+ "验证邀请码"
+ *  - `confirm`:空间字母 icon(72×72 hash 色)+ 名字 + 人数 + "确认加入" /
+ *    "空间已满"
  *
- * **何时来到这里**:无空间用户登录后 `useFinalizeLogin` navigate("/joinspace")。
+ * **样式 1:1 老仓**(JoinSpacePage/index.css):
+ *  - 全屏 bg = linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+ *  - card = white + 圆角 16 + padding 48 顶 / 40 左右下 + shadow 0 20px 60px rgba(0,0,0,0.2)
+ *  - title 22 weight 700 / subtitle 16 #666 / members 14 #999
+ *  - 主按钮 44h / 圆角 8 / font 16 / brand 黑
+ *  - 输入框 44h / 1.5px border / 圆角 8
  *
- * **加入成功**:setSpace 新 space_id → navigate("/") 回主页(此时主区按
- * space 上下文加载)。失败(满员/已加入/邀请码错)按 toast 文案分支提示。
+ * **右上角"退出登录"**:让用户能换号(本仓新加,老仓无)。
  *
- * **未登录**:无 token → 跳 /login(本页 require token,getInviteInfo /
- * joinSpace 都要 token)。
+ * **行为**:
+ *  - 验证邀请码 → getInviteInfo(失败 toast 分支:满员 / 无效)
+ *  - 确认加入 → joinSpace + setSpace(新 space_id) + 跳 /
+ *  - 已是成员 → 静默 setSpace + 跳 /
  */
 export function JoinSpaceView() {
   const navigate = useNavigate();
@@ -38,7 +45,6 @@ export function JoinSpaceView() {
   const [verifying, setVerifying] = useState(false);
   const joinMu = useJoinSpaceMutation();
 
-  // 无 token → /login(防直接访问)
   if (!token) {
     void navigate({ to: "/login" });
     return null;
@@ -85,14 +91,11 @@ export function JoinSpaceView() {
     }
   };
 
-  const onLogout = () => {
-    authActions.signOut();
-    void navigate({ to: "/login" });
-  };
+  const onLogout = () => authActions.signOut();
 
   const spaceColor = info
-    ? ACCENT_COLORS[info.space_name.charCodeAt(0) % ACCENT_COLORS.length]
-    : "#1C1C23";
+    ? SPACE_ICON_COLORS[info.space_name.charCodeAt(0) % SPACE_ICON_COLORS.length]
+    : "#667eea";
   const isFull =
     !!info &&
     typeof info.max_users === "number" &&
@@ -100,29 +103,44 @@ export function JoinSpaceView() {
     (info.member_count ?? 0) >= info.max_users;
 
   return (
-    <div className="absolute top-0 left-0 flex min-h-screen w-full items-center justify-center bg-[#f5f6fa] px-4">
-      <div className="relative flex w-full max-w-[420px] flex-col items-center gap-4 rounded-[16px] bg-white px-8 py-10 shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
-        {/* 右上"退出登录"小链接 — 让用户能退出换号 */}
+    <div
+      className="absolute top-0 left-0 flex min-h-screen w-full items-center justify-center"
+      style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}
+    >
+      <div
+        className="relative w-full text-center text-[#333]"
+        style={{
+          background: "white",
+          borderRadius: 16,
+          padding: "48px 40px 40px",
+          minWidth: 340,
+          maxWidth: 420,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        {/* 右上 "退出登录" — 让用户能换号(本仓新加) */}
         <button
           type="button"
           onClick={onLogout}
-          className="absolute top-3 right-4 cursor-pointer text-[12px] text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
+          className="absolute top-3 right-4 cursor-pointer text-[12px] text-[#999] transition-colors hover:text-[#1a1a1a]"
         >
           退出登录
         </button>
 
         {view === "home" ? (
           <>
-            <div className="text-[48px]">👋</div>
-            <h2 className="text-center text-[22px] font-bold text-[#1a1a2e]">欢迎使用 Octo!</h2>
-            <p className="text-center text-[14px] text-[#8a8fa8]">输入邀请码加入你的团队</p>
-            <button
-              type="button"
-              onClick={() => setView("join")}
-              className="mt-4 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white transition-colors hover:!bg-brand-hover"
-            >
-              📩 输入邀请码加入
-            </button>
+            <div className="mb-3 text-[40px] leading-none">👋</div>
+            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">欢迎使用 Octo！</h2>
+            <p className="mb-1 text-[16px] text-[#666]">输入邀请码加入你的团队</p>
+            <div className="mt-7 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setView("join")}
+                className="h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover"
+              >
+                📩 输入邀请码加入
+              </button>
+            </div>
           </>
         ) : null}
 
@@ -134,12 +152,12 @@ export function JoinSpaceView() {
                 setView("home");
                 setCode("");
               }}
-              className="self-start cursor-pointer text-[13px] text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
+              className="mb-5 inline-flex cursor-pointer items-center bg-transparent text-[13px] text-[#888] transition-colors hover:text-[#1a1a1a]"
             >
               ← 返回
             </button>
-            <h2 className="text-center text-[22px] font-bold text-[#1a1a2e]">输入邀请码</h2>
-            <p className="text-center text-[14px] text-[#8a8fa8]">粘贴邀请码以查看并加入团队</p>
+            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">输入邀请码</h2>
+            <p className="mb-1 text-[16px] text-[#666]">粘贴邀请码以查看并加入团队</p>
             <input
               type="text"
               autoFocus
@@ -149,13 +167,13 @@ export function JoinSpaceView() {
                 if (e.key === "Enter") void handleVerify();
               }}
               placeholder="输入邀请码"
-              className="h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
+              className="mt-5 mb-1 h-[44px] w-full rounded-[8px] border-[1.5px] border-[#e4e6ef] bg-white px-4 text-[16px] text-[#1a1a1a] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
             />
             <button
               type="button"
               onClick={() => void handleVerify()}
               disabled={verifying}
-              className="h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {verifying ? "验证中…" : "验证邀请码"}
             </button>
@@ -165,16 +183,14 @@ export function JoinSpaceView() {
         {view === "confirm" && info ? (
           <>
             <div
-              className="flex h-[64px] w-[64px] items-center justify-center rounded-[16px] text-[28px] font-bold text-white"
+              className="mx-auto mb-5 inline-flex h-[72px] w-[72px] items-center justify-center rounded-[16px] text-[32px] font-bold text-white"
               style={{ backgroundColor: spaceColor }}
             >
               {info.space_name.charAt(0).toUpperCase()}
             </div>
-            <div className="text-center text-[18px] font-semibold text-[#1a1a2e]">
-              {info.space_name}
-            </div>
-            <div className="text-center text-[13px] text-[#8a8fa8]">邀请你加入</div>
-            <div className="text-center text-[13px] text-[#8a8fa8]">
+            <div className="mb-2 text-[24px] font-bold text-[#1a1a1a]">{info.space_name}</div>
+            <p className="mb-1 text-[16px] text-[#666]">邀请你加入</p>
+            <div className="mb-8 text-[14px] text-[#999]">
               {typeof info.max_users === "number" && info.max_users > 0
                 ? `${info.member_count ?? 0} / ${info.max_users} 人`
                 : `${info.member_count ?? 0} 位成员`}
@@ -183,7 +199,7 @@ export function JoinSpaceView() {
               type="button"
               onClick={() => void handleJoin()}
               disabled={joinMu.isPending || isFull}
-              className="h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isFull ? "空间已满" : joinMu.isPending ? "加入中…" : "确认加入"}
             </button>
@@ -193,7 +209,7 @@ export function JoinSpaceView() {
                 setView("join");
                 setInfo(null);
               }}
-              className="cursor-pointer text-[13px] text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
+              className="mt-5 inline-flex cursor-pointer items-center bg-transparent text-[13px] text-[#888] transition-colors hover:text-[#1a1a1a]"
             >
               ← 重新输入邀请码
             </button>

@@ -1,87 +1,111 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useResetPasswordMutation, useSendEmailCodeMutation } from "@/features/login/mutations";
 import { isValidEmail } from "@/features/login/lib/email-validator";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
-import { CodeCountdownButton } from "@/features/login/components/code-countdown-button";
-import { PasswordStrengthIndicator } from "@/features/login/components/password-strength-indicator";
+import { validatePassword } from "@/features/login/lib/password-strength";
+import { useCodeCountdown } from "@/features/login/hooks/use-code-countdown.hook";
+import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { LoginShell } from "@/features/login/components/login-shell";
-import { DownloadButtons } from "@/features/login/components/download-buttons";
-import { Button } from "@/components/semi-bridge/button";
-
-const INPUT_CLS =
-  "h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]";
+import { LoginInput } from "@/features/login/components/login-input";
+import { SendCodeButton } from "@/features/login/components/send-code-button";
+import { LoginPrimaryButton } from "@/features/login/components/login-primary-button";
+import { PasswordStrengthMeter } from "@/features/login/components/password-strength-meter";
+import { toast } from "@/components/semi-bridge/toast";
 
 /**
- * 找回密码视图 — 独立路由 /forgetpassword(对齐老仓 dmworklogin LoginType.forgetPassword):
- * - 邮箱(isValidEmail 实时校验)
- * - 60s 倒计时验证码(code_type=2,**跟注册的 0 不同**)
- * - 新密码 + 确认密码(+ 强度指示)
- * - 底部 Android/iOS 下载按钮
- * - "返回登录" navigate 回 /login
+ * 找回密码视图 — 独立路由 `/forgetpassword`,1:1 对齐老仓 dmworklogin login.tsx
+ * LoginType.forgetPassword 区块(行 584-664):
+ *
+ * 字段顺序(逐字 placeholder):
+ *  1. 注册邮箱
+ *  2. 验证码(同 row + 发送按钮,**code_type=2** 跟注册的 0 区分)
+ *  3. 新密码 + PasswordStrengthMeter
+ *  4. 确认新密码
+ *  5. 主按钮 "重置密码"
+ *
+ * SSO 提示(老仓行 587-599):当 ssoProvider.resetPasswordUrl 非空时,顶部显
+ * "企业统一认证账号请前往 {provider.name} 账户中心 修改密码。"(account-url 链接)
+ *
+ * 校验错误统一 toast.error(对齐老仓 Toast.error);文案逐字老仓:
+ *  - "请输入正确的邮箱地址！"
+ *  - "验证码不能为空！"
+ *  - validatePassword 返错文案
+ *  - "两次密码输入不一致！"
+ *
+ * 成功后页面切换到完成态(单按钮 "返回登录")。
  */
 export function ForgetPasswordView() {
   const navigate = useNavigate();
   const sendCodeMu = useSendEmailCodeMutation();
   const resetMu = useResetPasswordMutation();
+  const { primaryProvider, ssoModuleEnabled } = useSsoProviders();
+  const countdown = useCodeCountdown();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [inlineError, setInlineError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const emailValid = isValidEmail(email);
-
-  const sendCode = useCallback(async () => {
-    if (!emailValid) {
-      setInlineError("请输入有效邮箱");
+  const sendCode = async () => {
+    if (!isValidEmail(email)) {
+      toast.error("请输入正确的邮箱地址！");
       throw new Error("invalid email");
     }
-    setInlineError(null);
     try {
       await sendCodeMu.mutateAsync({ email, codeType: 2 });
+      countdown.start(60);
     } catch (e) {
-      setInlineError(extractSafeErrorMessage(e));
+      toast.error(extractSafeErrorMessage(e));
       throw e;
     }
-  }, [email, emailValid, sendCodeMu]);
+  };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setInlineError(null);
-    if (!emailValid) return setInlineError("请输入有效邮箱");
-    if (!code) return setInlineError("请输入验证码");
-    if (newPassword.length < 6) return setInlineError("密码至少 6 位");
-    if (newPassword !== confirm) return setInlineError("两次密码不一致");
+    if (!isValidEmail(email)) return toast.error("请输入正确的邮箱地址！");
+    if (!code) return toast.error("验证码不能为空！");
+    const pwdErr = validatePassword(newPassword);
+    if (pwdErr) return toast.error(pwdErr);
+    if (newPassword !== confirm) return toast.error("两次密码输入不一致！");
     try {
       await resetMu.mutateAsync({ email, code, new_password: newPassword });
       setDone(true);
     } catch (err) {
-      setInlineError(extractSafeErrorMessage(err));
+      toast.error(extractSafeErrorMessage(err));
     }
   };
 
   const backToLogin = () => void navigate({ to: "/login" });
 
+  // 成功态 — 单按钮"返回登录"
   if (done) {
     return (
       <LoginShell>
         <div className="flex flex-col items-center gap-4 py-10">
-          <p className="text-base text-success">密码已重置,请使用新密码登录</p>
-          <Button
-            type="primary"
-            theme="solid"
-            onClick={backToLogin}
-            className="h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
-          >
-            返回登录
-          </Button>
+          <p className="text-base text-success">密码已重置，请使用新密码登录</p>
+          <LoginPrimaryButton onClick={backToLogin}>返回登录</LoginPrimaryButton>
         </div>
-        <DownloadButtons />
       </LoginShell>
     );
   }
+
+  // SSO 启用 + 该 provider 暴露了 resetPasswordUrl → 顶部显提示
+  const ssoResetHint =
+    ssoModuleEnabled && primaryProvider?.resetPasswordUrl ? (
+      <div className="mb-4 rounded-[8px] border border-[rgba(91,91,229,0.2)] bg-[rgba(91,91,229,0.06)] px-3 py-2.5 text-[13px] leading-[1.6] text-[rgba(0,0,0,0.7)]">
+        企业统一认证账号请前往{" "}
+        <a
+          href={primaryProvider.resetPasswordUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mx-1 font-medium text-[#5b5be5] no-underline hover:underline"
+        >
+          {primaryProvider.name} 账户中心
+        </a>{" "}
+        修改密码。
+      </div>
+    ) : null;
 
   return (
     <LoginShell>
@@ -90,71 +114,73 @@ export function ForgetPasswordView() {
       </div>
       <div className="mb-7 text-left text-sm text-[#8a8fa8]">输入注册邮箱，我们将发送验证码</div>
 
-      <form onSubmit={onSubmit} aria-label="forget password form" className="flex flex-col gap-3.5">
-        <input
+      {ssoResetHint}
+
+      <form onSubmit={onSubmit} aria-label="forget password form" className="flex flex-col">
+        <LoginInput
           type="email"
+          name="forget-email"
+          autoComplete="email"
           placeholder="注册邮箱"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          required
-          className={INPUT_CLS}
         />
-        <div className="flex gap-2">
-          <input
+
+        <div className="mb-3.5 flex items-center gap-2">
+          <LoginInput
             type="text"
+            name="forget-code"
+            autoComplete="one-time-code"
             inputMode="numeric"
             maxLength={6}
             placeholder="验证码"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            required
-            className={`${INPUT_CLS} flex-1 tracking-widest`}
+            noMargin
           />
-          <CodeCountdownButton onSend={sendCode} disabled={!emailValid} />
+          <SendCodeButton
+            countdown={countdown.count}
+            onSend={sendCode}
+            disabled={!isValidEmail(email)}
+          />
         </div>
-        <input
+
+        <LoginInput
           type="password"
+          name="forget-new-pwd"
+          autoComplete="off"
           placeholder="新密码"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          autoComplete="new-password"
-          required
-          className={INPUT_CLS}
         />
-        <PasswordStrengthIndicator password={newPassword} />
-        <input
+
+        <PasswordStrengthMeter password={newPassword} />
+
+        <LoginInput
           type="password"
+          name="forget-confirm-pwd"
+          autoComplete="off"
           placeholder="确认新密码"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          autoComplete="new-password"
-          required
-          className={INPUT_CLS}
         />
 
-        {inlineError ? <p className="text-xs text-error">{inlineError}</p> : null}
+        <div className="mt-5">
+          <LoginPrimaryButton htmlType="submit" loading={resetMu.isPending}>
+            {resetMu.isPending ? "重置中…" : "重置密码"}
+          </LoginPrimaryButton>
+        </div>
 
-        <Button
-          htmlType="submit"
-          type="primary"
-          theme="solid"
-          loading={resetMu.isPending}
-          className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
-        >
-          {resetMu.isPending ? "重置中…" : "重置密码"}
-        </Button>
-
-        <button
-          type="button"
-          onClick={backToLogin}
-          className="mt-2 cursor-pointer text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
-        >
-          返回登录
-        </button>
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={backToLogin}
+            className="cursor-pointer text-[14px] font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
+          >
+            返回登录
+          </button>
+        </div>
       </form>
-
-      <DownloadButtons />
     </LoginShell>
   );
 }

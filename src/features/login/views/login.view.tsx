@@ -21,16 +21,20 @@ interface LoginViewProps {
  * 登录页 — 仅 phone(账号密码 / SSO)。其他 3 种 view 已拆独立路由:
  *   /qrcode / /register / /forgetpassword
  *
- * 底部链接 navigate 跳转,redirect + invite_code 通过 search 透传。
+ * **SSO 启用 + 有 provider** → 1:1 对齐老仓 login.tsx 行 416-457:
+ *   - 主 CTA "登录 / 注册"(紫色 #5b5be5)
+ *   - meta 行:helper + 信任锚 "由 {provider} 提供"
+ *   - 下载按钮
+ *   - **完全隐藏密码表单 + 底部链接**(老仓硬编码 `{false && <LegacyPasswordSection />}`,
+ *     SSO 模式下走 IdP,本地账号入口全无)
  *
- * **SSO 双层 gate**:env `VITE_ENABLE_ENTERPRISE_SSO === 'true'` +
- * appconfig.oidc_providers 非空 → 显主 CTA。
+ * **SSO 未启用**(env=false 或无 provider):本地账号密码登录 + 底部 3 链接
+ * (扫码 / 没有账号？注册 / 忘记密码)+ 下载按钮。
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const navigate = useNavigate();
   const loginMu = useLoginMutation();
-  const { providers, primaryProvider, legacyPasswordLoginOff, ssoModuleEnabled } =
-    useSsoProviders();
+  const { providers, primaryProvider, ssoModuleEnabled } = useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
   const { data: inviteInfo } = useInviteInfo(inviteCode);
   const finalize = useFinalizeLogin(inviteCode, redirect);
@@ -63,8 +67,9 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void finalize(raw);
   };
 
+  // SSO 启用 + 有 provider → 整体走 SSO 路径,密码表单 + 底部链接全隐
+  // (对齐老仓 login.tsx 行 447-457 — legacyPasswordLoginOff flag 期间硬隐)
   const hasSso = ssoModuleEnabled && !!primaryProvider;
-  const showPasswordForm = !hasSso || !legacyPasswordLoginOff;
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
 
@@ -79,13 +84,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   if (redirect) subSearch.redirect = redirect;
   if (inviteCode) subSearch.invite_code = inviteCode;
 
-  const onClickForget = () => {
-    if (primaryProvider?.resetPasswordUrl) {
-      window.open(primaryProvider.resetPasswordUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    void navigate({ to: "/forgetpassword" });
-  };
+  const onClickForget = () => void navigate({ to: "/forgetpassword" });
 
   const inviteBanner = inviteInfo ? (
     <div className="rounded-[10px] border border-[#1C1C23]/15 bg-[#1C1C23]/[0.06] px-4 py-3 text-[14px] leading-[1.6] text-[#1C1C23]">
@@ -102,16 +101,15 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     </div>
   ) : null;
 
-  return (
-    <LoginShell topBanner={inviteBanner}>
-      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-        欢迎回来
-      </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">
-        {hasSso ? "使用手机号或邮箱即可登录" : "登录你的账号以继续"}
-      </div>
+  // ===================== SSO 模式 =====================
+  if (hasSso) {
+    return (
+      <LoginShell topBanner={inviteBanner}>
+        <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
+          欢迎回来
+        </div>
+        <div className="mb-7 text-left text-sm text-[#8a8fa8]">使用手机号或邮箱即可登录</div>
 
-      {hasSso ? (
         <div className="flex flex-col">
           <Button
             type="primary"
@@ -127,58 +125,60 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             <span className="text-[#b0b4c8]">·</span>
             <span
               className="cursor-help underline decoration-dotted underline-offset-2"
-              title={`${primaryProvider!.name} 是 Mininglamp 统一身份服务，登录后可在所有 Mininglamp 产品中通用`}
+              title={`${primaryProvider.name} 是 Mininglamp 统一身份服务，登录后可在所有 Mininglamp 产品中通用`}
             >
-              由 {primaryProvider!.name} 提供
+              由 {primaryProvider.name} 提供
             </span>
           </div>
         </div>
-      ) : null}
 
-      {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
+        {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
 
-      {hasSso && showPasswordForm ? (
-        <div className="my-6 flex items-center gap-2 text-[11px] text-[#b0b4c8]">
-          <span className="flex-1 border-t border-[#e4e6ef]" />
-          <span>或</span>
-          <span className="flex-1 border-t border-[#e4e6ef]" />
-        </div>
-      ) : null}
+        <DownloadButtons />
+      </LoginShell>
+    );
+  }
 
-      {showPasswordForm ? (
-        <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-0">
-          <input
-            type="text"
-            name="username"
-            placeholder="邮箱"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoComplete="username"
-            className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
-          />
-          {loginErrorText ? <p className="mb-2 text-xs text-error">{loginErrorText}</p> : null}
-          <Button
-            htmlType="submit"
-            type="primary"
-            theme="solid"
-            loading={loginMu.isPending}
-            className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
-          >
-            {loginMu.isPending ? "登录中…" : "登录"}
-          </Button>
-        </form>
-      ) : null}
+  // ===================== 本地账号密码模式(SSO 未启用) =====================
+  return (
+    <LoginShell topBanner={inviteBanner}>
+      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
+        欢迎回来
+      </div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">登录你的账号以继续</div>
+
+      <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-0">
+        <input
+          type="text"
+          name="username"
+          placeholder="邮箱"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          autoComplete="username"
+          className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="密码"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          className="mb-3.5 h-[46px] w-full rounded-[10px] border-[1.5px] border-[#e4e6ef] bg-[#fafbfc] px-4 text-[15px] text-[#1a1a2e] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:bg-white focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
+        />
+        {loginErrorText ? <p className="mb-2 text-xs text-error">{loginErrorText}</p> : null}
+        <Button
+          htmlType="submit"
+          type="primary"
+          theme="solid"
+          loading={loginMu.isPending}
+          className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
+        >
+          {loginMu.isPending ? "登录中…" : "登录"}
+        </Button>
+      </form>
 
       {/* 底部链接(扫码登录 灰 / 没有账号？注册 / 忘记密码 — 后两者深色 weight 500) */}
       <div className="mt-5 flex items-center justify-center text-sm">

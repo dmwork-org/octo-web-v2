@@ -184,8 +184,10 @@ function QrStep({ title, desc, icon }: { title: string; desc: string; icon: Reac
       <div className="flex h-[44px] w-[44px] items-center justify-center rounded-[12px] border-[1.5px] border-[#e8eaf6] bg-white text-[#1a1a2e] shadow-[0_2px_6px_rgba(99,102,241,0.08)]">
         {icon}
       </div>
-      <div className="text-center text-[12px] font-semibold text-[#1a1a2e]">{title}</div>
-      <div className="text-center text-[11px] text-[#8a8fa8]">{desc}</div>
+      <div className="text-center text-[12px] font-semibold whitespace-nowrap text-[#1a1a2e]">
+        {title}
+      </div>
+      <div className="text-center text-[11px] whitespace-nowrap text-[#8a8fa8]">{desc}</div>
     </div>
   );
 }

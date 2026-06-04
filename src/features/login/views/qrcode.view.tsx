@@ -14,10 +14,15 @@ interface QrcodeViewProps {
 }
 
 /**
- * 二维码扫码登录(对齐老仓 dmworklogin login.tsx LoginType.qrcode 区块):
- * - 二维码卡片(280×280,圆角 20)+ scanned 头像覆盖 + expired 遮罩
- * - 3 步流程图(打开 App → 扫一扫 → 确认登录)
- * - 切回密码登录链接 + 底部 Android/iOS 下载按钮
+ * 二维码扫码登录(1:1 对齐老仓 dmworklogin login.tsx LoginType.qrcode 区块):
+ * - slogan 22px + sub `更安全、更快速的登录方式`(注意:**与其他 view 不同**,
+ *   qrcode 的 slogan 是 22px 而非 30px;老仓 login.tsx:666-667)
+ * - QR 卡片 280×280 圆角 20 + 内部 180×180 圆角 14 + QRCodeSVG size 176
+ * - 3 步流程图:icon 44×44 圆角 12 + 1.5px border;title 12px weight 600 + desc 11px
+ *   step 1 `打开 App` / `手机打开 Octo`
+ *   step 2 `扫描二维码` / `聊天 → + → 扫一扫`
+ *   step 3 `确认登录` / `手机端点击确认`
+ * - 切回密码登录 + 底部下载按钮
  */
 export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeViewProps) {
   const finalize = useFinalizeLogin(inviteCode, redirect);
@@ -26,26 +31,27 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
 
   return (
     <LoginShell>
-      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
+      <div className="mb-1 text-left text-[22px] leading-[1.25] font-bold text-[#1a1a2e]">
         扫码登录
       </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">用 Octo App 扫一扫,立即登录</div>
+      <div className="mb-7 text-left text-[13px] text-[#8a8fa8]">更安全、更快速的登录方式</div>
 
+      {/* 二维码卡片 — 对齐老仓 .wk-login-qr-card 280×card + 180×qr 容器 */}
       <div className="mx-auto mb-6 flex w-[280px] flex-col items-center rounded-[20px] border-[1.5px] border-[#eef0f8] bg-[#f8f9ff] px-8 pt-7 pb-5">
-        <div className="relative flex h-52 w-52 items-center justify-center">
+        <div className="relative flex h-[180px] w-[180px] items-center justify-center rounded-[14px] border-[1.5px] border-[#e4e8f5] bg-white">
           {state.loading || !state.qrcode ? (
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7A5CFF] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5b5be5] border-t-transparent" />
           ) : (
-            <QRCodeSVG value={state.qrcode} size={192} level="M" />
+            <QRCodeSVG value={state.qrcode} size={176} level="M" />
           )}
 
           {state.status === "scanned" ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded bg-white/95">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[14px] bg-white/95">
               {state.scannedAvatar ? (
                 <img
                   src={state.scannedAvatar}
                   alt={state.scannedName ?? state.scannedUid ?? ""}
-                  className="h-16 w-16 rounded-full bg-bg-elevated object-cover"
+                  className="h-14 w-14 rounded-full bg-bg-elevated object-cover"
                 />
               ) : null}
               <p className="text-sm font-medium text-[#1a1a2e]">{state.scannedName ?? "已扫描"}</p>
@@ -54,7 +60,7 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
           ) : null}
 
           {state.status === "expired" ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded bg-black/40 text-white">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[14px] bg-black/40 text-white">
               <p className="text-sm">二维码已过期</p>
               <Button onClick={refresh} type="primary" theme="solid">
                 点击刷新
@@ -62,24 +68,25 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
             </div>
           ) : null}
         </div>
-        <p className="mt-3.5 text-center text-[13px] text-[#8a8fa8]">打开 Octo App 扫描二维码</p>
+        <p className="mt-3.5 text-center text-[13px] text-[#8a8fa8]">打开 Octo 扫描二维码</p>
       </div>
 
       {state.error ? <p className="mb-3 text-center text-xs text-error">{state.error}</p> : null}
 
-      <div className="mx-auto mb-6 flex w-[300px] items-stretch justify-around text-[11px] text-[#8a8fa8]">
-        <Step n={1} label="打开 App" />
-        <Arrow />
-        <Step n={2} label="扫一扫" />
-        <Arrow />
-        <Step n={3} label="确认登录" />
+      {/* 3 步流程图 — icon 44×44 + title 12px / desc 11px */}
+      <div className="mx-auto mb-6 flex w-full items-start justify-around gap-2">
+        <QrStep n={1} title="打开 App" desc="手机打开 Octo" />
+        <QrArrow />
+        <QrStep n={2} title="扫描二维码" desc="聊天 → + → 扫一扫" />
+        <QrArrow />
+        <QrStep n={3} title="确认登录" desc="手机端点击确认" />
       </div>
 
       {onSwitchToPassword ? (
         <button
           type="button"
           onClick={onSwitchToPassword}
-          className="text-center text-sm text-[#1C1C23] transition-opacity hover:opacity-75"
+          className="text-center text-sm font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
           使用账号密码登录
         </button>
@@ -90,17 +97,30 @@ export function QrcodeView({ redirect, inviteCode, onSwitchToPassword }: QrcodeV
   );
 }
 
-function Step({ n, label }: { n: number; label: string }) {
+function QrStep({ n, title, desc }: { n: number; title: string; desc: string }) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f1f7] text-[11px] font-semibold text-[#1a1a2e]">
+    <div className="flex flex-1 flex-col items-center gap-1.5">
+      <div className="flex h-[44px] w-[44px] items-center justify-center rounded-[12px] border-[1.5px] border-[#e8eaf6] bg-white text-[14px] font-semibold text-[#1a1a2e]">
         {n}
-      </span>
-      <span>{label}</span>
+      </div>
+      <div className="text-center text-[12px] font-semibold text-[#1a1a2e]">{title}</div>
+      <div className="text-center text-[11px] text-[#8a8fa8]">{desc}</div>
     </div>
   );
 }
 
-function Arrow() {
-  return <span className="self-center text-[#b0b4c8]">→</span>;
+function QrArrow() {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#c8cce0"
+      strokeWidth={2}
+      className="mt-3.5 shrink-0 self-start"
+    >
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
 }

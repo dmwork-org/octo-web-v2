@@ -111,13 +111,16 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   };
 
   const inviteBanner = inviteInfo ? (
-    <div className="rounded-md border border-[#7A5CFF]/20 bg-[#7A5CFF]/[0.06] px-3 py-2 text-xs text-[#1a1a2e]">
-      你被邀请加入 <strong>{inviteInfo.space_name}</strong>
-      {typeof inviteInfo.member_count === "number" && typeof inviteInfo.max_users === "number" ? (
-        <span className="text-[#8a8fa8]">
-          {" "}
-          ({inviteInfo.member_count}/{inviteInfo.max_users} 人)
-        </span>
+    <div className="rounded-[10px] border border-[#1C1C23]/15 bg-[#1C1C23]/[0.06] px-4 py-3 text-[14px] leading-[1.6] text-[#1C1C23]">
+      <div>
+        你被邀请加入 <strong>{inviteInfo.space_name}</strong>
+      </div>
+      {typeof inviteInfo.member_count === "number" ? (
+        <div>
+          {typeof inviteInfo.max_users === "number" && inviteInfo.max_users > 0
+            ? `${inviteInfo.member_count}/${inviteInfo.max_users} 人`
+            : `${inviteInfo.member_count} 位成员`}
+        </div>
       ) : null}
     </div>
   ) : null;
@@ -138,7 +141,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             type="primary"
             theme="solid"
             loading={oidcStarting}
-            className="h-[46px] w-full rounded-[10px] !bg-brand text-[15px] font-semibold tracking-wide text-white hover:!bg-brand-hover"
+            className="h-[50px] w-full rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
             onClick={onStartOidc}
           >
             {oidcStarting ? "跳转中…" : "登录 / 注册"}
@@ -171,7 +174,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           <input
             type="text"
             name="username"
-            placeholder="邮箱或用户名"
+            placeholder="邮箱"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
@@ -201,12 +204,12 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         </form>
       ) : null}
 
-      {/* 底部链接(扫码登录 | 没有账号？注册 | 忘记密码) */}
-      <div className="mt-5 flex items-center justify-center text-sm text-[#8a8fa8]">
+      {/* 底部链接(扫码登录 灰 / 没有账号？注册 / 忘记密码 — 后两者深色 weight 500) */}
+      <div className="mt-5 flex items-center justify-center text-sm">
         <button
           type="button"
           onClick={() => setView(LoginType.Qrcode)}
-          className="transition-colors hover:text-[#1C1C23]"
+          className="text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
         >
           扫码登录
         </button>
@@ -222,7 +225,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         <button
           type="button"
           onClick={onClickForget}
-          className="transition-colors hover:text-[#1C1C23]"
+          className="font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
           忘记密码
         </button>

@@ -86,15 +86,15 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
 
   return (
     <LoginShell>
-      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-tight text-[#1a1a2e]">
-        找回密码
+      <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
+        重置密码
       </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">通过邮箱验证码重置密码</div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">输入注册邮箱，我们将发送验证码</div>
 
       <form onSubmit={onSubmit} aria-label="forget password form" className="flex flex-col gap-3.5">
         <input
           type="email"
-          placeholder="邮箱"
+          placeholder="注册邮箱"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
@@ -106,7 +106,7 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
             type="text"
             inputMode="numeric"
             maxLength={6}
-            placeholder="6 位验证码"
+            placeholder="验证码"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             required
@@ -116,7 +116,7 @@ export function ForgetPasswordView({ onBackToLogin }: ForgetPasswordViewProps) {
         </div>
         <input
           type="password"
-          placeholder="新密码(至少 6 位)"
+          placeholder="新密码"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           autoComplete="new-password"

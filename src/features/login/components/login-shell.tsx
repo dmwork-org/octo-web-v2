@@ -39,10 +39,14 @@ export function LoginShell({ children, topBanner }: LoginShellProps) {
           style={{ width: 350, height: 350, bottom: -80, left: -60 }}
         />
 
-        {/* logo 左上角 — 用 logo.svg(矢量,无 fallback 裂图) */}
-        <div className="absolute top-10 left-14 z-10 flex items-center gap-2">
-          <img src="/logo.svg" alt="logo" className="h-14 w-14 rounded-[14px]" />
-          <span className="text-[22px] font-bold tracking-wide text-white">Octo</span>
+        {/* logo 左上角 — 1:1 老仓 login.tsx:348(height 56 + marginBottom -10 + borderRadius 10 + gap 4) */}
+        <div className="absolute top-10 left-14 z-10 flex items-center gap-1">
+          <img
+            src="/logo.svg"
+            alt="logo"
+            style={{ height: 56, width: "auto", marginBottom: -10, borderRadius: 10 }}
+          />
+          <span className="-mb-[18px] text-[22px] font-bold tracking-[0.5px] text-white">Octo</span>
         </div>
 
         {/* 中部 hero */}

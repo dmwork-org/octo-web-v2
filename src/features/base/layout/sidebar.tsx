@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { LogOut } from "lucide-react";
 import { useMemo } from "react";
@@ -48,15 +48,16 @@ function UserAvatar({ initial }: { initial: string }) {
 export function Sidebar() {
   const user = useStore(authStore, (s) => s.user);
   const location = useLocation();
-  const navigate = useNavigate();
   const router = useRouter();
   const path = location.pathname;
   const items = useMemo(() => collectMenuItems(router), [router]);
   const initial = (user?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase();
 
+  // 用户主动登出 — signOut 内部已经 window.location.replace('/login'),
+  // 不需要再 navigate;且整页跳保证 react-query 残留 refetch 不会拿 401
+  // 触发 with401Redirect 给 /login 加 ?redirect=<刚才的页面>
   const handleSignOut = () => {
     authActions.signOut();
-    void navigate({ href: "/login", replace: true });
   };
 
   return (

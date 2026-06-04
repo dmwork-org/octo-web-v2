@@ -75,8 +75,8 @@ export function SettingsView() {
         <Button
           type="danger"
           onClick={() => {
+            // signOut 内部已 window.location.replace('/login'),不需要再跳
             authActions.signOut();
-            window.location.href = "/login";
           }}
         >
           <LogOut size={14} />

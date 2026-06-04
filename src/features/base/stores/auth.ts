@@ -49,15 +49,21 @@ export const authStore = new Store<AuthState>(readPersisted());
 export const authActions = {
   signIn: (token: string, user: AuthUser) => authStore.setState(() => ({ token, user })),
   /**
-   * 登出:清 auth + 同步清 spaceStore(内存 state + localStorage),
-   * 防下次匿名请求(login / sendcode / loginuuid)仍带上次的 X-Space-Id
-   * (对齐老仓 logout 清 currentSpaceId 的语义)。
+   * 登出 — 对齐老仓 dmworkbase App.tsx logout 行为(整页跳 + 清状态):
+   * 1. 清 auth + space(防匿名请求残留 X-Space-Id;详见 withSpaceHeader)
+   * 2. `window.location.replace('/login')` 整页跳,清掉所有 react-query
+   *    cache + 进行中的 refetch,避免 logout 后残留请求拿 401 触发
+   *    `with401Redirect` 给 /login 加 `?redirect=<刚才的页面>`(用户主动
+   *    登出不应该带 redirect)
    *
-   * 安全:auth → space 单向依赖,space 不 import auth,无循环。
+   * 调用方不需要再自己 navigate /login。SSR 环境下 fallback 只清 store。
    */
   signOut: () => {
     authStore.setState(() => ({ token: null, user: null }));
     spaceActions.setSpace(null);
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
   },
 };
 

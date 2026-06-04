@@ -11,6 +11,10 @@ export const with401Redirect =
   ({ response }: ResponseCtx) => {
     if (response.status !== 401) return;
     store.setState(() => ({ token: null, user: null }));
+    // 已经在 /login 路径(用户主动登出 / 登录页匿名请求 401)就不再 navigate —
+    // 避免给 /login 加 ?redirect=<刚才的页面>:这是 token 过期场景才需要的行为,
+    // 用户主动登出后残留 refetch 拿 401 不应被当成过期处理。
+    if (typeof window !== "undefined" && window.location.pathname === "/login") return;
     const redirectTo = encodeURIComponent(window.location.href);
     void router.navigate({ href: `/login?redirect=${redirectTo}` });
   };

@@ -7,6 +7,7 @@ import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
 import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { QrcodeView } from "@/features/login/views/qrcode.view";
+import { RegisterView } from "@/features/login/views/register.view";
 import { LoginType, type LoginType as LoginTypeT } from "@/features/login/lib/login-type";
 import { Button } from "@/components/semi-bridge/button";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
@@ -29,12 +30,11 @@ function loginRespToAuthUser(resp: LoginResp): AuthUser {
 }
 
 /**
- * 登录页(对齐老仓 dmworklogin login.tsx LoginType.phone / qrcode 区块)。
- *
- * **View 切换**(对齐老仓 LoginType 状态机):
+ * 登录页(对齐老仓 dmworklogin login.tsx LoginType 状态机):
  *   - `phone` — 默认:SSO 主路径 + 本地账号密码表单
  *   - `qrcode` — 扫码登录
- *   - `register` / `forgetPassword` — 块 3/4 加入
+ *   - `register` — 邮箱注册
+ *   - `forgetPassword` — 块 4 加入
  *
  * **SSO 主路径**(`primaryProvider` 存在):
  *   - 主 CTA:`登录 / 注册`(`startOidc(primaryProvider)`)
@@ -83,6 +83,11 @@ export function LoginView({ redirect }: LoginViewProps) {
   // 二维码 view
   if (view === LoginType.Qrcode) {
     return <QrcodeView redirect={redirect} onSwitchToPassword={() => setView(LoginType.Phone)} />;
+  }
+
+  // 注册 view
+  if (view === LoginType.Register) {
+    return <RegisterView redirect={redirect} onBackToLogin={() => setView(LoginType.Phone)} />;
   }
 
   const onPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -174,7 +179,7 @@ export function LoginView({ redirect }: LoginViewProps) {
           </form>
         ) : null}
 
-        {/* 底部:扫码登录 / 注册 / 找回密码(块 3/4 加入注册 + 找回) */}
+        {/* 底部链接(扫码 / 注册 / 找回密码 块 4 加入) */}
         <div className="flex justify-between text-xs text-text-tertiary">
           <button
             type="button"
@@ -183,7 +188,13 @@ export function LoginView({ redirect }: LoginViewProps) {
           >
             扫码登录
           </button>
-          {/* 注册 / 找回密码 链接在块 3/4 加入 */}
+          <button
+            type="button"
+            onClick={() => setView(LoginType.Register)}
+            className="hover:text-text-primary hover:underline"
+          >
+            没有账号？注册
+          </button>
         </div>
       </div>
     </div>

@@ -234,7 +234,12 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       </nav>
 
       {activeTab === "follow" ? (
-        <FollowList selectedChannelId={selectedChannelId} onSelect={onSelect} />
+        <FollowList
+          selectedChannelId={selectedChannelId}
+          onSelect={onSelect}
+          onCreateCategory={() => setCreateCategoryOpen(true)}
+          onStartGroup={() => setCreateGroupOpen(true)}
+        />
       ) : (
         <ConversationList
           selectedChannelId={selectedChannelId}

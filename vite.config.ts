@@ -168,6 +168,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
         },
+        // 兼容老配置:VITE_API_BASE_URL=/api 时把 /api/* rewrite 成 /v1/*
+        // (后端契约是 /v1 前缀)。新配置推荐直接 VITE_API_BASE_URL=/v1。
+        "/api": {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path: string) => path.replace(/^\/api/, "/v1"),
+        },
       },
     },
     resolve: {

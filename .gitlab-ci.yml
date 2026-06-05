@@ -16,7 +16,6 @@ stages:
 workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "test"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "test"'
     - when: never
 
 variables:
@@ -33,7 +32,6 @@ variables:
 .test_build_rules: &test_build_rules
   rules:
     - if: '$CI_COMMIT_BRANCH == "test"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "test"'
     - when: never
 
 .test_deploy_rules: &test_deploy_rules

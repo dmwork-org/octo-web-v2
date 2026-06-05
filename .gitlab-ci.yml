@@ -35,8 +35,10 @@ variables:
     paths:
       - $CI_PROJECT_DIR/dist
   before_script:
-    - corepack enable
-    - corepack prepare pnpm@11.2.2 --activate
+    - npm config set prefix "$CI_PROJECT_DIR/.npm-global"
+    - npm install -g pnpm@11.2.2
+    - export PATH="$CI_PROJECT_DIR/.npm-global/bin:$PATH"
+    - pnpm --version
   script:
     - pnpm install --frozen-lockfile
     - pnpm build

@@ -47,6 +47,8 @@ export interface UserDetail {
   // OCTO 实名认证(对应 displayName / RealnameVerifiedBadge 消费)
   real_name?: string;
   realname_verified?: boolean | number | string;
+  /** 实名认证时间戳(秒级,后端 dmworkim sync_worker 每 15min 从 IdP 同步)。 */
+  realname_verified_at?: number;
   // Bot 专用字段(robot=1 时填充,对应旧 BotDetailModal 读取的)
   bot_description?: string;
   bot_creator_uid?: string;
@@ -162,7 +164,9 @@ export interface LoginUuidResp {
   qrcode: string;
 }
 export async function getLoginUuid(device: LoginDevice): Promise<LoginUuidResp> {
-  return api<LoginUuidResp>("user/loginuuid", { query: { device_id: device.device_id } });
+  // 老仓 login_vm.tsx:419 把整个 device 展开传 query(device_id + device_name + device_model),
+  // 后端用三个字段一起签 uuid;只传 device_id 会拿不到 qrcode。
+  return api<LoginUuidResp>("user/loginuuid", { query: { ...device } });
 }
 
 /**

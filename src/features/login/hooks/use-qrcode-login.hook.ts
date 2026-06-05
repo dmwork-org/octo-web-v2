@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  getLoginUuid,
   getLoginStatus,
+  getLoginUuid,
   loginByAuthcode,
   type LoginResp,
 } from "@/features/base/api/endpoints/user.api";
@@ -11,27 +11,30 @@ import { buildDevicePayload } from "@/features/login/lib/device";
  * 二维码登录 hook(对齐老仓 LoginVM `requestUUID + pullLoginStatus + requestLogin`)。
  *
  * **状态机**:
- *   - `getUUID`  — 拉新 UUID(初始 / 过期重试)
- *   - `waitScan` — 渲染二维码,2s 轮询 loginstatus
- *   - `scanned`  — 后端报扫描成功(显头像覆盖),继续轮询等确认
- *   - `authed`   — 拿到 auth_code → loginByAuthcode → 调 onSuccess
- *   - `expired`  — 二维码过期,显刷新按钮
+ *   - `getUUID`  → fetch loginuuid → `waitScan`
+ *   - `waitScan` → 2s poll loginstatus,根据返回切到 scanned/authed/expired
+ *   - `scanned`  → 继续 poll(显头像),等用户 App 确认
+ *   - `authed`   → loginByAuthcode → onSuccess
+ *   - `expired`  → 显刷新按钮,点击 refresh() 回 getUUID
  *
- * 网络错误连续 10 次 → 重置到 getUUID(对齐老仓 _pullMaxErrCount)。
+ * **strict mode 适配**:effect 内全部用闭包局部 `alive` 标记,
+ * 不依赖任何 ref(useRef 在 strict mode 双 mount 时容易被 cleanup 残留污染)。
  *
- * 组件 unmount → cancelled=true 中断轮询。
+ * **调试**:dev 模式 console.info 关键节点,便于线上 / 联调排查。
  */
 
 export type QrcodeLoginStatus = "getUUID" | "waitScan" | "scanned" | "authed" | "expired";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_CONSECUTIVE_ERRORS = 10;
+const LOG = (msg: string, ...args: unknown[]) =>
+  // eslint-disable-next-line no-console
+  console.info(`[qrcode-login] ${msg}`, ...args);
 
 export interface QrcodeLoginState {
   status: QrcodeLoginStatus;
   uuid: string;
   qrcode: string;
-  /** 扫描后的用户头像 / uid(显示头像覆盖用)。 */
   scannedUid?: string;
   scannedName?: string;
   scannedAvatar?: string;
@@ -43,35 +46,52 @@ export interface UseQrcodeLoginOptions {
   onSuccess: (resp: LoginResp) => void;
 }
 
-/** 命名 effect hook:负责 UUID 拉取 + 轮询循环(对齐 no-useeffect-in-component)。 */
+/** 把 onSuccess 放 ref,避免父 re-render 触发 effect 重启。 */
+function useEventRef<T extends (...args: never[]) => unknown>(fn: T) {
+  const ref = useRef(fn);
+  useEffect(() => {
+    ref.current = fn;
+  }, [fn]);
+  return ref;
+}
+
+/**
+ * 命名 effect — 拉 UUID(`getUUID` 态时)+ 轮询 loginstatus(`waitScan`/`scanned` 态)。
+ * `tryReplaceState` 守卫只在闭包还 alive 时 setState,strict mode 双 mount 不污染。
+ */
 function useQrcodePollEffect(
   status: QrcodeLoginStatus,
   uuid: string,
-  cancelledRef: React.MutableRefObject<boolean>,
   setState: React.Dispatch<React.SetStateAction<QrcodeLoginState>>,
-  onSuccess: (resp: LoginResp) => void,
+  onSuccessRef: React.RefObject<UseQrcodeLoginOptions["onSuccess"]>,
 ) {
   useEffect(() => {
+    let alive = true;
+
     if (status === "getUUID") {
-      let alive = true;
+      LOG("getUUID effect setup → fetching loginuuid");
+      setState((p) => ({ ...p, loading: true, error: null }));
       void (async () => {
-        setState((p) => ({ ...p, loading: true, error: null }));
         try {
-          const r = await getLoginUuid(buildDevicePayload());
-          if (!alive || cancelledRef.current) return;
-          setState((p) => ({
-            ...p,
+          const device = buildDevicePayload();
+          LOG("device payload", device);
+          const r = await getLoginUuid(device);
+          LOG("loginuuid response", r);
+          if (!alive) return;
+          if (!r?.qrcode) {
+            setState((p) => ({ ...p, loading: false, error: "二维码加载失败:响应缺 qrcode 字段" }));
+            return;
+          }
+          setState({
             uuid: r.uuid,
             qrcode: r.qrcode,
             status: "waitScan",
             loading: false,
-            scannedUid: undefined,
-            scannedAvatar: undefined,
-            scannedName: undefined,
             error: null,
-          }));
-        } catch {
-          if (!alive || cancelledRef.current) return;
+          });
+        } catch (e) {
+          LOG("loginuuid error", e);
+          if (!alive) return;
           setState((p) => ({ ...p, loading: false, error: "二维码加载失败,请重试" }));
         }
       })();
@@ -81,16 +101,13 @@ function useQrcodePollEffect(
     }
 
     if (status === "waitScan" || status === "scanned") {
-      let alive = true;
       let consecutiveErrors = 0;
       const tick = async () => {
-        if (!alive || cancelledRef.current) return;
+        if (!alive) return;
         try {
           const r = await getLoginStatus(uuid);
           consecutiveErrors = 0;
-          if (!alive || cancelledRef.current) return;
-          // 后端 status 是字符串("waitScan" / "scanned" / "authed" / "expired"),
-          // user.api 类型把它声成 number 是为兼容旧接口,这里按字符串处理
+          if (!alive) return;
           const next = String(r.status);
           if (next === "scanned") {
             setState((p) => ({
@@ -104,28 +121,27 @@ function useQrcodePollEffect(
             setState((p) => ({ ...p, status: "authed" }));
             try {
               const loginResp = await loginByAuthcode(r.auth_code, buildDevicePayload());
-              if (!alive || cancelledRef.current) return;
-              onSuccess(loginResp);
+              if (!alive) return;
+              onSuccessRef.current?.(loginResp);
             } catch {
-              if (!alive || cancelledRef.current) return;
+              if (!alive) return;
               setState((p) => ({ ...p, status: "getUUID", error: "登录失败,请重新扫码" }));
             }
-            return; // 终态,不再轮询
+            return;
           } else if (next === "expired") {
             setState((p) => ({ ...p, status: "expired" }));
             return;
           }
-        } catch {
+        } catch (e) {
           consecutiveErrors++;
+          LOG(`poll error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS})`, e);
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-            if (!alive || cancelledRef.current) return;
+            if (!alive) return;
             setState((p) => ({ ...p, status: "getUUID", error: "网络异常,重新获取二维码" }));
             return;
           }
         }
-        if (alive && !cancelledRef.current) {
-          setTimeout(tick, POLL_INTERVAL_MS);
-        }
+        if (alive) setTimeout(tick, POLL_INTERVAL_MS);
       };
       setTimeout(tick, POLL_INTERVAL_MS);
       return () => {
@@ -133,17 +149,10 @@ function useQrcodePollEffect(
       };
     }
 
-    return undefined;
-  }, [status, uuid, cancelledRef, setState, onSuccess]);
-}
-
-/** 命名 hook:unmount 时 cancelledRef=true 中断所有 in-flight 轮询。 */
-function useCancelOnUnmount(cancelledRef: React.MutableRefObject<boolean>) {
-  useEffect(() => {
     return () => {
-      cancelledRef.current = true;
+      alive = false;
     };
-  }, [cancelledRef]);
+  }, [status, uuid, setState, onSuccessRef]);
 }
 
 export function useQrcodeLogin(options: UseQrcodeLoginOptions): {
@@ -154,13 +163,11 @@ export function useQrcodeLogin(options: UseQrcodeLoginOptions): {
     status: "getUUID",
     uuid: "",
     qrcode: "",
-    loading: false,
+    loading: true, // 初始 loading=true 让 view 立即显 spinner(避免空白闪烁)
     error: null,
   });
-  const cancelledRef = useRef(false);
-
-  useCancelOnUnmount(cancelledRef);
-  useQrcodePollEffect(state.status, state.uuid, cancelledRef, setState, options.onSuccess);
+  const onSuccessRef = useEventRef(options.onSuccess);
+  useQrcodePollEffect(state.status, state.uuid, setState, onSuccessRef);
 
   const refresh = () => {
     setState((p) => ({ ...p, status: "getUUID", error: null }));

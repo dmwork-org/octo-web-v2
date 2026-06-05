@@ -1,16 +1,27 @@
-import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useLocation, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { LogOut } from "lucide-react";
-import { useMemo } from "react";
-import { authActions, authStore } from "@/features/base/stores/auth";
-import { ConnectionBadge } from "@/features/base/layout/connection-badge";
+import { useMemo, useState } from "react";
+import { authStore } from "@/features/base/stores/auth";
+import { endpointStore } from "@/features/base/stores/endpoint";
+import { userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
+import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
+import { MeInfoModal } from "@/features/user/components/me-info-modal";
+import { SettingsIcon } from "@/components/ui/icons/settings";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
 
 function isActive(item: MenuItem, path: string): boolean {
   return item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
 }
 
+/**
+ * NavItem — 1:1 对齐老仓 `.wk-navrail__item`:
+ *  - 容器 56×44,无圆角,无边框
+ *  - 未激活:`text-text-primary/30`(对应老仓 `--wk-icon-muted` 30% 透明)
+ *  - hover:`bg-brand-tint/40 + text-text-primary/60`(对应老仓 `brand-tint-04 + icon-default`)
+ *  - 激活:`text-brand`(无背景)— 老仓"选中态只有颜色变化,无背景,无指示条"
+ */
 function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   return (
     <Link
@@ -20,7 +31,7 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
       className={`relative flex h-11 w-14 items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
         active
           ? "text-brand"
-          : "text-text-tertiary/70 hover:bg-brand-tint hover:text-text-secondary"
+          : "text-text-primary/30 hover:bg-brand-tint/40 hover:text-text-primary/60"
       }`}
     >
       {renderMenuIcon(item.icon, 20)}
@@ -28,69 +39,131 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   );
 }
 
-function UserAvatar({ initial }: { initial: string }) {
+interface UserAvatarProps {
+  uid: string;
+  initial: string;
+  isOnline: boolean;
+  onClick: () => void;
+}
+
+function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
+  const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const [failed, setFailed] = useState(false);
+  const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
+
   return (
-    <Link to="/settings" aria-label="设置" title="设置" className="relative block">
-      <div
-        className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105"
-        aria-hidden
-      >
-        <div className="flex h-full w-full items-center justify-center">{initial}</div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="我的信息"
+      title="我的信息"
+      className="relative block cursor-pointer"
+    >
+      <div className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105">
+        {url && !failed ? (
+          <img
+            src={url}
+            alt="我的头像"
+            width={40}
+            height={40}
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center" aria-hidden>
+            {initial}
+          </div>
+        )}
       </div>
-      <div
-        className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-online ring-2 ring-bg-navrail"
-        aria-label="在线"
-      />
-    </Link>
+      {isOnline ? (
+        <span
+          className="absolute right-0 bottom-0 box-border h-2 w-2 rounded-full border-2 border-bg-navrail bg-online"
+          aria-label="在线"
+        />
+      ) : null}
+    </button>
   );
 }
 
+/**
+ * Sidebar(主导航) — 1:1 对齐老仓 NavRail:
+ *
+ * **顶部**:用户头像(40×40 + 右下 8px 在线点),点击 → MeInfo modal
+ * **中部**:menu items(5 个,56×44,老仓专用 svg icon)
+ * **底部**(对齐老仓 NavBottom):
+ *   - 分割线
+ *   - 设置按钮(齿轮 SettingsIcon)→ 打开 `<SettingsFlyout>` 飞出菜单(**不跳路由**)
+ *   - SpaceSwitcher(楼图标 trigger + dropdown)
+ */
 export function Sidebar() {
   const user = useStore(authStore, (s) => s.user);
   const location = useLocation();
-  const navigate = useNavigate();
   const router = useRouter();
+  const qc = useQueryClient();
   const path = location.pathname;
   const items = useMemo(() => collectMenuItems(router), [router]);
   const initial = (user?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase();
+  const uid = user?.uid ?? "";
+  const [meInfoOpen, setMeInfoOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const handleSignOut = () => {
-    authActions.signOut();
-    void navigate({ href: "/login", replace: true });
+  const handleAvatarClick = async () => {
+    if (uid) {
+      try {
+        await qc.ensureQueryData(userDetailQueryOptions(uid));
+      } catch {
+        // 失败也开 modal(老仓 .catch 也 setShowMeInfo(true))
+      }
+    }
+    setMeInfoOpen(true);
   };
 
   return (
-    <nav
-      aria-label="主导航"
-      className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
-    >
-      <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">
-        <UserAvatar initial={initial} />
-      </div>
+    <>
+      <nav
+        aria-label="主导航"
+        className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
+      >
+        <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">
+          <UserAvatar
+            uid={uid}
+            initial={initial}
+            isOnline={typeof navigator !== "undefined" ? navigator.onLine : true}
+            onClick={() => void handleAvatarClick()}
+          />
+        </div>
 
-      <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
+        <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
-      <div className="flex flex-1 flex-col items-center gap-0 py-2">
-        {items.map((item) => (
-          <NavItem key={item.to} item={item} active={isActive(item, path)} />
-        ))}
-      </div>
+        <div className="flex flex-1 flex-col items-center gap-0 py-2">
+          {items.map((item) => (
+            <NavItem key={item.to} item={item} active={isActive(item, path)} />
+          ))}
+        </div>
 
-      <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
+        {/* 底部(对齐老仓 NavBottom):分割线 → 设置 → SpaceSwitcher */}
+        <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
-      <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
-        <ConnectionBadge />
-        <SpaceSwitcher />
-        <button
-          type="button"
-          aria-label="退出登录"
-          title="退出登录"
-          onClick={handleSignOut}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-text-tertiary/70 transition-colors hover:bg-brand-tint hover:text-text-secondary"
-        >
-          <LogOut size={18} />
-        </button>
-      </div>
-    </nav>
+        <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
+          <button
+            type="button"
+            title="设置"
+            aria-label="设置"
+            onClick={() => setSettingsOpen((v) => !v)}
+            className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
+              settingsOpen
+                ? "text-brand"
+                : "text-text-primary/30 hover:bg-brand-tint/40 hover:text-text-primary/60"
+            }`}
+          >
+            <SettingsIcon size={20} />
+          </button>
+          <SpaceSwitcher />
+        </div>
+      </nav>
+
+      <SettingsFlyout open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <MeInfoModal open={meInfoOpen} onClose={() => setMeInfoOpen(false)} />
+    </>
   );
 }

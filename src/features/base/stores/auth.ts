@@ -1,4 +1,5 @@
 import { Store } from "@tanstack/react-store";
+import { spaceActions } from "@/features/base/stores/space";
 
 export interface AuthUser {
   uid: string;
@@ -47,7 +48,23 @@ export const authStore = new Store<AuthState>(readPersisted());
 
 export const authActions = {
   signIn: (token: string, user: AuthUser) => authStore.setState(() => ({ token, user })),
-  signOut: () => authStore.setState(() => ({ token: null, user: null })),
+  /**
+   * 登出 — 对齐老仓 dmworkbase App.tsx logout 行为(整页跳 + 清状态):
+   * 1. 清 auth + space(防匿名请求残留 X-Space-Id;详见 withSpaceHeader)
+   * 2. `window.location.replace('/login')` 整页跳,清掉所有 react-query
+   *    cache + 进行中的 refetch,避免 logout 后残留请求拿 401 触发
+   *    `with401Redirect` 给 /login 加 `?redirect=<刚才的页面>`(用户主动
+   *    登出不应该带 redirect)
+   *
+   * 调用方不需要再自己 navigate /login。SSR 环境下 fallback 只清 store。
+   */
+  signOut: () => {
+    authStore.setState(() => ({ token: null, user: null }));
+    spaceActions.setSpace(null);
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
+  },
 };
 
 export function persistAuth(): void {

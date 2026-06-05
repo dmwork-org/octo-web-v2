@@ -31,6 +31,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
+import { FollowEmptyState } from "@/features/chat/components/follow-empty-state";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
@@ -63,6 +64,10 @@ import { useSortFollow } from "@/features/chat/hooks/use-sort-follow.hook";
 interface FollowListProps {
   selectedChannelId?: string;
   onSelect?: (c: Conversation) => void;
+  /** 关注 tab 空态"新建分组"主按钮回调(对齐老仓 CategoryEmptyState onCreateCategory)。 */
+  onCreateCategory?: () => void;
+  /** 关注 tab 空态"发起群聊"主按钮回调(noGroups=true 时显示)。 */
+  onStartGroup?: () => void;
 }
 
 const CHANNEL_TYPE_THREAD = 5;
@@ -869,7 +874,12 @@ function CategorySection({
  * - 折叠时父群 unread = 群自身 + 聚合非静音子区未读
  * - 状态 per-uid + per-spaceId 持久化到 localStorage
  */
-export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
+export function FollowList({
+  selectedChannelId,
+  onSelect,
+  onCreateCategory,
+  onStartGroup,
+}: FollowListProps) {
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -1056,14 +1066,11 @@ export function FollowList({ selectedChannelId, onSelect }: FollowListProps) {
       (c) => c.channel.channelType !== ChannelTypeGroup,
     );
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-        <p className="text-sm text-text-secondary">
-          {hasNoGroups ? "你还没有任何会话" : "你还没有关注任何会话"}
-        </p>
-        <p className="text-xs text-text-tertiary">
-          {hasNoGroups ? "先去发起群聊吧" : "右上角 ➕ → 创建分组,把会话整理起来"}
-        </p>
-      </div>
+      <FollowEmptyState
+        noGroups={hasNoGroups}
+        onCreateCategory={onCreateCategory ?? (() => {})}
+        onStartGroup={onStartGroup}
+      />
     );
   }
 

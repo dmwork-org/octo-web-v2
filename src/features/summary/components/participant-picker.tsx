@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Pencil, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface ParticipantPickerProps {
   /** 已选 participant uid 列表 */
@@ -27,13 +28,10 @@ function useResetPickerOnOpen(
 }
 
 /**
- * 参与者多选(Wave 3c BY_PERSON 模式专用,内嵌于 SummaryCreateModal):
+ * 参与者多选(Wave 3c BY_PERSON 模式专用,内嵌于 SummaryCreateModal)。
  *
- * - 触发按钮显示已选人数 + 头像缩略
- * - modal 打开后从 spaceMembers 列出真人(去 robot / 去自己)
- * - 保存时一次性 push 回父表单,不直接调 API
- *
- * 旧 dmworksummary ParticipantSelector + MemberSelectorModal 合二为一。
+ * 浮动元素壳层统一规范 Phase C5 — 走 BaseDialog;通常嵌在 ScheduleFormModal 内,
+ * 自动 z-dialog-secondary。
  */
 export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
   const [open, setOpen] = useState(false);
@@ -111,65 +109,59 @@ export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
         <Pencil size={12} className="ml-auto shrink-0 text-text-tertiary" />
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-            <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-              <h2 className="text-sm font-semibold text-text-primary">选择参与者</h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="关闭"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-              >
-                <X size={16} />
-              </button>
-            </header>
-            <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
-              已选 {selected.size} 人
-            </div>
-            <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
-              {candidates.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                  当前 Space 没有可选成员
-                </div>
-              ) : (
-                candidates.map((m) => {
-                  const checked = selected.has(m.uid);
-                  const channel = new Channel(m.uid, ChannelTypePerson);
-                  return (
-                    <label
-                      key={m.uid}
-                      className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                        checked ? "bg-brand-tint" : ""
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggle(m.uid)}
-                        className="shrink-0"
-                      />
-                      <ChannelAvatar channel={channel} size={32} title={m.name} />
-                      <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                        {m.name || m.uid}
-                      </span>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-              <Button type="tertiary" theme="borderless" onClick={() => setOpen(false)}>
-                取消
-              </Button>
-              <Button type="primary" theme="solid" onClick={save}>
-                确定
-              </Button>
-            </div>
-          </div>
+      <BaseDialog
+        open={open}
+        onOpenChange={(next) => !next && setOpen(false)}
+        size="md"
+        height="md"
+        title="选择参与者"
+        contentClassName="overflow-hidden"
+        footer={
+          <>
+            <Button type="tertiary" theme="borderless" onClick={() => setOpen(false)}>
+              取消
+            </Button>
+            <Button type="primary" theme="solid" onClick={save}>
+              确定
+            </Button>
+          </>
+        }
+      >
+        <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
+          已选 {selected.size} 人
         </div>
-      ) : null}
+        <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
+          {candidates.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-text-tertiary">
+              当前 Space 没有可选成员
+            </div>
+          ) : (
+            candidates.map((m) => {
+              const checked = selected.has(m.uid);
+              const channel = new Channel(m.uid, ChannelTypePerson);
+              return (
+                <label
+                  key={m.uid}
+                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
+                    checked ? "bg-brand-tint" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(m.uid)}
+                    className="shrink-0"
+                  />
+                  <ChannelAvatar channel={channel} size={32} title={m.name} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                    {m.name || m.uid}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </BaseDialog>
     </>
   );
 }

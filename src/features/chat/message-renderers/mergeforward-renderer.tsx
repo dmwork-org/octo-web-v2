@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import WKSDK, {
   Channel,
   ChannelTypePerson,
@@ -8,7 +7,7 @@ import WKSDK, {
   type MessageImage,
   type MessageText,
 } from "wukongimjssdk";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -18,22 +17,15 @@ import {
   MergeforwardContent,
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface MergeforwardRendererProps {
   message: Message;
 }
 
-/** ChannelType 2 = group;对齐 SDK ChannelTypeGroup。 */
 const CHANNEL_TYPE_GROUP = 2;
-/** 嵌套合并转发最大导航深度(对齐旧 MAX_NESTED_DEPTH=10)。 */
 const MAX_NESTED_DEPTH = 10;
 
-/**
- * Title 计算(对应旧 MergeforwardCell.getTitle):
- *   - group → "群的聊天记录"
- *   - person → "NAME1、NAME2 的聊天记录"
- *   - users 空 fallback → "聊天记录"
- */
 function buildTitle(content: MergeforwardContent): string {
   if (content.channelType === CHANNEL_TYPE_GROUP) {
     return "群的聊天记录";
@@ -43,7 +35,6 @@ function buildTitle(content: MergeforwardContent): string {
   return `${names.join("、")}的聊天记录`;
 }
 
-/** 从 users map 拿 sender name,fallback channelInfo,再 fallback uid。 */
 function senderNameOf(fromUID: string, users: MergeforwardUser[]): string {
   if (!fromUID) return "";
   const hit = users.find((u) => u.uid === fromUID)?.name;
@@ -54,7 +45,6 @@ function senderNameOf(fromUID: string, users: MergeforwardUser[]): string {
   return info?.title || fromUID;
 }
 
-/** sender 是否 bot(对齐旧 isBot helper:Person channelInfo.orgData.robot === 1)。 */
 function isBotSender(fromUID: string): boolean {
   if (!fromUID) return false;
   const info = WKSDK.shared().channelManager.getChannelInfo(
@@ -63,10 +53,6 @@ function isBotSender(fromUID: string): boolean {
   return (info?.orgData as { robot?: number } | undefined)?.robot === 1;
 }
 
-/**
- * 详情弹窗内消息时间(对齐旧 getTimeStringAutoShort2 mustIncludeTime=true,简化版):
- *   今天 HH:mm / 昨天 HH:mm / MM-DD HH:mm / yyyy-MM-DD HH:mm
- */
 function formatInnerTime(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts * 1000);
@@ -87,11 +73,6 @@ function formatInnerTime(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hhmm}`;
 }
 
-/**
- * 主动 fetch 缺失的 sender Person channelInfo,首屏 title + bot 标记到位
- * (对齐旧 MergeforwardMessageList line 372-376 — content 切栈时按 fromUID 拉)。
- * 抽成命名 hook 满足 no-useeffect-in-component 规则。
- */
 function usePrefetchSenderInfos(content: MergeforwardContent): void {
   useEffect(() => {
     const mgr = WKSDK.shared().channelManager;
@@ -105,15 +86,6 @@ function usePrefetchSenderInfos(content: MergeforwardContent): void {
   }, [content]);
 }
 
-/**
- * 合并转发卡片(对齐旧 ui/message/MergeforwardCard,1:1):
- *   bg rgba(28,28,35,0.03) / border 1px rgba(46,50,56,0.09) / r 8 / p 12
- *   min 200 max 400
- *   title 14/500/#1c1c23 mb 8
- *   items 12/rgba(28,28,35,0.6) gap 4 mb 10
- *   divider 1px rgba(46,50,56,0.09) mb 10
- *   footer 12/rgba(28,28,35,0.35) "聊天记录"
- */
 function MergeforwardCard({
   title,
   previewItems,
@@ -145,10 +117,6 @@ function MergeforwardCard({
   );
 }
 
-/**
- * 把 MergeforwardContent 转成卡片预览数组(最多 4 条,name: digest 拼接)。
- * 嵌套合并转发的 digest 走 MergeforwardContent.conversationDigest = "[合并转发]"。
- */
 function buildPreview(content: MergeforwardContent): string[] {
   const users = content.users ?? [];
   return (content.msgs ?? []).slice(0, 4).map((m) => {
@@ -159,8 +127,12 @@ function buildPreview(content: MergeforwardContent): string[] {
 }
 
 /**
- * 合并转发消息渲染(对齐旧 Messages/Mergeforward + ui/message/MergeforwardCard):
- * 点击卡片 → 弹 Modal 列嵌套消息,支持嵌套合并转发递归(stack 导航)。
+ * 合并转发消息渲染(对齐旧 Messages/Mergeforward + ui/message/MergeforwardCard)。
+ *
+ * 浮动元素壳层统一规范 Phase C4 — 走 BaseDialog;Radix 自带 portal,删除原手写
+ * createPortal(message-row 在 message-list overflow-y-auto 滚动容器内,fixed 会被
+ * 父 stacking context trap → 老仓走 createPortal 跳出;BaseDialog 走 Radix Portal,
+ * 同样 portal 到 document.body 解决)。
  */
 export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
   const root = message.content as MergeforwardContent;
@@ -172,7 +144,7 @@ export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
         previewItems={buildPreview(root)}
         onClick={() => setOpen(true)}
       />
-      {open ? <MergeforwardModal root={root} onClose={() => setOpen(false)} /> : null}
+      <MergeforwardModal open={open} root={root} onClose={() => setOpen(false)} />
     </>
   );
 }
@@ -180,21 +152,18 @@ export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
 /**
  * 聊天记录详情弹窗(对齐旧 .wk-mergeforward-modal + MergeforwardMessageList):
  * - 480 宽 / max-h calc(100vh - 160px)
- *   **注意**:Tailwind arbitrary value 内 `calc()` 减号两侧必须有空格 →
- *   `[calc(100vh_-_160px)]`(下划线 = 空格)。直接写 `[calc(100vh-160px)]`
- *   会生成非法 CSS 被浏览器丢弃,max-h 失效导致 Modal 撑超视口。
- * - Header 56px:[ArrowLeft 可返回时] + title + X
- * - Body:gap 16 / pad 10/16,每条消息 = [avatar 32 + info(name+time / content)]
- * - 嵌套合并转发(type=11)点击 → push contentStack,header navTitle 跟随
- *
- * **createPortal 到 document.body**:Modal 触发链是 message-row → message-list
- * (overflow-y-auto 滚动容器),fixed 会被滚动容器的 stacking context trap,
- * 导致 chat text 跨 z-index 透到 Modal box 上(用户截图 16 现象)。
- * Portal 到 body 让 Modal 脱离父子 stacking,z-[100] 真正生效。
- *
- * z-[100]:压在 Toast 之下,但在普通 modal(z-50/60)和业务浮层之上。
+ * - title:可返回时左侧 ArrowLeft + 文字;X 关闭由 BaseDialog 内置
+ * - 嵌套合并转发(type=11)点击 → push contentStack(同 modal 内切换,不开新 Dialog)
  */
-function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClose: () => void }) {
+function MergeforwardModal({
+  open,
+  root,
+  onClose,
+}: {
+  open: boolean;
+  root: MergeforwardContent;
+  onClose: () => void;
+}) {
   const [stack, setStack] = useState<MergeforwardContent[]>([]);
   const current = stack.length > 0 ? stack[stack.length - 1] : root;
   const canGoBack = stack.length > 0;
@@ -207,51 +176,43 @@ function MergeforwardModal({ root, onClose }: { root: MergeforwardContent; onClo
   };
   const goBack = () => setStack((prev) => prev.slice(0, -1));
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="flex max-h-[calc(100vh_-_160px)] w-[480px] flex-col overflow-hidden rounded-lg bg-bg-surface shadow-xl">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default px-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            {canGoBack ? (
-              <button
-                type="button"
-                onClick={goBack}
-                aria-label="返回"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            ) : null}
-            <h2 className="truncate text-base font-medium text-text-primary">
-              {buildTitle(current)}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <div key={`stack-${stack.length}`} className="flex-1 overflow-y-auto px-4 py-2.5">
-          <MergeforwardList content={current} onOpenNested={pushNested} />
+  return (
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          setStack([]);
+          onClose();
+        }
+      }}
+      size="fit"
+      title={
+        <div className="flex min-w-0 items-center gap-2">
+          {canGoBack ? (
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label="返回"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+            >
+              <ArrowLeft size={16} />
+            </button>
+          ) : null}
+          <span className="truncate text-base font-medium text-text-primary">
+            {buildTitle(current)}
+          </span>
         </div>
+      }
+      className="w-[480px] max-h-[calc(100vh_-_160px)]"
+      contentClassName="px-4 py-2.5"
+    >
+      <div key={`stack-${stack.length}`}>
+        <MergeforwardList content={current} onOpenNested={pushNested} />
       </div>
-    </div>,
-    document.body,
+    </BaseDialog>
   );
 }
 
-/**
- * Modal 内消息列表(对齐旧 MergeforwardMessageList):
- * gap 16,单条 = [avatar 32 + info(name+time / content)]
- * 连续同 sender 头像位置占位(对齐旧 showAvatar 计算)。
- */
 function MergeforwardList({
   content,
   onOpenNested,
@@ -298,14 +259,6 @@ function MergeforwardList({
   );
 }
 
-/**
- * 嵌套消息内容渲染(对齐旧 MergeforwardMessageList.getMsgContent):
- * - text → Markdown(自动 linkify URL,gfm autolinks)
- * - image → 缩略 img(无 Lightbox,P5+ 接)
- * - mergeForward → 嵌套 MergeforwardCard,点击 push stack
- * - file → FileCard,点击下载(对齐旧 .wk-mergeforward-file)
- * - 其他 → content.conversationDigest fallback("[文件]"/"[图片]"...)
- */
 function InnerContent({
   msg,
   onOpenNested,
@@ -355,18 +308,6 @@ function InnerContent({
   return <span>{msg.content?.conversationDigest ?? "[消息]"}</span>;
 }
 
-/**
- * 跨域文件下载 — 走后端预签名 URL(对齐旧 Utils/download.ts downloadFile):
- *
- * `<a download>` 在 URL 跨域时浏览器**忽略** download 属性,改为新窗口打开
- * (除非源服务器返 `Content-Disposition: attachment`)。
- *
- * 解决:跨域时调后端 `file/download/url?path=&filename=` 拿一个带
- * `Content-Disposition: attachment; filename=...` 的临时预签名 URL,
- * 再 a[download].click() 即可真下载。
- *
- * 同域 URL 直接走 a[download],无需预签名。
- */
 async function triggerDownload(url: string, filename: string): Promise<void> {
   if (!url) return;
   let parsed: URL;
@@ -384,14 +325,13 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
       );
       if (resp?.url) downloadUrl = resp.url;
     } catch {
-      // 拿预签名失败,fallback 用 raw url(浏览器可能新窗口打开,但至少不彻底失败)
+      // 拿预签名失败,fallback 用 raw url
     }
   }
   const a = document.createElement("a");
   a.href = downloadUrl;
   a.download = filename;
   if (isCrossOrigin) {
-    // 跨域预签名 URL 若仍未触发下载,a[target=_blank] 让浏览器在新 tab 处理
     a.target = "_blank";
     a.rel = "noopener noreferrer";
   }
@@ -400,22 +340,6 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
   document.body.removeChild(a);
 }
 
-/**
- * 文件卡片(对齐旧 MergeforwardMessageList .wk-mergeforward-file CSS):
- *   - 容器:flex / pad 8 12 / bg rgba(28,28,35,0.04) / r 8 / gap 10 / max-w 300
- *   - icon 56x56 / r 8 / iconBg 按 ext 配色 / 文字白色 ext 全大写居中
- *   - name 14/500/text-primary truncate
- *   - size 11/text-tertiary
- *
- * **交互**(对齐旧 wk-mergeforward-file--clickable):
- *   - 有 url:cursor-pointer + hover bg rgba(28,28,35,0.07) + 点击下载
- *   - 无 url:cursor-default + 无 hover
- *   - 下载走 triggerDownload — 跨域时通过后端预签名 URL 让浏览器真下载
- *     (不是新窗口打开)
- *
- * 按扩展名配色(对齐旧 getFileExtColor):
- *   pdf → 红 / doc(x) → 蓝 / xls(x) → 绿 / ppt(x) → 橙 / zip|rar|7z → 黄 / 其他 → 灰
- */
 function FileCard({
   content,
 }: {
@@ -477,11 +401,6 @@ function FileCard({
   );
 }
 
-/**
- * Modal 内 32×32 头像 — 复用 `<ChannelAvatar>`(它处理 baseURL 拼接 + 加载失败
- * fallback 首字母,避免裸 `<img>` 用 channelInfo.logo 相对路径(`users/xxx/avatar`)
- * broken image 的问题)。
- */
 function InnerAvatar({ uid }: { uid: string }) {
   return <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={32} />;
 }

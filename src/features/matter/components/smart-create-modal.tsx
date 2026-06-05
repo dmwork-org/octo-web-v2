@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
-import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
@@ -20,6 +19,7 @@ import type {
   ExtractMessage,
   ExtractResult,
 } from "@/features/matter/types/matter.types";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface SmartCreateModalProps {
   open: boolean;
@@ -48,15 +48,16 @@ function toExtractMsgs(msgs: Message[]): ExtractMessage[] {
 /**
  * AI 智能创建事项 modal — 对齐旧 dmworktodo SmartCreateModal。
  *
+ * 浮动元素壳层统一规范 Phase C3 — 走 BaseDialog。
+ *
  * 触发:**selection-toolbar 多选消息 → "创建新事项"** 唯一入口
  * (chat ✓ / Alt+Enter 走 CreateMatterModal,messages 空时不在本组件)。
  *
  * 流程:
  *   1. open 即调 extractMatter(LLM 抽取并落 matter 拿 id)
- *   2. extract 返 title/description prefill 进 MatterFormBody(共享 4 字段表单)
+ *   2. extract 返 title/description prefill 进 MatterFormBody
  *   3. 用户补齐 assignee(默认 prefill 自己)+ deadline
- *   4. 保存:updateMatter(id) {title/description/deadline} + addAssignee batch
- *      (extract 创建出来的 matter 没有 assignee,需 batch 加)
+ *   4. 保存:updateMatter(id) + addAssignee batch
  */
 export function SmartCreateModal({
   open,
@@ -105,7 +106,6 @@ export function SmartCreateModal({
         description: values.description.trim(),
         deadline: buildDeadlineISO(values.deadline),
       });
-      // extract 出来的 matter 默认无 assignee;批量 add
       if (values.assigneeUids.length > 0) {
         await Promise.all(values.assigneeUids.map((uid) => addAssignee(draftId, uid)));
       }
@@ -119,16 +119,10 @@ export function SmartCreateModal({
     onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
   });
 
-  if (!open) return null;
-
   const isExtracting = extractMu.isPending && !draftId;
   const canSave = !!draftId && !saveMu.isPending && isMatterFormValid(values);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-      return;
-    }
     if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "TEXTAREA") return;
@@ -140,48 +134,17 @@ export function SmartCreateModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={onKeyDown}
-    >
-      <div className="flex w-[480px] max-w-full flex-col rounded-lg bg-bg-surface shadow-xl ring-1 ring-brand/10">
-        <header className="flex items-center justify-between p-4">
-          <h3 className="m-0 text-base font-semibold text-text-strong">
-            AI 智能创建事项 ({messages.length} 条消息)
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-
-        <div className="flex flex-col gap-4 px-4 py-[10px]">
-          {isExtracting ? (
-            <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
-              AI 正在抽取事项...
-            </div>
-          ) : extractMu.error && !draftId ? (
-            <div className="flex h-32 flex-col items-center justify-center gap-3">
-              <span className="text-sm text-error">
-                {extractMu.error instanceof Error ? extractMu.error.message : "AI 抽取失败"}
-              </span>
-              <Button onClick={() => extractMu.mutate()}>重试</Button>
-            </div>
-          ) : draftId ? (
-            <MatterFormBody
-              values={values}
-              onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
-              channel={channel}
-              autoFocus
-            />
-          ) : null}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 p-4">
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="fit"
+      title={`AI 智能创建事项 (${messages.length} 条消息)`}
+      className="w-[480px] max-w-full"
+      contentClassName="px-4 py-[10px]"
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
@@ -197,9 +160,31 @@ export function SmartCreateModal({
           >
             {saveMu.isPending ? "保存中..." : "保存"}
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4" onKeyDown={onKeyDown}>
+        {isExtracting ? (
+          <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
+            AI 正在抽取事项...
+          </div>
+        ) : extractMu.error && !draftId ? (
+          <div className="flex h-32 flex-col items-center justify-center gap-3">
+            <span className="text-sm text-error">
+              {extractMu.error instanceof Error ? extractMu.error.message : "AI 抽取失败"}
+            </span>
+            <Button onClick={() => extractMu.mutate()}>重试</Button>
+          </div>
+        ) : draftId ? (
+          <MatterFormBody
+            values={values}
+            onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+            channel={channel}
+            autoFocus
+          />
+        ) : null}
       </div>
-    </div>
+    </BaseDialog>
   );
 }
 
@@ -228,7 +213,6 @@ function useResetOnOpen(
     if (!open) return;
     setDraftId(null);
     setValues(emptyValues(myUid));
-    // setters 稳定,跟 open + myUid 即可
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, myUid]);
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -13,6 +13,7 @@ import {
   type SearchGroup,
   type SearchMessage,
 } from "@/features/base/api/endpoints/search.api";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface GlobalSearchModalProps {
   open: boolean;
@@ -27,8 +28,6 @@ const FILE_CONTENT_TYPE = 4; // MessageContentType.file
 
 /**
  * input → keyword 300ms debounce(命名 hook,符合 no-useeffect-in-component)。
- * 中文 composition 期间不同步 keyword(避免拼音串触发搜索),等 compositionEnd 后
- * 下一次 input 变化触发(此时 input 已是最终汉字)。
  */
 function useDebouncedKeyword(input: string, composing: boolean, setKeyword: (k: string) => void) {
   useEffect(() => {
@@ -56,17 +55,10 @@ function useResetOnOpen(
 }
 
 /**
- * 全局搜索弹窗(对应旧 dmworkbase Components/GlobalSearch):
+ * 全局搜索弹窗(对应旧 dmworkbase Components/GlobalSearch)。
  *
- * - 顶部:输入框 + close
- * - 3 tab:联系人 / 群组 / 文件;channel 内搜索 collapse 为"全部 / 文件"
- * - 联系人 / 群组 tab:展示 friends / groups,点击跳到对应 chat
- * - 文件 tab:content_type=file 过滤,展示 messages,点击跳到 channel
- *
- * 输入 debounce 300ms;**composing 期间 input 受控状态正常更新(显示拼音),
- * 但 keyword 不同步**,避免拼音串触发服务端搜索。
- *
- * 点击 row:chatSelectedActions.select + onClose(简版,不做消息精确定位)。
+ * 浮动元素壳层统一规范 Phase C4 — 走 BaseDialog,size=lg(max-w-2xl),
+ * className 覆盖把卡片改为顶部对齐(Cmd+K 风格,top 10vh)而非默认中央。
  */
 export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalProps) {
   const [input, setInput] = useState("");
@@ -91,13 +83,9 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
         channelType: channel?.channelType,
         onlyMessage: inChannel,
       }),
-    // 对齐旧 GlobalSearchVM.didMount:空 keyword 也调,后端返默认列表
-    // (联系人 = 全量好友 / 群组 = 我加入的群 / 文件 = 最近文件)。
     enabled: open,
     staleTime: 30 * 1000,
   });
-
-  if (!open) return null;
 
   const tabs: { id: SearchTab; label: string }[] = inChannel
     ? [
@@ -111,78 +99,73 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
       ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[10vh]">
-      <div className="flex h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">
-            {inChannel ? "聊天内搜索" : "全局搜索"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-
-        <div className="shrink-0 border-b border-border-subtle px-5 py-3">
-          <div className="flex items-center gap-2 rounded-md border border-border-default bg-bg-base px-3 py-2 focus-within:border-brand">
-            <Search size={14} className="text-text-tertiary" />
-            <input
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onCompositionStart={() => setComposing(true)}
-              onCompositionEnd={(e) => {
-                setComposing(false);
-                setInput((e.target as HTMLInputElement).value);
-              }}
-              placeholder="搜索联系人 / 群 / 消息"
-              className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
-            />
-            {input ? (
-              <button
-                type="button"
-                onClick={() => setInput("")}
-                aria-label="清空"
-                className="text-text-tertiary hover:text-text-primary"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <nav className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-3 py-1">
-          {tabs.map((t) => (
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="lg"
+      height="sm"
+      title={inChannel ? "聊天内搜索" : "全局搜索"}
+      // 覆盖默认中央定位 → 顶部对齐 10vh(Cmd+K 风格);dialog.tsx 默认 top-1/2 -translate-y-1/2
+      className="top-[10vh] -translate-y-0"
+      contentClassName="overflow-hidden"
+    >
+      <div className="shrink-0 border-b border-border-subtle px-5 py-3">
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-bg-base px-3 py-2 focus-within:border-brand">
+          <Search size={14} className="text-text-tertiary" />
+          <input
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={(e) => {
+              setComposing(false);
+              setInput((e.target as HTMLInputElement).value);
+            }}
+            placeholder="搜索联系人 / 群 / 消息"
+            className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+          />
+          {input ? (
             <button
-              key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                tab === t.id
-                  ? "bg-brand-tint text-text-primary"
-                  : "text-text-secondary hover:bg-bg-hover"
-              }`}
+              onClick={() => setInput("")}
+              aria-label="清空"
+              className="text-text-tertiary hover:text-text-primary"
             >
-              {t.label}
+              ×
             </button>
-          ))}
-        </nav>
-
-        <div className="flex min-h-0 flex-1 flex-col">
-          {isFetching && !data ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              {keyword.trim().length === 0 ? "加载默认列表…" : "搜索中…"}
-            </div>
-          ) : (
-            <SearchResultBody tab={tab} data={data} onClose={onClose} inChannel={inChannel} />
-          )}
+          ) : null}
         </div>
       </div>
-    </div>
+
+      <nav className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-3 py-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === t.id
+                ? "bg-brand-tint text-text-primary"
+                : "text-text-secondary hover:bg-bg-hover"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        {isFetching && !data ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+            {keyword.trim().length === 0 ? "加载默认列表…" : "搜索中…"}
+          </div>
+        ) : (
+          <SearchResultBody tab={tab} data={data} onClose={onClose} inChannel={inChannel} />
+        )}
+      </div>
+    </BaseDialog>
   );
 }
 
@@ -223,8 +206,6 @@ function FriendsList({ items, onClose }: { items: SearchFriend[]; onClose: () =>
       </div>
     );
   }
-  // 联系人 tab 空 keyword 时后端返全量(4000+),用 Virtuoso 虚拟化只挂视口内 DOM
-  // (对齐老仓 tab-contacts.tsx → Virtuoso increaseViewportBy 200)
   return (
     <Virtuoso
       data={items}
@@ -270,7 +251,6 @@ function GroupsList({ items, onClose }: { items: SearchGroup[]; onClose: () => v
       </div>
     );
   }
-  // 群组 tab 同样虚拟化,空 keyword 时后端可能返大量我加入的群(对齐老仓 tab-group.tsx)
   return (
     <Virtuoso
       data={items}
@@ -308,11 +288,9 @@ function GroupsList({ items, onClose }: { items: SearchGroup[]; onClose: () => v
   );
 }
 
-/** 单条消息 row 渲染(虚拟化所需,先按 channel 分组、再展平成 row 列表)。 */
 interface MessageRow {
   kind: "header" | "message" | "more";
   key: string;
-  /** header / message 共用 channel info;more 用于占位文案 */
   channel: Channel;
   channelName: string;
   message?: SearchMessage;
@@ -320,8 +298,6 @@ interface MessageRow {
 }
 
 function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () => void }) {
-  // 老仓按 channel 分组,每组只展示前 3 条 + "还有 N 条"。这里把分组结果展平
-  // 成一维 row 列表喂给 Virtuoso,实现"分组样式 + 虚拟化"。
   const rows: MessageRow[] = useMemo(() => {
     const map = new Map<string, SearchMessage[]>();
     for (const m of items) {

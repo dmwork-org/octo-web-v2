@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Check, CheckCircle2, QrCode, X } from "lucide-react";
+import { Check, CheckCircle2, QrCode } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
@@ -11,6 +11,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { QrcodeMy } from "@/features/user/components/qrcode-my";
 import { PersonaListModal } from "@/features/persona/components/persona-list-modal";
 import { isRealnameVerified } from "@/features/base/lib/display-name";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 // section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -22,18 +23,6 @@ interface MeInfoModalProps {
 }
 
 const SEX_LABEL: Record<number, string> = { 0: "未设置", 1: "男", 2: "女" };
-
-/** ESC 关闭主面板;抽出命名 hook 满足 no-useeffect-in-component。 */
-function useCloseOnEscape(open: boolean, onClose: () => void) {
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-}
 
 /** open 翻转时 reset 子面板 + inline 编辑态。 */
 function useResetOnClose(
@@ -49,67 +38,39 @@ function useResetOnClose(
   }, [open, setEditing, setSubpage]);
 }
 
-/** 二级面板 token(对齐 channel-setting-modal 的 subpage 模式)。 */
 type Subpage = "qrcode" | "sex" | "persona";
 
 /**
- * 个人信息弹层 — 主面板 inline 编辑 + 二级独立 modal 模式(对齐 channel-setting-modal):
+ * 个人信息弹层 — 主面板 inline 编辑 + 二级独立 modal 模式(对齐 channel-setting-modal)。
  *
- * **容器**:无 mask 中央卡片 420×500(老仓 wk-main-sider-meinfo `mask: false` + height 500px)。
+ * 浮动元素壳层统一规范 Phase C2 — 走 BaseDialog,**mask='interactive'**(无 mask + 卡片悬浮,
+ * 对齐老仓 mask:false 模式)。二级 modal 在 React tree 内自动 z-dialog-secondary。
  *
- * **主面板 7 row**(对齐老仓 MeInfo vm.tsx sections):
- *   Section 1:头像(右侧头像图,点击触发隐藏 file picker → 上传)
- *             名字(InlineEditRow inline 展开 input,maxLength=20;已实名右侧 ✓)
- *             OCTO号(只读 subTitle)
- *             我的二维码(右侧 QrCode icon,点开二级 modal)
- *   Section 2:性别(subTitle 显当前值,点开二级 modal)
- *   Section 3:实名认证(已认证 subTitle 显 `已认证 · YYYY-MM`;未认证点击外跳 IdP)
- *   Section 4:我的分身(点开二级 modal,**不跳路由**)
- *
- * **二级 modal**(独立组件 z-60 盖在主面板 z-50 上,对齐 channel-setting 的二级抽屉):
- *   - `<QrcodeMyModal>`:中央二维码 + 名字
- *   - `<SexSelectModal>`:3 个 NavRow + checkmark,点选自动保存 + 关二级
- *   - `<PersonaListModal>`:分身列表(active toggle + 删除 + 新建);管理 Scope 关本 modal +
- *     跳 /personadetail(详情整页 modal 嵌不下)
- *
- * 头像 / 实名 还是不开二级 modal(file picker / 新窗外跳,语义已等价老仓)。
+ * 容器:固定 420×500(老仓 wk-main-sider-meinfo 同款),size=fit + className 控尺寸。
  */
 export function MeInfoModal({ open, onClose }: MeInfoModalProps) {
   const user = useStore(authStore, (s) => s.user);
   const uid = user?.uid ?? "";
   const [editing, setEditing] = useState<string | null>(null);
   const [subpage, setSubpage] = useState<Subpage | null>(null);
-  useCloseOnEscape(open, onClose);
   useResetOnClose(open, setEditing, setSubpage);
 
-  if (!open || !uid) return null;
+  if (!uid) return null;
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="pointer-events-auto flex h-[500px] w-[420px] flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-          <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
-            <h2 className="text-sm font-semibold text-text-primary">个人信息</h2>
-            <button
-              type="button"
-              aria-label="关闭"
-              onClick={onClose}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            >
-              <X size={16} />
-            </button>
-          </header>
-
-          <div className="flex flex-1 flex-col overflow-y-auto py-2">
-            <RootPanel
-              uid={uid}
-              editing={editing}
-              setEditing={setEditing}
-              setSubpage={setSubpage}
-            />
-          </div>
-        </div>
-      </div>
+      <BaseDialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        size="fit"
+        mask="interactive"
+        title="个人信息"
+        className="h-[500px] w-[420px]"
+      >
+        <RootPanel uid={uid} editing={editing} setEditing={setEditing} setSubpage={setSubpage} />
+      </BaseDialog>
 
       <QrcodeMyModal open={subpage === "qrcode"} uid={uid} onClose={() => setSubpage(null)} />
       <SexSelectModal open={subpage === "sex"} uid={uid} onClose={() => setSubpage(null)} />
@@ -177,7 +138,6 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
 
   return (
     <>
-      {/* Section 1:头像 / 名字 / OCTO 号 / 二维码 */}
       <SectionGroup>
         <NavRow
           title="头像"
@@ -204,7 +164,6 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
         />
       </SectionGroup>
 
-      {/* Section 2:性别 */}
       <SectionGroup>
         <NavRow
           title="性别"
@@ -213,9 +172,6 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
         />
       </SectionGroup>
 
-      {/* Section 3:实名认证 — 对齐老仓 vm.tsx formatVerifiedAtLabel L319-333:
-          显示 `已认证 · YYYY-MM`(来自 realname_verified_at 秒级时间戳);**不显示 real_name**
-          (后端字段语义不稳定,曾出现存日期的情况;老仓也只用 verified_at)。 */}
       <SectionGroup>
         {realnameVerified ? (
           <NavRow
@@ -239,7 +195,6 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
         )}
       </SectionGroup>
 
-      {/* Section 4:我的分身 — 点开二级 modal,不跳路由 */}
       <SectionGroup>
         <NavRow title="我的分身" onClick={() => setSubpage("persona")} />
       </SectionGroup>
@@ -263,45 +218,23 @@ interface SecondaryModalProps {
   onClose: () => void;
 }
 
-/** ESC 关二级。 */
-function useSecondaryEscape(open: boolean, onClose: () => void) {
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-}
-
 function QrcodeMyModal({ open, uid, onClose }: SecondaryModalProps) {
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
-  useSecondaryEscape(open, onClose);
-  if (!open) return null;
   const name = detail?.name ?? uid;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-[360px] flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">我的二维码</h2>
-          <button
-            type="button"
-            aria-label="关闭"
-            onClick={onClose}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <div className="flex flex-col items-center justify-center p-6">
-          <QrcodeMy uid={uid} name={name} />
-        </div>
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="fit"
+      title="我的二维码"
+      className="w-[360px]"
+    >
+      <div className="flex flex-col items-center justify-center p-6">
+        <QrcodeMy uid={uid} name={name} />
       </div>
-    </div>
+    </BaseDialog>
   );
 }
 
@@ -310,8 +243,6 @@ function QrcodeMyModal({ open, uid, onClose }: SecondaryModalProps) {
 function SexSelectModal({ open, uid, onClose }: SecondaryModalProps) {
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
   const updateMu = useUpdateCurrentUserMutation(uid);
-  useSecondaryEscape(open, onClose);
-  if (!open) return null;
   const current = detail?.sex ?? 0;
 
   const onPick = async (v: number) => {
@@ -328,32 +259,27 @@ function SexSelectModal({ open, uid, onClose }: SecondaryModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-[320px] flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">选择性别</h2>
-          <button
-            type="button"
-            aria-label="关闭"
-            onClick={onClose}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <div className="py-2">
-          <SectionGroup>
-            {[0, 1, 2].map((v) => (
-              <NavRow
-                key={v}
-                title={SEX_LABEL[v]!}
-                right={v === current ? <Check size={16} className="text-brand" /> : null}
-                onClick={() => void onPick(v)}
-              />
-            ))}
-          </SectionGroup>
-        </div>
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="fit"
+      title="选择性别"
+      className="w-[320px]"
+    >
+      <div className="py-2">
+        <SectionGroup>
+          {[0, 1, 2].map((v) => (
+            <NavRow
+              key={v}
+              title={SEX_LABEL[v]!}
+              right={v === current ? <Check size={16} className="text-brand" /> : null}
+              onClick={() => void onPick(v)}
+            />
+          ))}
+        </SectionGroup>
       </div>
-    </div>
+    </BaseDialog>
   );
 }

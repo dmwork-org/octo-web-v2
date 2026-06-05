@@ -63,8 +63,13 @@ const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
  * **未读计算(对齐老仓 Pages/Chat 行 127-151)**:
  *   - recentUnread:conversations 过滤 isVisibleInRecentTab(3 天不活跃群隐藏)+ effectiveMute(静音不计)
  *     再 sum unread
- *   - followUnread:sidebar items 中 reduce — IM cache 有 conv 用 live unread,否则 fallback sidebar
- *     的 unread 快照(sidebar-only 关注 / 从未聊过场景);静音不计
+ *   - followUnread:sidebar items 中 reduce — **只用 IM cache 的 live unread**(不 fallback
+ *     sidebar items 的 unread 快照)。原因:follow-list 里 useSyncOnConversationChange 让任何
+ *     conversation 推送都 invalidate sidebar query → 重拉 `/sidebar/sync`,而后端返回的 it.unread
+ *     会比 IM 实时状态延迟数百 ms;若 fallback it.unread,新建群瞬间(items 已有新群 unread=1,
+ *     但 conversations cache 还没写入 → liveConv 不存在 → 走 it.unread=1)会出现"假徽标晃一下"
+ *     再消失,体验差。代价:用户 follow 了但**从未聊过**的群(sidebar-only,IM cache 真没缓存)
+ *     的 unread 漏算 — 老仓也有"晃一下"的同款问题,这条优化把它消掉;静音不计
  *
  * Space 名 / 连接状态 / 列表切换 / 🔍 / ➕ 同旧。
  */
@@ -128,13 +133,15 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       else if (it.target_type === SidebarTargetType.CHANNEL) channelType = 2;
       else if (it.target_type === SidebarTargetType.THREAD) channelType = 5;
       if (channelType == null) return sum;
-      // IM cache 有 live conv 用 live unread,否则 fallback sidebar snapshot(对齐老仓 Pages/Chat 行 132-138)
+      // **只用 IM live unread,不 fallback sidebar it.unread** — 避免新建群瞬间
+      // sidebar 刚 refetch 带回 unread=1,conversations 还没写入新群 →
+      // 走 it.unread=1 → 假徽标晃一下再消失(参考 sidebar 顶部注释)
       const liveConv = list.find(
         (c) => c.channel.channelType === channelType && c.channel.channelID === it.target_id,
       );
-      if (liveConv && effectiveMute(liveConv)) return sum;
-      const unread = liveConv ? liveConv.unread || 0 : it.unread || 0;
-      return sum + unread;
+      if (!liveConv) return sum;
+      if (effectiveMute(liveConv)) return sum;
+      return sum + (liveConv.unread || 0);
     }, 0);
   }, [sidebarFollow, conversations]);
 

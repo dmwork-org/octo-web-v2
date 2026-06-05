@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2, Mic } from "lucide-react";
 import type { VoiceMode } from "@/features/base/api/endpoints/voice.api";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface VoiceButtonGroupProps {
   /** 当前状态(决定渲染哪种 UI / 是否可点) */
@@ -140,22 +141,29 @@ export function VoiceButtonGroup({
           <Mic size={20} />
         )}
       </button>
-      <button
-        type="button"
-        aria-label="语音模式"
-        title="语音模式"
-        disabled={modeMenuDisabled || wrapperActive}
-        className={`flex h-6 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          showMenu ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
-        }`}
-        onClick={() => {
-          if (state !== "idle" || modeMenuDisabled) return;
-          if (!open) onMouseEnter();
-          else close();
-        }}
-      >
-        <ChevronDown size={14} className={`transition-transform ${showMenu ? "rotate-180" : ""}`} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="语音模式"
+            disabled={modeMenuDisabled || wrapperActive}
+            className={`flex h-6 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              showMenu ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
+            }`}
+            onClick={() => {
+              if (state !== "idle" || modeMenuDisabled) return;
+              if (!open) onMouseEnter();
+              else close();
+            }}
+          >
+            <ChevronDown
+              size={14}
+              className={`transition-transform ${showMenu ? "rotate-180" : ""}`}
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>语音模式</TooltipContent>
+      </Tooltip>
 
       {showMenu ? (
         <ul

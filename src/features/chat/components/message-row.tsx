@@ -33,6 +33,7 @@ import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { ReplyBlock } from "@/features/chat/components/reply-block";
@@ -216,24 +217,28 @@ function isSenderVerified(fromUID: string, isBot: boolean): boolean {
  */
 function RealnameBadge() {
   return (
-    <span
-      className="inline-flex shrink-0 items-center text-[#2f8cff]"
-      title="已完成实名认证"
-      aria-label="已实名"
-      role="img"
-    >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <circle cx="6" cy="6" r="6" fill="currentColor" />
-        <path
-          d="M3 6.2l2 2 4-4"
-          stroke="#fff"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      </svg>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex shrink-0 items-center text-[#2f8cff]"
+          aria-label="已实名"
+          role="img"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <circle cx="6" cy="6" r="6" fill="currentColor" />
+            <path
+              d="M3 6.2l2 2 4-4"
+              stroke="#fff"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>已完成实名认证</TooltipContent>
+    </Tooltip>
   );
 }
 

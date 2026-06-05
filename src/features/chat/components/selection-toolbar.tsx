@@ -9,6 +9,7 @@ import { SmartCreateModal } from "@/features/matter/components/smart-create-moda
 import { deleteMessages as deleteMessagesApi } from "@/features/base/api/endpoints/message.api";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SelectionToolbarProps {
   channel: Channel;
@@ -152,22 +153,26 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             删除
           </button>
           <span className={sep} />
-          <button
-            type="button"
-            aria-label="退出多选"
-            title="退出多选"
-            onClick={() => chatSelectionActions.exit()}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-              <path
-                d="M1 1L13 13M13 1L1 13"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="退出多选"
+                onClick={() => chatSelectionActions.exit()}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <path
+                    d="M1 1L13 13M13 1L1 13"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>退出多选</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

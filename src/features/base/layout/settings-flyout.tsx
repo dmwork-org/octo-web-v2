@@ -117,10 +117,10 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
       {open ? (
         <>
           {/* mask 拦截外部点击关闭(对齐老仓 L109-114) */}
-          <div className="fixed inset-0 z-[199]" onClick={onClose} aria-hidden />
+          <div className="fixed inset-0 z-system-overlay" onClick={onClose} aria-hidden />
           {/* flyout 主体(对齐老仓 .wk-navrail__settings-list:left:56 bottom:32 width:180) */}
           <ul
-            className="fixed bottom-8 left-14 z-[200] flex w-[180px] list-none flex-col rounded-md border border-border-default bg-bg-elevated py-1 shadow-lg"
+            className="fixed bottom-8 left-14 z-system-overlay flex w-[180px] list-none flex-col rounded-md border border-border-default bg-bg-elevated py-1 shadow-lg"
             role="menu"
           >
             {showAccountCenter ? (

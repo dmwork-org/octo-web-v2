@@ -55,5 +55,5 @@ export function PanelSplitter({
  * 仅 isDragging=true 时挂载;父布局任意挂一处即可(通常在 chat-main 根)。
  */
 export function DragOverlay() {
-  return <div className="fixed inset-0 z-[9999] cursor-col-resize" />;
+  return <div className="fixed inset-0 z-debug cursor-col-resize" />;
 }

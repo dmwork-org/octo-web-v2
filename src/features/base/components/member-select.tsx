@@ -8,6 +8,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface MemberSelectProps {
   /** 已选 uid 列表(受控)。 */
@@ -213,18 +214,22 @@ export function MemberSelect({
             >
               <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={16} title={name} />
               <span className="max-w-[120px] truncate">{name}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(uid);
-                }}
-                aria-label={`移除 ${name}`}
-                title="移除"
-                className="flex items-center px-0.5 text-[10px] leading-none text-text-tertiary transition-colors hover:text-error"
-              >
-                ✕
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      remove(uid);
+                    }}
+                    aria-label={`移除 ${name}`}
+                    className="flex items-center px-0.5 text-[10px] leading-none text-text-tertiary transition-colors hover:text-error"
+                  >
+                    ✕
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>移除</TooltipContent>
+              </Tooltip>
             </span>
           );
         })}

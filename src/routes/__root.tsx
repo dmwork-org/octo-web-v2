@@ -1,6 +1,7 @@
 import { Outlet, createRootRouteWithContext, ErrorComponent } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/semi-bridge/toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -8,21 +9,10 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: () => (
-    <>
+    <TooltipProvider delayDuration={500}>
       <Outlet />
       <Toaster position="top-center" richColors closeButton />
-      {/*
-        Devtools 暂时关掉(挡输入框,且原生不支持拖拽位置)。需要时把下面恢复:
-          import { TanStackRouterDevtools } from "@tanstack/router-devtools";
-          import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-          {import.meta.env.DEV && (
-            <>
-              <TanStackRouterDevtools position="bottom-right" />
-              <ReactQueryDevtools buttonPosition="bottom-left" />
-            </>
-          )}
-      */}
-    </>
+    </TooltipProvider>
   ),
   errorComponent: ErrorComponent,
   notFoundComponent: () => (

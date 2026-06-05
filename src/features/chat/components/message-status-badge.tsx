@@ -3,6 +3,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { type Message, MessageStatus } from "wukongimjssdk";
 import { Loader2, AlertCircle } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MessageStatusBadgeProps {
   message: Message;
@@ -125,17 +126,21 @@ export function MessageStatusBadge({ message }: MessageStatusBadgeProps) {
   }
   if (message.status === MessageStatus.Fail) {
     return (
-      <button
-        type="button"
-        title="发送失败,点击重发"
-        aria-label="重新发送"
-        onClick={() => {
-          void WKSDK.shared().chatManager.send(message.content, message.channel);
-        }}
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-error hover:bg-error/10"
-      >
-        <AlertCircle size={16} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="重新发送"
+            onClick={() => {
+              void WKSDK.shared().chatManager.send(message.content, message.channel);
+            }}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-error hover:bg-error/10"
+          >
+            <AlertCircle size={16} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>发送失败,点击重发</TooltipContent>
+      </Tooltip>
     );
   }
   return null;

@@ -7,6 +7,7 @@ import { MatterList } from "@/features/matter/components/matter-list";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { MatterDetailPanel } from "@/features/matter/components/matter-detail-panel";
 import { Route } from "@/routes/_auth.matter";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * 事项主视图(对齐 P3-matter 设计稿 + 原 dmworktodo 创建交互):
@@ -52,15 +53,19 @@ export function MatterView() {
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle bg-bg-surface px-5">
           <span className="text-base font-semibold text-text-primary">事项</span>
-          <button
-            type="button"
-            aria-label="新建事项"
-            title="新建事项"
-            onClick={() => setCreateOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <Plus size={16} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="新建事项"
+                onClick={() => setCreateOpen(true)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Plus size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>新建事项</TooltipContent>
+          </Tooltip>
         </header>
         <MatterList
           selectedId={selectedId ?? null}

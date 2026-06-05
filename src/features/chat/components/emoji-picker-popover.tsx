@@ -56,7 +56,7 @@ export function EmojiPickerPopover({
   if (!open) return null;
   return (
     <div
-      className="absolute bottom-full left-0 z-50 mb-2 flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-lg"
+      className="absolute bottom-full left-0 z-popover mb-2 flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-lg"
       style={{ width: 460, height: 372 }}
     >
       {/* 顶部 search 框(audit-v2 §2.4 emoji 搜索) */}

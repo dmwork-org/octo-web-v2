@@ -9,6 +9,7 @@ import {
 } from "@/features/persona/mutations";
 import { CreatePersonaModal } from "@/features/persona/components/create-persona-modal";
 import { Button } from "@/components/semi-bridge/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * AI 分身列表(对齐老仓 PersonaSettings 主页):
@@ -113,25 +114,33 @@ export function PersonaListView() {
                   />
                   启用
                 </label>
-                <button
-                  type="button"
-                  aria-label="管理 Scope"
-                  title="管理 Scope"
-                  onClick={() => void navigate({ href: `/personadetail?id=${g.id}` })}
-                  className="shrink-0 text-text-tertiary hover:text-text-primary"
-                >
-                  <Settings size={14} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="删除"
-                  title="删除分身"
-                  onClick={() => void onDelete(g.id, String(g.grantee_bot_uid))}
-                  disabled={busy}
-                  className="shrink-0 text-text-tertiary hover:text-error disabled:opacity-50"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="管理 Scope"
+                      onClick={() => void navigate({ href: `/personadetail?id=${g.id}` })}
+                      className="shrink-0 text-text-tertiary hover:text-text-primary"
+                    >
+                      <Settings size={14} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>管理 Scope</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="删除"
+                      onClick={() => void onDelete(g.id, String(g.grantee_bot_uid))}
+                      disabled={busy}
+                      className="shrink-0 text-text-tertiary hover:text-error disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>删除分身</TooltipContent>
+                </Tooltip>
               </div>
             );
           })}

@@ -10,6 +10,7 @@ import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
 import { MeInfoModal } from "@/features/user/components/me-info-modal";
 import { SettingsIcon } from "@/components/ui/icons/settings";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 function isActive(item: MenuItem, path: string): boolean {
   return item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
@@ -52,36 +53,40 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
   const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="我的信息"
-      title="我的信息"
-      className="relative block cursor-pointer"
-    >
-      <div className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105">
-        {url && !failed ? (
-          <img
-            src={url}
-            alt="我的头像"
-            width={40}
-            height={40}
-            onError={() => setFailed(true)}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center" aria-hidden>
-            {initial}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label="我的信息"
+          className="relative block cursor-pointer"
+        >
+          <div className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105">
+            {url && !failed ? (
+              <img
+                src={url}
+                alt="我的头像"
+                width={40}
+                height={40}
+                onError={() => setFailed(true)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center" aria-hidden>
+                {initial}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      {isOnline ? (
-        <span
-          className="absolute right-0 bottom-0 box-border h-2 w-2 rounded-full border-2 border-bg-navrail bg-online"
-          aria-label="在线"
-        />
-      ) : null}
-    </button>
+          {isOnline ? (
+            <span
+              className="absolute right-0 bottom-0 box-border h-2 w-2 rounded-full border-2 border-bg-navrail bg-online"
+              aria-label="在线"
+            />
+          ) : null}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>我的信息</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -145,19 +150,23 @@ export function Sidebar() {
         <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
         <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
-          <button
-            type="button"
-            title="设置"
-            aria-label="设置"
-            onClick={() => setSettingsOpen((v) => !v)}
-            className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
-              settingsOpen
-                ? "text-brand"
-                : "text-text-primary/30 hover:bg-brand-tint/40 hover:text-text-primary/60"
-            }`}
-          >
-            <SettingsIcon size={20} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="设置"
+                onClick={() => setSettingsOpen((v) => !v)}
+                className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
+                  settingsOpen
+                    ? "text-brand"
+                    : "text-text-primary/30 hover:bg-brand-tint/40 hover:text-text-primary/60"
+                }`}
+              >
+                <SettingsIcon size={20} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>设置</TooltipContent>
+          </Tooltip>
           <SpaceSwitcher />
         </div>
       </nav>

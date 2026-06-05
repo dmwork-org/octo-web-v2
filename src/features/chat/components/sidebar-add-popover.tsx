@@ -92,7 +92,7 @@ export function SidebarAddPopover({
   useClickOutside(containerRef, onClose, open);
   if (!open) return null;
   return (
-    <div className="absolute top-full right-0 z-50 mt-1 flex w-44 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-surface shadow-lg">
+    <div className="absolute top-full right-0 z-popover mt-1 flex w-44 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-surface shadow-lg">
       {showCreateCategory ? (
         <MenuItem
           icon={<Columns2 size={16} strokeWidth={1.5} className="text-text-primary" />}

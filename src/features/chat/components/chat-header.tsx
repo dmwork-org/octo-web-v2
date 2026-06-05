@@ -7,6 +7,7 @@ import { ChannelSettingModal } from "@/features/chat/components/channel-setting-
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatHeaderProps {
   showThreadIcon?: boolean;
@@ -98,14 +99,19 @@ export function ChatHeader({
         <h2 className="flex min-w-0 flex-1 items-center gap-1 truncate text-base font-semibold leading-tight text-text-primary">
           {isThreadCh && parsed ? (
             <>
-              <button
-                type="button"
-                onClick={goParentGroup}
-                title="返回父群"
-                className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
-              >
-                {parentGroupTitle || parsed.groupNo}
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={goParentGroup}
+                    aria-label="返回父群"
+                    className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
+                  >
+                    {parentGroupTitle || parsed.groupNo}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>返回父群</TooltipContent>
+              </Tooltip>
               <span className="shrink-0 text-[11px] font-light text-text-disabled">›</span>
               <span className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
                 {displayName}
@@ -119,36 +125,48 @@ export function ChatHeader({
       <div className="flex shrink-0 items-center gap-1">
         {/* 事项入口仅群聊/子区显示(对齐旧 dmworktodo registerChatHeaderIcon — 私聊不显示) */}
         {channel.channelType === ChannelTypeGroup || isThreadCh ? (
-          <button
-            type="button"
-            aria-label="事项"
-            title="事项"
-            onClick={onClickMatter}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <List size={20} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="事项"
+                onClick={onClickMatter}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <List size={20} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>事项</TooltipContent>
+          </Tooltip>
         ) : null}
         {showThreadIcon ? (
-          <button
-            type="button"
-            aria-label="子区列表"
-            title="子区"
-            onClick={onToggleThreadPanel}
-            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${threadPanelOpen ? "bg-bg-elevated text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
-          >
-            <ThreadIcon size={20} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="子区列表"
+                onClick={onToggleThreadPanel}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${threadPanelOpen ? "bg-bg-elevated text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
+              >
+                <ThreadIcon size={20} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>子区</TooltipContent>
+          </Tooltip>
         ) : null}
-        <button
-          type="button"
-          aria-label="更多"
-          title="聊天信息"
-          onClick={() => setSettingOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-        >
-          <MoreHorizontal size={18} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="更多"
+              onClick={() => setSettingOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>聊天信息</TooltipContent>
+        </Tooltip>
       </div>
 
       <ChannelSettingModal

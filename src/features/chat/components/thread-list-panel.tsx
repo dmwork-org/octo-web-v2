@@ -7,6 +7,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { MessageList } from "@/features/chat/components/message-list";
@@ -334,15 +335,19 @@ function DetailView({
     <>
       <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default bg-bg-surface px-4">
         <div className="flex min-w-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="返回全部子区"
-            title="返回全部子区"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <ArrowLeft size={16} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label="返回全部子区"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <ArrowLeft size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>返回全部子区</TooltipContent>
+          </Tooltip>
           <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
             <ThreadIcon size={18} className="shrink-0 text-text-secondary" />
             <span className="truncate">{thread.name || "子区"}</span>

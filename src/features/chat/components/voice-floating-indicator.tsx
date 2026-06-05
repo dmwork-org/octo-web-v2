@@ -107,12 +107,12 @@ export function VoiceFloatingIndicator({ state, label, anchorRef }: VoiceFloatin
     <>
       <style>{STYLE}</style>
       <div
+        className="z-floating"
         style={{
           position: "fixed",
           top: pos.top,
           left: pos.left,
           transform: "translateX(-50%)",
-          zIndex: 1000,
           width: 184,
           height: 48,
           padding: "4px 16px",

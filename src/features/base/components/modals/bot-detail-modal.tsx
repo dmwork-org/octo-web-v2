@@ -18,6 +18,7 @@ import {
 } from "@/features/base/api/endpoints/robot.api";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BotDetailModalProps {
   uid: string | null;
@@ -216,15 +217,21 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                 <span className="text-[11px] leading-none">{chip.icon}</span>
                 {chip.text}
                 {chip.showHelp ? (
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    title="请在 OctoPush 中打开该 Agent 的「上报机器信息」开关。"
-                    aria-label="帮助"
-                    className="ml-1 inline-flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-semibold leading-none text-[#64748b] hover:bg-white"
-                  >
-                    ?
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="帮助"
+                        className="ml-1 inline-flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-semibold leading-none text-[#64748b] hover:bg-white"
+                      >
+                        ?
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      请在 OctoPush 中打开该 Agent 的「上报机器信息」开关。
+                    </TooltipContent>
+                  </Tooltip>
                 ) : null}
               </span>
             ) : null}

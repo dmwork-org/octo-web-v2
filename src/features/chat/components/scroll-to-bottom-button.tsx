@@ -32,7 +32,7 @@ export function ScrollToBottomButton({ visible, unreadCount, onClick }: ScrollTo
       onClick={onClick}
       aria-label={unreadCount > 0 ? `${unreadCount} 条新消息,回到底部` : "回到底部"}
       title={unreadCount > 0 ? `${unreadCount} 条新消息` : "回到底部"}
-      className="absolute right-6 bottom-4 z-[100] flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded-full bg-white text-text-secondary shadow-sm transition-colors hover:bg-bg-elevated hover:text-text-primary"
+      className="absolute right-6 bottom-4 z-floating flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded-full bg-white text-text-secondary shadow-sm transition-colors hover:bg-bg-elevated hover:text-text-primary"
     >
       <ChevronDown size={20} />
       {unreadCount > 0 ? (

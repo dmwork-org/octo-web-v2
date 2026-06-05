@@ -11,10 +11,13 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { createGroup } from "@/features/base/api/endpoints/group.api";
+import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
 
 interface CreateGroupModalProps {
   open: boolean;
   onClose: () => void;
+  /** 若指定,创建成功后把新群 move 到该 category(对应 follow-list 分组右键"新建群聊")。 */
+  categoryId?: string;
 }
 
 /** open 翻转时 reset 选中 + 关键词。 */
@@ -41,12 +44,14 @@ function useResetOnOpen(
  *   - invalidate conversations
  *   - fetchChannelInfo(为新群拉一遍信息,渲染头像/名字)
  *   - chatSelectedActions.select(newChannel) — 直接切到新群
+ *   - **若指定 categoryId**:追加 moveGroupToCategory 把新群加到指定分组(失败静默,
+ *     用户可手动拖)
  *   - 关闭 modal
  *
  * 至少选 1 人才能提交(2 人群:自己 + 1 人 = DM-like;后端按 members.length 决定);
  * 旧版下限同样是 1。
  */
-export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
+export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModalProps) {
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -79,9 +84,19 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
         space_id: spaceId || undefined,
       });
     },
-    onSuccess: (resp) => {
+    onSuccess: async (resp) => {
       const newChannel = new Channel(resp.group_no, ChannelTypeGroup);
       void WKSDK.shared().channelManager.fetchChannelInfo(newChannel);
+      // 若指定 categoryId — 追加 move 到分组(失败静默,不阻塞主流程)
+      if (categoryId) {
+        try {
+          await moveGroupToCategory(resp.group_no, categoryId);
+          void qc.invalidateQueries({ queryKey: ["chat", "follow", "categories"] });
+          void qc.invalidateQueries({ queryKey: ["chat", "follow", "sidebar"] });
+        } catch {
+          // 静默 — 用户可手动拖到分组
+        }
+      }
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);
       toast.success("群聊创建成功");

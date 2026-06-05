@@ -5,7 +5,13 @@ import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
-import { addAssignee, extractMatter, updateMatter } from "@/features/matter/api/matter.api";
+import {
+  addAssignee,
+  extractMatter,
+  getMatter,
+  removeAssignee,
+  updateMatter,
+} from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { MatterFormBody } from "@/features/matter/components/matter-form-body";
@@ -54,10 +60,10 @@ function toExtractMsgs(msgs: Message[]): ExtractMessage[] {
  * (chat ✓ / Alt+Enter 走 CreateMatterModal,messages 空时不在本组件)。
  *
  * 流程:
- *   1. open 即调 extractMatter(LLM 抽取并落 matter 拿 id)
+ *   1. open 即调 extractMatter(LLM 抽取并落 matter 拿 id;后端自动把 creator_uid 加 assignee)
  *   2. extract 返 title/description prefill 进 MatterFormBody
  *   3. 用户补齐 assignee(默认 prefill 自己)+ deadline
- *   4. 保存:updateMatter(id) + addAssignee batch
+ *   4. 保存:updateMatter(id) + assignees reconcile(diff toAdd/toRemove,避免 409)
  */
 export function SmartCreateModal({
   open,
@@ -106,9 +112,18 @@ export function SmartCreateModal({
         description: values.description.trim(),
         deadline: buildDeadlineISO(values.deadline),
       });
-      if (values.assigneeUids.length > 0) {
-        await Promise.all(values.assigneeUids.map((uid) => addAssignee(draftId, uid)));
-      }
+      // assignees reconcile:extract 创建 matter 时后端已把 creator_uid 自动加 assignee,
+      // 直接 add 会 409 Conflict。先 getMatter 拿当前 assignees,diff 出 toAdd/toRemove
+      // (对齐老仓 dmworktodo/module.tsx L791-807)。
+      const detail = await getMatter(draftId);
+      const currentUids = new Set((detail.assignees ?? []).map((a) => a.user_id));
+      const desiredUids = new Set(values.assigneeUids);
+      const toAdd = [...desiredUids].filter((uid) => !currentUids.has(uid));
+      const toRemove = [...currentUids].filter((uid) => !desiredUids.has(uid));
+      await Promise.all([
+        ...toAdd.map((uid) => addAssignee(draftId, uid)),
+        ...toRemove.map((uid) => removeAssignee(draftId, uid)),
+      ]);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
@@ -165,8 +180,13 @@ export function SmartCreateModal({
     >
       <div className="flex flex-col gap-4" onKeyDown={onKeyDown}>
         {isExtracting ? (
-          <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
-            AI 正在抽取事项...
+          // 对齐老仓 SmartCreateModal L205-219:60px 上下 padding + spinner + 14px 提示文案
+          <div className="flex flex-col items-center justify-center gap-4 py-[60px]">
+            <span
+              aria-label="加载中"
+              className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-border-default border-t-brand"
+            />
+            <div className="text-[14px] text-text-tertiary">AI 正在努力提取事项信息...</div>
           </div>
         ) : extractMu.error && !draftId ? (
           <div className="flex h-32 flex-col items-center justify-center gap-3">

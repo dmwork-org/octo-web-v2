@@ -13,6 +13,12 @@ stages:
   - package
   - deploy
 
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "test"'
+    - when: never
+
 variables:
   APP_NAME: octo-web
   REPOSITORY: hub.intra.mlamp.cn
@@ -23,6 +29,17 @@ variables:
   TEST_ENV: test
   VITE_API_URL: https://im.deepminer.com.cn
   VITE_API_BASE_URL: /api
+
+.test_build_rules: &test_build_rules
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "test"'
+    - when: never
+
+.test_deploy_rules: &test_deploy_rules
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - when: never
 
 .install_packages: &install_packages
   stage: install&build
@@ -44,7 +61,7 @@ variables:
   script:
     - rm -rf node_modules
     - pnpm install --frozen-lockfile --force --config.optional=true
-    - node -e "const h=process.report.getReport().header; console.log('node platform:', process.version, process.platform, process.arch, h.glibcVersionRuntime ? 'gnu' : 'musl')"
+    - node -e "const h=process.report.getReport().header; const libc=h.glibcVersionRuntime?'gnu':'musl'; console.log('node platform', process.version, process.platform, process.arch, libc)"
     - find node_modules/.pnpm -maxdepth 1 -name '@voidzero-dev+vite-plus-linux-x64-*' -print
     - pnpm build
 
@@ -83,16 +100,12 @@ variables:
     - echo "$SERVICE" | k apply -f -
 
 install_packages_test:
-  <<: *install_packages
-  only:
-    - test
+  <<: [*install_packages, *test_build_rules]
   variables:
     ENV: $TEST_ENV
 
 package_test:
-  <<: *package
-  only:
-    - test
+  <<: [*package, *test_deploy_rules]
   dependencies:
     - install_packages_test
   variables:
@@ -100,9 +113,7 @@ package_test:
     DEPLOY_ENV: "$TEST_ENV"
 
 deploy_test:
-  <<: *deploy
-  only:
-    - test
+  <<: [*deploy, *test_deploy_rules]
   variables:
     TAG: $TEST_ENV
     K8S_SPACE_NAME: mz-frontend

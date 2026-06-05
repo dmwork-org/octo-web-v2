@@ -298,6 +298,8 @@ interface CompactRowProps {
   onToggleThreads?: () => void;
   selected: boolean;
   onClick: () => void;
+  /** 右键菜单回调(由 FollowList 注入,缺省时无菜单)。 */
+  onContextMenu?: (e: MouseEvent) => void;
 }
 
 /**
@@ -354,6 +356,7 @@ function CompactRow({
   onClick,
   titleLoading,
   dragProps,
+  onContextMenu,
 }: CompactRowProps2) {
   const hasUnread = unread > 0;
   const isThread = variant === "thread";
@@ -368,6 +371,7 @@ function CompactRow({
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -527,6 +531,8 @@ interface CategorySectionProps {
   onSelectGroup: (groupNo: string) => void;
   onSelectDM: (peerUid: string) => void;
   onSelectThread: (threadChannelId: string) => void;
+  /** 行右键回调(可选,FollowList 注入)— 传 channel,父级 lookup conv + 弹菜单。 */
+  onRowContextMenu?: (channel: Channel) => (e: MouseEvent) => void;
 }
 
 /** 分组聚合未读 + @我:折叠状态下分组 header 右侧显（展开后子项各自有 badge）。 */
@@ -566,7 +572,9 @@ function CategorySection({
   onSelectGroup,
   onSelectDM,
   onSelectThread,
+  onRowContextMenu,
 }: CategorySectionProps) {
+  // onRowContextMenu 由 FollowList 注入,通过 CompactRow row 透传(group/dm/thread)
   const [expandedThreadsSet, setExpandedThreadsSet] = useState<Set<string>>(new Set());
   const count = sidebarItems.length;
   const isEmpty = count === 0;
@@ -727,6 +735,7 @@ function CategorySection({
                                 selected={groupNo === selectedChannelId}
                                 onClick={() => onSelectGroup(groupNo)}
                                 dragProps={dragProps}
+                                onContextMenu={onRowContextMenu?.(channel)}
                               />
                               {expanded
                                 ? (() => {
@@ -750,6 +759,7 @@ function CategorySection({
                                               isMentionMe={computeMentionMe(t, myUid)}
                                               selected={t.channel.channelID === selectedChannelId}
                                               onClick={() => onSelectThread(t.channel.channelID)}
+                                              onContextMenu={onRowContextMenu?.(t.channel)}
                                             />
                                           );
                                         })}
@@ -803,6 +813,7 @@ function CategorySection({
                               selected={peerUid === selectedChannelId}
                               onClick={() => onSelectDM(peerUid)}
                               dragProps={dragProps}
+                              onContextMenu={onRowContextMenu?.(channel)}
                             />
                           )}
                         </SortableRow>
@@ -837,6 +848,7 @@ function CategorySection({
                           isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
                           selected={tid === selectedChannelId}
                           onClick={() => onSelectThread(tid)}
+                          onContextMenu={onRowContextMenu?.(channel)}
                         />
                       );
                     }

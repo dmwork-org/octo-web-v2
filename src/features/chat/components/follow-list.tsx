@@ -31,6 +31,7 @@ import {
   BellRing,
   Eye,
   FolderInput,
+  MoreHorizontal,
   Pencil,
   Plus,
   Star,
@@ -64,12 +65,15 @@ import {
 import { useExpandedGroupIds } from "@/features/chat/hooks/use-expanded-group-ids.hook";
 import {
   type CategoryItem,
+  createCategory,
   deleteCategory,
   followDM,
   moveGroupToCategory,
   renameCategory,
   sortCategories,
   unfollowChannel,
+  unfollowDM,
+  unfollowThread,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 import {
@@ -904,11 +908,20 @@ function CategorySection({
  * - 折叠时父群 unread = 群自身 + 聚合非静音子区未读
  * - 状态 per-uid + per-spaceId 持久化到 localStorage
  *
- * **右键菜单**:
- * - **行右键**(group/dm/thread):标已读 / 移到分组 / 取消关注 or 移出分组 / 免打扰 / 清空(对齐
- *   老仓 ConversationList::menus 关注 tab 配置 hideCloseChat=true + hidePin=true + extraMenus)
- * - **分组标题右键**:新建群聊 / 重命名 / 上移 / 下移 / 删除分组(对齐老仓
- *   ConversationListGrouped::buildCategoryContextMenus)
+ * **右键菜单 1:1 对齐老仓 ConversationListGrouped::buildExtraContextMenus + ConversationList::menus**
+ * (关注 tab 配置 hideCloseChat=true + hidePin=true + extraContextMenus):
+ *
+ *   行右键(顺序):
+ *     1. 标为已读(unread > 0)
+ *     2. **取消关注**(Group/DM/Thread 都有,unfollowChannel/unfollowDM/unfollowThread)
+ *     3. **移到分组**(Group/DM,categories.length > 0;**Thread 没有**,子区跟随父群)
+ *        子菜单:排除当前所在 cat + 分隔 + + 新建分组
+ *     4. 开启/关闭免打扰
+ *     5. ── 分隔线 ──
+ *     6. 子区:平铺"清空聊天记录" / 群/DM:**更多 →** 子菜单(只"清空聊天记录"一项)
+ *        注:hideCloseChat=true 时 clearItems 不含"关闭窗口并清空记录"(老仓 L1187)
+ *
+ *   分组标题右键:新建群聊 / 重命名 / 上移 / 下移 / 删除分组
  */
 export function FollowList({
   selectedChannelId,
@@ -1000,6 +1013,9 @@ export function FollowList({
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   // C: "新建群聊"in 分组 — 暂存 categoryId 传给 CreateGroupModal
   const [createInCategory, setCreateInCategory] = useState<string | null>(null);
+  // 行右键"移到分组 → + 新建分组" / 分组右键(无关联流程)— 简单 InputModal,失败 toast,
+  // 不绑后续 follow 动作(对齐老仓 CreateCategoryModal 行为)。
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
 
   const invalidateAll = () => {
     void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
@@ -1033,7 +1049,7 @@ export function FollowList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
   });
 
-  // 行右键菜单 mutations(5 个)
+  // 行右键菜单 mutations
   const clearUnreadMu = useMutation({
     mutationFn: (conv: Conversation) =>
       clearConversationUnread({
@@ -1076,9 +1092,15 @@ export function FollowList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "清空失败"),
   });
 
-  // 取消关注群(Group only):对齐老仓关注 tab 行右键"取消关注"
-  const unfollowGroupMu = useMutation({
-    mutationFn: (groupNo: string) => unfollowChannel(groupNo),
+  // 取消关注 — channelType 分流(对齐老仓 ConversationListGrouped::buildExtraContextMenus L339-356)
+  const unfollowMu = useMutation({
+    mutationFn: (conv: Conversation) => {
+      const t = conv.channel.channelType;
+      if (t === ChannelTypeGroup) return unfollowChannel(conv.channel.channelID);
+      if (t === ChannelTypePerson) return unfollowDM(conv.channel.channelID);
+      if (t === CHANNEL_TYPE_THREAD) return unfollowThread(conv.channel.channelID);
+      return Promise.reject(new Error("不支持的会话类型"));
+    },
     onSuccess: () => {
       invalidateAll();
       toast.success("已取消关注");
@@ -1086,14 +1108,18 @@ export function FollowList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "取消关注失败"),
   });
 
-  // DM 移出分组:把 category_id 设 null(对齐老仓 followDM(uid, null) "移出分组")
-  const removeDmFromCatMu = useMutation({
-    mutationFn: (peerUid: string) => followDM(peerUid, null),
+  // + 新建分组(行右键移到分组子菜单尾部)— 对齐老仓 CreateCategoryModal:仅创建,不自动 follow
+  const createCategoryMu = useMutation({
+    mutationFn: (name: string) => {
+      if (!spaceId) return Promise.reject(new Error("无 spaceId"));
+      return createCategory(spaceId, name.trim());
+    },
     onSuccess: () => {
       invalidateAll();
-      toast.success("已移出分组");
+      setCreateCategoryOpen(false);
+      toast.success("分组已创建");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "创建分组失败"),
   });
 
   const onCategoryContextMenu = (cat: CategoryItem) => (e: MouseEvent) => {
@@ -1161,25 +1187,43 @@ export function FollowList({
     return cats.filter((c) => !c.is_default);
   }, [categoriesQ.data]);
 
+  /** 反查当前 conv 所在 cat_id(用于"移到分组"子菜单排除自身) */
+  const findCurrentCategoryId = (conv: Conversation): string | undefined => {
+    const items = sidebarQ.data?.items ?? [];
+    const t = conv.channel.channelType;
+    let targetType: number;
+    if (t === ChannelTypeGroup) targetType = SidebarTargetType.CHANNEL;
+    else if (t === ChannelTypePerson) targetType = SidebarTargetType.DM;
+    else return undefined;
+    const hit = items.find(
+      (it) => it.target_type === targetType && it.target_id === conv.channel.channelID,
+    );
+    return hit?.category_id ?? undefined;
+  };
+
   /**
-   * 行右键菜单 builder — 1:1 对齐老仓 ConversationList::menus 在关注 tab 的配置
-   * (hideCloseChat=true / hidePin=true / extraMenus=[移到分组, 取消关注/移出分组]):
+   * 行右键菜单 builder — 1:1 对齐老仓 ConversationListGrouped::buildExtraContextMenus
+   * (L332-422) + ConversationList::menus 关注 tab 配置(hideCloseChat=true / hidePin=true):
    *
-   * 1. 标为已读(有未读)
-   * 2. 移到分组(子菜单,各 category)
-   * 3. 取消关注(Group)/ 移出分组(DM)
-   * 4. 开启/关闭免打扰
-   * 5. ── 分隔线 ──
-   * 6. 清空聊天记录(danger)
+   *   1. 标为已读(有未读)
+   *   2. **取消关注**(Group:unfollowChannel / DM:unfollowDM / Thread:unfollowThread)
+   *   3. **移到分组**(Group/DM,categories.length > 0;**Thread 没有**)
+   *      子菜单:排除当前所在 cat + 分隔 + "+ 新建分组"
+   *   4. 开启/关闭免打扰
+   *   5. ── 分隔线 ──
+   *   6. 子区:平铺"清空聊天记录" / 群/DM:**更多 →** 子菜单 → "清空聊天记录"
+   *      (hideCloseChat=true 故 clearItems 只一项;老仓 L1187 hideCloseChat 时 push false)
    *
-   * **不含**:置顶 / 关闭聊天窗口 / 关闭窗口并清空(老仓关注 tab 都隐藏)
+   * **不含**:置顶 / 关闭聊天窗口 / 关闭窗口并清空(关注 tab 全部隐藏)
    */
   const buildRowMenuItems = (conv: Conversation): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const isMuted = !!conv.channelInfo?.mute;
     const isGroup = conv.channel.channelType === ChannelTypeGroup;
     const isDM = conv.channel.channelType === ChannelTypePerson;
+    const isThread = conv.channel.channelType === CHANNEL_TYPE_THREAD;
 
+    // 1. 标为已读
     if (conv.unread > 0) {
       items.push({
         label: "标为已读",
@@ -1188,54 +1232,76 @@ export function FollowList({
       });
     }
 
-    // 移到分组 — 子菜单列各 category(默认分组不展示;新仓 PM #337)
-    const moveTargets = orderedCategories.filter((c) => !!c.category_id);
-    if (moveTargets.length > 0 && (isGroup || isDM)) {
+    // 2. 取消关注(Group/DM/Thread 全支持)— 老仓 L339-357
+    items.push({
+      label: "取消关注",
+      icon: <Star size={13} />,
+      onClick: () => unfollowMu.mutate(conv),
+    });
+
+    // 3. 移到分组(Group/DM only,有 categories 时)— 老仓 L360-419
+    //    Thread 没有(子区跟随父群分组,不独立换分组 — 老仓 ConversationListGrouped L231)
+    if ((isGroup || isDM) && orderedCategories.length > 0) {
+      const currentCatId = findCurrentCategoryId(conv);
+      const moveTargets = orderedCategories.filter(
+        (c) => !!c.category_id && c.category_id !== currentCatId,
+      );
+      const children: ContextMenuItem[] = moveTargets.map((cat) => ({
+        label: cat.name,
+        onClick: () => {
+          if (!cat.category_id) return;
+          if (isGroup) {
+            moveGroupMu.mutate({
+              groupNo: conv.channel.channelID,
+              categoryId: cat.category_id,
+            });
+          } else {
+            moveDmMu.mutate({
+              peerUid: conv.channel.channelID,
+              categoryId: cat.category_id,
+            });
+          }
+        },
+      }));
+      children.push({ separator: true });
+      children.push({
+        label: "+ 新建分组",
+        onClick: () => setCreateCategoryOpen(true),
+      });
       items.push({
         label: "移到分组",
         icon: <FolderInput size={13} />,
-        children: moveTargets.map((cat) => ({
-          label: cat.name,
-          onClick: () => {
-            if (!cat.category_id) return;
-            if (isGroup) {
-              moveGroupMu.mutate({ groupNo: conv.channel.channelID, categoryId: cat.category_id });
-            } else {
-              moveDmMu.mutate({ peerUid: conv.channel.channelID, categoryId: cat.category_id });
-            }
-          },
-        })),
+        children,
       });
     }
 
-    if (isGroup) {
-      items.push({
-        label: "取消关注",
-        icon: <Star size={13} />,
-        onClick: () => unfollowGroupMu.mutate(conv.channel.channelID),
-      });
-    } else if (isDM) {
-      items.push({
-        label: "移出分组",
-        icon: <Star size={13} />,
-        onClick: () => removeDmFromCatMu.mutate(conv.channel.channelID),
-      });
-    }
-
+    // 4. 免打扰
     items.push({
       label: isMuted ? "关闭免打扰" : "开启免打扰",
       icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
       onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
 
+    // 5. 分隔
     items.push({ separator: true });
 
-    items.push({
+    // 6. 清空 — 子区平铺,群/DM 收进"更多"(老仓 L1208-1216;关注 tab hideCloseChat=true
+    //    导致 clearItems 只有"清空聊天记录"一项,故"更多"子菜单也只一项)
+    const clearItem: ContextMenuItem = {
       label: "清空聊天记录",
       icon: <Trash2 size={13} />,
       danger: true,
       onClick: () => setConfirmClear(conv),
-    });
+    };
+    if (isThread) {
+      items.push(clearItem);
+    } else {
+      items.push({
+        label: "更多",
+        icon: <MoreHorizontal size={13} />,
+        children: [clearItem],
+      });
+    }
 
     return items;
   };
@@ -1500,7 +1566,7 @@ export function FollowList({
           />
         ) : null}
 
-        {/* 行右键菜单(B:7 项) */}
+        {/* 行右键菜单(B:对齐老仓 ConversationListGrouped::buildExtraContextMenus) */}
         {rowMenu.open && rowMenu.conv ? (
           <ContextMenu
             open
@@ -1558,6 +1624,19 @@ export function FollowList({
           onClose={() => setCreateInCategory(null)}
           categoryId={createInCategory ?? undefined}
         />
+
+        {/* 行右键 "移到分组 → + 新建分组" — 仅创建分组,不绑后续 follow 流程 */}
+        {createCategoryOpen ? (
+          <InputModal
+            open
+            title="新建分组"
+            placeholder="输入分组名"
+            validate={(v) => v.trim().length > 0}
+            okLoading={createCategoryMu.isPending}
+            onOk={(v) => createCategoryMu.mutate(v)}
+            onCancel={() => setCreateCategoryOpen(false)}
+          />
+        ) : null}
       </div>
     </DndContext>
   );

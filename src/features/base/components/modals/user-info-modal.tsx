@@ -15,9 +15,12 @@ import { RealnameVerifiedBadge } from "@/features/base/components/badges/realnam
 import { displayName, isRealnameVerified } from "@/features/base/lib/display-name";
 import { FriendApplyModal } from "@/features/base/components/modals/friend-apply-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { InputModal } from "@/features/base/components/modals/input-modal";
 import { deleteFriend, setUserRemark } from "@/features/contacts/api/friends.api";
 import { blacklistAdd, blacklistRemove } from "@/features/base/api/endpoints/blacklist.api";
+// section-form 共享原语(Phase B 抽出)
+import { SectionGroup } from "@/features/base/components/section-form/section-group";
+import { NavRow } from "@/features/base/components/section-form/nav-row";
+import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
 
 interface UserInfoModalProps {
   uid: string | null;
@@ -31,55 +34,13 @@ const APP_NAME = "Octo";
 const REL_FRIEND = 1;
 const REL_BLACKLIST = 2;
 
-/** Sections 内通用 row(对应旧 Sections+ListItem)。 */
-function SectionRow({
-  title,
-  subTitle,
-  danger,
-  onClick,
-}: {
-  title: string;
-  subTitle?: string;
-  danger?: boolean;
-  onClick?: () => void;
-}) {
-  const clickable = !!onClick;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!clickable}
-      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors ${
-        clickable ? "hover:bg-bg-hover" : "cursor-default"
-      }`}
-    >
-      <span
-        className={`flex-1 truncate text-[13px] ${danger ? "text-error" : "text-text-primary"}`}
-      >
-        {title}
-      </span>
-      {subTitle ? (
-        <span className="shrink-0 truncate text-[12px] text-text-tertiary">{subTitle}</span>
-      ) : null}
-    </button>
-  );
-}
-
-function SectionGroup({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="mx-4 mb-2 flex flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
-      {children}
-    </section>
-  );
-}
-
 /**
  * 用户名片弹窗(对应旧 dmworkbase Components/UserInfo)。
  *
  * 头部:头像 + (displayName + AiBadge + RealnameVerifiedBadge) + ul(昵称 / Octo 号)
  *
  * **Sections 4 段**(对齐旧 module.tsx::registerUserInfo):
- *   1) userinfo.remark    设置备注(InputModal)+ 进群方式(P3 待接 subscriber)
+ *   1) userinfo.remark    设置备注(InlineEditRow 行内展开 input)+ 进群方式(P3 待接 subscriber)
  *   2) userinfo.others    解除好友 + 加/出黑名单(均 ConfirmModal,**仅外部成员**)
  *   3) userinfo.source    来源 — 外部成员显示 home_space_name,1v1 好友显示 source_desc
  *   4) userinfo.blacklist.tip  黑名单提示条
@@ -93,7 +54,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data, isLoading } = useQuery(userDetailQueryOptions(uid));
   const [friendApplyOpen, setFriendApplyOpen] = useState(false);
-  const [remarkOpen, setRemarkOpen] = useState(false);
+  const [remarkEditing, setRemarkEditing] = useState(false);
   const [confirm, setConfirm] = useState<null | {
     action: "deleteFriend" | "blacklistAdd" | "blacklistRemove";
     content: string;
@@ -110,7 +71,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     onSuccess: () => {
       invalidate();
       toast.success("已保存");
-      setRemarkOpen(false);
+      setRemarkEditing(false);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "设置备注失败"),
   });
@@ -225,10 +186,21 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     if (isSelf) return null;
     const sections: React.ReactNode[] = [];
 
-    // Section 1 — userinfo.remark(非本人均显示)
+    // Section 1 — userinfo.remark(非本人均显示);改 InlineEditRow 行内展开 input(替代旧 InputModal)
     sections.push(
       <SectionGroup key="remark">
-        <SectionRow title="设置备注" onClick={() => setRemarkOpen(true)} />
+        <InlineEditRow
+          title="设置备注"
+          value={data?.remark ?? ""}
+          placeholder="未设置"
+          canEdit
+          maxLength={20}
+          pending={remarkMu.isPending}
+          editing={remarkEditing}
+          onEnterEdit={() => setRemarkEditing(true)}
+          onCancel={() => setRemarkEditing(false)}
+          onSave={(v) => remarkMu.mutate(v)}
+        />
         {/* 进群方式:旧 fromSubscriberOfUser.orgData.created_at — P3 后续 wave 接群成员上下文 */}
       </SectionGroup>,
     );
@@ -238,7 +210,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       sections.push(
         <SectionGroup key="others">
           {isFriend ? (
-            <SectionRow
+            <NavRow
               title="解除好友关系"
               danger
               onClick={() =>
@@ -250,7 +222,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
             />
           ) : null}
           {isBlacklisted ? (
-            <SectionRow
+            <NavRow
               title="拉出黑名单"
               onClick={() =>
                 setConfirm({
@@ -260,7 +232,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
               }
             />
           ) : (
-            <SectionRow
+            <NavRow
               title="拉入黑名单"
               danger
               onClick={() =>
@@ -279,13 +251,13 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     if (isExternal && data?.source_space_name) {
       sections.push(
         <SectionGroup key="source">
-          <SectionRow title="来源" subTitle={data.source_space_name} />
+          <NavRow title="来源" subTitle={data.source_space_name} />
         </SectionGroup>,
       );
     } else if (!isExternal && isFriend && data?.source_desc) {
       sections.push(
         <SectionGroup key="source">
-          <SectionRow title="来源" subTitle={data.source_desc} />
+          <NavRow title="来源" subTitle={data.source_desc} />
         </SectionGroup>,
       );
     }
@@ -379,17 +351,6 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
           setFriendApplyOpen(false);
           onClose();
         }}
-      />
-
-      <InputModal
-        open={remarkOpen}
-        title="设置备注"
-        placeholder="请输入备注"
-        initialValue={data?.remark ?? ""}
-        validate={() => true}
-        okLoading={remarkMu.isPending}
-        onOk={(value) => remarkMu.mutate(value)}
-        onCancel={() => setRemarkOpen(false)}
       />
 
       <ConfirmModal

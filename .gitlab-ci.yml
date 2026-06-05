@@ -29,23 +29,16 @@ variables:
   image: hub.intra.mlamp.cn/miaozhen-frontend/node:22.16.0-pnpm10.12.1
   tags:
     - nb
-  cache:
-    - key:
-        files:
-          - pnpm-lock.yaml
-      paths:
-        - $CI_PROJECT_DIR/.pnpm-store
   artifacts:
     name: "build_${ENV}_dist"
     expire_in: 30 mins
     paths:
       - $CI_PROJECT_DIR/dist
   before_script:
-    - pnpm config set store-dir .pnpm-store
+    - corepack enable
+    - corepack prepare pnpm@11.2.2 --activate
   script:
-    # vite-plus ships native optionalDependencies. The GitLab runner is linux x64 musl,
-    # so force pnpm to recreate node_modules and install optional native bindings.
-    - pnpm install --frozen-lockfile --force
+    - pnpm install --frozen-lockfile
     - pnpm build
 
 .package: &package

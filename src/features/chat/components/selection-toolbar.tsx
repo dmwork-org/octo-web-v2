@@ -190,10 +190,10 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         open={forwardMessages.length > 0}
         messages={forwardMessages}
         defaultMode={forwardMode}
-        onClose={() => {
-          setForwardMessages([]);
-          chatSelectionActions.exit();
-        }}
+        // 关闭(取消/mask/Esc)只清 modal state,多选保留(对齐老仓)
+        onClose={() => setForwardMessages([])}
+        // 转发成功才退出多选
+        onSuccess={() => chatSelectionActions.exit()}
       />
 
       <SmartCreateModal

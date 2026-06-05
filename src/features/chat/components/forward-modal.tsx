@@ -31,7 +31,10 @@ interface ForwardModalProps {
   messages: Message[];
   /** "per"=逐条转发 / "merge"=合并转发;由 selection-toolbar 两个按钮分别传入。 */
   defaultMode?: ForwardMode;
+  /** 仅关闭(取消 / mask / Esc)— 不应清多选,对齐老仓行为:关闭 modal 多选仍在。 */
   onClose: () => void;
+  /** 转发成功后回调 — 上层用来 exit 多选 + 清状态。 */
+  onSuccess?: () => void;
 }
 
 const CHANNEL_TYPE_THREAD = 5;
@@ -205,7 +208,13 @@ function orderConversationsWithThreads(conversations: Conversation[]): ForwardCa
  *
  * **模式**:defaultMode 由 selection-toolbar 入口传(per/merge),modal 内不显 toggle。
  */
-export function ForwardModal({ open, messages, defaultMode = "per", onClose }: ForwardModalProps) {
+export function ForwardModal({
+  open,
+  messages,
+  defaultMode = "per",
+  onClose,
+  onSuccess,
+}: ForwardModalProps) {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [input, setInput] = useState("");
@@ -303,6 +312,7 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
       const modeLabel = isMulti ? (mode === "merge" ? "合并" : "逐条") : "";
       const summary = isMulti ? `${modeLabel}转发 ${messages.length} 条到` : "已转发到";
       toast.success(`${summary} ${selectedIds.size} 个会话`);
+      onSuccess?.();
       onClose();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "转发失败"),

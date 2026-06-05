@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
-import { MessageCircle, Users, CheckSquare, Sparkles, LayoutGrid } from "lucide-react";
 import type { AnyRouter, AnyRoute } from "@tanstack/react-router";
+import { ChatIcon } from "@/components/ui/icons/chat";
+import { ContactsIcon } from "@/components/ui/icons/contacts";
+import { SummaryIcon } from "@/components/ui/icons/summary";
+import { MatterIcon } from "@/components/ui/icons/matter";
+import { AppBotIcon } from "@/components/ui/icons/appbot";
 
 export type MenuIconKey = "chat" | "contacts" | "matter" | "summary" | "appbot";
 
@@ -17,11 +21,11 @@ declare module "@tanstack/react-router" {
 }
 
 const ICONS: Record<MenuIconKey, (size: number) => ReactNode> = {
-  chat: (size) => <MessageCircle size={size} />,
-  contacts: (size) => <Users size={size} />,
-  matter: (size) => <CheckSquare size={size} />,
-  summary: (size) => <Sparkles size={size} />,
-  appbot: (size) => <LayoutGrid size={size} />,
+  chat: (size) => <ChatIcon size={size} />,
+  contacts: (size) => <ContactsIcon size={size} />,
+  matter: (size) => <MatterIcon size={size} />,
+  summary: (size) => <SummaryIcon size={size} />,
+  appbot: (size) => <AppBotIcon size={size} />,
 };
 
 export function renderMenuIcon(key: MenuIconKey, size = 20): ReactNode {

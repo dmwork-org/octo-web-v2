@@ -6,6 +6,7 @@ import { imConnectionActions, type ImConnectionStatus } from "@/features/base/st
 import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
 import { registerContentTypes } from "@/features/base/im/register-content";
+import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
 import { router } from "@/lib/router";
 
 /**
@@ -105,10 +106,14 @@ interface IMProviderProps {
  * IM 连接守护 — 仅在 `_auth` layout 下 mount(已登录用户)。
  * 不渲染 UI,只持有 SDK 生命周期 + 把状态推到 store。
  * 业务组件直接 `useStore(imConnectionStore, s => s.status)` 即可。
+ *
+ * **挂桌面通知钩子**(useDesktopNotifications):订阅 chatManager onMessage,过滤后
+ * 调 Web Notification API。用户首次启用时由 settings 内 requestPermission 触发授权。
  */
 export function IMProvider({ children }: IMProviderProps) {
   const token = useStore(authStore, (s) => s.token);
   const uid = useStore(authStore, (s) => s.user?.uid ?? null);
   useImConnection(uid, token);
+  useDesktopNotifications(uid);
   return children;
 }

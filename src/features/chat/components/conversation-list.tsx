@@ -720,13 +720,20 @@ export function ConversationList({
     });
     // 6. ── 分隔线 ──
     items.push({ separator: true });
-    // 7. 子区:平铺"清空聊天记录";群/DM:**"更多 →"** 子菜单
+    // 7. 子区:平铺两项(清空聊天记录 + 关闭窗口并清空记录,对齐老仓 L1208 `...clearItems`);
+    //    群/DM:收进**"更多 →"** 子菜单
     if (isThread) {
       items.push({
         label: "清空聊天记录",
         icon: <Trash2 size={13} />,
         danger: true,
         onClick: () => setConfirmClear(conv),
+      });
+      items.push({
+        label: "关闭窗口并清空记录",
+        icon: <Trash2 size={13} />,
+        danger: true,
+        onClick: () => setConfirmCloseAndClear(conv),
       });
     } else {
       items.push({

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: octo-web-test
+  name: octo-web-test-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: octo-web-test
+  template:
+    metadata:
+      labels:
+        app: octo-web-test
+    spec:
+      containers:
+        - image: hub.intra.mlamp.cn/miaozhen-frontend/octo-web:test
+          imagePullPolicy: Always
+          name: octo-web-test
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 400m
+              memory: 400M
+            requests:
+              cpu: 200m
+              memory: 200M
+      imagePullSecrets:
+        - name: mz-robot

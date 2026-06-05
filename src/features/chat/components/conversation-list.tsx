@@ -7,12 +7,13 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
 } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, MoreHorizontal, Pin, PinOff, Trash2, X } from "lucide-react";
+import { BellOff, BellRing, Eye, MoreHorizontal, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   clearChannelMessages,
@@ -20,6 +21,25 @@ import {
   deleteConversation,
 } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
+import {
+  type CategoryItem,
+  createCategory,
+  followDM,
+  followThread,
+  moveGroupToCategory,
+  refollowChannel,
+  unfollowChannel,
+  unfollowDM,
+  unfollowThread,
+} from "@/features/base/api/endpoints/follow.api";
+import {
+  sidebarFollowQueryKey,
+  sidebarFollowQueryOptions,
+} from "@/features/chat/queries/sidebar.query";
+import {
+  categoriesQueryKey,
+  categoriesQueryOptions,
+} from "@/features/chat/queries/categories.query";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
@@ -362,14 +382,21 @@ function sortConversations(list: Conversation[]): Conversation[] {
  * 右键菜单 1:1 对齐老仓 `ConversationList::menus`(L1055-1218,最近 tab `hideCloseChat=false`):
  *   1. 标为已读(unread > 0 时)
  *   2. 关闭聊天窗口(平铺,Confirm)
- *   3. 置顶 / 取消置顶
- *   4. 开启 / 关闭免打扰
- *   5. ── 分隔线 ──
- *   6a. 子区:清空聊天记录(平铺)
- *   6b. 群/DM:**更多 →** 子菜单 → 清空聊天记录 / 关闭窗口并清空记录
+ *   3. **关注 / 取消关注**(对齐老仓 ChatConversationList::buildExtraMenus L195-343)
+ *      - 已关注(sidebar followedKeys 命中)→ 单项"取消关注"
+ *      - 未关注:
+ *        · Thread + 父群已关注 → 单项"添加到关注"(直接 followThread)
+ *        · Thread + 父群未关注 → "添加到关注 → 子菜单(选分组 → refollow 父群+moveGroup+followThread)"
+ *        · Group/DM → "添加到关注 → 子菜单(选分组 → refollow+moveGroup OR followDM(uid, cat))"
+ *        · 子菜单尾部含"+ 新建分组"
+ *   4. 置顶 / 取消置顶
+ *   5. 开启 / 关闭免打扰
+ *   6. ── 分隔线 ──
+ *   7a. 子区:清空聊天记录(平铺)
+ *   7b. 群/DM:**更多 →** 子菜单 → 清空聊天记录 / 关闭窗口并清空记录
  *
- * **去掉(关注 tab 才有,错放到最近 tab 了)**:
- *   - 关注此人 / 移动到分组 / 取消关注 — 这些是关注 tab `extraMenus`,见 follow-list
+ * 注:**follow 状态权威源用 sidebar followedKeys,不能用 channelInfo.orgData.is_followed**
+ * (老仓 GH #337 review 指出 IM 同步缓存在取关后不会立即清空,会让取关后的项继续显示"取消关注")
  *
  * **展开/收起子区**:老仓 compact 模式才有,新仓子区永远独立行,跳过。
  */
@@ -383,6 +410,9 @@ export function ConversationList({
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   useConversationsSync();
   const { data, isLoading, error } = useQuery(conversationsQueryOptions(spaceId));
+  // sidebar follow 权威源(已关注集合) + categories(子菜单可选分组列表)
+  const sidebarQ = useQuery(sidebarFollowQueryOptions(spaceId));
+  const categoriesQ = useQuery(categoriesQueryOptions(spaceId));
 
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; conv?: Conversation }>({
     open: false,
@@ -392,6 +422,7 @@ export function ConversationList({
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
   const [confirmCloseAndClear, setConfirmCloseAndClear] = useState<Conversation | null>(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const all = data ?? [];
@@ -404,6 +435,11 @@ export function ConversationList({
 
   const refreshChannelInfo = (conv: Conversation) => {
     void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
+  };
+
+  const invalidateFollow = () => {
+    void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
   };
 
   const topMu = useMutation({
@@ -480,11 +516,141 @@ export function ConversationList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "关闭失败"),
   });
 
+  // 取消关注(按 channelType 分流)— Group/DM/Thread
+  const unfollowMu = useMutation({
+    mutationFn: (conv: Conversation) => {
+      const t = conv.channel.channelType;
+      if (t === ChannelTypeGroup) return unfollowChannel(conv.channel.channelID);
+      if (t === ChannelTypePerson) return unfollowDM(conv.channel.channelID);
+      if (t === CHANNEL_TYPE_THREAD) return unfollowThread(conv.channel.channelID);
+      return Promise.reject(new Error("不支持的会话类型"));
+    },
+    onSuccess: () => {
+      invalidateFollow();
+      toast.success("已取消关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "取消关注失败"),
+  });
+
+  // 添加到关注 - Group:refollowChannel + moveGroupToCategory
+  const followGroupMu = useMutation({
+    mutationFn: async (args: { groupNo: string; categoryId: string }) => {
+      await refollowChannel(args.groupNo);
+      await moveGroupToCategory(args.groupNo, args.categoryId);
+    },
+    onSuccess: () => {
+      invalidateFollow();
+      toast.success("已添加到关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "添加到关注失败"),
+  });
+
+  // 添加到关注 - DM:followDM(uid, categoryId)
+  const followDmMu = useMutation({
+    mutationFn: (args: { peerUid: string; categoryId: string }) =>
+      followDM(args.peerUid, args.categoryId),
+    onSuccess: () => {
+      invalidateFollow();
+      toast.success("已添加到关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "添加到关注失败"),
+  });
+
+  // 添加到关注 - Thread 父群已关注:直接 followThread
+  const followThreadMu = useMutation({
+    mutationFn: (threadChannelId: string) => followThread(threadChannelId),
+    onSuccess: () => {
+      invalidateFollow();
+      toast.success("已添加到关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "关注子区失败"),
+  });
+
+  // 添加到关注 - Thread 父群未关注:refollow 父群 + moveGroup + followThread(三步串行)
+  const followThreadWithParentMu = useMutation({
+    mutationFn: async (args: {
+      threadChannelId: string;
+      parentGroupNo: string;
+      categoryId: string;
+    }) => {
+      await refollowChannel(args.parentGroupNo);
+      await moveGroupToCategory(args.parentGroupNo, args.categoryId);
+      await followThread(args.threadChannelId);
+    },
+    onSuccess: () => {
+      invalidateFollow();
+      toast.success("已添加到关注");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "关注子区失败"),
+  });
+
+  // 新建分组 — 子菜单尾"+ 新建分组"打开 InputModal
+  const createCategoryMu = useMutation({
+    mutationFn: (name: string) => {
+      if (!spaceId) return Promise.reject(new Error("无 spaceId"));
+      return createCategory(spaceId, name.trim());
+    },
+    onSuccess: () => {
+      invalidateFollow();
+      setCreateCategoryOpen(false);
+      toast.success("分组已创建");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "创建分组失败"),
+  });
+
   // ─── Right-click menu ──────────────────────────────────
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
     e.preventDefault();
     setMenu({ open: true, x: e.clientX, y: e.clientY, conv });
+  };
+
+  /**
+   * 已关注判定:用 sidebar followedKeys 作权威源。
+   *
+   * **不能**用 channelInfo.orgData.is_followed(IM 同步缓存在删分组级联取关 / 取消关注
+   * 后不会立即清空,会让取关后的项继续显示"取消关注" — 老仓 GH #337 review 指出的 bug)。
+   */
+  const isConvFollowed = (conv: Conversation): boolean => {
+    const keys = sidebarQ.data?.followedKeys;
+    if (!keys) return false;
+    return keys.has(`${conv.channel.channelType}::${conv.channel.channelID}`);
+  };
+
+  /** 构建"添加到关注"子菜单(选分组 + 新建分组)— 老仓 ChatConversationList L286-315。 */
+  const buildAddFollowSubmenu = (conv: Conversation): ContextMenuItem[] => {
+    const validCats = (categoriesQ.data ?? []).filter(
+      (c): c is CategoryItem & { category_id: string } =>
+        !c.is_default && !!c.category_id && c.category_id !== null,
+    );
+    const isThread = conv.channel.channelType === CHANNEL_TYPE_THREAD;
+    const parentGroupNo = isThread
+      ? parseThreadChannelId(conv.channel.channelID)?.groupNo
+      : undefined;
+
+    const items: ContextMenuItem[] = validCats.map((cat) => ({
+      label: cat.name,
+      onClick: () => {
+        const t = conv.channel.channelType;
+        if (t === ChannelTypeGroup) {
+          followGroupMu.mutate({ groupNo: conv.channel.channelID, categoryId: cat.category_id });
+        } else if (t === ChannelTypePerson) {
+          followDmMu.mutate({ peerUid: conv.channel.channelID, categoryId: cat.category_id });
+        } else if (t === CHANNEL_TYPE_THREAD && parentGroupNo) {
+          followThreadWithParentMu.mutate({
+            threadChannelId: conv.channel.channelID,
+            parentGroupNo,
+            categoryId: cat.category_id,
+          });
+        }
+      },
+    }));
+    items.push({ separator: true });
+    items.push({
+      label: "+ 新建分组",
+      onClick: () => setCreateCategoryOpen(true),
+    });
+    return items;
   };
 
   /** 1:1 老仓 ConversationList::menus(最近 tab,`hideCloseChat=false / hidePin=false`)。 */
@@ -508,7 +674,37 @@ export function ConversationList({
       icon: <X size={13} />,
       onClick: () => setConfirmClose(conv),
     });
-    // 3. 置顶 / 取消置顶(老仓:子区不显;新仓子区独立 row 也走置顶不影响)
+    // 3. 关注 / 取消关注(对齐老仓 ChatConversationList::buildExtraMenus L195-343 的位置:
+    //    挂在第 2 项"关闭聊天窗口"之后、第 4 项"置顶"之前,即老仓 menus L1102 extraMenus 位置)
+    if (isConvFollowed(conv)) {
+      items.push({
+        label: "取消关注",
+        icon: <Star size={13} />,
+        onClick: () => unfollowMu.mutate(conv),
+      });
+    } else if (
+      isThread &&
+      (() => {
+        const parentGroupNo = parseThreadChannelId(conv.channel.channelID)?.groupNo;
+        if (!parentGroupNo) return false;
+        return sidebarQ.data?.followedGroupNos.has(parentGroupNo) ?? false;
+      })()
+    ) {
+      // 子区且父群已关注 → 单项"添加到关注"(直接 followThread,跟随父群分组)
+      items.push({
+        label: "添加到关注",
+        icon: <Star size={13} />,
+        onClick: () => followThreadMu.mutate(conv.channel.channelID),
+      });
+    } else {
+      // 群 / DM / 子区(父群未关注)→ "添加到关注" 子菜单(选分组 + 新建分组)
+      items.push({
+        label: "添加到关注",
+        icon: <Star size={13} />,
+        children: buildAddFollowSubmenu(conv),
+      });
+    }
+    // 4. 置顶 / 取消置顶(老仓:子区不显;新仓子区独立 row 也走置顶不影响)
     if (!isThread) {
       items.push({
         label: isTop ? "取消置顶" : "置顶聊天",
@@ -516,15 +712,15 @@ export function ConversationList({
         onClick: () => topMu.mutate({ conv, top: !isTop }),
       });
     }
-    // 4. 开启 / 关闭免打扰
+    // 5. 开启 / 关闭免打扰
     items.push({
       label: isMuted ? "关闭免打扰" : "开启免打扰",
       icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
       onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
-    // 5. ── 分隔线 ──
+    // 6. ── 分隔线 ──
     items.push({ separator: true });
-    // 6. 子区:平铺"清空聊天记录";群/DM:**"更多 →"** 子菜单
+    // 7. 子区:平铺"清空聊天记录";群/DM:**"更多 →"** 子菜单
     if (isThread) {
       items.push({
         label: "清空聊天记录",
@@ -648,6 +844,19 @@ export function ConversationList({
         }}
         onCancel={() => setConfirmCloseAndClear(null)}
       />
+
+      {/* 新建分组 — 关注子菜单尾"+ 新建分组"触发(对齐老仓 ChatConversationList::CreateCategoryModal) */}
+      {createCategoryOpen ? (
+        <InputModal
+          open
+          title="新建分组"
+          placeholder="输入分组名"
+          validate={(v) => v.trim().length > 0}
+          okLoading={createCategoryMu.isPending}
+          onOk={(v) => createCategoryMu.mutate(v)}
+          onCancel={() => setCreateCategoryOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

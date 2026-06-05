@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -7,7 +7,7 @@ import WKSDK, {
   ChannelTypePerson,
   type Subscriber,
 } from "wukongimjssdk";
-import { MoreVertical, Search, X } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
@@ -15,6 +15,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
+import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
@@ -37,45 +38,15 @@ interface ChannelMembersDrawerProps {
   onClose: () => void;
 }
 
-/** 找当前用户在群里的 Subscriber(用来判 owner/manager/normal 决定权限)。 */
 function findMyRole(members: Subscriber[], myUid: string): number {
   return members.find((m) => m.uid === myUid)?.role ?? ROLE_NORMAL;
 }
 
 /**
- * open 翻转后下一帧把 entered 置 true,触发 CSS transition;
- * close 时立刻 reset。
+ * 群成员管理抽屉(对应旧 dmworkbase Subscribers + GroupManagement)。
  *
- * 旧 dmworkbase ChannelSetting 用 `transform: translate3d(100vw,0,0) → 0` 右侧
- * 滑入,这里用 Tailwind translate-x-full → translate-x-0 同一思路。
- */
-function useEnterTransition(open: boolean) {
-  const [entered, setEntered] = useState(false);
-  useEffect(() => {
-    if (!open) {
-      setEntered(false);
-      return;
-    }
-    const id = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(id);
-  }, [open]);
-  return entered;
-}
-
-/**
- * 群成员管理抽屉(对应旧 dmworkbase Subscribers + GroupManagement;旧版整体是
- * 右侧滑入的 ChannelSetting 抽屉 + 内嵌"成员"二级页。本期简化为独立右侧抽屉):
- *
- *   ┌ Header(成员 N + 加成员按钮 + close)
- *   ├ 搜索框
- *   ├ 成员列表(头像 + 名 + role badge + AI 角标)
- *   │   每行右侧 hover 时显示 ⋮ → ContextMenu
- *   │     · owner 我:对 normal → 设管理员;对 manager → 取消管理员;非 owner → 移出
- *   │     · manager 我:对 normal 非自己 → 移出
- *   │     · normal 我:无菜单(只读)
- *   └ 子区:走父群 channel(useGroupSubscribers 内部 parse);加成员按钮隐藏
- *
- * 形态:fixed 右侧抽屉,backdrop 半透明可点关闭;主 panel 用 transform 滑入。
+ * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right;在 channel-setting 内开,
+ * 自动 z-dialog-secondary。Header 标题 + 加成员 button(custom)+ X。
  */
 export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDrawerProps) {
   const qc = useQueryClient();
@@ -85,7 +56,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
   const [menuFor, setMenuFor] = useState<{ uid: string; x: number; y: number } | null>(null);
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const entered = useEnterTransition(open);
 
   // 子区 → 父群 channel(用于发 mutation API 和加成员 picker)
   const groupChannel = useMemo(() => {
@@ -153,8 +123,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
     onError: (err) => toast.error(err instanceof Error ? err.message : "移出失败"),
   });
 
-  if (!open) return null;
-
   const buildMenuItems = (target: Subscriber): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     if (target.uid === myUid) return items;
@@ -195,39 +163,25 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
   const kickTargetName = kickTarget ? kickTarget.remark || kickTarget.name || kickTarget.uid : "";
 
   return (
-    <div className="fixed inset-0 z-[60]">
-      {/* backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
-          entered ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={onClose}
-      />
-      {/* drawer panel — 右侧滑入 */}
-      <aside
-        className={`absolute top-0 right-0 flex h-full w-full max-w-md transform flex-col overflow-hidden border-l border-border-default bg-bg-surface shadow-xl transition-transform duration-300 ease-out ${
-          entered ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">成员({subscribers.length})</h2>
-          <div className="flex shrink-0 items-center gap-2">
+    <>
+      <BaseDrawer
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        side="right"
+        size="md"
+        title={
+          <div className="flex items-center gap-2">
+            <span className="truncate">成员({subscribers.length})</span>
             {showAddBtn ? (
               <Button type="primary" theme="solid" size="small" onClick={() => setAddOpen(true)}>
                 加成员
               </Button>
             ) : null}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="关闭"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            >
-              <X size={16} />
-            </button>
           </div>
-        </header>
-
+        }
+      >
         <div className="shrink-0 px-5 py-2">
           <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-base px-2 py-1.5">
             <Search size={14} className="shrink-0 text-text-tertiary" />
@@ -299,7 +253,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
             })
           )}
         </ul>
-      </aside>
+      </BaseDrawer>
 
       {/* per-row 操作菜单(条件渲染避免 ContextMenu 在 open=false 时仍跑副作用) */}
       {menuFor ? (
@@ -335,6 +289,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
       {addOpen && groupChannel ? (
         <AddMembersModal open channel={groupChannel} onClose={() => setAddOpen(false)} />
       ) : null}
-    </div>
+    </>
   );
 }

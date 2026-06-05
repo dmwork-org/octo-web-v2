@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import type { Channel, Message } from "wukongimjssdk";
+import { Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
@@ -9,6 +10,10 @@ import { SmartCreateModal } from "@/features/matter/components/smart-create-moda
 import { deleteMessages as deleteMessagesApi } from "@/features/base/api/endpoints/message.api";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
+import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
 
 interface SelectionToolbarProps {
   channel: Channel;
@@ -17,19 +22,13 @@ interface SelectionToolbarProps {
 type ForwardMode = "per" | "merge";
 
 /**
- * 多选模式底部浮层(对齐旧 dmworkbase Conversation.MultiplePanel + .wk-multiplepanel CSS):
+ * 多选模式底部浮层(对齐旧 dmworkbase Conversation.MultiplePanel)。
  *
  *   ╭ 逐条转发 | 合并转发 | 创建新事项 | 同步到事项 | 删除 | ✕ ╮
  *
- * - 容器:#fff + radius 1000px + shadow + gap 12px + padding 4px 16px
- * - 按钮:32px 高,padding 6px 16px,radius 100px,14px / 500 / #1c1c23,
- *   hover bg rgba(28,28,35,0.08);删除按钮 color #FF563B / hover bg
- *   rgba(255,86,59,0.08)
- * - 分隔条:1px × 20px,bg rgba(28,28,35,0.15),每按钮间
- * - 关闭 ✕:28×28 radius 100px,muted color,hover bg
- *
- * "创建新事项 / 同步到事项":跨 matter,P3+ 接入 — 本期 console + toast 占位。
- * 转发拆 "逐条 / 合并" 两按钮各自打开 ForwardModal(传 defaultMode)。
+ * 同步到事项:Popover 菜单(对齐老仓 MatterLinkMenu)— 顶部"创建新事项"主项 +
+ * 分隔 + 本群关联 Matter 列表(查 listMatters by channel_id)。点 matter 调
+ * addTimelineEntry 同步消息内容到 matter timeline。
  */
 export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const qc = useQueryClient();
@@ -39,6 +38,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
   const [smartCreateMessages, setSmartCreateMessages] = useState<Message[]>([]);
   const [forwardMode, setForwardMode] = useState<ForwardMode>("per");
+  const [syncMenuOpen, setSyncMenuOpen] = useState(false);
 
   const findMessages = (): Message[] => {
     const data = qc.getQueryData<{ pages: Message[][]; pageParams: unknown[] }>(
@@ -92,26 +92,64 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
     setForwardMessages(msgs);
   };
 
-  /** 创建新事项(matter completion 阶段接入 — 本期 console + toast P3+)。 */
   const onCreateMatter = () => {
     const msgs = findMessages();
     if (msgs.length === 0) return;
     setSmartCreateMessages(msgs);
   };
 
-  /** 同步到事项(matter completion 阶段接入)。 */
-  const onSyncMatter = () => {
-    const msgs = findMessages();
-    // eslint-disable-next-line no-console
-    console.log("[chat] 同步到事项 click(P3+ 跨 matter feature)", { count: msgs.length, msgs });
-    toast.info("同步到事项即将接入(matter completion)");
+  /**
+   * 查本群关联 Matter 列表(对齐老仓 module.tsx L497-507:用 channel_id 过滤,
+   * 避免混入"我相关但跟本群无关"的 matter)。limit 20 跟老仓一致。
+   */
+  const mattersQ = useQuery({
+    queryKey: ["matter", "by-channel", channel.channelID, channel.channelType],
+    queryFn: () => listMatters({ channel_id: channel.channelID, limit: 20 }),
+    enabled: syncMenuOpen,
+    staleTime: 30 * 1000,
+  });
+
+  /**
+   * 同步到已有 matter:把多选消息拼成 markdown 文本写进 timeline。
+   * 老仓直接传 participant_uid + msgs[] 让后端 LLM 抽取进展;新仓 AddTimelineReq
+   * 只接 content,先用前端拼接(每条 sender: content,markdown 列表),后端若加
+   * msgs 字段时再换。
+   */
+  const buildContent = (msgs: Message[]): string => {
+    const lines = msgs.map((m) => {
+      const sender = m.fromUID || "?";
+      const text = m.content?.conversationDigest ?? "";
+      return `- ${sender}:${text}`;
+    });
+    return `同步自 ${msgs.length} 条消息:\n${lines.join("\n")}`;
   };
+
+  const syncMu = useMutation({
+    mutationFn: async (matterId: string) => {
+      const msgs = findMessages();
+      if (msgs.length === 0) throw new Error("没有可同步的消息");
+      await addTimelineEntry(matterId, {
+        content: buildContent(msgs),
+        channel_id: channel.channelID,
+        channel_type: channel.channelType,
+      });
+    },
+    onSuccess: () => {
+      toast.success("已同步进展");
+      setSyncMenuOpen(false);
+      chatSelectionActions.exit();
+      void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(null, undefined) });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "同步失败"),
+  });
 
   const btn =
     "flex h-8 items-center rounded-full px-4 text-[14px] font-medium leading-none text-[#1c1c23] transition-colors hover:bg-[rgba(28,28,35,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
   const btnDanger =
     "flex h-8 items-center rounded-full px-4 text-[14px] font-medium leading-none text-[#FF563B] transition-colors hover:bg-[rgba(255,86,59,0.08)] disabled:cursor-not-allowed disabled:opacity-40";
   const sep = "h-5 w-px shrink-0 bg-[rgba(28,28,35,0.15)]";
+
+  const matters = mattersQ.data?.data ?? [];
 
   return (
     <>
@@ -139,9 +177,68 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             创建新事项
           </button>
           <span className={sep} />
-          <button type="button" disabled={count === 0} onClick={onSyncMatter} className={btn}>
-            同步到事项
-          </button>
+          <Popover open={syncMenuOpen} onOpenChange={setSyncMenuOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" disabled={count === 0} className={btn}>
+                同步到事项
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="center"
+              sideOffset={8}
+              className="flex w-[260px] flex-col p-0"
+            >
+              <div className="shrink-0 px-3 py-2 text-[12px] text-[rgba(28,28,35,0.5)]">
+                当前群聊关联的任务
+              </div>
+              {/* 创建新事项 主项 */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSyncMenuOpen(false);
+                  onCreateMatter();
+                }}
+                className="flex items-center gap-2 px-3 py-2 text-left text-[14px] font-medium text-brand transition-colors hover:bg-[rgba(28,28,35,0.04)]"
+              >
+                <Plus size={14} />
+                <span>创建新事项</span>
+              </button>
+              <div className="my-1 h-px bg-[rgba(28,28,35,0.06)]" />
+              <div className="shrink-0 px-3 py-1 text-[12px] text-[rgba(28,28,35,0.4)]">
+                同步到已有事项
+              </div>
+              <div className="max-h-[280px] overflow-y-auto py-1">
+                {mattersQ.isFetching ? (
+                  <div className="flex items-center justify-center py-4 text-[12px] text-text-tertiary">
+                    加载中…
+                  </div>
+                ) : matters.length === 0 ? (
+                  <div className="flex items-center justify-center py-4 text-[12px] text-text-tertiary">
+                    暂无可关联的事项
+                  </div>
+                ) : (
+                  matters.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={syncMu.isPending}
+                      onClick={() => syncMu.mutate(m.id)}
+                      className="block w-full truncate px-3 py-2 text-left text-[14px] text-text-primary transition-colors hover:bg-[rgba(28,28,35,0.04)] disabled:cursor-not-allowed disabled:opacity-50"
+                      title={m.title}
+                    >
+                      {m.title}
+                    </button>
+                  ))
+                )}
+              </div>
+              {syncMu.isPending ? (
+                <div className="border-t border-[rgba(28,28,35,0.06)] px-3 py-2 text-center text-[12px] text-text-tertiary">
+                  同步中…
+                </div>
+              ) : null}
+            </PopoverContent>
+          </Popover>
           <span className={sep} />
           <button
             type="button"
@@ -152,22 +249,26 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             删除
           </button>
           <span className={sep} />
-          <button
-            type="button"
-            aria-label="退出多选"
-            title="退出多选"
-            onClick={() => chatSelectionActions.exit()}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-              <path
-                d="M1 1L13 13M13 1L1 13"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="退出多选"
+                onClick={() => chatSelectionActions.exit()}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <path
+                    d="M1 1L13 13M13 1L1 13"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>退出多选</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -185,10 +286,8 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         open={forwardMessages.length > 0}
         messages={forwardMessages}
         defaultMode={forwardMode}
-        onClose={() => {
-          setForwardMessages([]);
-          chatSelectionActions.exit();
-        }}
+        onClose={() => setForwardMessages([])}
+        onSuccess={() => chatSelectionActions.exit()}
       />
 
       <SmartCreateModal

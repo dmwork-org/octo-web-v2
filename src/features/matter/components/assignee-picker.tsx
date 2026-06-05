@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
@@ -11,6 +10,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { matterDetailQueryKey, mattersQueryKey } from "@/features/matter/queries/matters.query";
 import { addAssignee, removeAssignee } from "@/features/matter/api/matter.api";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface AssigneePickerProps {
   open: boolean;
@@ -32,13 +32,9 @@ function useResetSelectionOnOpen(
 }
 
 /**
- * Matter 受理人选择器(对应旧 dmworktodo AssigneeEditor + MemberPicker 精简版):
+ * Matter 受理人选择器(对应旧 dmworktodo AssigneeEditor + MemberPicker 精简版)。
  *
- * - 候选 = spaceMembers 去除自己 + 去除 robot(对齐旧版只能选人)
- * - 预填当前 assigneeUids;提交时 diff 出需要 add / remove 的 uid,batch 并发
- * - 完成后 invalidate detail + list
- *
- * 旧版还有搜索 / @mention / 按角色排序,P3+ wave 后续接。
+ * 浮动元素壳层统一规范 Phase C5 — 走 BaseDialog。
  */
 export function AssigneePicker({
   open,
@@ -84,8 +80,6 @@ export function AssigneePicker({
     onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
   });
 
-  if (!open) return null;
-
   const toggle = (uid: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -102,66 +96,72 @@ export function AssigneePicker({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">选择受理人</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="md"
+      height="md"
+      title="选择受理人"
+      contentClassName="overflow-hidden"
+      footer={
+        <>
+          <Button type="tertiary" theme="borderless" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            htmlType="submit"
+            form="assignee-picker-form"
+            type="primary"
+            theme="solid"
+            loading={mu.isPending}
           >
-            <X size={16} />
-          </button>
-        </header>
-
-        <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
-            已选 {selected.size} 人
-          </div>
-          <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
-            {candidates.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                当前 Space 没有可选成员
-              </div>
-            ) : (
-              candidates.map((m) => {
-                const checked = selected.has(m.uid);
-                const channel = new Channel(m.uid, ChannelTypePerson);
-                return (
-                  <label
-                    key={m.uid}
-                    className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                      checked ? "bg-brand-tint" : ""
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(m.uid)}
-                      className="shrink-0"
-                    />
-                    <ChannelAvatar channel={channel} size={32} title={m.name} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                      {m.name || m.uid}
-                    </span>
-                  </label>
-                );
-              })
-            )}
-          </div>
-
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-            <Button type="tertiary" theme="borderless" onClick={onClose}>
-              取消
-            </Button>
-            <Button htmlType="submit" type="primary" theme="solid" loading={mu.isPending}>
-              保存
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+            保存
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="assignee-picker-form"
+        onSubmit={onSubmit}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
+          已选 {selected.size} 人
+        </div>
+        <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
+          {candidates.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-text-tertiary">
+              当前 Space 没有可选成员
+            </div>
+          ) : (
+            candidates.map((m) => {
+              const checked = selected.has(m.uid);
+              const channel = new Channel(m.uid, ChannelTypePerson);
+              return (
+                <label
+                  key={m.uid}
+                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
+                    checked ? "bg-brand-tint" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(m.uid)}
+                    className="shrink-0"
+                  />
+                  <ChannelAvatar channel={channel} size={32} title={m.name} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                    {m.name || m.uid}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </form>
+    </BaseDialog>
   );
 }

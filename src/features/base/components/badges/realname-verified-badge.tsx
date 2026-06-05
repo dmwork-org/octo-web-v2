@@ -3,6 +3,8 @@ interface RealnameVerifiedBadgeProps {
   variant?: "icon" | "tag" | "full";
 }
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 /**
  * OCTO 实名认证标识(对应旧 dmworkbase Components/RealnameVerifiedBadge):
  *
@@ -17,41 +19,45 @@ export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadg
   const showIcon = variant !== "tag";
   const showText = variant !== "icon";
   return (
-    <span
-      className="ml-1.5 inline-flex shrink-0 items-center gap-[3px] text-[12px] font-medium leading-4 align-middle"
-      style={{ color: "#2f8cff" }}
-      title="已完成实名认证"
-      aria-label="已实名"
-      role="img"
-    >
-      {showIcon ? (
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          className="shrink-0"
-          aria-hidden
-        >
-          <circle cx="6" cy="6" r="6" fill="currentColor" />
-          <path
-            d="M3 6.2l2 2 4-4"
-            stroke="#fff"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
-      ) : null}
-      {showText ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
         <span
-          className="h-4 rounded-[3px] px-[5px] text-[11px] font-medium leading-4 tracking-[0.02em]"
-          style={{ background: "rgba(47, 140, 255, 0.12)", color: "#2f8cff" }}
+          className="ml-1.5 inline-flex shrink-0 items-center gap-[3px] text-[12px] font-medium leading-4 align-middle"
+          style={{ color: "#2f8cff" }}
+          aria-label="已实名"
+          role="img"
         >
-          已实名
+          {showIcon ? (
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              className="shrink-0"
+              aria-hidden
+            >
+              <circle cx="6" cy="6" r="6" fill="currentColor" />
+              <path
+                d="M3 6.2l2 2 4-4"
+                stroke="#fff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
+          ) : null}
+          {showText ? (
+            <span
+              className="h-4 rounded-[3px] px-[5px] text-[11px] font-medium leading-4 tracking-[0.02em]"
+              style={{ background: "rgba(47, 140, 255, 0.12)", color: "#2f8cff" }}
+            >
+              已实名
+            </span>
+          ) : null}
         </span>
-      ) : null}
-    </span>
+      </TooltipTrigger>
+      <TooltipContent>已完成实名认证</TooltipContent>
+    </Tooltip>
   );
 }

@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Subscriber } from "wukongimjssdk";
-import { ArrowLeft, Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { useDrawerEnterTransition } from "@/features/chat/hooks/use-drawer-enter-transition.hook";
+import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   addGroupManagers,
@@ -31,20 +31,11 @@ const ROLE_MANAGER = 2;
 type Mode = "view" | "addManager" | "addBotAdmin";
 
 /**
- * 群管理二级抽屉(对应旧 dmworkbase GroupManagement):
+ * 群管理二级抽屉(对应旧 dmworkbase GroupManagement)。
  *
- *   ┌ Header(← + 群管理)
- *   ├ Section A: 群主、管理员
- *   │   - 列表(owner + manager)
- *   │   - [ 添加管理员 ](isOwner;打开候选 normal 成员列表)
- *   │   - 每行 ⊖ 移除管理员(isOwner only)
- *   └ Section B: Bot 管理员
- *       - 列表(robot && bot_admin===1)
- *       - [ 添加 Bot 管理员 ](isOwner;打开候选 bot 成员列表)
- *       - 每行 ⊖ 移除(isOwner only)
- *
- * 添加流程:点添加按钮 → 整个 modal 内容切换到 candidate list view(mode 切换),
- * 多选/单选 + 完成 → 提交 → 切回 view。
+ * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right。
+ * view 模式 header 用 X(关闭);addMode 切换内容时 header 自定义 back + 完成按钮。
+ * 内嵌 ConfirmModal 自动 z-dialog-secondary。
  */
 export function GroupManagementModal({
   open,
@@ -54,7 +45,6 @@ export function GroupManagementModal({
 }: GroupManagementModalProps) {
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
-  const entered = useDrawerEnterTransition(open);
   const [mode, setMode] = useState<Mode>("view");
   const [confirmRemove, setConfirmRemove] = useState<{
     kind: "manager" | "botAdmin";
@@ -80,17 +70,14 @@ export function GroupManagementModal({
     });
   }, [subscribers]);
 
-  // 候选列表(过滤 + 搜索)
   const candidatePool = useMemo(() => {
     if (mode === "addManager") {
-      // 普通成员(role===0)且非自己
       return subscribers.filter((s) => {
         const og = s.orgData as { robot?: number } | undefined;
         return s.uid !== myUid && og?.robot !== 1 && (s.role ?? 0) === 0;
       });
     }
     if (mode === "addBotAdmin") {
-      // robot 且尚未是 bot admin
       return subscribers.filter((s) => {
         const og = s.orgData as { robot?: number; bot_admin?: number } | undefined;
         return og?.robot === 1 && og.bot_admin !== 1;
@@ -159,11 +146,8 @@ export function GroupManagementModal({
     onError: (err) => toast.error(err instanceof Error ? err.message : "移除失败"),
   });
 
-  if (!open) return null;
-
   const togglePick = (uid: string) => {
     if (mode === "addBotAdmin") {
-      // bot admin 单选(后端一次一个 uid)
       setPickedUids(pickedUids[0] === uid ? [] : [uid]);
       return;
     }
@@ -184,46 +168,41 @@ export function GroupManagementModal({
 
   const inAddMode = mode !== "view";
   const addModeTitle = mode === "addManager" ? "添加管理员" : "添加 Bot 管理员";
-  const onHeaderBack = inAddMode ? exitAddMode : onClose;
   const headerTitle = inAddMode ? addModeTitle : "群管理";
 
   return (
-    <div className="fixed inset-0 z-[70]">
-      <div
-        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
-          entered ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={onClose}
-      />
-      <aside
-        className={`absolute top-0 right-0 flex h-full w-full max-w-md transform flex-col overflow-hidden border-l border-border-default bg-bg-surface shadow-xl transition-transform duration-300 ease-out ${
-          entered ? "translate-x-0" : "translate-x-full"
-        }`}
+    <>
+      <BaseDrawer
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        side="right"
+        size="md"
+        // 在 addMode 时:不显默认 X,改显左侧 back 返回 view;并附"完成"按钮到 title 区
+        showCloseButton={!inAddMode}
+        showBackButton={inAddMode}
+        onBack={inAddMode ? exitAddMode : undefined}
+        title={
+          inAddMode ? (
+            <div className="flex items-center gap-2">
+              <span className="flex-1 truncate">{headerTitle}</span>
+              <Button
+                type="primary"
+                theme="solid"
+                size="small"
+                loading={promoteMu.isPending || setBotAdminMu.isPending}
+                disabled={pickedUids.length === 0}
+                onClick={onFinishPick}
+              >
+                完成{pickedUids.length > 0 ? `(${pickedUids.length})` : ""}
+              </Button>
+            </div>
+          ) : (
+            headerTitle
+          )
+        }
       >
-        <header className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-3">
-          <button
-            type="button"
-            onClick={onHeaderBack}
-            aria-label={inAddMode ? "返回群管理" : "关闭"}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            {inAddMode ? <ArrowLeft size={16} /> : <X size={16} />}
-          </button>
-          <h2 className="flex-1 text-sm font-semibold text-text-primary">{headerTitle}</h2>
-          {inAddMode ? (
-            <Button
-              type="primary"
-              theme="solid"
-              size="small"
-              loading={promoteMu.isPending || setBotAdminMu.isPending}
-              disabled={pickedUids.length === 0}
-              onClick={onFinishPick}
-            >
-              完成{pickedUids.length > 0 ? `(${pickedUids.length})` : ""}
-            </Button>
-          ) : null}
-        </header>
-
         {inAddMode ? (
           <>
             <div className="shrink-0 px-5 py-2">
@@ -311,7 +290,7 @@ export function GroupManagementModal({
             />
           </div>
         )}
-      </aside>
+      </BaseDrawer>
 
       {confirmRemove ? (
         <ConfirmModal
@@ -330,7 +309,7 @@ export function GroupManagementModal({
           onCancel={() => setConfirmRemove(null)}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 

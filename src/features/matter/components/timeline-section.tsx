@@ -14,6 +14,7 @@ import {
 } from "@/features/matter/mutations/matters.mutation";
 import { UserName } from "@/features/matter/components/user-name";
 import type { TimelineEntry } from "@/features/matter/types/matter.types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TimelineSectionProps {
   matterId: string;
@@ -185,18 +186,22 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
                     </div>
                   </div>
                   {canDelete ? (
-                    <button
-                      type="button"
-                      aria-label="删除评论"
-                      title="删除"
-                      disabled={delMu.isPending && delMu.variables === e.id}
-                      onClick={() => {
-                        if (window.confirm("确认删除该评论?")) delMu.mutate(e.id);
-                      }}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors group-hover:flex hover:bg-bg-elevated hover:text-error disabled:opacity-50"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="删除评论"
+                          disabled={delMu.isPending && delMu.variables === e.id}
+                          onClick={() => {
+                            if (window.confirm("确认删除该评论?")) delMu.mutate(e.id);
+                          }}
+                          className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors group-hover:flex hover:bg-bg-elevated hover:text-error disabled:opacity-50"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>删除</TooltipContent>
+                    </Tooltip>
                   ) : null}
                 </article>
               );

@@ -14,6 +14,7 @@ import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MatterDetailPanelProps {
   matterId: string;
@@ -324,17 +325,21 @@ function ChannelsTab({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <button
-          type="button"
-          disabled
-          title="channel-picker 留 P3+"
-          className="inline-flex cursor-not-allowed items-center gap-1.5 text-sm font-semibold text-brand opacity-70"
-        >
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-bg-surface">
-            <Plus size={12} strokeWidth={3} />
-          </span>
-          关联新群
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              disabled
+              className="inline-flex cursor-not-allowed items-center gap-1.5 text-sm font-semibold text-brand opacity-70"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-bg-surface">
+                <Plus size={12} strokeWidth={3} />
+              </span>
+              关联新群
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>channel-picker 留 P3+</TooltipContent>
+        </Tooltip>
       </div>
       {hasSource && channel ? (
         <button

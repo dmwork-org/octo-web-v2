@@ -137,7 +137,7 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-[98]"
+        className="fixed inset-0 z-popover"
         onClick={onClose}
         onContextMenu={(e) => e.preventDefault()}
       />
@@ -152,9 +152,8 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
           opacity: animateIn ? 1 : 0,
           transition:
             "opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
-          zIndex: 99,
         }}
-        className="min-w-[160px] overflow-visible rounded-lg border border-[#E5E6EB] bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-border-default dark:bg-bg-surface"
+        className="z-popover min-w-[160px] overflow-visible rounded-lg border border-[#E5E6EB] bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-border-default dark:bg-bg-surface"
         onContextMenu={(e) => e.preventDefault()}
       >
         <ul className="m-0 list-none p-0">
@@ -223,7 +222,7 @@ function ContextMenuRow({
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <ul
-            className={`absolute top-0 z-[100] hidden min-w-[160px] list-none rounded-lg border border-[#E5E6EB] bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)] group-hover/row:block before:absolute before:top-[-4px] before:bottom-[-4px] before:w-2 before:content-[''] dark:border-border-default dark:bg-bg-surface ${
+            className={`absolute top-0 hidden min-w-[160px] list-none rounded-lg border border-[#E5E6EB] bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)] group-hover/row:block before:absolute before:top-[-4px] before:bottom-[-4px] before:w-2 before:content-[''] dark:border-border-default dark:bg-bg-surface ${
               flipSubmenu
                 ? "right-[calc(100%+4px)] before:right-[-8px]"
                 : "left-[calc(100%+4px)] before:left-[-8px]"

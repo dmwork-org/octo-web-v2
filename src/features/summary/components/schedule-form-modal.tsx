@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
-import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
@@ -18,6 +17,7 @@ import {
   type SummaryModeType,
   type TimeRangeTypeValue,
 } from "@/features/summary/types/summary.types";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface ScheduleFormModalProps {
   open: boolean;
@@ -80,13 +80,9 @@ function useResetFormOnOpen(
 }
 
 /**
- * 定时总结新建 / 编辑表单(对应旧 ScheduleForm + ScheduleConfigModal):
+ * 定时总结新建 / 编辑表单(对应旧 ScheduleForm + ScheduleConfigModal)。
  *
- * - title / mode / cron(预设 4 个 + 自定义) / time_range_type / sources
- * - sources 来自当前 Space conversations(群 + 私聊),checkbox 多选
- * - 编辑时预填,提交调用 update;新建调 create
- *
- * 不做(Wave 3c 再补):BY_PERSON 模式参与者选择。BY_GROUP 时 participants 留空。
+ * 浮动元素壳层统一规范 Phase C5 — 走 BaseDialog。
  */
 export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModalProps) {
   const qc = useQueryClient();
@@ -128,7 +124,6 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
       const sources: SourceItem[] = candidates
         .filter((c) => selectedIds.has(c.channel.channelID))
         .map(convToSource);
-      // 编辑时如旧来源不在当前 candidates(可能换 Space),保留旧条目
       if (schedule) {
         for (const s of schedule.sources) {
           if (selectedIds.has(s.source_id) && !sources.some((x) => x.source_id === s.source_id)) {
@@ -153,8 +148,6 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
     onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
   });
 
-  if (!open) return null;
-
   const finalCron = (useCustomCron ? customCron : cron).trim();
   const canSubmit = !!finalCron && selectedIds.size > 0 && !mu.isPending;
 
@@ -174,159 +167,150 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">
-            {schedule ? "编辑定时总结" : "新建定时总结"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      size="fit"
+      title={schedule ? "编辑定时总结" : "新建定时总结"}
+      className="max-h-[90vh] w-full max-w-lg"
+      contentClassName="overflow-hidden"
+      footer={
+        <>
+          <Button type="tertiary" theme="borderless" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            htmlType="submit"
+            form="schedule-form"
+            type="primary"
+            theme="solid"
+            loading={mu.isPending}
+            disabled={!canSubmit}
           >
-            <X size={16} />
-          </button>
-        </header>
+            保存
+          </Button>
+        </>
+      }
+    >
+      <form id="schedule-form" onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">标题</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value.slice(0, 1000))}
+              placeholder="例:每周项目周报"
+              className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+            />
+          </label>
 
-        <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">标题</span>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value.slice(0, 1000))}
-                placeholder="例:每周项目周报"
-                className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-              />
-            </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">总结模式</span>
+            <select
+              value={mode}
+              onChange={(e) => setMode(Number(e.target.value) as SummaryModeType)}
+              className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+            >
+              <option value={SummaryMode.BY_GROUP}>按群总结</option>
+              <option value={SummaryMode.BY_PERSON}>按人总结</option>
+            </select>
+          </label>
 
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">总结模式</span>
-              <select
-                value={mode}
-                onChange={(e) => setMode(Number(e.target.value) as SummaryModeType)}
-                className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-              >
-                <option value={SummaryMode.BY_GROUP}>按群总结</option>
-                <option value={SummaryMode.BY_PERSON}>按人总结</option>
-              </select>
-            </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">执行频率</span>
+            {!useCustomCron ? (
+              <>
+                <select
+                  value={cron}
+                  onChange={(e) => setCron(e.target.value)}
+                  className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+                >
+                  {CRON_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setUseCustomCron(true)}
+                  className="self-start text-[12px] text-brand hover:underline"
+                >
+                  自定义 cron 表达式
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  value={customCron}
+                  onChange={(e) => setCustomCron(e.target.value)}
+                  placeholder="cron 表达式,如 0 9 * * 1-5"
+                  className="rounded-md border border-border-default bg-bg-base px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setUseCustomCron(false)}
+                  className="self-start text-[12px] text-brand hover:underline"
+                >
+                  使用预设
+                </button>
+              </>
+            )}
+          </div>
 
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">执行频率</span>
-              {!useCustomCron ? (
-                <>
-                  <select
-                    value={cron}
-                    onChange={(e) => setCron(e.target.value)}
-                    className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-                  >
-                    {CRON_PRESETS.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setUseCustomCron(true)}
-                    className="self-start text-[12px] text-brand hover:underline"
-                  >
-                    自定义 cron 表达式
-                  </button>
-                </>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">时间范围</span>
+            <select
+              value={timeRangeType}
+              onChange={(e) => setTimeRangeType(Number(e.target.value) as TimeRangeTypeValue)}
+              className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+            >
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">
+              信息来源 ({selectedIds.size} 选中)
+            </span>
+            <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
+              {candidates.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-text-tertiary">没有可选会话</div>
               ) : (
-                <>
-                  <input
-                    value={customCron}
-                    onChange={(e) => setCustomCron(e.target.value)}
-                    placeholder="cron 表达式,如 0 9 * * 1-5"
-                    className="rounded-md border border-border-default bg-bg-base px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setUseCustomCron(false)}
-                    className="self-start text-[12px] text-brand hover:underline"
-                  >
-                    使用预设
-                  </button>
-                </>
+                candidates.map((c) => {
+                  const id = c.channel.channelID;
+                  const checked = selectedIds.has(id);
+                  const isGroup = c.channel.channelType === ChannelTypeGroup;
+                  const name = c.channelInfo?.title ?? id;
+                  return (
+                    <label
+                      key={`${c.channel.channelType}-${id}`}
+                      className={`flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-bg-hover ${
+                        checked ? "bg-brand-tint" : ""
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSource(id)}
+                        className="shrink-0"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
+                      <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+                        {isGroup ? "群" : "私聊"}
+                      </span>
+                    </label>
+                  );
+                })
               )}
             </div>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">时间范围</span>
-              <select
-                value={timeRangeType}
-                onChange={(e) => setTimeRangeType(Number(e.target.value) as TimeRangeTypeValue)}
-                className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-              >
-                {TIME_RANGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">
-                信息来源 ({selectedIds.size} 选中)
-              </span>
-              <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
-                {candidates.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                    没有可选会话
-                  </div>
-                ) : (
-                  candidates.map((c) => {
-                    const id = c.channel.channelID;
-                    const checked = selectedIds.has(id);
-                    const isGroup = c.channel.channelType === ChannelTypeGroup;
-                    const name = c.channelInfo?.title ?? id;
-                    return (
-                      <label
-                        key={`${c.channel.channelType}-${id}`}
-                        className={`flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-bg-hover ${
-                          checked ? "bg-brand-tint" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSource(id)}
-                          className="shrink-0"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
-                        <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                          {isGroup ? "群" : "私聊"}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            </div>
           </div>
-
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-            <Button type="tertiary" theme="borderless" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              htmlType="submit"
-              type="primary"
-              theme="solid"
-              loading={mu.isPending}
-              disabled={!canSubmit}
-            >
-              保存
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </BaseDialog>
   );
 }

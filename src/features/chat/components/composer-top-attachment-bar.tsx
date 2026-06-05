@@ -7,6 +7,7 @@ import {
   isVideoMime,
   type TopAttachmentItem,
 } from "@/features/chat/lib/composer-files";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ComposerTopAttachmentBarProps {
   items: TopAttachmentItem[];
@@ -76,14 +77,19 @@ export function ComposerTopAttachmentBar({ items, onRemove }: ComposerTopAttachm
                   >
                     {item.name}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(item.id)}
-                    title="移除"
-                    className="flex h-4 w-4 shrink-0 items-center justify-center bg-transparent p-0 text-text-tertiary transition-colors hover:text-text-primary"
-                  >
-                    <X size={16} />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item.id)}
+                        aria-label="移除"
+                        className="flex h-4 w-4 shrink-0 items-center justify-center bg-transparent p-0 text-text-tertiary transition-colors hover:text-text-primary"
+                      >
+                        <X size={16} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>移除</TooltipContent>
+                  </Tooltip>
                 </div>
                 <span className="text-[14px] leading-5 text-text-tertiary">
                   {formatFileSize(item.size)}

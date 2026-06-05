@@ -8,6 +8,7 @@ import {
   extOfName,
   type AttachmentAttributes,
 } from "@/features/chat/lib/composer-files";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // 编辑器内附件节点的渲染体 — 1:1 对齐旧 dmworkbase AttachmentNode + index.css。
 //
@@ -85,19 +86,24 @@ export function ComposerAttachmentView(props: ReactNodeViewProps<HTMLElement>) {
             >
               {name}
             </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                deleteNode();
-              }}
-              title="移除"
-              contentEditable={false}
-              className="flex h-4 w-4 shrink-0 items-center justify-center bg-transparent p-0 text-text-tertiary transition-colors hover:text-text-primary"
-            >
-              <X size={16} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteNode();
+                  }}
+                  aria-label="移除"
+                  contentEditable={false}
+                  className="flex h-4 w-4 shrink-0 items-center justify-center bg-transparent p-0 text-text-tertiary transition-colors hover:text-text-primary"
+                >
+                  <X size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>移除</TooltipContent>
+            </Tooltip>
           </div>
           <span className="text-[14px] leading-5 text-text-tertiary">{formatFileSize(size)}</span>
         </div>

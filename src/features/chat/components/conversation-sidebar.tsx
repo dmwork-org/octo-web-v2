@@ -22,6 +22,7 @@ import { effectiveMute } from "@/features/chat/lib/conversation-last-content";
 import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 import { useResizablePanel } from "@/features/chat/hooks/use-resizable-panel.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** sidebar 拖拽 range / 默认 — 1:1 对齐老仓 layoutWidth.ts SPLITTER_* */
 const SIDEBAR_MIN_WIDTH = 190;
@@ -177,27 +178,35 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
         {/* 右侧 actions:gap=8px,按钮 16×16 透明背景 hover 只换色,对齐老仓 .wk-chat-header-actions */}
         <div className="flex shrink-0 items-center gap-2">
           <ConnectionStatusBadge />
-          <button
-            type="button"
-            aria-label="搜索"
-            title="全局搜索"
-            onClick={() => setSearchOpen(true)}
-            className="flex h-4 w-4 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-          >
-            <Search size={16} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="搜索"
+                onClick={() => setSearchOpen(true)}
+                className="flex h-4 w-4 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+              >
+                <Search size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>全局搜索</TooltipContent>
+          </Tooltip>
           <div ref={addWrapRef} className="relative">
-            <button
-              type="button"
-              aria-label="新增"
-              title="发起群聊 / 添加朋友"
-              onClick={() => setAddOpen((v) => !v)}
-              className={`flex h-4 w-4 cursor-pointer items-center justify-center transition-colors ${
-                addOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
-              }`}
-            >
-              <Plus size={16} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="新增"
+                  onClick={() => setAddOpen((v) => !v)}
+                  className={`flex h-4 w-4 cursor-pointer items-center justify-center transition-colors ${
+                    addOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
+                  }`}
+                >
+                  <Plus size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>发起群聊 / 添加朋友</TooltipContent>
+            </Tooltip>
             <SidebarAddPopover
               containerRef={addWrapRef}
               open={addOpen}

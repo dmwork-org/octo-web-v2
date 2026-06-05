@@ -33,6 +33,7 @@ import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popo
 import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
 import { ComposerTopAttachmentBar } from "@/features/chat/components/composer-top-attachment-bar";
 import { FileContent } from "@/features/base/im/file-content";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authStore } from "@/features/base/stores/auth";
 import { transcribeVoice, type VoiceMode } from "@/features/base/api/endpoints/voice.api";
 import { VoiceButtonGroup } from "@/features/chat/components/voice-button-group";
@@ -668,53 +669,70 @@ export function Composer({ channel }: ComposerProps) {
           {/* 斜杠命令入口(对齐旧 .wk-messageinput-menu-btn):仅 bot 私聊 + 有 bot_commands 时显;
               点击 setContent("/") 触发 menu(走 onUpdate → useSlashCommand 自然展开)。 */}
           {botCommands.length > 0 && editor ? (
-            <button
-              type="button"
-              onClick={() => {
-                editor.chain().focus().setContent("/").run();
-              }}
-              title="斜杠命令"
-              className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-border-default text-base font-semibold text-text-secondary transition-colors hover:border-text-tertiary hover:bg-bg-hover active:bg-bg-elevated"
-            >
-              /
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.chain().focus().setContent("/").run();
+                  }}
+                  aria-label="斜杠命令"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-border-default text-base font-semibold text-text-secondary transition-colors hover:border-text-tertiary hover:bg-bg-hover active:bg-bg-elevated"
+                >
+                  /
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>斜杠命令</TooltipContent>
+            </Tooltip>
           ) : null}
           <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
             <EditorContent editor={editor} />
           </div>
 
           <div className={`flex shrink-0 items-center gap-2 ${isMultiLine ? "self-end" : ""}`}>
-            <button
-              type="button"
-              onClick={() => setEmojiOpen((v) => !v)}
-              aria-label="表情"
-              title="表情"
-              className={`flex h-6 w-6 items-center justify-center transition-colors ${
-                emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
-              }`}
-            >
-              <Smile size={20} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setEmojiOpen((v) => !v)}
+                  aria-label="表情"
+                  className={`flex h-6 w-6 items-center justify-center transition-colors ${
+                    emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
+                  }`}
+                >
+                  <Smile size={20} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>表情</TooltipContent>
+            </Tooltip>
             {isMentionable ? (
-              <button
-                type="button"
-                onClick={onClickMention}
-                aria-label="@提及"
-                title="@提及"
-                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
-              >
-                <AtSign size={20} />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onClickMention}
+                    aria-label="@提及"
+                    className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                  >
+                    <AtSign size={20} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>@提及</TooltipContent>
+              </Tooltip>
             ) : null}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="发送文件"
-              title="发送文件 / 图片"
-              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
-            >
-              <Paperclip size={20} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="发送文件"
+                  className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                >
+                  <Paperclip size={20} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>发送文件 / 图片</TooltipContent>
+            </Tooltip>
             {/* 创建任务 ✓ — 仅群聊/子区显示(对齐旧 dmworktodo registerChatToolbar)。
                 点击 emit chat:create-matter-from-composer 事件,chat-main listener 打开
                 SmartCreateModal,跟 Alt+Enter 同入口。 */}

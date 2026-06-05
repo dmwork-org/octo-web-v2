@@ -3,6 +3,7 @@ import { type FileContent } from "@/features/base/im/file-content";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface FileRendererProps {
   message: Message;
@@ -95,18 +96,22 @@ export function FileRenderer({ message }: FileRendererProps) {
             ) : null}
           </div>
         </div>
-        <button
-          type="button"
-          title="下载"
-          disabled={!clickable}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (clickable) void triggerDownload(url, name);
-          }}
-          className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-md text-[#1c1c23] transition-colors hover:bg-[rgba(99,102,241,0.1)] disabled:cursor-default disabled:opacity-40"
-        >
-          <DownloadIcon />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              disabled={!clickable}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (clickable) void triggerDownload(url, name);
+              }}
+              className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-md text-[#1c1c23] transition-colors hover:bg-[rgba(99,102,241,0.1)] disabled:cursor-default disabled:opacity-40"
+            >
+              <DownloadIcon />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>下载</TooltipContent>
+        </Tooltip>
       </div>
       {content.caption ? (
         <div className="px-2 pt-1 pb-2 text-[14px] leading-[1.4] break-words text-[rgba(9,30,66,0.87)]">

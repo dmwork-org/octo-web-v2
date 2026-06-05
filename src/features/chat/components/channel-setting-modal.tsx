@@ -7,7 +7,7 @@ import WKSDK, {
   ChannelTypePerson,
   type Subscriber,
 } from "wukongimjssdk";
-import { Minus, Plus, QrCode, X } from "lucide-react";
+import { Minus, Plus, QrCode } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -19,7 +19,7 @@ import { GroupQrcodeModal } from "@/features/chat/components/group-qrcode-modal"
 import { GroupMdModal } from "@/features/chat/components/group-md-modal";
 import { GroupManagementModal } from "@/features/chat/components/group-management-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { useDrawerEnterTransition } from "@/features/chat/hooks/use-drawer-enter-transition.hook";
+import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   clearChannelMessages,
@@ -38,8 +38,7 @@ import {
   updateThread,
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-// section-form 共享原语(Phase C:本文件原内嵌的 SectionGroup/NavRow/ToggleRow/InlineEditRow/Switch
-// 已抽到 features/base/components/section-form/,改为 import;100% 等价无视觉/行为变化)
+// section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
@@ -60,13 +59,7 @@ const ROLE_MANAGER = 2;
 type Subpage = "avatar" | "qrcode" | "md" | "manage";
 
 /**
- * 成员九宫格(对应旧 dmworkbase Subscribers 组件):
- *   头像 + name(truncate)+ 角色 badge,5 列 grid。末尾两个圆形动作按钮:
- *     - ➕加成员(canAdd 时,非子区)
- *     - ➖踢人(canManage 时;新项目复用 ChannelMembersModal 的 ⋮ 菜单移出)
- *
- * 旧版"踢人"是独立 SubscriberList + 多选 + 完成,这里偏简化:点 ➖ 打开
- * ChannelMembersModal,用户在里面用 ⋮ → 移出 单条踢。批量后续再做。
+ * 成员九宫格(对应旧 dmworkbase Subscribers 组件)。
  */
 function SubscribersGrid({
   subscribers,
@@ -143,18 +136,11 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
 }
 
 /**
- * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐):
+ * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐)。
  *
- *   ┌ Header(聊天信息(N) + X 关闭)
- *   ├ 成员九宫格(头像+role badge + ➕加成员 + ➖踢人)
- *   ├ Section: 群基础(群聊名称/群头像/群二维码/群公告/GROUP.md/群管理/备注)
- *   ├ Section: 通知(消息免打扰 / 聊天置顶 / 保存到通讯录)
- *   ├ Section: 我在本群的昵称
- *   └ Section: 危险(清空聊天记录 / 删除并退出)
- *
- * 文本字段(群名/公告/备注/我的昵称)按用户要求改为抽屉内 inline 编辑;
- * 4 个二级页(群头像 / 群二维码 / GROUP.md / 群管理)走独立 z-[70] 抽屉,
- * 对应组件:GroupAvatarModal / GroupQrcodeModal / GroupMdModal / GroupManagementModal。
+ * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right。
+ * 4 个二级页(GroupAvatar / GroupQrcode / GroupMd / GroupManagement)走自己的 BaseDrawer,
+ * DialogNestingContext 自动 z-dialog-secondary。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const qc = useQueryClient();
@@ -165,7 +151,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [kickListOpen, setKickListOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [subpage, setSubpage] = useState<Subpage | null>(null);
-  const entered = useDrawerEnterTransition(open);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -201,11 +186,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
 
   const memberCountFromSubs = subscribers.length;
   const memberCount = memberCountFromSubs > 0 ? memberCountFromSubs : (orgData?.member_count ?? 0);
-  // 子区抽屉对齐截图,header 不带 (N) 计数(截图 "聊天信息(0)" 中的 0 用户要求忽略)
   const headerCount = isGroup ? memberCount : undefined;
 
-  // 子区抽屉专属 — 父群 / 改名权限 / GROUP.md 元数据
-  // (对齐旧 dmworkbase module.tsx line 1883-2076)
+  // 子区抽屉专属
   const threadParsed = isThread ? parseThreadChannelId(channel.channelID) : null;
   const threadParentChannel = threadParsed
     ? new Channel(threadParsed.groupNo, ChannelTypeGroup)
@@ -258,8 +241,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       }
     },
     onSuccess: async () => {
-      // 改名后强制刷 channelInfo:先清缓存再 fetch,避免 fetchChannelInfo 命中旧缓存
-      // (对齐旧 module.tsx line 1934-1938 deleteChannelInfo + fetchChannelInfo)
+      // 改名后强制刷 channelInfo:先清缓存再 fetch
       WKSDK.shared().channelManager.deleteChannelInfo(channel);
       await WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setEditing(null);
@@ -321,7 +303,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const closeMu = useMutation({
     mutationFn: async () => {
       if (isThread) {
-        // 子区:走 leaveThread 真离开(对应旧 dmworkdatasource threadLeave)
         const p = parseThreadChannelId(channel.channelID);
         if (!p) throw new Error("子区 ID 解析失败");
         await leaveThread(p.shortId);
@@ -345,8 +326,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
   });
 
-  if (!open) return null;
-
   const dangerCloseTitle = isGroup ? "删除并退出" : isThread ? "离开子区" : "关闭聊天窗口";
   const dangerCloseConfirm = isGroup
     ? "确定要退出群聊吗?"
@@ -355,36 +334,17 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       : "确定要关闭此聊天窗口吗?";
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
-          entered ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={onClose}
-      />
-      {/* drawer panel — 右侧滑入(对齐旧 dmworkbase ChannelSetting transform 滑入) */}
-      <aside
-        className={`absolute top-0 right-0 flex h-full w-full max-w-md transform flex-col overflow-hidden border-l border-border-default bg-bg-surface shadow-xl transition-transform duration-300 ease-out ${
-          entered ? "translate-x-0" : "translate-x-full"
-        }`}
+    <>
+      <BaseDrawer
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        side="right"
+        size="md"
+        title={typeof headerCount === "number" ? `聊天信息(${headerCount})` : "聊天信息"}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">
-            {typeof headerCount === "number" ? `聊天信息(${headerCount})` : "聊天信息"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
-          {/* 成员九宫格仅 group(子区抽屉对齐截图不显示成员) */}
           {isGroup ? (
             <SubscribersGrid
               subscribers={subscribers}
@@ -464,7 +424,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* 子区抽屉 base.info: 子区名称 + 返回群聊「父群名」(对齐截图) */}
+          {/* 子区抽屉 base.info: 子区名称 + 返回群聊「父群名」 */}
           {isThread ? (
             <SectionGroup>
               <InlineEditRow
@@ -492,7 +452,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* 子区抽屉 GROUP.md(对齐旧 module.tsx thread.md.setting line 1978-2043) */}
+          {/* 子区抽屉 GROUP.md */}
           {isThread ? (
             <SectionGroup>
               <NavRow
@@ -545,7 +505,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* danger Section — 子区只显示"离开子区"(截图无"清空聊天记录") */}
+          {/* danger Section — 子区只显示"离开子区" */}
           <SectionGroup>
             {!isThread ? (
               <NavRow title="清空聊天记录" danger onClick={() => setConfirmClear(true)} />
@@ -558,7 +518,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             />
           </SectionGroup>
         </div>
-      </aside>
+      </BaseDrawer>
 
       <ChannelMembersModal
         open={kickListOpen}
@@ -625,6 +585,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           onCancel={() => setConfirmClose(false)}
         />
       ) : null}
-    </div>
+    </>
   );
 }

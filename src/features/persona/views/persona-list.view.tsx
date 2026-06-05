@@ -46,7 +46,7 @@ export function PersonaListView() {
     );
   }
 
-  const list = grants ?? [];
+  const list = Array.isArray(grants) ? grants : [];
 
   const onToggleActive = async (id: number, next: boolean) => {
     setBusyUid(id);

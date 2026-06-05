@@ -7,7 +7,7 @@ import WKSDK, {
   ChannelTypeGroup,
   ChannelTypePerson,
 } from "wukongimjssdk";
-import { BellOff, BellRing, Eye, FolderInput, Pin, PinOff, Star, Trash2, X } from "lucide-react";
+import { BellOff, BellRing, Eye, MoreHorizontal, Pin, PinOff, Trash2, X } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
@@ -20,21 +20,12 @@ import {
   deleteConversation,
 } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
-import {
-  followDM,
-  moveGroupToCategory,
-  unfollowChannel,
-} from "@/features/base/api/endpoints/follow.api";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
-import {
-  categoriesQueryKey,
-  categoriesQueryOptions,
-} from "@/features/chat/queries/categories.query";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -368,13 +359,19 @@ function sortConversations(list: Conversation[]): Conversation[] {
 /**
  * 会话列表(对应旧 ConversationList,**含 F-7 右键菜单**)。
  *
- * 右键菜单(对齐旧 ConversationList::menus):
- *   - 标为已读(unread > 0 时)
- *   - 置顶 / 取消置顶
- *   - 开启 / 关闭免打扰
- *   - 取消关注(group only,接 /follow/channel/unfollow)
- *   - 清空聊天记录(danger,Confirm)
- *   - 关闭聊天窗口(从列表移除该会话,Confirm)
+ * 右键菜单 1:1 对齐老仓 `ConversationList::menus`(L1055-1218,最近 tab `hideCloseChat=false`):
+ *   1. 标为已读(unread > 0 时)
+ *   2. 关闭聊天窗口(平铺,Confirm)
+ *   3. 置顶 / 取消置顶
+ *   4. 开启 / 关闭免打扰
+ *   5. ── 分隔线 ──
+ *   6a. 子区:清空聊天记录(平铺)
+ *   6b. 群/DM:**更多 →** 子菜单 → 清空聊天记录 / 关闭窗口并清空记录
+ *
+ * **去掉(关注 tab 才有,错放到最近 tab 了)**:
+ *   - 关注此人 / 移动到分组 / 取消关注 — 这些是关注 tab `extraMenus`,见 follow-list
+ *
+ * **展开/收起子区**:老仓 compact 模式才有,新仓子区永远独立行,跳过。
  */
 export function ConversationList({
   selectedChannelId,
@@ -483,45 +480,6 @@ export function ConversationList({
     onError: (err) => toast.error(err instanceof Error ? err.message : "关闭失败"),
   });
 
-  // 取消关注群(对应旧 dmworkbase FollowService.unfollowChannel)
-  const unfollowMu = useMutation({
-    mutationFn: (groupNo: string) => unfollowChannel(groupNo),
-    onSuccess: () => {
-      // categories(关注 tab)和 conversations 都可能变(关注关系移除)— 双 invalidate
-      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
-      void qc.invalidateQueries({ queryKey: ["chat", "conversations", spaceId ?? "_"] });
-      toast.success("已取消关注");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "取消关注失败"),
-  });
-
-  // 关注 DM(对齐旧 FollowService.followDM,把 person 加到关注 tab 默认分组)
-  const followDmMu = useMutation({
-    mutationFn: (peerUid: string) => followDM(peerUid, null),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
-      toast.success("已关注");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "关注失败"),
-  });
-
-  // 移动群到分组(对齐旧 CategoryService.moveGroupToCategory)
-  const moveCatMu = useMutation({
-    mutationFn: (args: { groupNo: string; categoryId: string }) =>
-      moveGroupToCategory(args.groupNo, args.categoryId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
-      toast.success("已移动");
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "移动失败"),
-  });
-
-  // 分组列表(给"移动到分组"子菜单用)— 关注 tab 同款 query
-  const categoriesQ = useQuery({
-    ...categoriesQueryOptions(spaceId),
-    enabled: !!spaceId,
-  });
-
   // ─── Right-click menu ──────────────────────────────────
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
@@ -529,13 +487,14 @@ export function ConversationList({
     setMenu({ open: true, x: e.clientX, y: e.clientY, conv });
   };
 
+  /** 1:1 老仓 ConversationList::menus(最近 tab,`hideCloseChat=false / hidePin=false`)。 */
   const buildMenuItems = (conv: Conversation): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const isMuted = !!conv.channelInfo?.mute;
     const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
-    const isGroup = conv.channel.channelType === ChannelTypeGroup;
-    const isPerson = conv.channel.channelType === ChannelTypePerson;
+    const isThread = conv.channel.channelType === CHANNEL_TYPE_THREAD;
 
+    // 1. 标为已读(有未读)
     if (conv.unread > 0) {
       items.push({
         label: "标为已读",
@@ -543,70 +502,56 @@ export function ConversationList({
         onClick: () => clearUnreadMu.mutate(conv),
       });
     }
-    items.push({
-      label: isTop ? "取消置顶" : "置顶聊天",
-      icon: isTop ? <PinOff size={13} /> : <Pin size={13} />,
-      onClick: () => topMu.mutate({ conv, top: !isTop }),
-    });
-    items.push({
-      label: isMuted ? "关闭免打扰" : "开启免打扰",
-      icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
-      onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
-    });
-
-    if (isPerson) {
-      items.push({ separator: true });
-      items.push({
-        label: "关注此人",
-        icon: <Star size={13} />,
-        onClick: () => followDmMu.mutate(conv.channel.channelID),
-      });
-    }
-
-    if (isGroup) {
-      items.push({ separator: true });
-      // 移动到分组 — 二级子菜单列各 category(对齐旧 ContextMenu.moveToCategory)
-      const cats = categoriesQ.data ?? [];
-      const groupNo = conv.channel.channelID;
-      const moveChildren: ContextMenuItem[] = cats.map((cat) => ({
-        label: cat.name,
-        onClick: () => {
-          if (!cat.category_id) return;
-          moveCatMu.mutate({ groupNo, categoryId: cat.category_id });
-        },
-      }));
-      if (moveChildren.length > 0) {
-        items.push({
-          label: "移动到分组",
-          icon: <FolderInput size={13} />,
-          children: moveChildren,
-        });
-      }
-      items.push({
-        label: "取消关注",
-        icon: <Star size={13} />,
-        onClick: () => unfollowMu.mutate(conv.channel.channelID),
-      });
-    }
-    items.push({ separator: true });
-    items.push({
-      label: "清空聊天记录",
-      icon: <Trash2 size={13} />,
-      danger: true,
-      onClick: () => setConfirmClear(conv),
-    });
+    // 2. 关闭聊天窗口(平铺,对齐老仓 L1083-1098,在前)
     items.push({
       label: "关闭聊天窗口",
       icon: <X size={13} />,
       onClick: () => setConfirmClose(conv),
     });
-    // 关闭+清空二合一(对齐老仓 ConversationList 行 1187-1206)
+    // 3. 置顶 / 取消置顶(老仓:子区不显;新仓子区独立 row 也走置顶不影响)
+    if (!isThread) {
+      items.push({
+        label: isTop ? "取消置顶" : "置顶聊天",
+        icon: isTop ? <PinOff size={13} /> : <Pin size={13} />,
+        onClick: () => topMu.mutate({ conv, top: !isTop }),
+      });
+    }
+    // 4. 开启 / 关闭免打扰
     items.push({
-      label: "关闭窗口并清空记录",
-      icon: <Trash2 size={13} />,
-      danger: true,
-      onClick: () => setConfirmCloseAndClear(conv),
+      label: isMuted ? "关闭免打扰" : "开启免打扰",
+      icon: isMuted ? <BellRing size={13} /> : <BellOff size={13} />,
+      onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
+    // 5. ── 分隔线 ──
+    items.push({ separator: true });
+    // 6. 子区:平铺"清空聊天记录";群/DM:**"更多 →"** 子菜单
+    if (isThread) {
+      items.push({
+        label: "清空聊天记录",
+        icon: <Trash2 size={13} />,
+        danger: true,
+        onClick: () => setConfirmClear(conv),
+      });
+    } else {
+      items.push({
+        label: "更多",
+        icon: <MoreHorizontal size={13} />,
+        children: [
+          {
+            label: "清空聊天记录",
+            icon: <Trash2 size={13} />,
+            danger: true,
+            onClick: () => setConfirmClear(conv),
+          },
+          {
+            label: "关闭窗口并清空记录",
+            icon: <Trash2 size={13} />,
+            danger: true,
+            onClick: () => setConfirmCloseAndClear(conv),
+          },
+        ],
+      });
+    }
     return items;
   };
 

@@ -5,15 +5,19 @@ import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
+  type Conversation,
   type MessageContent,
   type Message,
 } from "wukongimjssdk";
-import { Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
+import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
+import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   MergeforwardContent,
   type MergeforwardUser,
@@ -31,15 +35,12 @@ interface ForwardModalProps {
 }
 
 const CHANNEL_TYPE_THREAD = 5;
+const TOP_BOOST = 1_000_000;
 
 /**
  * 深克隆 MessageContent — 复用 src.content 多次 send 会让 WKSDK 把首次发送的
  * messageID / channel 写回原实例,后续重发被 server 视为重复或目标错乱
  * (实测"成功但接收方看不到"的根因)。
- *
- * **必须用 encode/decode(Uint8Array)而非 encodeJSON/decodeJSON** —
- * SDK MessageContent.encode 在 base class 把 mention/reply 元字段也拼进 wire
- * JSON,encodeJSON 只输出子类 content 字段,会让 @mention / 引用消息字段丢失。
  */
 function cloneContent(src: MessageContent): MessageContent {
   const cloned = WKSDK.shared().getMessageContent(src.contentType);
@@ -70,7 +71,6 @@ function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
   return c;
 }
 
-/** modal 关闭时重置内部 form state。 */
 function useResetOnClose(open: boolean, reset: () => void): void {
   const resetRef = useRef(reset);
   resetRef.current = reset;
@@ -79,7 +79,6 @@ function useResetOnClose(open: boolean, reset: () => void): void {
   }, [open]);
 }
 
-/** 关键词 debounce 300ms(对齐老仓 useForwardModal.setInputValue)。 */
 function useDebouncedKeyword(input: string, setKeyword: (k: string) => void) {
   useEffect(() => {
     const t = setTimeout(() => setKeyword(input), 300);
@@ -95,12 +94,11 @@ interface ForwardCandidate {
   isAI: boolean;
   isExternal: boolean;
   isThread: boolean;
+  /** 子区父群 ID:有值时列表项缩进 36px(对齐老仓 wk-fm-item--child) */
+  parentChannelID?: string;
 }
 
-function conversationToCandidate(c: {
-  channel: Channel;
-  channelInfo?: { title?: string; orgData?: unknown };
-}): ForwardCandidate {
+function conversationToCandidate(c: Conversation, parentChannelID?: string): ForwardCandidate {
   const info = c.channelInfo;
   const org = info?.orgData as
     | { displayName?: string; is_external_group?: number; robot?: number }
@@ -114,30 +112,101 @@ function conversationToCandidate(c: {
     isAI: org?.robot === 1,
     isExternal: c.channel.channelType === ChannelTypeGroup && org?.is_external_group === 1,
     isThread: c.channel.channelType === CHANNEL_TYPE_THREAD,
+    parentChannelID,
   };
 }
 
 /**
- * 转发弹窗(1:1 对齐老仓 dmworkbase Components/ForwardModal):
+ * 按 timestamp + top boost 排序(对齐老仓 useForwardModal sortConversations:
+ * 置顶 +1_000_000,然后 desc by timestamp)。
+ */
+function sortByTimestampTopBoost(list: Conversation[]): Conversation[] {
+  return [...list].sort((a, b) => {
+    let aScore = a.timestamp ?? 0;
+    let bScore = b.timestamp ?? 0;
+    if (a.channelInfo?.top) aScore += TOP_BOOST;
+    if (b.channelInfo?.top) bScore += TOP_BOOST;
+    return bScore - aScore;
+  });
+}
+
+/**
+ * 重排:按 timestamp 排序后,把子区 (THREAD) 挂在父群下一行,孤儿子区追加末尾
+ * (对齐老仓 useForwardModal rebuildConvItems L150-176)。
+ */
+function orderConversationsWithThreads(conversations: Conversation[]): ForwardCandidate[] {
+  const visible = conversations.filter(
+    (c) =>
+      c.channel.channelType === ChannelTypeGroup ||
+      c.channel.channelType === ChannelTypePerson ||
+      c.channel.channelType === CHANNEL_TYPE_THREAD,
+  );
+  const sorted = sortByTimestampTopBoost(visible);
+
+  const groupAndDm: Conversation[] = [];
+  const threads: Conversation[] = [];
+  for (const c of sorted) {
+    if (c.channel.channelType === CHANNEL_TYPE_THREAD) threads.push(c);
+    else groupAndDm.push(c);
+  }
+
+  // 按 parentGroupNo 分桶(优先 orgData.parentGroupNo,fallback parseThreadChannelId)
+  const threadsByParent = new Map<string, Conversation[]>();
+  const orphanThreads: Conversation[] = [];
+  for (const tw of threads) {
+    const orgParent = (tw.channelInfo?.orgData as { parentGroupNo?: string } | undefined)
+      ?.parentGroupNo;
+    const parent =
+      (orgParent != null ? String(orgParent) : undefined) ??
+      parseThreadChannelId(tw.channel.channelID)?.groupNo;
+    if (parent) {
+      const arr = threadsByParent.get(parent) ?? [];
+      arr.push(tw);
+      threadsByParent.set(parent, arr);
+    } else {
+      orphanThreads.push(tw);
+    }
+  }
+
+  // 输出顺序:父群 → 其子区(紧跟) → 下一父群 → 孤儿子区尾
+  const out: ForwardCandidate[] = [];
+  for (const gw of groupAndDm) {
+    out.push(conversationToCandidate(gw));
+    if (gw.channel.channelType === ChannelTypeGroup) {
+      const children = threadsByParent.get(gw.channel.channelID) ?? [];
+      for (const tw of children) {
+        out.push(conversationToCandidate(tw, gw.channel.channelID));
+      }
+    }
+  }
+  for (const ow of orphanThreads) {
+    out.push(conversationToCandidate(ow));
+  }
+  return out;
+}
+
+/**
+ * 转发弹窗(1:1 对齐老仓 dmworkbase Components/ForwardModal + useForwardModal):
  *
- * **UI**:固定 625×560 / header 居中标题 / 左右双列布局
- *   - 左 296px:搜索框(灰底胶囊,rounded-full 32h)+ 候选列表(checkbox + 28 头像 + 名字 + 外部 tag + AI)
+ * **UI**(老仓 Figma 461:9093):625×560 / header 居中 17px 600w 无 X / 左右双列
+ *   - 左 296px:搜索框(灰胶囊 32h)+ 候选(方形 checkbox + 28 头像 + 名字 + 外部 + AI)
  *   - 1px 分割线
- *   - 右 flex:"已选 N 人" + 已选列表(头像 + 名字 + X 移除按钮)
- *   - footer 右下:取消(白底)+ 确认(N)(黑底圆角)
+ *   - 右 flex:已选预览 + X 移除
+ *   - footer 右下:取消(白圆角)+ 确认(N)(黑圆角)
  *
- * **行为**:
- *   - 关键词 debounce 300ms 过滤 displayName / channelID
- *   - 列表项点击 = 切换选中(同 checkbox)
- *   - 右栏 X = 移除该项
- *   - 确认 = 按 defaultMode 走 mergeforward 或 cloneContent(messages.length===1 强制 per)
+ * **数据源**:conversations(按 timestamp + top boost 排,父群下嵌套子区缩进 36px)
+ *   + spaceMembers(全员,过滤自己 / robot / 已在 conversations 的 uid)— 对齐老仓
+ *   "最近会话 + 全部加入群 + 好友"三源合并(本期 spaceMembers 替代后两源)
  *
- * **跟老仓差异**(简化点):
- *   - 数据源只取 conversations(老仓还合并 friends + 搜索群组,后续 wave 再补)
- *   - 不显示 hasThreads/parentChannelID 嵌套(候选列表纯平铺)
- *   - 模式 toggle(per/merge)由 selection-toolbar 入口决定,modal 内不显
+ * **过滤**(命中子区带出父群,对齐老仓 useForwardModal filtered 计算):
+ *   - 命中项进 includeIDs
+ *   - 命中子区且其 parentChannelID 未被命中 → 父群一起带出
+ *   - 保持树形顺序(遍历 allCandidates 按 order 过滤)
+ *
+ * **模式**:defaultMode 由 selection-toolbar 入口传(per/merge),modal 内不显 toggle。
  */
 export function ForwardModal({ open, messages, defaultMode = "per", onClose }: ForwardModalProps) {
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -158,26 +227,57 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
     enabled: open,
   });
 
-  const allCandidates = useMemo<ForwardCandidate[]>(() => {
-    return (conversations ?? [])
-      .filter(
-        (c) =>
-          c.channel.channelType === ChannelTypeGroup ||
-          c.channel.channelType === ChannelTypePerson ||
-          c.channel.channelType === CHANNEL_TYPE_THREAD,
-      )
-      .map(conversationToCandidate);
-  }, [conversations]);
+  const { data: members } = useQuery({
+    ...spaceMembersQueryOptions(spaceId),
+    enabled: open && !!spaceId,
+  });
 
+  /**
+   * 全量候选 = 会话(已 timestamp+top 排序 + 父群下嵌套子区) + spaceMembers(去自己/robot/
+   * 已在会话的 uid),保留出现顺序(会话在前,好友在后)。
+   */
+  const allCandidates = useMemo<ForwardCandidate[]>(() => {
+    const fromConvs = orderConversationsWithThreads(conversations ?? []);
+    const convDmIds = new Set(
+      fromConvs.filter((c) => c.channelType === ChannelTypePerson).map((c) => c.channelID),
+    );
+    const fromMembers: ForwardCandidate[] = (members ?? [])
+      .filter((m) => m.uid !== myUid && m.robot !== 1 && !convDmIds.has(m.uid))
+      .map((m) => {
+        const channel = new Channel(m.uid, ChannelTypePerson);
+        return {
+          channelID: m.uid,
+          channelType: ChannelTypePerson,
+          channel,
+          displayName: m.name || m.uid,
+          isAI: false,
+          isExternal: false,
+          isThread: false,
+        };
+      });
+    return [...fromConvs, ...fromMembers];
+  }, [conversations, members, myUid]);
+
+  /**
+   * 过滤命中 + 命中子区带出父群,保持树形顺序(对齐老仓 useForwardModal L298-318)。
+   */
   const filtered = useMemo<ForwardCandidate[]>(() => {
     const kw = keyword.trim().toLowerCase();
     if (!kw) return allCandidates;
-    return allCandidates.filter(
+    const matched = allCandidates.filter(
       (c) => c.displayName.toLowerCase().includes(kw) || c.channelID.toLowerCase().includes(kw),
     );
+    const parentIDsToInclude = new Set<string>();
+    for (const c of matched) {
+      if (c.parentChannelID) parentIDsToInclude.add(c.parentChannelID);
+    }
+    const matchedIDs = new Set(matched.map((c) => c.channelID));
+    const includeIDs = new Set([...matchedIDs, ...parentIDsToInclude]);
+    // 保持原顺序(allCandidates 已按 父群→子区 排好)
+    return allCandidates.filter((c) => includeIDs.has(c.channelID));
   }, [allCandidates, keyword]);
 
-  // 已选项 — 用 allCandidates 反查(保证已选项即使被搜索过滤也仍显示在右栏)
+  // 已选用 allCandidates 反查(搜索过滤不影响右栏)
   const selectedCandidates = useMemo<ForwardCandidate[]>(() => {
     return allCandidates.filter((c) => selectedIds.has(c.channelID));
   }, [allCandidates, selectedIds]);
@@ -227,8 +327,6 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      // header 居中标题对齐老仓,无 X(close 通过 mask/取消按钮);
-      // size=fit + className 固定 625×560(老仓 Figma 461:9093)
       size="fit"
       title={<span className="text-center text-[17px] font-semibold">{headerTitle}</span>}
       showCloseButton={false}
@@ -254,11 +352,9 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
         </div>
       }
     >
-      {/* 左右两列(对齐老仓 .wk-fm-content) */}
       <div className="flex flex-1 overflow-hidden">
-        {/* 左列:搜索 + 候选列表(296px,对齐老仓 .wk-fm-left) */}
+        {/* 左列:搜索 + 候选(296px) */}
         <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
-          {/* 灰底胶囊搜索框(对齐老仓 .wk-fm-search 32h F2F3F4 rounded-full) */}
           <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
             <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
             <input
@@ -270,7 +366,6 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
             />
           </div>
 
-          {/* 候选列表 */}
           <div className="flex-1 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <div className="flex h-20 items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
@@ -279,23 +374,26 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
             ) : (
               filtered.map((c) => {
                 const checked = selectedIds.has(c.channelID);
+                const isChild = !!c.parentChannelID;
                 return (
                   <div
                     key={`${c.channelType}-${c.channelID}`}
                     onClick={() => toggle(c.channelID)}
-                    className="flex h-9 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]"
+                    className={`flex h-9 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)] ${
+                      isChild ? "pl-9" : ""
+                    }`}
                   >
-                    {/* checkbox(自定义,对齐老仓 <Checkbox>) */}
+                    {/* 方形 checkbox(对齐老仓 .wk-checkbox__box 18x18 rounded-xs ✓ stroke) */}
                     <span
                       role="checkbox"
                       aria-checked={checked}
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                      className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[3px] border-[1.5px] transition-colors ${
                         checked
-                          ? "border-brand bg-brand text-white"
-                          : "border-border-default bg-bg-surface"
+                          ? "border-brand bg-brand text-text-inverse"
+                          : "border-border-strong bg-bg-surface"
                       }`}
                     >
-                      {checked ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                      {checked ? <Check size={12} strokeWidth={2.5} /> : null}
                     </span>
                     <div className="relative h-7 w-7 shrink-0">
                       <ChannelAvatar channel={c.channel} size={28} title={c.displayName} />
@@ -316,10 +414,9 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
           </div>
         </div>
 
-        {/* 1px 垂直分割线 */}
         <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
 
-        {/* 右列:已选预览(对齐老仓 .wk-fm-right) */}
+        {/* 右列:已选预览 */}
         <div className="flex flex-1 flex-col overflow-hidden py-2">
           {selectedCandidates.length === 0 ? (
             <div className="flex h-full items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">

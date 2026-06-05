@@ -43,7 +43,9 @@ variables:
   before_script:
     - pnpm config set store-dir .pnpm-store
   script:
-    - pnpm install --frozen-lockfile
+    # vite-plus ships native optionalDependencies. The GitLab runner is linux x64 musl,
+    # so force pnpm to recreate node_modules and install optional native bindings.
+    - pnpm install --frozen-lockfile --force
     - pnpm build
 
 .package: &package

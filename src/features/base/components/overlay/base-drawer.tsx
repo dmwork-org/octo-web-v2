@@ -150,7 +150,7 @@ export function BaseDrawer({
     <DrawerNestingContext.Provider value={depth + 1}>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogPortal>
-          <DialogOverlay className={zClass} />
+          <DialogOverlay className={cn(zClass, "duration-300")} />
           <DialogContent
             // 覆盖 dialog.tsx 默认中央定位 → 边缘对齐 + 全方向 slide
             className={cn(
@@ -161,6 +161,8 @@ export function BaseDrawer({
               "rounded-none border-border-default bg-bg-surface shadow-xl",
               // 覆盖 dialog.tsx 的 zoom-in/out(抽屉只走 slide)
               "data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100",
+              // 抽屉滑入 300ms 才能看清(tw-animate-css 默认 150ms 太快)
+              "duration-300 ease-out",
               SIDE_ANIMATION[side],
               className,
             )}

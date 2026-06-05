@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { AlertCircle, MessageCircle, X } from "lucide-react";
+import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -15,9 +15,10 @@ import { RealnameVerifiedBadge } from "@/features/base/components/badges/realnam
 import { displayName, isRealnameVerified } from "@/features/base/lib/display-name";
 import { FriendApplyModal } from "@/features/base/components/modals/friend-apply-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { deleteFriend, setUserRemark } from "@/features/contacts/api/friends.api";
 import { blacklistAdd, blacklistRemove } from "@/features/base/api/endpoints/blacklist.api";
-// section-form 共享原语(Phase B 抽出)
+// section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
@@ -30,22 +31,15 @@ interface UserInfoModalProps {
 }
 
 const APP_NAME = "Octo";
-// UserRelation(对应旧 Service/Const)
 const REL_FRIEND = 1;
 const REL_BLACKLIST = 2;
 
 /**
  * 用户名片弹窗(对应旧 dmworkbase Components/UserInfo)。
  *
- * 头部:头像 + (displayName + AiBadge + RealnameVerifiedBadge) + ul(昵称 / Octo 号)
+ * 浮动元素壳层统一规范 Phase C — 走 BaseDialog,内嵌 FriendApply / Confirm 自动嵌套 z-index。
  *
- * **Sections 4 段**(对齐旧 module.tsx::registerUserInfo):
- *   1) userinfo.remark    设置备注(InlineEditRow 行内展开 input)+ 进群方式(P3 待接 subscriber)
- *   2) userinfo.others    解除好友 + 加/出黑名单(均 ConfirmModal,**仅外部成员**)
- *   3) userinfo.source    来源 — 外部成员显示 home_space_name,1v1 好友显示 source_desc
- *   4) userinfo.blacklist.tip  黑名单提示条
- *
- * 底部按钮 5 分支(F-1a 已对齐 UserInfo.getBottomPanel)。
+ * Sections 4 段 + 底部按钮 5 分支(F-1a 已对齐 UserInfo.getBottomPanel)。
  */
 export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
   const qc = useQueryClient();
@@ -107,22 +101,21 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     onError: (err) => toast.error(err instanceof Error ? err.message : "移出黑名单失败"),
   });
 
-  if (!uid) return null;
-
-  const channel = new Channel(uid, ChannelTypePerson);
+  const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
   const display =
     displayName({
       name: data?.name,
       remark: data?.remark,
       real_name: data?.real_name,
       realname_verified: data?.realname_verified,
-    }) || uid;
+    }) ||
+    uid ||
+    "";
 
   const isSelf = uid === myUid;
   const isBot = data?.robot === 1;
   const isFriend = data?.follow === REL_FRIEND;
   const isBlacklisted = data?.status === REL_BLACKLIST;
-  // 外部成员:home_space_id 与当前 Space 不一致(同 Space 时 home_space_id===currentSpaceId 或缺失)
   const isExternal =
     !!data?.home_space_id && !!currentSpaceId && data.home_space_id !== currentSpaceId;
   const hasVercode = !!(vercode || data?.vercode);
@@ -133,6 +126,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
   const hasRemark = !!(data?.remark && data.remark !== "");
 
   const handleMessage = () => {
+    if (!channel) return;
     chatSelectedActions.select(channel);
     onClose();
   };
@@ -180,13 +174,10 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
 
   const applyDefaultMessage = isBot ? `我想使用${display}` : `我是${myName}`;
 
-  // ─── Sections ────────────────────────────────────────────
-
   const renderSections = () => {
     if (isSelf) return null;
     const sections: React.ReactNode[] = [];
 
-    // Section 1 — userinfo.remark(非本人均显示);改 InlineEditRow 行内展开 input(替代旧 InputModal)
     sections.push(
       <SectionGroup key="remark">
         <InlineEditRow
@@ -201,11 +192,9 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
           onCancel={() => setRemarkEditing(false)}
           onSave={(v) => remarkMu.mutate(v)}
         />
-        {/* 进群方式:旧 fromSubscriberOfUser.orgData.created_at — P3 后续 wave 接群成员上下文 */}
       </SectionGroup>,
     );
 
-    // Section 2 — userinfo.others(仅外部成员显示,避免误删同 Space 成员)
     if (isExternal) {
       sections.push(
         <SectionGroup key="others">
@@ -247,7 +236,6 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       );
     }
 
-    // Section 3 — userinfo.source
     if (isExternal && data?.source_space_name) {
       sections.push(
         <SectionGroup key="source">
@@ -262,7 +250,6 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       );
     }
 
-    // Section 4 — userinfo.blacklist.tip
     if (isBlacklisted) {
       sections.push(
         <div
@@ -289,20 +276,16 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     deleteFriendMu.isPending || blacklistAddMu.isPending || blacklistRemoveMu.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-sm flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-end border-b border-border-subtle px-3 py-2">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          >
-            <X size={16} />
-          </button>
-        </header>
-
-        {isLoading ? (
+    <>
+      <BaseDialog
+        open={!!uid}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        size="sm"
+        description={display ? `${display} 的名片` : "用户名片"}
+      >
+        {isLoading || !channel ? (
           <div className="flex h-64 items-center justify-center text-sm text-text-tertiary">
             加载中…
           </div>
@@ -338,20 +321,22 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
             </div>
           </>
         )}
-      </div>
+      </BaseDialog>
 
-      <FriendApplyModal
-        open={friendApplyOpen}
-        toUid={uid}
-        vercode={vercode || data?.vercode}
-        defaultMessage={applyDefaultMessage}
-        title={isBot ? "申请添加好友" : "申请添加朋友"}
-        onClose={() => setFriendApplyOpen(false)}
-        onSuccess={() => {
-          setFriendApplyOpen(false);
-          onClose();
-        }}
-      />
+      {uid ? (
+        <FriendApplyModal
+          open={friendApplyOpen}
+          toUid={uid}
+          vercode={vercode || data?.vercode}
+          defaultMessage={applyDefaultMessage}
+          title={isBot ? "申请添加好友" : "申请添加朋友"}
+          onClose={() => setFriendApplyOpen(false)}
+          onSuccess={() => {
+            setFriendApplyOpen(false);
+            onClose();
+          }}
+        />
+      ) : null}
 
       <ConfirmModal
         open={!!confirm}
@@ -362,6 +347,6 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
         onOk={onConfirmOk}
         onCancel={() => setConfirm(null)}
       />
-    </div>
+    </>
   );
 }

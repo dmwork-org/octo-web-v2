@@ -65,6 +65,48 @@
   --spacing-nav: 56px; /* NavRail 宽 (旧 --wk-nav-w) */
   --spacing-sidebar: 240px; /* 二级 sidebar 默认宽 */
   --spacing-task-rail: 320px;
+
+  /*
+   * ── Z-Index Tokens(浮动元素壳层统一规范 Phase B) ──
+   * 7 层语义化 z-index,覆盖全部浮动元素(Modal / Drawer / Popover / Tooltip / FloatingButton / System Overlay)。
+   * 用法:className="z-dialog" / "z-popover" / "z-floating" 等;**禁止** 用 z-[xxx] 任意值。
+   *
+   * 设计原则:层与层之间留 100 数值间隔,组件内部需细分(如 ContextMenu 的 mask/menu/submenu)
+   * 用 `var(--z-popover)` 上下偏移 ±1 表达。
+   */
+  --z-floating: 100; /* scroll-to-bottom / voice-indicator / panel-splitter hover */
+  --z-popover: 200; /* popover / tooltip / context-menu(menu 层) */
+  --z-dialog: 300; /* 主 dialog + 其 mask */
+  --z-dialog-secondary: 400; /* 二级 dialog(主 dialog 上又开 confirm) */
+  --z-dialog-tertiary: 500; /* 三级 dialog(罕见) */
+  --z-system-overlay: 600; /* 全局通知 / changelog / settings-flyout */
+  --z-debug: 9999; /* dev 工具(panel-splitter resize cursor) */
+}
+
+/*
+ * Z-Index utility class(显式定义,不依赖 Tailwind namespace 自动生成,保证可用)。
+ * 对应上方 @theme 里的 --z-* 变量。
+ */
+@utility z-floating {
+  z-index: var(--z-floating);
+}
+@utility z-popover {
+  z-index: var(--z-popover);
+}
+@utility z-dialog {
+  z-index: var(--z-dialog);
+}
+@utility z-dialog-secondary {
+  z-index: var(--z-dialog-secondary);
+}
+@utility z-dialog-tertiary {
+  z-index: var(--z-dialog-tertiary);
+}
+@utility z-system-overlay {
+  z-index: var(--z-system-overlay);
+}
+@utility z-debug {
+  z-index: var(--z-debug);
 }
 
 /* Body default — apply font / bg / text */

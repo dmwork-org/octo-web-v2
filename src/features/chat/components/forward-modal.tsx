@@ -10,7 +10,6 @@ import WKSDK, {
   type Conversation,
   type Message,
 } from "wukongimjssdk";
-import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
@@ -20,6 +19,7 @@ import {
   MergeforwardContent,
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 type ForwardMode = "per" | "merge";
 
@@ -74,15 +74,11 @@ function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
     users.push({ uid: m.fromUID, name: info?.title || m.fromUID });
   }
   c.users = users;
-  // 直接喂 SDK Message[](mergeforward-content.msgs 已是 Message[] 类型);
-  // encodeJSON 时由 messageToMap 转回 raw `{message_id, from_uid, timestamp, payload}`,
-  // payload 优先用 m.content.contentObj fallback 到 encodeJSON(跟之前 inline 构造等价)。
   c.msgs = sourceMessages;
   return c;
 }
 
-/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。
- *  reset 回调用 ref 持有,避免调用方传匿名箭头函数导致 effect deps 不稳引发循环。 */
+/** modal 关闭时重置内部 form state — 命名 hook 满足 no-useeffect-in-component。 */
 function useResetOnClose(open: boolean, reset: () => void): void {
   const resetRef = useRef(reset);
   resetRef.current = reset;
@@ -92,11 +88,9 @@ function useResetOnClose(open: boolean, reset: () => void): void {
 }
 
 /**
- * 转发弹窗:选择目标会话 + 留言。模式由 defaultMode prop 决定(selection-toolbar
- * 两按钮各自传入),modal 内不显 toggle。
+ * 转发弹窗:选择目标会话 + 留言。
  *
- * 逐条:对每个 target,逐条 send cloneContent(m.content)
- * 合并:对每个 target send 1 条 new MergeforwardContent
+ * 浮动元素壳层统一规范 Phase C — 走 BaseDialog。
  */
 export function ForwardModal({ open, messages, defaultMode = "per", onClose }: ForwardModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -157,8 +151,6 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
     onError: (err) => toast.error(err instanceof Error ? err.message : "转发失败"),
   });
 
-  if (!open) return null;
-
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -179,87 +171,85 @@ export function ForwardModal({ open, messages, defaultMode = "per", onClose }: F
     : "分享给朋友";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">{headerTitle}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+    <BaseDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      size="md"
+      title={headerTitle}
+      contentClassName="overflow-hidden"
+      footer={
+        <>
+          <Button type="tertiary" theme="borderless" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            htmlType="submit"
+            form="forward-modal-form"
+            type="primary"
+            theme="solid"
+            loading={mu.isPending}
+            disabled={selectedIds.size === 0}
           >
-            <X size={16} />
-          </button>
-        </header>
-
-        <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
-            已选 {selectedIds.size} 个
-          </div>
-          <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
-            {candidates.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-text-tertiary">没有可选会话</div>
-            ) : (
-              candidates.map((c: Conversation) => {
-                const id = c.channel.channelID;
-                const checked = selectedIds.has(id);
-                const name = c.channelInfo?.title ?? id;
-                const typeLabel = TYPE_LABEL[c.channel.channelType] ?? "";
-                return (
-                  <label
-                    key={`${c.channel.channelType}-${id}`}
-                    className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                      checked ? "bg-brand-tint" : ""
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(id)}
-                      className="shrink-0"
-                    />
-                    <ChannelAvatar channel={c.channel} size={32} title={name} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                      {name}
+            发送
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="forward-modal-form"
+        onSubmit={onSubmit}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
+          已选 {selectedIds.size} 个
+        </div>
+        <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
+          {candidates.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-text-tertiary">没有可选会话</div>
+          ) : (
+            candidates.map((c: Conversation) => {
+              const id = c.channel.channelID;
+              const checked = selectedIds.has(id);
+              const name = c.channelInfo?.title ?? id;
+              const typeLabel = TYPE_LABEL[c.channel.channelType] ?? "";
+              return (
+                <label
+                  key={`${c.channel.channelType}-${id}`}
+                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
+                    checked ? "bg-brand-tint" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(id)}
+                    className="shrink-0"
+                  />
+                  <ChannelAvatar channel={c.channel} size={32} title={name} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{name}</span>
+                  {typeLabel ? (
+                    <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+                      {typeLabel}
                     </span>
-                    {typeLabel ? (
-                      <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                        {typeLabel}
-                      </span>
-                    ) : null}
-                  </label>
-                );
-              })
-            )}
-          </div>
+                  ) : null}
+                </label>
+              );
+            })
+          )}
+        </div>
 
-          <div className="shrink-0 border-t border-border-subtle px-5 py-3">
-            <textarea
-              value={leaveMessage}
-              onChange={(e) => setLeaveMessage(e.target.value.slice(0, 500))}
-              rows={2}
-              placeholder="留言(可选,会作为一条独立消息发送)"
-              className="w-full resize-none rounded-md border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-            />
-          </div>
-
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-            <Button type="tertiary" theme="borderless" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              htmlType="submit"
-              type="primary"
-              theme="solid"
-              loading={mu.isPending}
-              disabled={selectedIds.size === 0}
-            >
-              发送
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="shrink-0 border-t border-border-subtle px-5 py-3">
+          <textarea
+            value={leaveMessage}
+            onChange={(e) => setLeaveMessage(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder="留言(可选,会作为一条独立消息发送)"
+            className="w-full resize-none rounded-md border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+          />
+        </div>
+      </form>
+    </BaseDialog>
   );
 }

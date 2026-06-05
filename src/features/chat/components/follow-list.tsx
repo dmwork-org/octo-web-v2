@@ -1282,6 +1282,21 @@ export function FollowList({
       onClick: () => muteMu.mutate({ conv, mute: !isMuted }),
     });
 
+    // 4.5. 展开/收起子区(对齐老仓 ConversationList::menus L1144-1159:compact + group +
+    //       threadsByParent.has 时显)— 父群有已关注子区才出
+    if (isGroup) {
+      const groupNo = conv.channel.channelID;
+      const hasThreads = (followedThreadsByParent.get(groupNo) ?? []).length > 0;
+      if (hasThreads) {
+        const expanded = isExpanded(groupNo);
+        items.push({
+          label: expanded ? "收起子区" : "展开子区",
+          icon: <ThreadIcon size={13} />,
+          onClick: () => toggleExpand(groupNo),
+        });
+      }
+    }
+
     // 5. 分隔
     items.push({ separator: true });
 

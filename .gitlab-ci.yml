@@ -1,8 +1,7 @@
 # octo-web · GitLab CI
 #
-# 对齐 design-atoms 的简单发布模型:
-#   install&build (pnpm build -> dist/) -> package (docker build + push) -> deploy (k apply + set image)
-#   纯静态 nginx 镜像,没有 PVC / MR 预览子目录。
+# install&build (pnpm build -> dist/) -> package (docker build + push) -> deploy (k apply + set image)
+# 纯静态 nginx 镜像,没有 PVC / MR 预览子目录。
 #
 # 复用 miaozhen-frontend 现成的 CI 变量:
 #   HARBOR_PWD               Harbor 推送密码
@@ -29,38 +28,30 @@ variables:
   VITE_API_URL: https://im.deepminer.com.cn
   VITE_API_BASE_URL: /api
 
-.test_build_rules: &test_build_rules
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "test"'
-    - when: never
-
-.test_deploy_rules: &test_deploy_rules
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "test"'
-    - when: never
-
 .install_packages: &install_packages
   stage: install&build
   image: hub.intra.mlamp.cn/miaozhen-frontend/node:22.16.0-pnpm10.12.1
-  cache: {}
   tags:
     - nb
+  cache:
+    - key:
+        files:
+          - pnpm-lock.yaml
+      paths:
+        - $CI_PROJECT_DIR/.pnpm-store
   artifacts:
     name: "build_${ENV}_dist"
     expire_in: 30 mins
     paths:
       - $CI_PROJECT_DIR/dist
   before_script:
+    # image 自带 pnpm 10.12.1,但 packageManager 锁定 11.2.2,全局装一份匹配
     - npm config set prefix "$CI_PROJECT_DIR/.npm-global"
-    - npm install -g pnpm@11.2.2
+    - npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
     - export PATH="$CI_PROJECT_DIR/.npm-global/bin:$PATH"
-    - pnpm --version
-    - pnpm config set optional true
+    - pnpm config set store-dir .pnpm-store
   script:
-    - rm -rf node_modules
-    - pnpm install --frozen-lockfile --force --config.optional=true
-    - node -e "const h=process.report.getReport().header; const libc=h.glibcVersionRuntime?'gnu':'musl'; console.log('node platform', process.version, process.platform, process.arch, libc)"
-    - find node_modules/.pnpm -maxdepth 1 -name '@voidzero-dev+vite-plus-linux-x64-*' -print
+    - pnpm install --frozen-lockfile --prefer-offline
     - pnpm build
 
 .package: &package
@@ -98,12 +89,12 @@ variables:
     - echo "$SERVICE" | k apply -f -
 
 install_packages_test:
-  <<: [*install_packages, *test_build_rules]
+  <<: *install_packages
   variables:
     ENV: $TEST_ENV
 
 package_test:
-  <<: [*package, *test_deploy_rules]
+  <<: *package
   dependencies:
     - install_packages_test
   variables:
@@ -111,7 +102,7 @@ package_test:
     DEPLOY_ENV: "$TEST_ENV"
 
 deploy_test:
-  <<: [*deploy, *test_deploy_rules]
+  <<: *deploy
   variables:
     TAG: $TEST_ENV
     K8S_SPACE_NAME: mz-frontend

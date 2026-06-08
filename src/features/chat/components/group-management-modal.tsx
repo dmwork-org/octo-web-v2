@@ -16,6 +16,8 @@ import {
   removeGroupManagers,
   setGroupBotAdmin,
 } from "@/features/base/api/endpoints/group.api";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface GroupManagementModalProps {
   open: boolean;
@@ -32,10 +34,6 @@ type Mode = "view" | "addManager" | "addBotAdmin";
 
 /**
  * 群管理二级抽屉(对应旧 dmworkbase GroupManagement)。
- *
- * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right。
- * view 模式 header 用 X(关闭);addMode 切换内容时 header 自定义 back + 完成按钮。
- * 内嵌 ConfirmModal 自动 z-dialog-secondary。
  */
 export function GroupManagementModal({
   open,
@@ -43,6 +41,7 @@ export function GroupManagementModal({
   isOwner,
   onClose,
 }: GroupManagementModalProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [mode, setMode] = useState<Mode>("view");
@@ -110,40 +109,44 @@ export function GroupManagementModal({
     mutationFn: (uids: string[]) => addGroupManagers(channel.channelID, uids),
     onSuccess: () => {
       refreshSubs();
-      toast.success("已添加管理员");
+      toast.success(t("groupMgmt.toast.managerAdded"));
       exitAddMode();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "添加失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
   });
 
   const demoteMu = useMutation({
     mutationFn: (uid: string) => removeGroupManagers(channel.channelID, [uid]),
     onSuccess: () => {
       refreshSubs();
-      toast.success("已移除管理员");
+      toast.success(t("groupMgmt.toast.managerRemoved"));
       setConfirmRemove(null);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "移除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
   });
 
   const setBotAdminMu = useMutation({
     mutationFn: (uid: string) => setGroupBotAdmin(channel.channelID, uid),
     onSuccess: () => {
       refreshSubs();
-      toast.success("已添加 Bot 管理员");
+      toast.success(t("groupMgmt.toast.botAdminAdded"));
       exitAddMode();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "添加失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
   });
 
   const removeBotAdminMu = useMutation({
     mutationFn: (uid: string) => removeGroupBotAdmin(channel.channelID, uid),
     onSuccess: () => {
       refreshSubs();
-      toast.success("已移除 Bot 管理员");
+      toast.success(t("groupMgmt.toast.botAdminRemoved"));
       setConfirmRemove(null);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "移除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
   });
 
   const togglePick = (uid: string) => {
@@ -156,7 +159,7 @@ export function GroupManagementModal({
 
   const onFinishPick = () => {
     if (pickedUids.length === 0) {
-      toast.warning("请选择成员");
+      toast.warning(t("groupMgmt.toast.selectMember"));
       return;
     }
     if (mode === "addManager") {
@@ -167,8 +170,9 @@ export function GroupManagementModal({
   };
 
   const inAddMode = mode !== "view";
-  const addModeTitle = mode === "addManager" ? "添加管理员" : "添加 Bot 管理员";
-  const headerTitle = inAddMode ? addModeTitle : "群管理";
+  const addModeTitle =
+    mode === "addManager" ? tt("groupMgmt.addManagerTitle") : tt("groupMgmt.addBotAdminTitle");
+  const headerTitle = inAddMode ? addModeTitle : tt("groupMgmt.title");
 
   return (
     <>
@@ -179,7 +183,6 @@ export function GroupManagementModal({
         }}
         side="right"
         size="md"
-        // 在 addMode 时:不显默认 X,改显左侧 back 返回 view;并附"完成"按钮到 title 区
         showCloseButton={!inAddMode}
         showBackButton={inAddMode}
         onBack={inAddMode ? exitAddMode : undefined}
@@ -195,7 +198,9 @@ export function GroupManagementModal({
                 disabled={pickedUids.length === 0}
                 onClick={onFinishPick}
               >
-                完成{pickedUids.length > 0 ? `(${pickedUids.length})` : ""}
+                {pickedUids.length > 0
+                  ? tt("groupMgmt.doneWithCount", { values: { count: pickedUids.length } })
+                  : tt("groupMgmt.done")}
               </Button>
             </div>
           ) : (
@@ -211,7 +216,7 @@ export function GroupManagementModal({
                 <input
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="搜索成员"
+                  placeholder={tt("groupMgmt.searchPlaceholder")}
                   className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
                 />
               </div>
@@ -219,7 +224,7 @@ export function GroupManagementModal({
             <ul className="flex flex-1 flex-col overflow-y-auto py-1">
               {filteredPool.length === 0 ? (
                 <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                  {keyword ? "没有匹配的成员" : "暂无可选成员"}
+                  {keyword ? tt("groupMgmt.noMatches") : tt("groupMgmt.noCandidates")}
                 </li>
               ) : (
                 filteredPool.map((m) => {
@@ -259,7 +264,7 @@ export function GroupManagementModal({
         ) : (
           <div className="flex flex-1 flex-col overflow-y-auto py-2">
             <ManagerSection
-              title="群主、管理员"
+              title={tt("groupMgmt.ownerManagers")}
               members={managers}
               isOwner={isOwner}
               onAdd={() => setMode("addManager")}
@@ -270,11 +275,11 @@ export function GroupManagementModal({
                   name: s.remark || s.name || s.uid,
                 })
               }
-              addLabel="添加管理员"
+              addLabel={tt("groupMgmt.addManager")}
               showRoleBadge
             />
             <ManagerSection
-              title="Bot 管理员"
+              title={tt("groupMgmt.botAdmins")}
               members={botAdmins}
               isOwner={isOwner}
               onAdd={() => setMode("addBotAdmin")}
@@ -285,8 +290,8 @@ export function GroupManagementModal({
                   name: s.remark || s.name || s.uid,
                 })
               }
-              addLabel="添加 Bot 管理员"
-              emptyText="暂无 Bot 管理员"
+              addLabel={tt("groupMgmt.addBotAdmin")}
+              emptyText={tt("groupMgmt.noBotAdmins")}
             />
           </div>
         )}
@@ -295,11 +300,21 @@ export function GroupManagementModal({
       {confirmRemove ? (
         <ConfirmModal
           open
-          title={confirmRemove.kind === "manager" ? "移除管理员" : "移除 Bot 管理员"}
-          content={`确定将 ${confirmRemove.name} 移除${
-            confirmRemove.kind === "manager" ? "管理员" : "Bot 管理员"
-          }吗?`}
-          okText="移除"
+          title={
+            confirmRemove.kind === "manager"
+              ? tt("groupMgmt.removeManagerTitle")
+              : tt("groupMgmt.removeBotAdminTitle")
+          }
+          content={tt("groupMgmt.confirmRemoveContent", {
+            values: {
+              name: confirmRemove.name,
+              role:
+                confirmRemove.kind === "manager"
+                  ? tt("groupMgmt.roleManager")
+                  : tt("groupMgmt.roleBotAdmin"),
+            },
+          })}
+          okText={tt("groupMgmt.removeOk")}
           okDanger
           okLoading={demoteMu.isPending || removeBotAdminMu.isPending}
           onOk={() => {
@@ -332,6 +347,7 @@ function ManagerSection({
   emptyText?: string;
   showRoleBadge?: boolean;
 }) {
+  const tt = useT();
   return (
     <section className="mx-4 mb-3 flex flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
@@ -344,7 +360,7 @@ function ManagerSection({
       </div>
       {members.length === 0 ? (
         <div className="px-4 py-4 text-center text-[12px] text-text-tertiary">
-          {emptyText ?? "暂无"}
+          {emptyText ?? tt("groupMgmt.empty")}
         </div>
       ) : (
         <ul>
@@ -365,11 +381,11 @@ function ManagerSection({
                   <span className="truncate text-sm text-text-primary">{display}</span>
                   {showRoleBadge && m.role === ROLE_OWNER ? (
                     <span className="shrink-0 rounded-sm bg-warning/10 px-1 text-[10px] font-semibold text-warning">
-                      群主
+                      {tt("groupMgmt.roleOwner")}
                     </span>
                   ) : showRoleBadge && m.role === ROLE_MANAGER ? (
                     <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                      管理员
+                      {tt("groupMgmt.roleManager")}
                     </span>
                   ) : null}
                 </div>
@@ -377,7 +393,7 @@ function ManagerSection({
                   <button
                     type="button"
                     onClick={() => onRemove(m)}
-                    aria-label="移除"
+                    aria-label={tt("groupMgmt.removeAria")}
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
                   >
                     ⊖

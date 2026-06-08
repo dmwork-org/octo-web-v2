@@ -8,6 +8,7 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
 
 interface ChatHeaderProps {
   showThreadIcon?: boolean;
@@ -66,6 +67,7 @@ export function ChatHeader({
   threadPanelOpen,
   onToggleThreadPanel,
 }: ChatHeaderProps) {
+  const t = useT();
   const channelInfo = useChannelInfoLive(channel);
   const isThreadCh = isThread(channel);
   const parsed = isThreadCh ? parseThreadChannelId(channel.channelID) : null;
@@ -104,13 +106,13 @@ export function ChatHeader({
                   <button
                     type="button"
                     onClick={goParentGroup}
-                    aria-label="返回父群"
+                    aria-label={t("chatHeader.backToParent")}
                     className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
                   >
                     {parentGroupTitle || parsed.groupNo}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>返回父群</TooltipContent>
+                <TooltipContent>{t("chatHeader.backToParent")}</TooltipContent>
               </Tooltip>
               <span className="shrink-0 text-[11px] font-light text-text-disabled">›</span>
               <span className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
@@ -129,14 +131,14 @@ export function ChatHeader({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="事项"
+                aria-label={t("chatHeader.matter")}
                 onClick={onClickMatter}
                 className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <List size={20} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>事项</TooltipContent>
+            <TooltipContent>{t("chatHeader.matter")}</TooltipContent>
           </Tooltip>
         ) : null}
         {showThreadIcon ? (
@@ -144,28 +146,28 @@ export function ChatHeader({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="子区列表"
+                aria-label={t("chatHeader.threadList")}
                 onClick={onToggleThreadPanel}
                 className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${threadPanelOpen ? "bg-bg-elevated text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
               >
                 <ThreadIcon size={20} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>子区</TooltipContent>
+            <TooltipContent>{t("chatHeader.thread")}</TooltipContent>
           </Tooltip>
         ) : null}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              aria-label="更多"
+              aria-label={t("chatHeader.more")}
               onClick={() => setSettingOpen(true)}
               className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <MoreHorizontal size={18} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>聊天信息</TooltipContent>
+          <TooltipContent>{t("chatHeader.chatInfo")}</TooltipContent>
         </Tooltip>
       </div>
 

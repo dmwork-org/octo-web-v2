@@ -4,6 +4,7 @@ import { type Message } from "wukongimjssdk";
 import { Play } from "lucide-react";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { VideoContent } from "@/features/base/im/video-content";
+import { useT } from "@/lib/i18n/use-t";
 
 interface VideoRendererProps {
   message: Message;
@@ -53,6 +54,7 @@ function formatDur(sec: number): string {
  *   useUploadProgress hook,不在 renderer 里重复
  */
 export function VideoRenderer({ message }: VideoRendererProps) {
+  const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [playing, setPlaying] = useState(false);
   const content = message.content as VideoContent;
@@ -63,7 +65,7 @@ export function VideoRenderer({ message }: VideoRendererProps) {
   if (!url && !cover) {
     return (
       <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
-        [小视频]
+        {t("videoRenderer.smallVideoFallback")}
       </span>
     );
   }
@@ -87,19 +89,19 @@ export function VideoRenderer({ message }: VideoRendererProps) {
       onClick={() => url && setPlaying(true)}
       style={{ width, height }}
       className="group relative overflow-hidden rounded-md bg-bg-elevated"
-      aria-label="播放视频"
+      aria-label={t("videoRenderer.playVideo")}
     >
       {cover ? (
         <img
           src={cover}
-          alt="视频封面"
+          alt={t("videoRenderer.videoCover")}
           className="h-full w-full object-cover"
           loading="lazy"
           draggable={false}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black/60 text-text-inverse">
-          [小视频]
+          {t("videoRenderer.smallVideoFallback")}
         </div>
       )}
       <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">

@@ -5,6 +5,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { getThread } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
+import { useT } from "@/lib/i18n/use-t";
 
 interface ThreadCreatedRendererProps {
   message: Message;
@@ -27,6 +28,7 @@ const THREAD_STATUS_DELETED = 3;
  * handleClick line 73-89):API 404 → "该子区已删除或不存在";status=3 → "该子区已删除"。
  */
 export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
+  const t = useT();
   const c = message.content as ThreadCreatedContent;
   const enter = async () => {
     if (!c.channel_id) return;
@@ -36,18 +38,25 @@ export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
         // silent:跳过全局 withErrorToast,自己接管 warning 提示
         const thread = await getThread(parsed.groupNo, parsed.shortId, { silent: true });
         if (thread.status === THREAD_STATUS_DELETED) {
-          toast.warning("该子区已删除");
+          toast.warning(t("threadCreated.deleted"));
           return;
         }
         // 归档(status=2)允许进入查看,聊天界面禁用发送由 channel 层处理
       } catch {
-        toast.warning("该子区已删除或不存在");
+        toast.warning(t("threadCreated.deletedOrMissing"));
         return;
       }
     }
     chatSelectedActions.select(new Channel(c.channel_id, c.channel_type || 5));
   };
-  const previewText = c.content || `${c.from_name || "用户"} 创建了子区「${c.thread_name}」`;
+  const previewText =
+    c.content ||
+    t("threadCreated.createdPreview", {
+      values: {
+        name: c.from_name || t("threadCreated.fallbackUser"),
+        thread: c.thread_name,
+      },
+    });
   const messageCount = c.message_count ?? 0;
 
   // 参与者头像:优先 content.participants(slice 0,3);fallback last_message.from_uid 单头像
@@ -71,7 +80,9 @@ export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
       <div className="flex items-center gap-4 text-[12px]">
         <span className="truncate text-[#7f3bf5]">
           🧵 {c.thread_name}
-          {messageCount > 0 ? `·${messageCount} 条回复` : ""}
+          {messageCount > 0
+            ? t("threadCreated.replyCountSuffix", { values: { count: messageCount } })
+            : ""}
         </span>
         {participantUids.length > 0 ? (
           <span className="flex shrink-0 items-center">

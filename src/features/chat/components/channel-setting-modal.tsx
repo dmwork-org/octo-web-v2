@@ -43,6 +43,8 @@ import { SectionGroup } from "@/features/base/components/section-form/section-gr
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
 import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface ChannelSettingModalProps {
   open: boolean;
@@ -55,12 +57,8 @@ const CHANNEL_TYPE_THREAD = 5;
 const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
-/** 4 个二级抽屉 token,与 NavRow → setSubpage 一一对应。 */
 type Subpage = "avatar" | "qrcode" | "md" | "manage";
 
-/**
- * 成员九宫格(对应旧 dmworkbase Subscribers 组件)。
- */
 function SubscribersGrid({
   subscribers,
   canAdd,
@@ -74,6 +72,7 @@ function SubscribersGrid({
   onAdd: () => void;
   onKickMode: () => void;
 }) {
+  const tt = useT();
   return (
     <section className="mx-4 mb-2 rounded-md border border-border-subtle bg-bg-base px-2 py-3">
       <div className="grid grid-cols-5 gap-y-3">
@@ -84,7 +83,7 @@ function SubscribersGrid({
           <button
             type="button"
             onClick={onAdd}
-            aria-label="加成员"
+            aria-label={tt("channelSetting.addMember")}
             className="flex flex-col items-center gap-1.5"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
@@ -97,7 +96,7 @@ function SubscribersGrid({
           <button
             type="button"
             onClick={onKickMode}
-            aria-label="移出成员"
+            aria-label={tt("channelSetting.removeMember")}
             className="flex flex-col items-center gap-1.5"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-tertiary transition-colors hover:bg-bg-hover">
@@ -112,6 +111,7 @@ function SubscribersGrid({
 }
 
 function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
+  const tt = useT();
   const display = subscriber.remark || subscriber.name || subscriber.uid;
   const ch = new Channel(subscriber.uid, ChannelTypePerson);
   return (
@@ -120,11 +120,11 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
         <ChannelAvatar channel={ch} size={48} title={display} />
         {subscriber.role === ROLE_OWNER ? (
           <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm bg-warning px-1 py-px text-[9px] leading-none font-semibold whitespace-nowrap text-white">
-            群主
+            {tt("channelSetting.owner")}
           </span>
         ) : subscriber.role === ROLE_MANAGER ? (
           <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm bg-brand px-1 py-px text-[9px] leading-none font-semibold whitespace-nowrap text-white">
-            管理员
+            {tt("channelSetting.managerBadge")}
           </span>
         ) : null}
       </div>
@@ -137,12 +137,9 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
 
 /**
  * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐)。
- *
- * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right。
- * 4 个二级页(GroupAvatar / GroupQrcode / GroupMd / GroupManagement)走自己的 BaseDrawer,
- * DialogNestingContext 自动 z-dialog-secondary。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [confirmClear, setConfirmClear] = useState(false);
@@ -188,7 +185,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const memberCount = memberCountFromSubs > 0 ? memberCountFromSubs : (orgData?.member_count ?? 0);
   const headerCount = isGroup ? memberCount : undefined;
 
-  // 子区抽屉专属
   const threadParsed = isThread ? parseThreadChannelId(channel.channelID) : null;
   const threadParentChannel = threadParsed
     ? new Channel(threadParsed.groupNo, ChannelTypeGroup)
@@ -215,39 +211,42 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const topMu = useMutation({
     mutationFn: (top: boolean) => setChannelTop(channel, top),
     onSuccess: refreshChannelInfo,
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const muteMu = useMutation({
     mutationFn: (mute: boolean) => setChannelMute(channel, mute),
     onSuccess: refreshChannelInfo,
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const saveMu = useMutation({
     mutationFn: (save: boolean) => setChannelSave(channel, save),
     onSuccess: refreshChannelInfo,
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const renameMu = useMutation({
     mutationFn: async (name: string) => {
       if (isThread) {
         const p = parseThreadChannelId(channel.channelID);
-        if (!p) throw new Error("子区 ID 解析失败");
+        if (!p) throw new Error(t("channelSetting.error.threadParseFailed"));
         await updateThread(p.groupNo, p.shortId, { name });
       } else {
         await updateGroup(channel.channelID, { name });
       }
     },
     onSuccess: async () => {
-      // 改名后强制刷 channelInfo:先清缓存再 fetch
       WKSDK.shared().channelManager.deleteChannelInfo(channel);
       await WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setEditing(null);
-      toast.success("已修改");
+      toast.success(t("channelSetting.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "修改失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const noticeMu = useMutation({
@@ -255,9 +254,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onSuccess: () => {
       refreshChannelInfo();
       setEditing(null);
-      toast.success("已修改");
+      toast.success(t("channelSetting.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "修改失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const remarkMu = useMutation({
@@ -265,9 +265,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onSuccess: () => {
       refreshChannelInfo();
       setEditing(null);
-      toast.success("已修改");
+      toast.success(t("channelSetting.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "修改失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const myNickMu = useMutation({
@@ -275,9 +276,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onSuccess: () => {
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       setEditing(null);
-      toast.success("已修改");
+      toast.success(t("channelSetting.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "修改失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const clearMu = useMutation({
@@ -294,17 +296,18 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         pages: [[]],
         pageParams: [0],
       });
-      toast.success("已清空聊天记录");
+      toast.success(t("channelSetting.toast.cleared"));
       setConfirmClear(false);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "清空失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.clearFailed")),
   });
 
   const closeMu = useMutation({
     mutationFn: async () => {
       if (isThread) {
         const p = parseThreadChannelId(channel.channelID);
-        if (!p) throw new Error("子区 ID 解析失败");
+        if (!p) throw new Error(t("channelSetting.error.threadParseFailed"));
         await leaveThread(p.shortId);
       } else {
         await deleteConversation({
@@ -319,19 +322,30 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       if (chatSelectedStore.state.channel?.channelID === channel.channelID) {
         chatSelectedActions.clear();
       }
-      toast.success(isGroup ? "已退出群聊" : isThread ? "已离开子区" : "已关闭聊天");
+      toast.success(
+        isGroup
+          ? t("channelSetting.toast.leftGroup")
+          : isThread
+            ? t("channelSetting.toast.leftThread")
+            : t("channelSetting.toast.closedChat"),
+      );
       setConfirmClose(false);
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
-  const dangerCloseTitle = isGroup ? "删除并退出" : isThread ? "离开子区" : "关闭聊天窗口";
-  const dangerCloseConfirm = isGroup
-    ? "确定要退出群聊吗?"
+  const dangerCloseTitle = isGroup
+    ? tt("channelSetting.dangerCloseGroup")
     : isThread
-      ? "确定要离开子区吗?"
-      : "确定要关闭此聊天窗口吗?";
+      ? tt("channelSetting.dangerCloseThread")
+      : tt("channelSetting.dangerCloseChat");
+  const dangerCloseConfirm = isGroup
+    ? tt("channelSetting.confirmLeaveGroup")
+    : isThread
+      ? tt("channelSetting.confirmLeaveThread")
+      : tt("channelSetting.confirmCloseChat");
 
   return (
     <>
@@ -342,7 +356,11 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         }}
         side="right"
         size="md"
-        title={typeof headerCount === "number" ? `聊天信息(${headerCount})` : "聊天信息"}
+        title={
+          typeof headerCount === "number"
+            ? tt("channelSetting.titleWithCount", { values: { count: headerCount } })
+            : tt("channelSetting.title")
+        }
       >
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
           {isGroup ? (
@@ -365,11 +383,11 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           {isGroup ? (
             <SectionGroup>
               <InlineEditRow
-                title="群聊名称"
+                title={tt("channelSetting.groupName")}
                 value={title}
-                placeholder="未设置"
+                placeholder={tt("channelSetting.notSet")}
                 canEdit={iAmOwnerOrManager}
-                cantEditMessage="只有管理者才能修改群名字"
+                cantEditMessage={tt("channelSetting.cantEditGroupName")}
                 maxLength={20}
                 pending={renameMu.isPending}
                 editing={editing === "name"}
@@ -378,21 +396,21 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onSave={(v) => renameMu.mutate(v)}
               />
               <NavRow
-                title="群头像"
+                title={tt("channelSetting.groupAvatar")}
                 right={<ChannelAvatar channel={channel} size={24} title={title} />}
                 onClick={() => setSubpage("avatar")}
               />
               <NavRow
-                title="群二维码"
+                title={tt("channelSetting.groupQrcode")}
                 right={<QrCode size={16} className="text-text-tertiary" />}
                 onClick={() => setSubpage("qrcode")}
               />
               <InlineEditRow
-                title="群公告"
+                title={tt("channelSetting.groupNotice")}
                 value={notice}
-                placeholder="未设置"
+                placeholder={tt("channelSetting.notSet")}
                 canEdit={iAmOwnerOrManager}
-                cantEditMessage="只有管理者才能修改群公告"
+                cantEditMessage={tt("channelSetting.cantEditGroupNotice")}
                 multiline
                 maxLength={400}
                 pending={noticeMu.isPending}
@@ -403,16 +421,23 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               />
               <NavRow
                 title="GROUP.md"
-                subTitle={hasGroupMd ? `已配置 v${groupMdVersion}` : "未配置"}
+                subTitle={
+                  hasGroupMd
+                    ? tt("channelSetting.configuredV", { values: { v: groupMdVersion } })
+                    : tt("channelSetting.notConfigured")
+                }
                 onClick={() => setSubpage("md")}
               />
               {iAmOwnerOrManager ? (
-                <NavRow title="群管理" onClick={() => setSubpage("manage")} />
+                <NavRow
+                  title={tt("channelSetting.groupManagement")}
+                  onClick={() => setSubpage("manage")}
+                />
               ) : null}
               <InlineEditRow
-                title="备注"
+                title={tt("channelSetting.remark")}
                 value={remark}
-                placeholder="群聊的备注仅自己可见"
+                placeholder={tt("channelSetting.remarkPlaceholder")}
                 canEdit
                 maxLength={15}
                 pending={remarkMu.isPending}
@@ -424,15 +449,14 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* 子区抽屉 base.info: 子区名称 + 返回群聊「父群名」 */}
           {isThread ? (
             <SectionGroup>
               <InlineEditRow
-                title="子区名称"
+                title={tt("channelSetting.threadName")}
                 value={title}
-                placeholder="未设置"
+                placeholder={tt("channelSetting.notSet")}
                 canEdit={canEditThreadName}
-                cantEditMessage="只有子区创建者或群管理者才能修改名称"
+                cantEditMessage={tt("channelSetting.cantEditThreadName")}
                 maxLength={50}
                 pending={renameMu.isPending}
                 editing={editing === "name"}
@@ -441,7 +465,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onSave={(v) => renameMu.mutate(v)}
               />
               <NavRow
-                title={`返回群聊「${threadParentName}」`}
+                title={tt("channelSetting.backToParent", { values: { name: threadParentName } })}
                 center
                 onClick={() => {
                   if (!threadParentChannel) return;
@@ -452,12 +476,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* 子区抽屉 GROUP.md */}
           {isThread ? (
             <SectionGroup>
               <NavRow
                 title="GROUP.md"
-                subTitle={hasThreadMd ? `已配置 v${threadMdVersion}` : "未配置"}
+                subTitle={
+                  hasThreadMd
+                    ? tt("channelSetting.configuredV", { values: { v: threadMdVersion } })
+                    : tt("channelSetting.notConfigured")
+                }
                 onClick={() => setSubpage("md")}
               />
             </SectionGroup>
@@ -466,20 +493,20 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           {!isThread ? (
             <SectionGroup>
               <ToggleRow
-                title="消息免打扰"
+                title={tt("channelSetting.mute")}
                 checked={isMuted}
                 loading={muteMu.isPending}
                 onChange={(v) => muteMu.mutate(v)}
               />
               <ToggleRow
-                title="聊天置顶"
+                title={tt("channelSetting.pin")}
                 checked={isTop}
                 loading={topMu.isPending}
                 onChange={(v) => topMu.mutate(v)}
               />
               {isGroup ? (
                 <ToggleRow
-                  title="保存到通讯录"
+                  title={tt("channelSetting.saveToContacts")}
                   checked={isSaved}
                   loading={saveMu.isPending}
                   onChange={(v) => saveMu.mutate(v)}
@@ -491,9 +518,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           {isGroup ? (
             <SectionGroup>
               <InlineEditRow
-                title="我在本群的昵称"
+                title={tt("channelSetting.myNickname")}
                 value={myNickname}
-                placeholder="未设置"
+                placeholder={tt("channelSetting.notSet")}
                 canEdit
                 maxLength={20}
                 pending={myNickMu.isPending}
@@ -505,10 +532,13 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             </SectionGroup>
           ) : null}
 
-          {/* danger Section — 子区只显示"离开子区" */}
           <SectionGroup>
             {!isThread ? (
-              <NavRow title="清空聊天记录" danger onClick={() => setConfirmClear(true)} />
+              <NavRow
+                title={tt("channelSetting.clearMessages")}
+                danger
+                onClick={() => setConfirmClear(true)}
+              />
             ) : null}
             <NavRow
               title={dangerCloseTitle}
@@ -563,10 +593,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       {confirmClear ? (
         <ConfirmModal
           open
-          title="确认清空"
-          content="确定要清空所有聊天记录吗?该操作不可撤销。"
+          title={tt("channelSetting.confirmClearTitle")}
+          content={tt("channelSetting.confirmClearContent")}
           okDanger
-          okText="清空"
+          okText={tt("channelSetting.clear")}
           okLoading={clearMu.isPending}
           onOk={() => clearMu.mutate()}
           onCancel={() => setConfirmClear(false)}
@@ -576,9 +606,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       {confirmClose ? (
         <ConfirmModal
           open
-          title="确认操作"
+          title={tt("channelSetting.confirmActionTitle")}
           content={dangerCloseConfirm}
-          okText={isGroup ? "退出" : isThread ? "离开" : "关闭"}
+          okText={
+            isGroup
+              ? tt("channelSetting.exit")
+              : isThread
+                ? tt("channelSetting.leave")
+                : tt("channelSetting.close")
+          }
           okDanger
           okLoading={closeMu.isPending}
           onOk={() => closeMu.mutate()}

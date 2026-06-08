@@ -18,6 +18,8 @@ import {
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface MergeforwardRendererProps {
   message: Message;
@@ -26,13 +28,15 @@ interface MergeforwardRendererProps {
 const CHANNEL_TYPE_GROUP = 2;
 const MAX_NESTED_DEPTH = 10;
 
-function buildTitle(content: MergeforwardContent): string {
+type Translator = (key: string, options?: { values?: Record<string, string | number> }) => string;
+
+function buildTitle(content: MergeforwardContent, t: Translator): string {
   if (content.channelType === CHANNEL_TYPE_GROUP) {
-    return "群的聊天记录";
+    return t("mergeForward.groupChatHistory");
   }
   const names = (content.users ?? []).map((u) => u.name).filter(Boolean);
-  if (names.length === 0) return "聊天记录";
-  return `${names.join("、")}的聊天记录`;
+  if (names.length === 0) return t("mergeForward.chatHistory");
+  return t("mergeForward.userChatHistory", { values: { names: names.join("、") } });
 }
 
 function senderNameOf(fromUID: string, users: MergeforwardUser[]): string {
@@ -53,7 +57,7 @@ function isBotSender(fromUID: string): boolean {
   return (info?.orgData as { robot?: number } | undefined)?.robot === 1;
 }
 
-function formatInnerTime(ts: number): string {
+function formatInnerTime(ts: number, t: Translator): string {
   if (!ts) return "";
   const d = new Date(ts * 1000);
   const now = new Date();
@@ -66,7 +70,7 @@ function formatInnerTime(ts: number): string {
   if (sameDay(d, now)) return hhmm;
   const y = new Date(now);
   y.setDate(y.getDate() - 1);
-  if (sameDay(d, y)) return `昨天 ${hhmm}`;
+  if (sameDay(d, y)) return t("mergeForward.yesterdayAt", { values: { time: hhmm } });
   if (d.getFullYear() === now.getFullYear()) {
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hhmm}`;
   }
@@ -95,6 +99,7 @@ function MergeforwardCard({
   previewItems: string[];
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -112,7 +117,7 @@ function MergeforwardCard({
         </ul>
       ) : null}
       <div className="mb-2.5 h-px w-full bg-[rgba(46,50,56,0.09)]" />
-      <div className="text-[12px] text-[rgba(28,28,35,0.35)]">聊天记录</div>
+      <div className="text-[12px] text-[rgba(28,28,35,0.35)]">{t("mergeForward.chatHistory")}</div>
     </button>
   );
 }
@@ -135,12 +140,13 @@ function buildPreview(content: MergeforwardContent): string[] {
  * 同样 portal 到 document.body 解决)。
  */
 export function MergeforwardRenderer({ message }: MergeforwardRendererProps) {
+  const t = useT();
   const root = message.content as MergeforwardContent;
   const [open, setOpen] = useState(false);
   return (
     <>
       <MergeforwardCard
-        title={buildTitle(root)}
+        title={buildTitle(root, t)}
         previewItems={buildPreview(root)}
         onClick={() => setOpen(true)}
       />
@@ -164,6 +170,7 @@ function MergeforwardModal({
   root: MergeforwardContent;
   onClose: () => void;
 }) {
+  const t = useT();
   const [stack, setStack] = useState<MergeforwardContent[]>([]);
   const current = stack.length > 0 ? stack[stack.length - 1] : root;
   const canGoBack = stack.length > 0;
@@ -192,14 +199,14 @@ function MergeforwardModal({
             <button
               type="button"
               onClick={goBack}
-              aria-label="返回"
+              aria-label={t("mergeForward.back")}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
             >
               <ArrowLeft size={16} />
             </button>
           ) : null}
           <span className="truncate text-base font-medium text-text-primary">
-            {buildTitle(current)}
+            {buildTitle(current, t)}
           </span>
         </div>
       }
@@ -220,11 +227,16 @@ function MergeforwardList({
   content: MergeforwardContent;
   onOpenNested: (c: MergeforwardContent) => void;
 }) {
+  const t = useT();
   const users = content.users ?? [];
   const msgs = content.msgs ?? [];
 
   if (msgs.length === 0) {
-    return <div className="py-8 text-center text-sm text-text-tertiary">无消息</div>;
+    return (
+      <div className="py-8 text-center text-sm text-text-tertiary">
+        {t("mergeForward.noMessages")}
+      </div>
+    );
   }
 
   return (
@@ -244,7 +256,7 @@ function MergeforwardList({
                     {isBotSender(m.fromUID) ? <AiBadge size="small" /> : null}
                   </span>
                   <span className="text-[14px] text-[rgba(28,28,35,0.4)]">
-                    {formatInnerTime(m.timestamp)}
+                    {formatInnerTime(m.timestamp, t)}
                   </span>
                 </header>
               ) : null}
@@ -266,6 +278,7 @@ function InnerContent({
   msg: Message;
   onOpenNested: (c: MergeforwardContent) => void;
 }) {
+  const t = useT();
   if (msg.contentType === MessageContentType.text) {
     const text = (msg.content as MessageText).text ?? "";
     return <Markdown content={text} />;
@@ -285,14 +298,14 @@ function InnerContent({
         style={{ maxWidth: 360, maxHeight: 240, objectFit: "contain" }}
       />
     ) : (
-      <span>[图片]</span>
+      <span>{t("message.digest.image")}</span>
     );
   }
   if (msg.contentType === MessageContentTypeConst.mergeForward) {
     const nested = msg.content as MergeforwardContent;
     return (
       <MergeforwardCard
-        title={buildTitle(nested)}
+        title={buildTitle(nested, t)}
         previewItems={buildPreview(nested)}
         onClick={() => onOpenNested(nested)}
       />
@@ -305,7 +318,7 @@ function InnerContent({
       />
     );
   }
-  return <span>{msg.content?.conversationDigest ?? "[消息]"}</span>;
+  return <span>{msg.content?.conversationDigest ?? t("mergeForward.messageFallback")}</span>;
 }
 
 async function triggerDownload(url: string, filename: string): Promise<void> {
@@ -345,7 +358,7 @@ function FileCard({
 }: {
   content: { name?: string; ext?: string; size?: number; url?: string };
 }) {
-  const name = content.name || "unknown file";
+  const name = content.name || tInst("mergeForward.unknownFile");
   const ext = (content.ext || "").toUpperCase();
   const size = content.size ?? 0;
   const url = content.url || "";

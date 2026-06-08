@@ -3,6 +3,7 @@ import type { Channel } from "wukongimjssdk";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chatMentionRequestActions } from "@/features/chat/stores/chat-mention-request";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 头像 click 菜单(1:1 对齐旧 dmworkbase ConversationContext onTapAvatar +
@@ -36,6 +37,7 @@ export function AvatarMenuButton({
   senderTitle,
   children,
 }: AvatarMenuButtonProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   const onMentionTa = () => {
@@ -57,7 +59,7 @@ export function AvatarMenuButton({
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          aria-label="头像菜单"
+          aria-label={t("avatarMenu.ariaLabel")}
           className="shrink-0 cursor-pointer rounded-md transition-opacity hover:opacity-80"
         >
           {children}
@@ -76,7 +78,7 @@ export function AvatarMenuButton({
           onClick={onShowUser}
           className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
         >
-          查看用户信息
+          {t("avatarMenu.viewUserInfo")}
         </button>
       </PopoverContent>
     </Popover>

@@ -4,6 +4,7 @@ import { triggerDownload } from "@/features/chat/lib/file-download";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
 
 interface FileRendererProps {
   message: Message;
@@ -35,8 +36,9 @@ interface FileRendererProps {
  *     已保留,后续在 renderer 内用 useStore 监听即可
  */
 export function FileRenderer({ message }: FileRendererProps) {
+  const t = useT();
   const content = message.content as FileContent;
-  const name = content.name || "未知文件";
+  const name = content.name || t("fileRenderer.unknownFile");
   const ext = getExtension(content.ext, content.name);
   const size = content.size ?? 0;
   const url = content.url || content.remoteUrl || "";
@@ -70,7 +72,7 @@ export function FileRenderer({ message }: FileRendererProps) {
             onCardClick();
           }
         }}
-        title={clickable ? "点击预览" : undefined}
+        title={clickable ? t("fileRenderer.clickToPreview") : undefined}
         className={`flex max-w-[280px] min-w-[200px] items-center gap-3 rounded-lg bg-[rgba(28,28,35,0.05)] px-3 py-2.5 transition-[background-color,box-shadow] duration-150 ${
           clickable
             ? "cursor-pointer hover:bg-[rgba(28,28,35,0.08)] hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] active:bg-[rgba(28,28,35,0.12)]"
@@ -110,7 +112,7 @@ export function FileRenderer({ message }: FileRendererProps) {
               <DownloadIcon />
             </button>
           </TooltipTrigger>
-          <TooltipContent>下载</TooltipContent>
+          <TooltipContent>{t("filePreview.download")}</TooltipContent>
         </Tooltip>
       </div>
       {content.caption ? (

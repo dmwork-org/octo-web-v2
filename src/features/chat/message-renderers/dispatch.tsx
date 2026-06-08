@@ -15,6 +15,7 @@ import { LocationRenderer } from "@/features/chat/message-renderers/location-ren
 import { ScreenshotRenderer } from "@/features/chat/message-renderers/screenshot-renderer";
 import { JoinOrganizationRenderer } from "@/features/chat/message-renderers/join-organization-renderer";
 import { TypingRenderer } from "@/features/chat/message-renderers/typing-renderer";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 按 contentType 分发到具体 renderer。
@@ -30,6 +31,7 @@ import { TypingRenderer } from "@/features/chat/message-renderers/typing-rendere
  * typing(-2)是 transient 状态消息,3 个跳动点占位。
  */
 export function MessageDispatch({ message }: { message: Message }) {
+  const t = useT();
   if (message.remoteExtra?.revoke) {
     return <RevokedRenderer message={message} />;
   }
@@ -68,7 +70,7 @@ export function MessageDispatch({ message }: { message: Message }) {
   return (
     <div className="flex justify-center">
       <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
-        [不支持的消息类型 {ct}]
+        {t("messageDispatch.unsupportedType", { values: { type: ct } })}
       </span>
     </div>
   );

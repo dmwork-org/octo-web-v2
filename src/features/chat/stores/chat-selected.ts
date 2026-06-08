@@ -3,6 +3,7 @@ import type { Channel } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { chatPendingAttachmentRegistry } from "@/features/chat/stores/chat-pending-attachment";
 import { chatConfirmDialogActions } from "@/features/chat/stores/chat-confirm-dialog";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 全局当前选中的 chat channel。
@@ -43,9 +44,9 @@ export const chatSelectedActions = {
     if (isSameChannel(chatSelectedStore.state.channel, channel)) return;
     if (chatPendingAttachmentRegistry.hasPending()) {
       chatConfirmDialogActions.show({
-        title: "有未发送的附件",
-        message: "切换会话后,未发送的附件将被丢弃,是否继续?",
-        okText: "继续切换",
+        title: t("chatSelected.pendingAttachment.title"),
+        message: t("chatSelected.pendingAttachment.message"),
+        okText: t("chatSelected.pendingAttachment.ok"),
         onOk: () => doSelect(channel),
       });
       return;

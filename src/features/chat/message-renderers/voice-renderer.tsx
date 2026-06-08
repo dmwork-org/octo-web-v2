@@ -5,6 +5,7 @@ import { Pause, Play } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { VoiceContent } from "@/features/base/im/voice-content";
+import { useT } from "@/lib/i18n/use-t";
 
 interface VoiceRendererProps {
   message: Message;
@@ -116,6 +117,7 @@ function useWaveformCanvas(
  * 不做(P3+):click 波形跳进度;多语音连播。
  */
 export function VoiceRenderer({ message }: VoiceRendererProps) {
+  const t = useT();
   const me = useStore(authStore, (s) => s.user?.uid ?? "");
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const isSelf = message.fromUID === me;
@@ -167,7 +169,7 @@ export function VoiceRenderer({ message }: VoiceRendererProps) {
       <button
         type="button"
         onClick={toggle}
-        aria-label={playing ? "暂停" : "播放"}
+        aria-label={playing ? t("voiceRenderer.pause") : t("voiceRenderer.play")}
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
           isSelf ? "bg-white/20 hover:bg-white/30" : "bg-bg-surface hover:bg-bg-hover"
         }`}
@@ -177,7 +179,7 @@ export function VoiceRenderer({ message }: VoiceRendererProps) {
       {waveform.length > 0 ? (
         <canvas ref={canvasRef} className="h-6 flex-1" />
       ) : (
-        <span className="flex-1 truncate text-[12px]">语音</span>
+        <span className="flex-1 truncate text-[12px]">{t("voiceRenderer.voice")}</span>
       )}
       <span className="shrink-0 text-[11px] tabular-nums opacity-80">
         {formatDuration(duration)}

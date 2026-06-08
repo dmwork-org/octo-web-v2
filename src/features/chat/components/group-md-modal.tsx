@@ -16,6 +16,8 @@ import {
   updateThreadMd,
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface GroupMdModalProps {
   open: boolean;
@@ -25,20 +27,6 @@ interface GroupMdModalProps {
 }
 
 const MAX_BYTES = 10240;
-
-const PLACEHOLDER_TEXT = `# 群组说明
-
-## 简介
-描述本群的用途和主题...
-
-## 规则
-1. 规则一
-2. 规则二
-
-## 常用链接
-- 链接一
-- 链接二
-`;
 
 function getByteLength(str: string): number {
   return new TextEncoder().encode(str).length;
@@ -66,6 +54,7 @@ function useSyncDraftFromServer(
  * 内嵌 ConfirmModal(删除确认)自动 z-dialog-secondary。
  */
 export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const [mode, setMode] = useState<"edit" | "preview">(canEdit ? "edit" : "preview");
   const [draft, setDraft] = useState("");
@@ -106,9 +95,10 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
       setBaseline(draft);
       setVersion(resp.version);
       refreshChannelInfo();
-      toast.success("已保存");
+      toast.success(t("groupMdModal.toast.saved"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMdModal.toast.saveFailed")),
   });
 
   const deleteMu = useMutation({
@@ -122,9 +112,10 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
       setVersion(0);
       refreshChannelInfo();
       setConfirmDelete(false);
-      toast.success("已删除");
+      toast.success(t("groupMdModal.toast.deleted"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMdModal.toast.deleteFailed")),
   });
 
   const byteLen = getByteLength(draft);
@@ -155,14 +146,14 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
                 type={mode === "edit" ? "primary" : "tertiary"}
                 onClick={() => setMode("edit")}
               >
-                编辑
+                {tt("groupMdModal.edit")}
               </Button>
               <Button
                 size="small"
                 type={mode === "preview" ? "primary" : "tertiary"}
                 onClick={() => setMode("preview")}
               >
-                预览
+                {tt("groupMdModal.preview")}
               </Button>
             </div>
             <div className="flex gap-2">
@@ -173,7 +164,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
                   onClick={() => setConfirmDelete(true)}
                   disabled={deleteMu.isPending}
                 >
-                  删除
+                  {tt("groupMdModal.delete")}
                 </Button>
               ) : null}
               <Button
@@ -184,7 +175,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
                 disabled={!dirty || overLimit}
                 onClick={() => saveMu.mutate(draft)}
               >
-                保存
+                {tt("groupMdModal.save")}
               </Button>
             </div>
           </div>
@@ -202,7 +193,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
         <div className="flex flex-1 flex-col overflow-y-auto px-4 py-3">
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              加载中…
+              {tt("groupMdModal.loading")}
             </div>
           ) : isPreview ? (
             draft ? (
@@ -211,14 +202,14 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
               </article>
             ) : (
               <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                暂未配置 GROUP.md
+                {tt("groupMdModal.empty")}
               </div>
             )
           ) : (
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={PLACEHOLDER_TEXT}
+              placeholder={tt("groupMdModal.placeholder")}
               rows={20}
               className="min-h-80 w-full flex-1 resize-none rounded-md border border-border-default bg-bg-base p-3 font-mono text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
             />
@@ -228,9 +219,9 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
 
       <ConfirmModal
         open={confirmDelete}
-        title="删除 GROUP.md"
-        content="确定要删除 GROUP.md 吗?此操作不可撤销。"
-        okText="删除"
+        title={tt("groupMdModal.confirmDeleteTitle")}
+        content={tt("groupMdModal.confirmDeleteContent")}
+        okText={tt("groupMdModal.delete")}
         okDanger
         okLoading={deleteMu.isPending}
         onOk={() => deleteMu.mutate()}

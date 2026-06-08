@@ -21,6 +21,7 @@ import {
   getPulldownRestoredScrollTop,
   isNearTopForHistory,
 } from "@/features/chat/lib/history-scroll";
+import { useT } from "@/lib/i18n/use-t";
 
 interface MessageListProps {
   channel: Channel;
@@ -186,6 +187,7 @@ function usePulldownToLoadHistory(
 }
 
 export function MessageList({ channel }: MessageListProps) {
+  const t = useT();
   useMessagesSync(channel);
   useClearUnreadOnEnter(channel);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -265,19 +267,21 @@ export function MessageList({ channel }: MessageListProps) {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        加载消息…
+        {t("messageList.loading")}
       </div>
     );
   }
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-error">消息加载失败</div>
+      <div className="flex flex-1 items-center justify-center text-sm text-error">
+        {t("messageList.loadFailed")}
+      </div>
     );
   }
   if (messages.length === 0 && !typing) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        暂无消息,发一条试试
+        {t("messageList.empty")}
       </div>
     );
   }
@@ -287,7 +291,7 @@ export function MessageList({ channel }: MessageListProps) {
       <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
         {hasNextPage ? (
           <div className="flex justify-center py-2 text-xs text-text-tertiary">
-            {isFetchingNextPage ? "加载更早消息…" : "上拉到顶部加载更多"}
+            {isFetchingNextPage ? t("messageList.loadingEarlier") : t("messageList.pullToLoadMore")}
           </div>
         ) : null}
         {renderItems.map((item, i) => {

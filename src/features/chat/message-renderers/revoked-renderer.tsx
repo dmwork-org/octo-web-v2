@@ -1,6 +1,7 @@
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { authStore } from "@/features/base/stores/auth";
+import { useT } from "@/lib/i18n/use-t";
 
 interface RevokedRendererProps {
   message: Message;
@@ -14,14 +15,15 @@ interface RevokedRendererProps {
  * 由 dispatch 在所有 contentType 分发之前优先检查 message.remoteExtra.revoke。
  */
 export function RevokedRenderer({ message }: RevokedRendererProps) {
+  const t = useT();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const revoker = message.remoteExtra.revoker || message.fromUID;
   const isSelf = me !== null && revoker === me;
-  const name = isSelf ? "你" : displayNameOf(revoker);
+  const name = isSelf ? t("revoke.you") : displayNameOf(revoker);
   return (
     <div className="flex justify-center py-1">
       <span className="rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
-        {`${name}撤回了一条消息`}
+        {t("revoke.revokedMessage", { values: { name } })}
       </span>
     </div>
   );

@@ -4,6 +4,7 @@ import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Message } fro
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { isNotificationSupported, sendNotification } from "@/features/base/lib/notification-util";
+import { t } from "@/lib/i18n/instance";
 
 /** 子区 channelType(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -12,7 +13,12 @@ function extractBody(msg: Message): string {
   const content = msg.content as
     | { conversationDigest?: string; text?: string; displayText?: string }
     | undefined;
-  return content?.conversationDigest || content?.displayText || content?.text || "[新消息]";
+  return (
+    content?.conversationDigest ||
+    content?.displayText ||
+    content?.text ||
+    t("desktopNotifications.newMessage")
+  );
 }
 
 function iconForChannel(channel: Channel, baseURL: string): string {

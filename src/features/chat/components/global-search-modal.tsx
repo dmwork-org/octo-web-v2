@@ -14,6 +14,8 @@ import {
   type SearchMessage,
 } from "@/features/base/api/endpoints/search.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface GlobalSearchModalProps {
   open: boolean;
@@ -32,8 +34,8 @@ const FILE_CONTENT_TYPE = 4; // MessageContentType.file
 function useDebouncedKeyword(input: string, composing: boolean, setKeyword: (k: string) => void) {
   useEffect(() => {
     if (composing) return;
-    const t = setTimeout(() => setKeyword(input), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setKeyword(input), 300);
+    return () => clearTimeout(timer);
   }, [input, composing, setKeyword]);
 }
 
@@ -61,6 +63,7 @@ function useResetOnOpen(
  * className 覆盖把卡片改为顶部对齐(Cmd+K 风格,top 10vh)而非默认中央。
  */
 export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalProps) {
+  const tt = useT();
   const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
   const [tab, setTab] = useState<SearchTab>("contacts");
@@ -89,13 +92,13 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
 
   const tabs: { id: SearchTab; label: string }[] = inChannel
     ? [
-        { id: "contacts", label: "全部" },
-        { id: "files", label: "文件" },
+        { id: "contacts", label: tt("globalSearch.tabAll") },
+        { id: "files", label: tt("globalSearch.tabFiles") },
       ]
     : [
-        { id: "contacts", label: "联系人" },
-        { id: "groups", label: "群组" },
-        { id: "files", label: "文件" },
+        { id: "contacts", label: tt("globalSearch.tabContacts") },
+        { id: "groups", label: tt("globalSearch.tabGroups") },
+        { id: "files", label: tt("globalSearch.tabFiles") },
       ];
 
   return (
@@ -106,8 +109,7 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
       }}
       size="lg"
       height="sm"
-      title={inChannel ? "聊天内搜索" : "全局搜索"}
-      // 覆盖默认中央定位 → 顶部对齐 10vh(Cmd+K 风格);dialog.tsx 默认 top-1/2 -translate-y-1/2
+      title={inChannel ? tt("globalSearch.titleInChannel") : tt("globalSearch.titleGlobal")}
       className="top-[10vh] -translate-y-0"
       contentClassName="overflow-hidden"
     >
@@ -123,14 +125,14 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
               setComposing(false);
               setInput((e.target as HTMLInputElement).value);
             }}
-            placeholder="搜索联系人 / 群 / 消息"
+            placeholder={tt("globalSearch.searchPlaceholder")}
             className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
           {input ? (
             <button
               type="button"
               onClick={() => setInput("")}
-              aria-label="清空"
+              aria-label={tt("globalSearch.clear")}
               className="text-text-tertiary hover:text-text-primary"
             >
               ×
@@ -140,18 +142,18 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
       </div>
 
       <nav className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-3 py-1">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.id}
+            key={tabItem.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => setTab(tabItem.id)}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              tab === t.id
+              tab === tabItem.id
                 ? "bg-brand-tint text-text-primary"
                 : "text-text-secondary hover:bg-bg-hover"
             }`}
           >
-            {t.label}
+            {tabItem.label}
           </button>
         ))}
       </nav>
@@ -159,7 +161,9 @@ export function GlobalSearchModal({ open, channel, onClose }: GlobalSearchModalP
       <div className="flex min-h-0 flex-1 flex-col">
         {isFetching && !data ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            {keyword.trim().length === 0 ? "加载默认列表…" : "搜索中…"}
+            {keyword.trim().length === 0
+              ? tt("globalSearch.loadingDefault")
+              : tt("globalSearch.searching")}
           </div>
         ) : (
           <SearchResultBody tab={tab} data={data} onClose={onClose} inChannel={inChannel} />
@@ -199,10 +203,11 @@ function SearchResultBody({
 }
 
 function FriendsList({ items, onClose }: { items: SearchFriend[]; onClose: () => void }) {
+  const tt = useT();
   if (items.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        没有找到联系人
+        {tt("globalSearch.noContacts")}
       </div>
     );
   }
@@ -244,10 +249,11 @@ function FriendsList({ items, onClose }: { items: SearchFriend[]; onClose: () =>
 }
 
 function GroupsList({ items, onClose }: { items: SearchGroup[]; onClose: () => void }) {
+  const tt = useT();
   if (items.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        没有找到群组
+        {tt("globalSearch.noGroups")}
       </div>
     );
   }
@@ -275,7 +281,7 @@ function GroupsList({ items, onClose }: { items: SearchGroup[]; onClose: () => v
                 dangerouslySetInnerHTML={{ __html: sanitizeHighlight(name) }}
               />
               <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                群
+                {tt("globalSearch.groupTag")}
               </span>
             </span>
             {typeof g.member_count === "number" ? (
@@ -298,6 +304,7 @@ interface MessageRow {
 }
 
 function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () => void }) {
+  const tt = useT();
   const rows: MessageRow[] = useMemo(() => {
     const map = new Map<string, SearchMessage[]>();
     for (const m of items) {
@@ -337,7 +344,7 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
   if (items.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-        没有找到消息
+        {tt("globalSearch.noMessages")}
       </div>
     );
   }
@@ -358,7 +365,7 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
         if (row.kind === "more") {
           return (
             <div className="px-5 py-1 text-[11px] text-text-tertiary">
-              还有 {row.moreCount} 条匹配...
+              {tt("globalSearch.moreMatches", { values: { count: row.moreCount ?? 0 } })}
             </div>
           );
         }
@@ -399,9 +406,9 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
 }
 
 function digestFromPayload(m: SearchMessage): string {
-  if (!m.payload) return "[消息]";
+  if (!m.payload) return t("globalSearch.messageFallback");
   const content = m.payload as { content?: string };
-  return content.content ?? "[消息]";
+  return content.content ?? t("globalSearch.messageFallback");
 }
 
 function formatTimestamp(ts: number): string {

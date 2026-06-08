@@ -1,3 +1,5 @@
+import { useT } from "@/lib/i18n/use-t";
+
 interface FollowEmptyStateProps {
   /** true = 用户连任何群聊都没;false = 有群聊但没建分组 */
   noGroups: boolean;
@@ -24,18 +26,17 @@ export function FollowEmptyState({
   onCreateCategory,
   onStartGroup,
 }: FollowEmptyStateProps) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center px-6 py-8 text-center">
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[14px] bg-brand/[0.08]">
         {noGroups ? <ChatBubbleIcon /> : <FolderIcon />}
       </div>
       <p className="mb-2 text-[14px] font-semibold text-text-primary">
-        {noGroups ? "还没有群聊" : "整理你的群聊"}
+        {noGroups ? t("followEmpty.noGroupsTitle") : t("followEmpty.organizeTitle")}
       </p>
       <p className="mx-auto mb-5 max-w-[200px] text-[12px] leading-[1.6] text-text-secondary">
-        {noGroups
-          ? "发起一个群聊，和朋友或同事一起聊天吧。"
-          : "创建分组，把群聊按工作、项目、生活分类，快速找到想看的对话。"}
+        {noGroups ? t("followEmpty.noGroupsDesc") : t("followEmpty.organizeDesc")}
       </p>
       {noGroups ? (
         onStartGroup ? (
@@ -45,7 +46,7 @@ export function FollowEmptyState({
             className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-brand px-5 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
           >
             <PlusIcon />
-            发起群聊
+            {t("followEmpty.startGroup")}
           </button>
         ) : null
       ) : (
@@ -55,7 +56,7 @@ export function FollowEmptyState({
           className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-brand px-5 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           <PlusIcon />
-          新建分组
+          {t("followEmpty.createCategory")}
         </button>
       )}
     </div>

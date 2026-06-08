@@ -8,6 +8,7 @@ import {
   RendererLoading,
 } from "@/features/chat/file-preview/renderer-state";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * Excel renderer — **仅支持 CSV**(对齐旧 registry.ts:`excel` type extensions=["csv"]):
@@ -20,6 +21,7 @@ import type { BaseRendererProps } from "@/features/chat/file-preview/types";
 const MAX_ROWS = 1000;
 
 export function ExcelRenderer({ file }: BaseRendererProps) {
+  const t = useT();
   const enabled = shouldFetchContent(file.size || 0);
   const { content, loading, error, reload } = useFileContent({ url: file.url, enabled });
 
@@ -29,7 +31,8 @@ export function ExcelRenderer({ file }: BaseRendererProps) {
   if (oversize) return <FileTooLarge name={file.name} size={file.size} url={file.url} />;
   if (loading) return <RendererLoading />;
   if (error) return <RendererError message={error} onRetry={reload} />;
-  if (rows.length === 0) return <RendererEmpty message="CSV 为空或解析失败" />;
+  if (rows.length === 0)
+    return <RendererEmpty message={t("filePreview.excel.csvEmptyOrInvalid")} />;
 
   // 第一行视为表头(CSV 常规约定)
   const header = rows[0];
@@ -45,7 +48,9 @@ export function ExcelRenderer({ file }: BaseRendererProps) {
             CSV
           </span>
           <span>
-            {header.length} 列 · {dataRows.length} 行
+            {t("filePreview.excel.colsRows", {
+              values: { cols: header.length, rows: dataRows.length },
+            })}
           </span>
         </div>
       </div>
@@ -58,7 +63,7 @@ export function ExcelRenderer({ file }: BaseRendererProps) {
                   key={i}
                   className="border-b border-border-default px-3 py-2 text-left font-medium text-text-secondary"
                 >
-                  {h || `列${i + 1}`}
+                  {h || t("filePreview.excel.columnIndex", { values: { index: i + 1 } })}
                 </th>
               ))}
             </tr>
@@ -81,7 +86,11 @@ export function ExcelRenderer({ file }: BaseRendererProps) {
         </table>
       </div>
       <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-3 py-1 text-[11px] text-text-tertiary">
-        {truncated ? `共 ${dataRows.length} 行,显示前 ${MAX_ROWS} 行` : `共 ${dataRows.length} 行`}
+        {truncated
+          ? t("filePreview.rowsCountTruncated", {
+              values: { total: dataRows.length, shown: MAX_ROWS },
+            })
+          : t("filePreview.rowsCount", { values: { count: dataRows.length } })}
       </div>
     </div>
   );

@@ -7,6 +7,8 @@ import { searchFriends, applyFriend } from "@/features/contacts/api/friends.api"
 import type { Friend } from "@/features/contacts/types/friend.types";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 加好友表单(对应旧 dmworkcontacts FriendAdd):搜索 + 结果列表 + 申请。
@@ -28,6 +30,7 @@ function SearchResultRow({
   busy: boolean;
   onApply: () => void;
 }) {
+  const tt = useT();
   const channel = new Channel(user.uid, ChannelTypePerson);
   const name = user.name || user.username || user.uid;
   const isFriend = user.follow === 1;
@@ -37,19 +40,21 @@ function SearchResultRow({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-sm font-medium text-text-primary">{name}</span>
         {user.short_no ? (
-          <span className="truncate text-xs text-text-tertiary">短号 {user.short_no}</span>
+          <span className="truncate text-xs text-text-tertiary">
+            {tt("friendAdd.shortNo", { values: { no: user.short_no } })}
+          </span>
         ) : null}
       </div>
       {isFriend ? (
-        <span className="shrink-0 text-xs text-text-tertiary">已是好友</span>
+        <span className="shrink-0 text-xs text-text-tertiary">{tt("friendAdd.alreadyFriend")}</span>
       ) : applied ? (
         <span className="inline-flex shrink-0 items-center gap-1 text-xs text-online">
-          <Check size={12} /> 申请已发出
+          <Check size={12} /> {tt("friendAdd.applySent")}
         </span>
       ) : (
         <Button type="primary" theme="solid" size="small" loading={busy} onClick={onApply}>
           <UserPlus size={14} />
-          加好友
+          {tt("friendAdd.addFriend")}
         </Button>
       )}
     </div>
@@ -57,6 +62,7 @@ function SearchResultRow({
 }
 
 export function FriendAddForm() {
+  const tt = useT();
   const [keyword, setKeyword] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [appliedSet, setAppliedSet] = useState<Set<string>>(new Set());
@@ -74,10 +80,10 @@ export function FriendAddForm() {
       applyFriend({ to_uid: target.uid, vercode: target.vercode, remark: "" }),
     onSuccess: (_void, target) => {
       setAppliedSet((prev) => new Set(prev).add(target.uid));
-      toast.success("好友申请已发出");
+      toast.success(t("friendAdd.toast.applySent"));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "申请失败");
+      toast.error(err instanceof Error ? err.message : t("friendAdd.toast.applyFailed"));
     },
   });
 
@@ -94,28 +100,30 @@ export function FriendAddForm() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索用户名 / 短号 / 手机号"
+            placeholder={tt("friendAdd.searchPlaceholder")}
             className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
           <Button htmlType="submit" type="primary" theme="solid" size="small">
-            搜索
+            {tt("friendAdd.search")}
           </Button>
         </div>
       </form>
       <div className="flex flex-1 flex-col overflow-y-auto pb-3">
         {!submitted ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            输入用户名 / 短号 / 手机号搜索
+            {tt("friendAdd.hintEnter")}
           </div>
         ) : isFetching && !data ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            搜索中…
+            {tt("friendAdd.searching")}
           </div>
         ) : error ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-error">搜索失败</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-error">
+            {tt("friendAdd.searchFailed")}
+          </div>
         ) : !data || data.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            没有找到匹配的用户
+            {tt("friendAdd.noMatches")}
           </div>
         ) : (
           data.map((u) => (

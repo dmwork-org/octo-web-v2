@@ -14,6 +14,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface SelectionToolbarProps {
   channel: Channel;
@@ -31,6 +33,7 @@ type ForwardMode = "per" | "merge";
  * addTimelineEntry 同步消息内容到 matter timeline。
  */
 export function SelectionToolbar({ channel }: SelectionToolbarProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const ids = useStore(chatSelectionStore, (s) => s.ids);
   const count = ids.size;
@@ -78,11 +81,12 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
     },
     onSuccess: (msgs) => {
       removeFromCache(msgs);
-      toast.success(`已删除 ${msgs.length} 条`);
+      toast.success(t("selectionToolbar.toast.deleted", { values: { count: msgs.length } }));
       setConfirmDelete(false);
       chatSelectionActions.exit();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("selectionToolbar.toast.deleteFailed")),
   });
 
   const openForward = (mode: ForwardMode) => {
@@ -121,13 +125,15 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
       const text = m.content?.conversationDigest ?? "";
       return `- ${sender}:${text}`;
     });
-    return `同步自 ${msgs.length} 条消息:\n${lines.join("\n")}`;
+    return t("selectionToolbar.syncContentHeader", {
+      values: { count: msgs.length, lines: lines.join("\n") },
+    });
   };
 
   const syncMu = useMutation({
     mutationFn: async (matterId: string) => {
       const msgs = findMessages();
-      if (msgs.length === 0) throw new Error("没有可同步的消息");
+      if (msgs.length === 0) throw new Error(t("selectionToolbar.error.nothingToSync"));
       await addTimelineEntry(matterId, {
         content: buildContent(msgs),
         channel_id: channel.channelID,
@@ -135,12 +141,13 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
       });
     },
     onSuccess: () => {
-      toast.success("已同步进展");
+      toast.success(t("selectionToolbar.toast.synced"));
       setSyncMenuOpen(false);
       chatSelectionActions.exit();
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(null, undefined) });
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "同步失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("selectionToolbar.toast.syncFailed")),
   });
 
   const btn =
@@ -161,7 +168,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             onClick={() => openForward("per")}
             className={btn}
           >
-            逐条转发
+            {tt("selectionToolbar.forwardOneByOne")}
           </button>
           <span className={sep} />
           <button
@@ -170,17 +177,17 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             onClick={() => openForward("merge")}
             className={btn}
           >
-            合并转发
+            {tt("selectionToolbar.mergeForward")}
           </button>
           <span className={sep} />
           <button type="button" disabled={count === 0} onClick={onCreateMatter} className={btn}>
-            创建新事项
+            {tt("selectionToolbar.createMatter")}
           </button>
           <span className={sep} />
           <Popover open={syncMenuOpen} onOpenChange={setSyncMenuOpen}>
             <PopoverTrigger asChild>
               <button type="button" disabled={count === 0} className={btn}>
-                同步到事项
+                {tt("selectionToolbar.syncToMatter")}
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -190,7 +197,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
               className="flex w-[260px] flex-col p-0"
             >
               <div className="shrink-0 px-3 py-2 text-[12px] text-[rgba(28,28,35,0.5)]">
-                当前群聊关联的任务
+                {tt("selectionToolbar.linkedMattersTitle")}
               </div>
               {/* 创建新事项 主项 */}
               <button
@@ -202,20 +209,20 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
                 className="flex items-center gap-2 px-3 py-2 text-left text-[14px] font-medium text-brand transition-colors hover:bg-[rgba(28,28,35,0.04)]"
               >
                 <Plus size={14} />
-                <span>创建新事项</span>
+                <span>{tt("selectionToolbar.createMatter")}</span>
               </button>
               <div className="my-1 h-px bg-[rgba(28,28,35,0.06)]" />
               <div className="shrink-0 px-3 py-1 text-[12px] text-[rgba(28,28,35,0.4)]">
-                同步到已有事项
+                {tt("selectionToolbar.syncToExisting")}
               </div>
               <div className="max-h-[280px] overflow-y-auto py-1">
                 {mattersQ.isFetching ? (
                   <div className="flex items-center justify-center py-4 text-[12px] text-text-tertiary">
-                    加载中…
+                    {tt("selectionToolbar.loading")}
                   </div>
                 ) : matters.length === 0 ? (
                   <div className="flex items-center justify-center py-4 text-[12px] text-text-tertiary">
-                    暂无可关联的事项
+                    {tt("selectionToolbar.noMatters")}
                   </div>
                 ) : (
                   matters.map((m) => (
@@ -234,7 +241,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
               </div>
               {syncMu.isPending ? (
                 <div className="border-t border-[rgba(28,28,35,0.06)] px-3 py-2 text-center text-[12px] text-text-tertiary">
-                  同步中…
+                  {tt("selectionToolbar.syncing")}
                 </div>
               ) : null}
             </PopoverContent>
@@ -246,14 +253,14 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             onClick={() => setConfirmDelete(true)}
             className={btnDanger}
           >
-            删除
+            {tt("selectionToolbar.delete")}
           </button>
           <span className={sep} />
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="退出多选"
+                aria-label={tt("selectionToolbar.exitMultiSelect")}
                 onClick={() => chatSelectionActions.exit()}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.08)] hover:text-[#1c1c23]"
               >
@@ -267,16 +274,16 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
                 </svg>
               </button>
             </TooltipTrigger>
-            <TooltipContent>退出多选</TooltipContent>
+            <TooltipContent>{tt("selectionToolbar.exitMultiSelect")}</TooltipContent>
           </Tooltip>
         </div>
       </div>
 
       <ConfirmModal
         open={confirmDelete}
-        content={`确定删除选中的 ${count} 条消息?该操作不可恢复。`}
+        content={tt("selectionToolbar.confirmDeleteContent", { values: { count } })}
         okDanger
-        okText="删除"
+        okText={tt("selectionToolbar.delete")}
         okLoading={deleteMu.isPending}
         onOk={() => deleteMu.mutate()}
         onCancel={() => setConfirmDelete(false)}

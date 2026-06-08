@@ -11,6 +11,7 @@ import {
 import { CommonCodeView } from "@/features/chat/file-preview/renderers/common-code-view";
 import { RendererEmpty } from "@/features/chat/file-preview/renderer-state";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * JSONL renderer(对齐旧 JsonlRenderer):
@@ -25,6 +26,7 @@ import type { BaseRendererProps } from "@/features/chat/file-preview/types";
 const MAX_ROWS = 1000;
 
 export function JsonlRenderer({ file }: BaseRendererProps) {
+  const t = useT();
   const { content, loading, error, reload, renderMode, fileSize, contentSize } = useCodeRenderer(
     file,
     { formatter: (raw) => formatJsonl(raw) },
@@ -55,7 +57,7 @@ export function JsonlRenderer({ file }: BaseRendererProps) {
     );
   }
 
-  if (rows.length === 0) return <RendererEmpty message="暂无内容或 JSONL 格式错误" />;
+  if (rows.length === 0) return <RendererEmpty message={t("filePreview.jsonl.emptyOrInvalid")} />;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-base">
@@ -98,6 +100,7 @@ function Toolbar({
   lineCount: number;
   validCount: number;
 }) {
+  const t = useT();
   return (
     <div className="flex shrink-0 items-center justify-between border-b border-border-subtle bg-bg-surface px-3 py-1.5">
       <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
@@ -105,7 +108,7 @@ function Toolbar({
           JSONL
         </span>
         <span>
-          {lineCount} 行 · {validCount} 条有效
+          {t("filePreview.jsonl.stats", { values: { lines: lineCount, records: validCount } })}
         </span>
       </div>
       <div className="flex items-center gap-0.5 rounded-md border border-border-subtle">
@@ -113,14 +116,22 @@ function Toolbar({
           active={viewMode === "table"}
           disabled={!canShowTable}
           onClick={() => onChange("table")}
-          title={canShowTable ? "表格视图" : "无法提取表格数据"}
+          title={
+            canShowTable
+              ? t("filePreview.jsonl.tableView")
+              : t("filePreview.jsonl.cannotExtractTable")
+          }
         >
           <TableIcon size={12} />
-          <span>表格</span>
+          <span>{t("filePreview.jsonl.table")}</span>
         </ViewBtn>
-        <ViewBtn active={viewMode === "code"} onClick={() => onChange("code")} title="代码视图">
+        <ViewBtn
+          active={viewMode === "code"}
+          onClick={() => onChange("code")}
+          title={t("filePreview.jsonl.codeView")}
+        >
           <Code size={12} />
-          <span>代码</span>
+          <span>{t("filePreview.jsonl.code")}</span>
         </ViewBtn>
       </div>
     </div>
@@ -164,6 +175,7 @@ function JsonlTable({
   rows: Record<string, unknown>[];
   columns: { key: string; title: string }[];
 }) {
+  const t = useT();
   const truncated = rows.length > MAX_ROWS;
   const visible = truncated ? rows.slice(0, MAX_ROWS) : rows;
   return (
@@ -200,7 +212,11 @@ function JsonlTable({
         </table>
       </div>
       <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-3 py-1 text-[11px] text-text-tertiary">
-        {truncated ? `共 ${rows.length} 行,显示前 ${MAX_ROWS} 行` : `共 ${rows.length} 行`}
+        {truncated
+          ? t("filePreview.rowsCountTruncated", {
+              values: { total: rows.length, shown: MAX_ROWS },
+            })
+          : t("filePreview.rowsCount", { values: { count: rows.length } })}
       </div>
     </div>
   );

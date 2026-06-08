@@ -6,6 +6,8 @@ import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { getGroupQrcode } from "@/features/base/api/endpoints/group.api";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface GroupQrcodeModalProps {
   open: boolean;
@@ -56,6 +58,7 @@ export function GroupQrcodeModal({
   inviteVerifyOn,
   onClose,
 }: GroupQrcodeModalProps) {
+  const tt = useT();
   const qrQ = useQuery({
     queryKey: ["chat", "group-qrcode", channel.channelID],
     queryFn: () => getGroupQrcode(channel.channelID),
@@ -67,8 +70,8 @@ export function GroupQrcodeModal({
     const link = qrQ.data?.invite_url || qrQ.data?.qrcode || "";
     if (!link) return;
     const ok = await copyToClipboard(link);
-    if (ok) toast.success("邀请链接已复制,7 天内有效");
-    else toast.error("复制失败,请手动复制");
+    if (ok) toast.success(t("groupQrcode.toast.copied"));
+    else toast.error(t("groupQrcode.toast.copyFailed"));
   };
 
   return (
@@ -79,7 +82,7 @@ export function GroupQrcodeModal({
       }}
       side="right"
       size="md"
-      title="群二维码名片"
+      title={tt("groupQrcode.title")}
       showBackButton
       showCloseButton={false}
       onBack={onClose}
@@ -92,32 +95,32 @@ export function GroupQrcodeModal({
 
         <div className="relative mt-6 flex h-64 w-64 items-center justify-center rounded-lg border border-border-subtle bg-white p-4">
           {qrQ.isLoading ? (
-            <span className="text-sm text-text-tertiary">加载中…</span>
+            <span className="text-sm text-text-tertiary">{tt("groupQrcode.loading")}</span>
           ) : qrQ.error ? (
             <span className="text-sm text-error">
-              {qrQ.error instanceof Error ? qrQ.error.message : "加载失败"}
+              {qrQ.error instanceof Error ? qrQ.error.message : tt("groupQrcode.loadFailed")}
             </span>
           ) : qrQ.data ? (
             <QRCodeSVG value={qrQ.data.qrcode} size={224} fgColor="#000000" />
           ) : null}
           {inviteVerifyOn && qrQ.data ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg bg-white/85 text-center text-[13px] text-text-secondary">
-              <p>该群已开启进群验证</p>
-              <p>只可通过邀请进群</p>
+              <p>{tt("groupQrcode.verifyEnabled")}</p>
+              <p>{tt("groupQrcode.inviteOnly")}</p>
             </div>
           ) : null}
         </div>
 
         {qrQ.data ? (
           <p className="mt-4 text-[12px] text-text-tertiary">
-            该二维码 7 天内({qrQ.data.expire})前有效,重新进入将更新
+            {tt("groupQrcode.expireHint", { values: { expire: qrQ.data.expire } })}
           </p>
         ) : null}
 
         {qrQ.data && !inviteVerifyOn ? (
           <div className="mt-6">
             <Button type="primary" theme="solid" onClick={onCopy}>
-              复制邀请链接
+              {tt("groupQrcode.copyLink")}
             </Button>
           </div>
         ) : null}

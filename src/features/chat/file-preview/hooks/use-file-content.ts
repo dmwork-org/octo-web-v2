@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 文件内容加载 hook(1:1 对齐旧 Components/FilePreviewPanel/hooks/useFileContent.ts):
@@ -65,7 +66,7 @@ export function useFileContent<T extends ResponseType = "text">(
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t("filePreview.loadFailed"));
       setContent(null);
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);

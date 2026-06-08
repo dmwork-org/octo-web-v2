@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { ComposerAttachmentView } from "@/features/chat/components/composer-attachment-view";
+import { t } from "@/lib/i18n/instance";
 
 // inline atom TipTap Node — 1:1 对齐旧 dmworkbase AttachmentNode。
 //
@@ -17,7 +18,7 @@ export const AttachmentNode = Node.create({
   addAttributes() {
     return {
       id: { default: null },
-      name: { default: "未命名文件" },
+      name: { default: t("composerAttachment.defaultName") },
       size: { default: 0 },
       type: { default: "application/octet-stream" },
       previewUrl: { default: null },

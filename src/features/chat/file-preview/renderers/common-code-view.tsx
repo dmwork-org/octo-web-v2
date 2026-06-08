@@ -20,6 +20,7 @@ import {
 } from "@/features/chat/file-preview/renderer-state";
 import { formatFileSize, type RenderMode } from "@/features/chat/file-preview/config";
 import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 // Prism light:按需注册高频语言(对应旧 LANGUAGE_MAP + registry code 扩展名列表)。
 // 未注册的语言 SyntaxHighlighter 会 fallback 到纯文本展示,不报错。
@@ -71,11 +72,12 @@ export function CommonCodeView({
   contentSize,
   forcePlain,
 }: CommonCodeViewProps) {
+  const t = useT();
   if (renderMode === "too-large") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="text-sm font-medium text-text-primary">
-          文件过大({formatFileSize(fileSize)}),建议下载到本地查看
+          {t("filePreview.largeFileMessage", { values: { size: formatFileSize(fileSize) } })}
         </div>
         <button
           type="button"
@@ -83,7 +85,7 @@ export function CommonCodeView({
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border-default px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <Download size={14} />
-          <span>下载</span>
+          <span>{t("filePreview.download")}</span>
         </button>
       </div>
     );
@@ -124,7 +126,7 @@ export function CommonCodeView({
     <div className="flex h-full flex-col overflow-hidden bg-bg-base">
       {renderMode === "plain" && !forcePlain ? (
         <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-3 py-1.5 text-[11px] text-text-tertiary">
-          文件较大({formatFileSize(contentSize)}),已禁用语法高亮
+          {t("filePreview.largeFilePlainHint", { values: { size: formatFileSize(contentSize) } })}
         </div>
       ) : null}
       <pre className="m-0 flex-1 overflow-auto px-4 py-3 font-mono text-[12.5px] leading-[1.6] break-words whitespace-pre-wrap text-text-primary">

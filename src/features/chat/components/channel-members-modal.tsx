@@ -23,6 +23,8 @@ import {
   removeGroupManagers,
   removeGroupMembers,
 } from "@/features/base/api/endpoints/group.api";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 /** ChannelType 5 = ChannelTypeCommunityTopic;子区。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -44,11 +46,9 @@ function findMyRole(members: Subscriber[], myUid: string): number {
 
 /**
  * 群成员管理抽屉(对应旧 dmworkbase Subscribers + GroupManagement)。
- *
- * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right;在 channel-setting 内开,
- * 自动 z-dialog-secondary。Header 标题 + 加成员 button(custom)+ X。
  */
 export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDrawerProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const subscribers = useGroupSubscribers(channel, open);
@@ -57,7 +57,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  // 子区 → 父群 channel(用于发 mutation API 和加成员 picker)
   const groupChannel = useMemo(() => {
     if (channel.channelType !== CHANNEL_TYPE_THREAD) return channel;
     const parsed = parseThreadChannelId(channel.channelID);
@@ -88,39 +87,42 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
 
   const promoteMu = useMutation({
     mutationFn: (uid: string) => {
-      if (!groupChannel) return Promise.reject(new Error("无效会话"));
+      if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
       return addGroupManagers(groupChannel.channelID, [uid]);
     },
     onSuccess: () => {
       refreshSubs();
-      toast.success("已设为管理员");
+      toast.success(t("channelMembers.toast.promoted"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "设置失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.promoteFailed")),
   });
 
   const demoteMu = useMutation({
     mutationFn: (uid: string) => {
-      if (!groupChannel) return Promise.reject(new Error("无效会话"));
+      if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
       return removeGroupManagers(groupChannel.channelID, [uid]);
     },
     onSuccess: () => {
       refreshSubs();
-      toast.success("已取消管理员");
+      toast.success(t("channelMembers.toast.demoted"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "操作失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.demoteFailed")),
   });
 
   const kickMu = useMutation({
     mutationFn: (uid: string) => {
-      if (!groupChannel) return Promise.reject(new Error("无效会话"));
+      if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
       return removeGroupMembers(groupChannel.channelID, [uid]);
     },
     onSuccess: () => {
       refreshSubs();
-      toast.success("已移出群聊");
+      toast.success(t("channelMembers.toast.kicked"));
       setConfirmKickUid(null);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "移出失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.kickFailed")),
   });
 
   const buildMenuItems = (target: Subscriber): ContextMenuItem[] => {
@@ -129,18 +131,18 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
     if (iAmOwner) {
       if (target.role === ROLE_NORMAL) {
         items.push({
-          label: "设为管理员",
+          label: t("channelMembers.action.setManager"),
           onClick: () => promoteMu.mutate(target.uid),
         });
       } else if (target.role === ROLE_MANAGER) {
         items.push({
-          label: "取消管理员",
+          label: t("channelMembers.action.unsetManager"),
           onClick: () => demoteMu.mutate(target.uid),
         });
       }
       if (target.role !== ROLE_OWNER) {
         items.push({
-          label: "移出群聊",
+          label: t("channelMembers.action.kick"),
           danger: true,
           onClick: () => setConfirmKickUid(target.uid),
         });
@@ -148,7 +150,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
     } else if (iAmManager) {
       if (target.role === ROLE_NORMAL) {
         items.push({
-          label: "移出群聊",
+          label: t("channelMembers.action.kick"),
           danger: true,
           onClick: () => setConfirmKickUid(target.uid),
         });
@@ -173,10 +175,12 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
         size="md"
         title={
           <div className="flex items-center gap-2">
-            <span className="truncate">成员({subscribers.length})</span>
+            <span className="truncate">
+              {tt("channelMembers.titleWithCount", { values: { count: subscribers.length } })}
+            </span>
             {showAddBtn ? (
               <Button type="primary" theme="solid" size="small" onClick={() => setAddOpen(true)}>
-                加成员
+                {tt("channelMembers.addMember")}
               </Button>
             ) : null}
           </div>
@@ -188,7 +192,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索成员"
+              placeholder={tt("channelMembers.searchPlaceholder")}
               className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
             />
           </div>
@@ -197,7 +201,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
         <ul className="flex flex-1 flex-col overflow-y-auto py-1">
           {filtered.length === 0 ? (
             <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              {keyword ? "没有匹配的成员" : "暂无成员"}
+              {keyword ? tt("channelMembers.noMatches") : tt("channelMembers.noMembers")}
             </li>
           ) : (
             filtered.map((m) => {
@@ -220,28 +224,28 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
                     <span className="truncate text-sm text-text-primary">{display}</span>
                     {isMe ? (
                       <span className="shrink-0 rounded-sm bg-bg-elevated px-1 text-[10px] text-text-tertiary">
-                        我
+                        {tt("channelMembers.me")}
                       </span>
                     ) : null}
                     {m.role === ROLE_OWNER ? (
                       <span className="shrink-0 rounded-sm bg-warning/10 px-1 text-[10px] font-semibold text-warning">
-                        群主
+                        {tt("channelMembers.owner")}
                       </span>
                     ) : m.role === ROLE_MANAGER ? (
                       <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                        管理员
+                        {tt("channelMembers.manager")}
                       </span>
                     ) : null}
                     {isBot ? (
                       <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                        AI
+                        {tt("channelMembers.aiTag")}
                       </span>
                     ) : null}
                   </div>
                   {menuItems.length > 0 ? (
                     <button
                       type="button"
-                      aria-label="操作"
+                      aria-label={tt("channelMembers.actionAria")}
                       onClick={(e) => setMenuFor({ uid: m.uid, x: e.clientX, y: e.clientY })}
                       className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-elevated hover:text-text-primary group-hover:flex"
                     >
@@ -255,7 +259,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
         </ul>
       </BaseDrawer>
 
-      {/* per-row 操作菜单(条件渲染避免 ContextMenu 在 open=false 时仍跑副作用) */}
       {menuFor ? (
         <ContextMenu
           open
@@ -269,15 +272,16 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
         />
       ) : null}
 
-      {/* 移出群聊二次确认(条件渲染) */}
       {confirmKickUid ? (
         <ConfirmModal
           open
-          title="确认移出"
+          title={tt("channelMembers.confirmKickTitle")}
           content={
-            kickTargetName ? `确定要将 ${kickTargetName} 移出群聊吗?` : "确定要移出该成员吗?"
+            kickTargetName
+              ? tt("channelMembers.confirmKickWithName", { values: { name: kickTargetName } })
+              : tt("channelMembers.confirmKick")
           }
-          okText="移出"
+          okText={tt("channelMembers.action.kick")}
           okDanger
           okLoading={kickMu.isPending}
           onOk={() => kickMu.mutate(confirmKickUid)}
@@ -285,7 +289,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
         />
       ) : null}
 
-      {/* 加成员 picker:子区 showAddBtn=false 不会进这里;groupChannel 一定是父群 */}
       {addOpen && groupChannel ? (
         <AddMembersModal open channel={groupChannel} onClose={() => setAddOpen(false)} />
       ) : null}

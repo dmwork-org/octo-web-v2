@@ -13,6 +13,8 @@ import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.
 import { createGroup } from "@/features/base/api/endpoints/group.api";
 import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface CreateGroupModalProps {
   open: boolean;
@@ -46,6 +48,7 @@ function useResetOnOpen(
  * - 成功后:invalidate conversations / fetchChannelInfo / select / 可选 moveGroupToCategory
  */
 export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModalProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -92,10 +95,11 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       }
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);
-      toast.success("群聊创建成功");
+      toast.success(t("createGroup.toast.created"));
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("createGroup.toast.failed")),
   });
 
   const toggle = (uid: string) => {
@@ -115,12 +119,16 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       }}
       size="md"
       height="sm"
-      title={`发起群聊${selected.size > 0 ? `(${selected.size})` : ""}`}
+      title={
+        selected.size > 0
+          ? tt("createGroup.titleWithCount", { values: { count: selected.size } })
+          : tt("createGroup.title")
+      }
       contentClassName="overflow-hidden"
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
+            {tt("createGroup.cancel")}
           </Button>
           <Button
             type="primary"
@@ -129,7 +137,9 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             disabled={selected.size === 0}
             onClick={() => mu.mutate()}
           >
-            创建{selected.size > 0 ? `(${selected.size + 1} 人)` : ""}
+            {selected.size > 0
+              ? tt("createGroup.createWithCount", { values: { count: selected.size + 1 } })
+              : tt("createGroup.create")}
           </Button>
         </>
       }
@@ -141,7 +151,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             autoFocus
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索 Space 成员"
+            placeholder={tt("createGroup.searchPlaceholder")}
             className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
         </div>
@@ -150,11 +160,11 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       <ul className="flex flex-1 flex-col overflow-y-auto py-1">
         {isLoading ? (
           <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            加载中…
+            {tt("createGroup.loading")}
           </li>
         ) : filtered.length === 0 ? (
           <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            {keyword ? "没有匹配的成员" : "Space 内没有其他成员"}
+            {keyword ? tt("createGroup.noMatches") : tt("createGroup.noOtherMembers")}
           </li>
         ) : (
           filtered.map((m) => {

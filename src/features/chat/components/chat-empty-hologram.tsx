@@ -1,20 +1,10 @@
 /**
- * Chat 主区空白态 — 1:1 复刻旧 dmworkbase `.wk-chat-empty-hologram`:
- *
- * **结构**:
- *   - SVG 280×220(viewBox 0 0 320 250):中心圆 + 左侧 3 个绿色用户节点 +
- *     右侧 3 个紫色 AI/应用方块,均虚线连接到中心
- *   - 主文案 "选择对话,激活连接"(15px / 500 / #6B7075)
- *   - 副文案 "人与 AI 在这里汇聚 ✦"(12px / #B8BCC8)
- *   - 容器:flex col / center / gap 16px / bg #f6f6f6
- *
- * **动效**(对齐旧 wk-hologram-pulse / wk-hologram-dash):
- *   - 中心圆 + 装饰小点 wk-hologram-pulse:2.5s ease-in-out infinite,opacity 0.25↔0.6
- *   - 虚线 wk-hologram-dash:2s linear infinite,stroke-dashoffset 0→-20(流动效果)
- *
- * 渐变定义:`url(#es-a1)`/`#es-a2`/`#es-a3` — 跟旧仓 id 一致(单页只一个组件实例,不会冲突)。
+ * Chat 主区空白态 — 1:1 复刻旧 dmworkbase `.wk-chat-empty-hologram`。
  */
+import { useT } from "@/lib/i18n/use-t";
+
 export function ChatEmptyHologram() {
+  const t = useT();
   return (
     <section
       className="flex h-full w-full flex-col items-center justify-center gap-4"
@@ -37,10 +27,8 @@ export function ChatEmptyHologram() {
           </radialGradient>
         </defs>
 
-        {/* 背景大圆 */}
         <circle cx="160" cy="125" r="100" fill="url(#es-a1)" />
 
-        {/* 左侧 3 个用户节点(绿) */}
         <circle
           cx="55"
           cy="70"
@@ -72,7 +60,6 @@ export function ChatEmptyHologram() {
         />
         <circle cx="65" cy="180" r="4" fill="#00D4AA" opacity="0.2" />
 
-        {/* 右侧 3 个 AI/应用方块(紫) */}
         <rect
           x="245"
           y="55"
@@ -110,7 +97,6 @@ export function ChatEmptyHologram() {
         />
         <circle cx="254" cy="186" r="4" fill="#7C5CFC" opacity="0.2" />
 
-        {/* 中心圆(光晕 + 边框 + 跳动点) */}
         <circle cx="160" cy="125" r="26" fill="url(#es-a3)" />
         <circle
           cx="160"
@@ -130,7 +116,6 @@ export function ChatEmptyHologram() {
           className="wk-hologram-pulse"
         />
 
-        {/* 左侧 3 条虚线连接到中心 */}
         <line
           x1="71"
           y1="72"
@@ -164,7 +149,6 @@ export function ChatEmptyHologram() {
           opacity="0.18"
           className="wk-hologram-dash"
         />
-        {/* 右侧 3 条虚线连接到中心 */}
         <line
           x1="245"
           y1="70"
@@ -199,25 +183,18 @@ export function ChatEmptyHologram() {
           className="wk-hologram-dash"
         />
 
-        {/* 装饰跳动点(对称) */}
         <circle cx="108" cy="98" r="2" fill="#00D4AA" opacity="0.4" className="wk-hologram-pulse" />
         <circle cx="210" cy="98" r="2" fill="#7C5CFC" opacity="0.4" className="wk-hologram-pulse" />
       </svg>
 
-      <div className="text-[15px] font-medium text-[#6B7075]">选择对话,激活连接</div>
+      <div className="text-[15px] font-medium text-[#6B7075]">{t("chatEmpty.title")}</div>
       <div className="text-[12px] text-[#B8BCC8]">
-        人与 AI 在这里汇聚 <span className="text-[#7C5CFC]">✦</span>
+        {t("chatEmpty.subtitle")} <span className="text-[#7C5CFC]">✦</span>
       </div>
     </section>
   );
 }
 
-/**
- * Hologram 动效 keyframes — 内联 `<style>` 注入(组件级,无需全局 css 文件):
- *   - pulse:中心圆 + 装饰点 opacity 呼吸 2.5s
- *   - dash:虚线 stroke-dashoffset 流动 2s
- * 旧仓选择器跟此处一致,直接复刻 keyframe 名称。
- */
 const HOLOGRAM_KEYFRAMES = `
 @keyframes wk-hologram-pulse {
   0%, 100% { opacity: 0.25; }

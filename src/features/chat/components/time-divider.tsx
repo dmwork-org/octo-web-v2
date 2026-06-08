@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n/instance";
+
 interface TimeDividerProps {
   /** unix seconds */
   timestamp: number;
@@ -16,7 +18,7 @@ function formatDateLabel(ts: number): string {
   const d = new Date(ts * 1000);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
-  return `${mm}月${dd}日`;
+  return t("timeDivider.monthDay", { values: { mm, dd } });
 }
 
 /**

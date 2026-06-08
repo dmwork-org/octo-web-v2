@@ -7,6 +7,7 @@ import {
 } from "@/features/chat/queries/sidebar.query";
 import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 import { toast } from "@/components/semi-bridge/toast";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 关注 tab 拖拽排序 — 1:1 对齐旧 dmworkbase ChatConversationList.handleSortFollowItems
@@ -92,7 +93,7 @@ export function useSortFollow(spaceId: string | null) {
       }
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "排序失败");
+      toast.error(err instanceof Error ? err.message : t("useSortFollow.sortFailed"));
       // 失败时 invalidate 让 UI 回到服务端真值
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },

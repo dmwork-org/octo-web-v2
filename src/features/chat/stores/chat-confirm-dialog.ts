@@ -1,4 +1,5 @@
 import { Store } from "@tanstack/react-store";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 全局 chat 域 confirm dialog store(对齐旧 dmworkbase WKModal +
@@ -19,16 +20,18 @@ export interface ChatConfirmDialogState {
   onOk: (() => void) | null;
 }
 
-const INITIAL: ChatConfirmDialogState = {
-  open: false,
-  title: "",
-  message: "",
-  okText: "确定",
-  cancelText: "取消",
-  onOk: null,
-};
+function buildInitialState(): ChatConfirmDialogState {
+  return {
+    open: false,
+    title: "",
+    message: "",
+    okText: t("chatConfirmDialog.ok"),
+    cancelText: t("chatConfirmDialog.cancel"),
+    onOk: null,
+  };
+}
 
-export const chatConfirmDialogStore = new Store<ChatConfirmDialogState>(INITIAL);
+export const chatConfirmDialogStore = new Store<ChatConfirmDialogState>(buildInitialState());
 
 interface ShowOptions {
   title: string;
@@ -44,17 +47,17 @@ export const chatConfirmDialogActions = {
       open: true,
       title: opts.title,
       message: opts.message,
-      okText: opts.okText ?? "继续",
-      cancelText: opts.cancelText ?? "取消",
+      okText: opts.okText ?? t("chatConfirmDialog.continue"),
+      cancelText: opts.cancelText ?? t("chatConfirmDialog.cancel"),
       onOk: opts.onOk,
     }));
   },
   hide(): void {
-    chatConfirmDialogStore.setState(() => INITIAL);
+    chatConfirmDialogStore.setState(() => buildInitialState());
   },
   confirm(): void {
     const { onOk } = chatConfirmDialogStore.state;
-    chatConfirmDialogStore.setState(() => INITIAL);
+    chatConfirmDialogStore.setState(() => buildInitialState());
     onOk?.();
   },
 };

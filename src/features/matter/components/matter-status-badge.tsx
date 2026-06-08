@@ -1,9 +1,10 @@
+import { useT } from "@/lib/i18n/use-t";
 import type { MatterStatus } from "@/features/matter/types/matter.types";
 
-const STATUS_LABELS: Record<MatterStatus, string> = {
-  open: "进行中",
-  done: "已完成",
-  archived: "已归档",
+const STATUS_KEY: Record<MatterStatus, string> = {
+  open: "matter.status.open",
+  done: "matter.status.done",
+  archived: "matter.status.archived",
 };
 
 /**
@@ -22,13 +23,14 @@ interface MatterStatusBadgeProps {
 }
 
 export function MatterStatusBadge({ status, size = "sm" }: MatterStatusBadgeProps) {
+  const t = useT();
   const cls = STATUS_CLASS[status];
   const sizeCls = size === "sm" ? "px-1.5 text-[10px]" : "px-2 py-0.5 text-xs";
   return (
     <span
       className={`inline-flex shrink-0 items-center rounded-sm font-semibold ${cls} ${sizeCls}`}
     >
-      {STATUS_LABELS[status]}
+      {t(STATUS_KEY[status])}
     </span>
   );
 }

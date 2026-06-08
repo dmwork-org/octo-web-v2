@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { createMatter } from "@/features/matter/api/matter.api";
@@ -60,6 +62,7 @@ export function CreateMatterModal({
   onCreated,
   sourceChannel,
 }: CreateMatterModalProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -74,11 +77,12 @@ export function CreateMatterModal({
     onSuccess: (matter) => {
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
       void qc.invalidateQueries({ queryKey: ["matter", "list"] });
-      toast.success("已添加");
+      toast.success(t("matter.toast.added"));
       onCreated?.(matter);
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "创建事项失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("matter.toast.createMatterFailed")),
   });
 
   // dirty:相对"打开初始态"(prefill 自己 + 空字段);只看用户主动改了什么
@@ -130,7 +134,7 @@ export function CreateMatterModal({
           if (!next) handleClose();
         }}
         size="fit"
-        title="新建事项"
+        title={tr("matter.action.new")}
         className="w-[480px] max-w-full"
         contentClassName="px-4 py-[10px]"
         footer={
@@ -140,7 +144,7 @@ export function CreateMatterModal({
               onClick={handleClose}
               className="inline-flex h-7 items-center rounded-full border border-brand/10 bg-bg-surface px-3 text-[13px] font-semibold text-text-strong transition-colors hover:bg-bg-hover"
             >
-              取消
+              {tr("matter.common.cancel")}
             </button>
             <button
               type="button"
@@ -148,7 +152,7 @@ export function CreateMatterModal({
               disabled={!canSubmit}
               className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {mu.isPending ? "创建中..." : "确定"}
+              {mu.isPending ? tr("matter.action.creating") : tr("matter.common.confirm")}
             </button>
           </>
         }
@@ -166,10 +170,10 @@ export function CreateMatterModal({
       <ConfirmDialog
         open={confirmDirtyClose}
         onOpenChange={(next) => !next && setConfirmDirtyClose(false)}
-        content="已填写的内容会丢失,确认关闭?"
-        okText="关闭"
+        content={tr("matter.confirm.discardUnsaved")}
+        okText={tr("matter.action.close")}
         okDanger
-        cancelText="继续编辑"
+        cancelText={tr("matter.action.keepEditing")}
         onOk={() => {
           setConfirmDirtyClose(false);
           onClose();

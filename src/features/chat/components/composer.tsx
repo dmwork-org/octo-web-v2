@@ -67,6 +67,8 @@ import {
   MENTION_UID_LEGACY_ALL,
   MENTION_UID_OLD_ALL_ALIAS,
 } from "@/features/base/lib/mention-three-state";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;子区也走 mention(成员=父群成员)。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -78,13 +80,6 @@ const VOICE_MAX_DURATION = 60;
 const ALT_KEY =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌥" : "Alt";
 
-/**
- * 三态 sticky 候选项(对齐旧 buildMentionDropdownItems):
- *   @所有人 → mention.humans=1(纯人,不含 AI)
- *   @所有AI → mention.ais=1(全部 bot)
- *
- * 仅 query 为空时置顶;用户已输入过滤词时只显匹配的成员,避免误选 sticky。
- */
 const STICKY_MENTIONS: MentionItem[] = [
   { id: MENTION_UID_HUMANS, label: MENTION_LABEL_HUMANS },
   { id: MENTION_UID_AIS, label: MENTION_LABEL_AIS, isBot: true },
@@ -125,26 +120,24 @@ function quotedTypeMeta(content: MessageContent | undefined): {
   hint: string;
 } {
   const ct = (content as { contentType?: number } | undefined)?.contentType;
-  if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: "[图片]" };
+  if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: t("composer.quoted.image") };
   if (ct === MessageContentType.text) return { Icon: null, hint: "" };
-  if (ct === 6) return { Icon: FileText, hint: "[文件]" };
-  if (ct === 4) return { Icon: Mic, hint: "[语音]" };
+  if (ct === 6) return { Icon: FileText, hint: t("composer.quoted.file") };
+  if (ct === 4) return { Icon: Mic, hint: t("composer.quoted.voice") };
   return { Icon: null, hint: "" };
 }
 
-// 占位符(对齐旧 buildPlaceholder)。
 function buildPlaceholder(channel: Channel, name: string): string {
   if (channel.channelType === ChannelTypePerson) {
-    return name ? `对 ${name} 发送消息` : "发送消息";
+    return name
+      ? t("composer.placeholder.directWithName", { values: { name } })
+      : t("composer.placeholder.direct");
   }
   return name
-    ? `在 ${name} 中回复...  ${ALT_KEY}+↵ 创建任务`
-    : `输入消息...  ${ALT_KEY}+↵ 创建任务`;
+    ? t("composer.placeholder.replyWithName", { values: { name, alt: ALT_KEY } })
+    : t("composer.placeholder.reply", { values: { alt: ALT_KEY } });
 }
 
-// Enter / Shift+Enter keymap。Mention popover 打开时 suggestion 上层 keymap 优先消费 Enter,
-// 本扩展不会被触发。斜杠菜单打开时:editorProps.handleKeyDown(优先级最高)消费 Enter
-// 并 return true,prosemirror 不再走到本 keymap。
 function createSubmitOnEnter(onSubmit: () => void) {
   return Extension.create({
     name: "submitOnEnter",
@@ -166,25 +159,8 @@ function createSubmitOnEnter(onSubmit: () => void) {
   });
 }
 
-// Composer:TipTap + Mention + 草稿 + 媒体增强 + 斜杠命令 + 附件混排(1:1 旧 UI)。
-//
-// 工具栏:[😀] [@] [📎] [✓] [🎤▼] [⤢] 全靠右,无 Send 按钮(Enter 直发)。
-//
-// Mention 三态(A4,对齐旧 mentionRender):
-// - sticky 候选:@所有人("-2",humans=1) / @所有AI("-3",ais=1) — 仅 query 空时置顶
-// - legacy @所有人("-1" / "@all"):mention.all=1(server 端 rewrite 成 humans=1)
-// - 普通成员:mention.uids[]
-//
-// 附件流(A3):
-// - 粘贴图片 → inline AttachmentNode 进 editor(缩略图 + 可拖排序/删)
-// - 拖入 / 上传按钮 / 粘贴非图 → 顶部附件区(可删,带预览)
-// - 发送:extractOrderedBlocks 按文档顺序拆 text/image/file 块,顶部附件追加在末尾;
-//   首条挂 reply
-//
-// 斜杠命令(A1):bot 私聊 + 文本以 "/" 开头(无空格/换行)→ 浮出菜单。
-//
-// 长度上限(A2):单条文本块 > 5000 字符 toast + 终止。
 export function Composer({ channel }: ComposerProps) {
+  const tt = useT();
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -209,7 +185,6 @@ export function Composer({ channel }: ComposerProps) {
   })();
   const placeholder = buildPlaceholder(channel, channelName);
 
-  // 仅成员候选(不含 sticky);sticky 由 suggestion 回调按 query 决定是否 prepend
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
     return subscribers
@@ -263,7 +238,6 @@ export function Composer({ channel }: ComposerProps) {
                 }
                 return `@${label ?? id ?? ""}`;
               },
-              // query 为空时 prepend sticky;非空只过滤成员(避免误选 sticky)。对齐旧 buildMentionDropdownItems。
               suggestion: createMentionSuggestion((query) => {
                 const kw = query.toLowerCase();
                 const list = candidatesRef.current;
@@ -289,8 +263,6 @@ export function Composer({ channel }: ComposerProps) {
       },
       handleKeyDown: (_view, event) => {
         if (slashKeyDownRef.current(event)) return true;
-        // Alt+Enter:创建任务(对齐旧 MessageInput onAltEnter,A5)
-        // 占位 — 先 emit DOM event + toast,C1 阶段会订阅这个事件打开 SmartCreateModal
         if (event.key === "Enter" && event.altKey && !event.shiftKey) {
           event.preventDefault();
           window.dispatchEvent(
@@ -314,7 +286,6 @@ export function Composer({ channel }: ComposerProps) {
 
   useApplyPendingMention(channel, editor);
 
-  // 注册"切 channel 前 confirm 未发送附件"守卫(对齐旧 pendingAttachmentGuard)
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 
   const buildReply = useMemo(
@@ -331,7 +302,6 @@ export function Composer({ channel }: ComposerProps) {
     [replyingTo],
   );
 
-  // 多块发送:依次发 ordered text/image/file blocks + 顶部 attachments。首条挂 reply。
   const send = async () => {
     if (!editor || sending) return;
     const MAX_MESSAGE_LENGTH = 5000;
@@ -343,16 +313,11 @@ export function Composer({ channel }: ComposerProps) {
 
     for (const b of blocks) {
       if (b.type === "text" && b.text.length > MAX_MESSAGE_LENGTH) {
-        toast.error(`输入内容长度不能大于 ${MAX_MESSAGE_LENGTH} 字符!`);
+        toast.error(t("composer.toast.tooLong", { values: { max: MAX_MESSAGE_LENGTH } }));
         return;
       }
     }
 
-    // 包装 content 注入 space_id(DM)+ mention.humans/ais 三态(任意 channel)。
-    // 对齐旧 dmworkbase sendContentProxy:
-    //   - SYSTEM_BOTS(BotFather)私聊必须带 space_id,否则后端 filterPersonMessagesBySpace
-    //     丢弃 + 本地 isMessageOfSpace 也判 SYSTEM_BOTS+无 space_id → 自发消息看不到
-    //   - SDK encode() 整段覆盖 mention,humans/ais 不带 space_id 也保不住
     const wrapInject = (c: MessageContent) => {
       const m = (c as { mention?: { humans?: number; ais?: number } }).mention;
       return wrapSendContentForInjection(c, {
@@ -389,7 +354,6 @@ export function Composer({ channel }: ComposerProps) {
           const content = new MessageText(b.text);
           const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
           if (hasMention) {
-            // SDK Mention 类只定义 all/uids;humans/ais 是三态扩展,JSON 序列化时透传给服务端。
             const m = new ImMention() as ImMention & { humans?: number; ais?: number };
             if (b.all) m.all = true;
             if (b.uids.length > 0) m.uids = b.uids;
@@ -409,7 +373,6 @@ export function Composer({ channel }: ComposerProps) {
         if (isImageMime(item.type, item.name)) {
           await sendImageFile(item.file);
         } else if (isVideoMime(item.type, item.name)) {
-          // 视频走文件路径(SDK 暂未实装专门 video content);UI 上 generateVideoCover 仅作封面
           await sendRegularFile(item.file);
         } else {
           await sendRegularFile(item.file);
@@ -420,7 +383,7 @@ export function Composer({ channel }: ComposerProps) {
       chatReplyActions.clear(channel);
       dropDraft();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "发送失败");
+      toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -431,8 +394,6 @@ export function Composer({ channel }: ComposerProps) {
   const transcribeAndInsert = async (file: File, mode: VoiceMode) => {
     setTranscribing(true);
     try {
-      // edit_only 把当前 editor 文本作 contextText 传给后端(LLM 据此做"编辑");
-      // append_only / smart 不传 — 后端按"插入"语义处理。
       const contextText = mode === "edit_only" ? (editor?.getText() ?? "") : undefined;
       const { text } = await transcribeVoice(file, {
         channelType: channel.channelType,
@@ -442,11 +403,9 @@ export function Composer({ channel }: ComposerProps) {
       if (!text || !editor) return;
 
       if (mode === "edit_only") {
-        // 整段替换:对齐旧 onTranscribed 'all' 模式(语音编辑场景)
         editor.chain().focus().clearContent().insertContent(text).run();
         return;
       }
-      // append_only / smart:解析 @mention 后按当前光标插入
       if (isMentionable) {
         const [{ parseVoiceMentions }, { isStickyMentionUid }] = await Promise.all([
           import("@/features/chat/lib/voice-mention-parser"),
@@ -465,21 +424,20 @@ export function Composer({ channel }: ComposerProps) {
         editor.chain().focus().insertContent(text).run();
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "转写失败");
+      toast.error(err instanceof Error ? err.message : t("composer.toast.transcribeFailed"));
     } finally {
       setTranscribing(false);
     }
   };
 
   const [preparing, setPreparing] = useState(false);
-  // 本次录音使用的 mode(在 start 时定;stop → transcribe 用同一个值,避免菜单切换中间态)
   const [currentMode, setCurrentMode] = useState<VoiceMode>("append_only");
   const currentModeRef = useRef<VoiceMode>("append_only");
   currentModeRef.current = currentMode;
 
   const voiceRec = useVoiceRecorder({
     maxDuration: VOICE_MAX_DURATION,
-    onError: (e) => toast.error(e.message || "录音失败"),
+    onError: (e) => toast.error(e.message || t("composer.toast.recordFailed")),
     onAutoStop: () => {
       void (async () => {
         const file = await voiceRec.stop(false);
@@ -488,18 +446,15 @@ export function Composer({ channel }: ComposerProps) {
     },
   });
 
-  /** stop 拿到 file 后:< 1s toast "未检测到语音";否则进 transcribe。 */
   const afterStop = async (file: File | null) => {
     if (!file) return;
     if (voiceRec.duration < 1) {
-      toast.warning("未检测到语音");
+      toast.warning(t("composer.toast.noVoiceDetected"));
       return;
     }
     await transcribeAndInsert(file, currentModeRef.current);
   };
 
-  // start 包一层 preparing:对齐旧 VoiceInputIndicator 的 preparing 态 — getUserMedia
-  // 申请权限 / 启动音轨期间显示"准备中..." UI(A7)。
   const safeStartVoice = async (mode: VoiceMode) => {
     if (preparing || voiceRec.isRecording) return;
     setCurrentMode(mode);
@@ -524,7 +479,6 @@ export function Composer({ channel }: ComposerProps) {
     () => void voiceRec.stop(true),
   );
 
-  /** mic 主按钮点击:idle → append_only 启录;recording → 停录 + 转写。 */
   const onClickMic = async () => {
     if (transcribing || preparing) return;
     if (!voiceRec.isRecording) {
@@ -535,7 +489,6 @@ export function Composer({ channel }: ComposerProps) {
     await afterStop(file);
   };
 
-  /** 模式菜单选 mode:idle 时直接以指定 mode 启录(对齐旧 handleModeSelect)。 */
   const onModeSelect = (mode: VoiceMode) => {
     if (transcribing || preparing || voiceRec.isRecording) return;
     void safeStartVoice(mode);
@@ -558,7 +511,6 @@ export function Composer({ channel }: ComposerProps) {
     if (files.length > 0) void attachments.addAttachments(files, "upload", editor);
   };
 
-  // 粘贴:图片走 paste(inline editor),非图走 upload(顶部);文本/HTML 不拦截。
   const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -578,7 +530,6 @@ export function Composer({ channel }: ComposerProps) {
     if (others.length > 0) void attachments.addAttachments(others, "upload", editor);
   };
 
-  // 拖文件:全部走 upload(顶部,对齐旧版)
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return;
@@ -612,17 +563,18 @@ export function Composer({ channel }: ComposerProps) {
       : voiceRec.isRecording
         ? "recording"
         : "idle";
-  const modeLabel = currentMode === "edit_only" ? "语音编辑" : "语音输入";
+  const modeLabel =
+    currentMode === "edit_only" ? tt("composer.modeEdit") : tt("composer.modeInput");
   const micTitle =
     voiceState === "transcribing"
       ? currentMode === "edit_only"
-        ? "编辑中..."
-        : "转写中..."
+        ? tt("composer.editing")
+        : tt("composer.transcribing")
       : voiceState === "preparing"
-        ? "准备中..."
+        ? tt("composer.preparing")
         : voiceState === "recording"
-          ? `点击停止 · ${modeLabel}`
-          : "语音输入 (长按 Shift)";
+          ? tt("composer.clickToStop", { values: { mode: modeLabel } })
+          : tt("composer.voiceInputHint");
 
   return (
     <div className="shrink-0 px-4 pb-2">
@@ -639,14 +591,14 @@ export function Composer({ channel }: ComposerProps) {
             <button
               type="button"
               onClick={() => chatReplyActions.clear(channel)}
-              aria-label="取消回复"
+              aria-label={tt("composer.cancelReply")}
               className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-text-tertiary text-bg-surface transition-colors hover:bg-text-secondary"
             >
               <X size={8} strokeWidth={3} />
             </button>
             <span className="h-3 w-px shrink-0 bg-border-default" />
             <div className="flex min-w-0 flex-1 items-center gap-1 text-text-secondary">
-              <span className="shrink-0">回复</span>
+              <span className="shrink-0">{tt("composer.replyLabel")}</span>
               <span className="shrink-0 font-medium text-text-primary">{replySender}:</span>
               {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
               <span className="truncate">
@@ -657,7 +609,6 @@ export function Composer({ channel }: ComposerProps) {
           </div>
         ) : null}
 
-        {/* 顶部附件区(对齐旧 .wk-messageinput-top-attachments) */}
         <ComposerTopAttachmentBar
           items={attachments.topAttachments}
           onRemove={attachments.removeTopAttachment}
@@ -666,8 +617,6 @@ export function Composer({ channel }: ComposerProps) {
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileChange} />
 
         <div className={`flex gap-2 ${isMultiLine ? "flex-col items-stretch" : "items-center"}`}>
-          {/* 斜杠命令入口(对齐旧 .wk-messageinput-menu-btn):仅 bot 私聊 + 有 bot_commands 时显;
-              点击 setContent("/") 触发 menu(走 onUpdate → useSlashCommand 自然展开)。 */}
           {botCommands.length > 0 && editor ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -676,13 +625,13 @@ export function Composer({ channel }: ComposerProps) {
                   onClick={() => {
                     editor.chain().focus().setContent("/").run();
                   }}
-                  aria-label="斜杠命令"
+                  aria-label={tt("composer.slashAria")}
                   className="flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-full border border-border-default text-base font-semibold text-text-secondary transition-colors hover:border-text-tertiary hover:bg-bg-hover active:bg-bg-elevated"
                 >
                   /
                 </button>
               </TooltipTrigger>
-              <TooltipContent>斜杠命令</TooltipContent>
+              <TooltipContent>{tt("composer.slashAria")}</TooltipContent>
             </Tooltip>
           ) : null}
           <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
@@ -695,7 +644,7 @@ export function Composer({ channel }: ComposerProps) {
                 <button
                   type="button"
                   onClick={() => setEmojiOpen((v) => !v)}
-                  aria-label="表情"
+                  aria-label={tt("composer.emojiAria")}
                   className={`flex h-6 w-6 items-center justify-center transition-colors ${
                     emojiOpen ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
                   }`}
@@ -703,7 +652,7 @@ export function Composer({ channel }: ComposerProps) {
                   <Smile size={20} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>表情</TooltipContent>
+              <TooltipContent>{tt("composer.emojiAria")}</TooltipContent>
             </Tooltip>
             {isMentionable ? (
               <Tooltip>
@@ -711,13 +660,13 @@ export function Composer({ channel }: ComposerProps) {
                   <button
                     type="button"
                     onClick={onClickMention}
-                    aria-label="@提及"
+                    aria-label={tt("composer.mentionAria")}
                     className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
                   >
                     <AtSign size={20} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>@提及</TooltipContent>
+                <TooltipContent>{tt("composer.mentionAria")}</TooltipContent>
               </Tooltip>
             ) : null}
             <Tooltip>
@@ -725,17 +674,14 @@ export function Composer({ channel }: ComposerProps) {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  aria-label="发送文件"
+                  aria-label={tt("composer.sendFileAria")}
                   className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
                 >
                   <Paperclip size={20} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>发送文件 / 图片</TooltipContent>
+              <TooltipContent>{tt("composer.sendFileTooltip")}</TooltipContent>
             </Tooltip>
-            {/* 创建任务 ✓ — 仅群聊/子区显示(对齐旧 dmworktodo registerChatToolbar)。
-                点击 emit chat:create-matter-from-composer 事件,chat-main listener 打开
-                SmartCreateModal,跟 Alt+Enter 同入口。 */}
             {isMentionable ? (
               <button
                 type="button"
@@ -749,8 +695,8 @@ export function Composer({ channel }: ComposerProps) {
                     }),
                   )
                 }
-                aria-label="创建任务"
-                title={`创建任务(${ALT_KEY}+↵)`}
+                aria-label={tt("composer.createTaskAria")}
+                title={tt("composer.createTaskTitle", { values: { alt: ALT_KEY } })}
                 className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
               >
                 <CheckSquare size={20} />
@@ -766,8 +712,8 @@ export function Composer({ channel }: ComposerProps) {
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              aria-label={expanded ? "收起" : "展开"}
-              title={expanded ? "收起" : "展开"}
+              aria-label={expanded ? tt("composer.collapse") : tt("composer.expand")}
+              title={expanded ? tt("composer.collapse") : tt("composer.expand")}
               className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
             >
               {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -797,8 +743,8 @@ export function Composer({ channel }: ComposerProps) {
           label={
             voiceState === "transcribing"
               ? currentMode === "edit_only"
-                ? "编辑中"
-                : "转写中"
+                ? tt("composer.editingShort")
+                : tt("composer.transcribingShort")
               : modeLabel
           }
           anchorRef={formRef}
@@ -808,7 +754,6 @@ export function Composer({ channel }: ComposerProps) {
   );
 }
 
-// send 变化时重指 sendRef,让 keymap 闭包永远拿最新引用。
 function useSyncSendRef(send: () => void | Promise<void>, ref: React.MutableRefObject<() => void>) {
   useEffect(() => {
     ref.current = () => {
@@ -817,7 +762,6 @@ function useSyncSendRef(send: () => void | Promise<void>, ref: React.MutableRefO
   }, [send, ref]);
 }
 
-// 把最新 fn 同步进 ref(满足 no-useeffect-in-component;给 slash 等闭包稳定的回调用)。
 function useSyncRef<T>(ref: React.MutableRefObject<T>, value: T) {
   useEffect(() => {
     ref.current = value;

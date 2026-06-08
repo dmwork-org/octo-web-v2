@@ -180,11 +180,15 @@ export interface ListSummariesResponse {
 
 export type TimeRangeTypeValue = 1 | 2 | 3 | 4;
 
-export const TimeRangeTypeLabel: Record<TimeRangeTypeValue, string> = {
-  1: "最近 24 小时",
-  2: "最近 7 天",
-  3: "最近 30 天",
-  4: "自上次总结以来",
+/**
+ * TimeRangeTypeValue → i18n key 映射(替代旧 TimeRangeTypeLabel 硬编码字典)。
+ * UI 用 `t(TIME_RANGE_TYPE_KEY[v])` 取本地化文案,locale 切换即时刷新。
+ */
+export const TIME_RANGE_TYPE_KEY: Record<TimeRangeTypeValue, string> = {
+  1: "summary.timeRange.last24h",
+  2: "summary.timeRange.last7d",
+  3: "summary.timeRange.last30d",
+  4: "summary.timeRange.sinceLastSummary",
 };
 
 export interface ScheduleItem {

@@ -2,7 +2,7 @@ import type { FetchOptions } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import type { SpaceState } from "@/features/base/stores/space";
-import { withAuthToken, withSpaceHeader, withReqId } from "./request";
+import { withAuthToken, withSpaceHeader, withReqId, withAcceptLanguage } from "./request";
 import { with401Redirect, withErrorToast } from "./response";
 
 /**
@@ -11,7 +11,7 @@ import { with401Redirect, withErrorToast } from "./response";
  * 主 client(`features/base/api/client.ts`,baseURL = endpointStore.baseURL)和
  * matter client(`features/matter/api/matter-client.ts`,baseURL = /matter/api/v1)
  * 共用同一组 onRequest / onResponseError,确保:
- * - auth token / X-Space-Id / X-Request-Id 在所有业务请求里行为一致
+ * - auth token / X-Space-Id / X-Request-Id / Accept-Language 在所有业务请求里行为一致
  * - 401 自动重定向 + errorToast 统一兜底
  *
  * 调用方传 baseURL,store 引用从外面传(便于测试 mock)。
@@ -24,7 +24,12 @@ export function createClientOptions(args: {
   const { authStore, spaceStore, baseURL } = args;
   return {
     baseURL,
-    onRequest: [withAuthToken(authStore), withSpaceHeader(spaceStore, authStore), withReqId()],
+    onRequest: [
+      withAuthToken(authStore),
+      withSpaceHeader(spaceStore, authStore),
+      withReqId(),
+      withAcceptLanguage(),
+    ],
     onResponseError: [with401Redirect(authStore), withErrorToast()],
   };
 }

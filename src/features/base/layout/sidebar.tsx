@@ -2,8 +2,11 @@ import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
+import { Languages } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { useT } from "@/lib/i18n/use-t";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
 import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
@@ -24,11 +27,13 @@ function isActive(item: MenuItem, path: string): boolean {
  *  - 激活:`text-brand`(无背景)— 老仓"选中态只有颜色变化,无背景,无指示条"
  */
 function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
+  const t = useT();
+  const label = t(item.title);
   return (
     <Link
       to={item.to}
-      title={item.title}
-      aria-label={item.title}
+      title={label}
+      aria-label={label}
       className={`relative flex h-11 w-14 items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
         active
           ? "text-brand"
@@ -40,6 +45,29 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   );
 }
 
+/** 语言切换按钮 — 老仓 NavBottom 翻译图标位,点击直接 toggle zh-CN ↔ en-US。 */
+function LanguageToggle() {
+  const t = useT();
+  const { locale, setLocale } = useI18n();
+  const tooltipKey =
+    locale === "zh-CN" ? "base.settings.switchToEnglish" : "base.settings.switchToChinese";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={t(tooltipKey)}
+          onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+          className="flex h-11 w-14 cursor-pointer items-center justify-center text-text-primary/30 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40 hover:text-text-primary/60"
+        >
+          <Languages size={20} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{t(tooltipKey)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface UserAvatarProps {
   uid: string;
   initial: string;
@@ -48,6 +76,7 @@ interface UserAvatarProps {
 }
 
 function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
+  const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [failed, setFailed] = useState(false);
   const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
@@ -58,14 +87,14 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
         <button
           type="button"
           onClick={onClick}
-          aria-label="我的信息"
+          aria-label={t("base.sidebar.myInfo")}
           className="relative block cursor-pointer"
         >
           <div className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105">
             {url && !failed ? (
               <img
                 src={url}
-                alt="我的头像"
+                alt={t("base.sidebar.myAvatar")}
                 width={40}
                 height={40}
                 onError={() => setFailed(true)}
@@ -80,12 +109,12 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
           {isOnline ? (
             <span
               className="absolute right-0 bottom-0 box-border h-2 w-2 rounded-full border-2 border-bg-navrail bg-online"
-              aria-label="在线"
+              aria-label={t("base.sidebar.online")}
             />
           ) : null}
         </button>
       </TooltipTrigger>
-      <TooltipContent>我的信息</TooltipContent>
+      <TooltipContent>{t("base.sidebar.myInfo")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -97,10 +126,12 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
  * **中部**:menu items(5 个,56×44,老仓专用 svg icon)
  * **底部**(对齐老仓 NavBottom):
  *   - 分割线
+ *   - 语言切换按钮(翻译图标 Languages)→ 直接 toggle zh-CN ↔ en-US
  *   - 设置按钮(齿轮 SettingsIcon)→ 打开 `<SettingsFlyout>` 飞出菜单(**不跳路由**)
  *   - SpaceSwitcher(楼图标 trigger + dropdown)
  */
 export function Sidebar() {
+  const t = useT();
   const user = useStore(authStore, (s) => s.user);
   const location = useLocation();
   const router = useRouter();
@@ -126,7 +157,7 @@ export function Sidebar() {
   return (
     <>
       <nav
-        aria-label="主导航"
+        aria-label={t("base.sidebar.nav")}
         className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
       >
         <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">
@@ -146,15 +177,16 @@ export function Sidebar() {
           ))}
         </div>
 
-        {/* 底部(对齐老仓 NavBottom):分割线 → 设置 → SpaceSwitcher */}
+        {/* 底部(对齐老仓 NavBottom):分割线 → 语言 → 设置 → SpaceSwitcher */}
         <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
         <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
+          <LanguageToggle />
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="设置"
+                aria-label={t("base.sidebar.settings")}
                 onClick={() => setSettingsOpen((v) => !v)}
                 className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
                   settingsOpen
@@ -165,7 +197,7 @@ export function Sidebar() {
                 <SettingsIcon size={20} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>设置</TooltipContent>
+            <TooltipContent>{t("base.sidebar.settings")}</TooltipContent>
           </Tooltip>
           <SpaceSwitcher />
         </div>

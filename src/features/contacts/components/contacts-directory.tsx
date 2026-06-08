@@ -28,6 +28,7 @@ import {
   spaceBotsQueryOptions,
   spaceMembersQueryOptions,
 } from "@/features/contacts/queries/directory.query";
+import { useT } from "@/lib/i18n/use-t";
 
 type FilterMode = "all" | "bots" | "humans";
 type SectionId = "groups" | "myBots" | "allContacts";
@@ -46,8 +47,6 @@ interface ContactItem {
   isBot: boolean;
   role?: number; // 1: owner, 2: admin, 3: member;只 humans/spaceMember 有
 }
-
-const ROLE_LABELS: Record<number, string> = { 1: "创建者", 2: "管理员" };
 
 /** 组合 spaceMembers + spaceBots(去自己 / 按 filter 派生)。 */
 function buildContacts(
@@ -120,16 +119,23 @@ function indexByLetter(items: ContactItem[]): { letter: string; items: ContactIt
  * font-medium 500,10px,padding 1px 6px。
  */
 function GroupTag() {
+  const t = useT();
   return (
     <span className="inline-flex shrink-0 items-center rounded-sm bg-bg-elevated px-1.5 text-[10px] leading-4 font-medium text-text-secondary">
-      群
+      {t("contacts.directory.groupTag")}
     </span>
   );
 }
 
 function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void }) {
+  const t = useT();
   const channel = useMemo(() => new Channel(item.uid, ChannelTypePerson), [item.uid]);
-  const roleLabel = item.role && item.role > 0 && item.role <= 2 ? ROLE_LABELS[item.role] : null;
+  const roleLabel =
+    item.role === 1
+      ? t("contacts.directory.roleOwner")
+      : item.role === 2
+        ? t("contacts.directory.roleAdmin")
+        : null;
   return (
     <button
       type="button"
@@ -209,10 +215,11 @@ function FilterChips({
   onChange: (m: FilterMode) => void;
   counts: { all: number; bots: number; humans: number };
 }) {
+  const t = useT();
   const chips: { id: FilterMode; label: string; count: number }[] = [
-    { id: "all", label: "全部", count: counts.all },
-    { id: "bots", label: "AI", count: counts.bots },
-    { id: "humans", label: "人类", count: counts.humans },
+    { id: "all", label: t("contacts.directory.filterAll"), count: counts.all },
+    { id: "bots", label: t("contacts.directory.filterAi"), count: counts.bots },
+    { id: "humans", label: t("contacts.directory.filterHumans"), count: counts.humans },
   ];
   return (
     <div className="flex shrink-0 items-center gap-1.5 px-4 py-2">
@@ -270,6 +277,7 @@ function EmptyHint({ icon, text }: { icon: React.ReactNode; text: string }) {
  * <= 100 用普通 map 避免无谓开销 + 保 sticky letter header 视觉。
  */
 export function ContactsDirectory() {
+  const t = useT();
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
 
@@ -333,7 +341,7 @@ export function ContactsDirectory() {
   if (!currentSpaceId) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-text-tertiary">
-        先在顶部切换到一个 Space,才能加载通讯录
+        {t("contacts.directory.needSpace")}
       </div>
     );
   }
@@ -349,14 +357,14 @@ export function ContactsDirectory() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索通讯录"
+            placeholder={t("contacts.directory.searchPlaceholder")}
             className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
           {keyword ? (
             <button
               type="button"
               onClick={() => setKeyword("")}
-              aria-label="清空搜索"
+              aria-label={t("contacts.directory.clearSearch")}
               className="shrink-0 px-0.5 text-base leading-none text-text-tertiary hover:text-text-secondary"
             >
               ×
@@ -368,13 +376,13 @@ export function ContactsDirectory() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {searching ? (
           searchContacts.length === 0 && searchGroups.length === 0 ? (
-            <EmptyHint icon={<SearchIcon size={24} />} text="没有找到相关联系人" />
+            <EmptyHint icon={<SearchIcon size={24} />} text={t("contacts.directory.noResults")} />
           ) : (
             <div className="flex min-h-0 flex-col overflow-y-auto pb-3">
               {searchContacts.length > 0 ? (
                 <section className="flex flex-col">
                   <header className="px-4 py-1 text-[11px] font-semibold text-text-tertiary">
-                    联系人
+                    {t("contacts.directory.contactsHeader")}
                   </header>
                   {searchContacts.map((c) => (
                     <ContactRow key={c.uid} item={c} onClick={() => handleContactClick(c)} />
@@ -384,7 +392,7 @@ export function ContactsDirectory() {
               {searchGroups.length > 0 ? (
                 <section className="flex flex-col">
                   <header className="px-4 py-1 text-[11px] font-semibold text-text-tertiary">
-                    群聊
+                    {t("contacts.directory.groupsHeader")}
                   </header>
                   {searchGroups.map((g) => (
                     <GroupRow key={g.group_no} group={g} onClick={() => handleGroupClick(g)} />
@@ -402,14 +410,17 @@ export function ContactsDirectory() {
             >
               <AccordionHeader
                 icon={<UsersRound size={16} />}
-                label="群聊"
+                label={t("contacts.directory.sectionGroups")}
                 count={myGroups.length}
                 expanded={expanded === "groups"}
                 onToggle={() => toggle("groups")}
               />
               {expanded === "groups" ? (
                 myGroups.length === 0 ? (
-                  <EmptyHint icon={<UsersRound size={24} />} text="还没有群聊,去创建一个吧" />
+                  <EmptyHint
+                    icon={<UsersRound size={24} />}
+                    text={t("contacts.directory.emptyGroups")}
+                  />
                 ) : (
                   <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myGroups.map((g) => (
@@ -427,14 +438,14 @@ export function ContactsDirectory() {
             >
               <AccordionHeader
                 icon={<Bot size={16} />}
-                label="已添加 AI"
+                label={t("contacts.directory.sectionMyBots")}
                 count={myBots.length}
                 expanded={expanded === "myBots"}
                 onToggle={() => toggle("myBots")}
               />
               {expanded === "myBots" ? (
                 myBots.length === 0 ? (
-                  <EmptyHint icon={<Bot size={24} />} text="还没有添加 AI,去全部联系人里看看" />
+                  <EmptyHint icon={<Bot size={24} />} text={t("contacts.directory.emptyMyBots")} />
                 ) : (
                   <div className="flex min-h-0 flex-col overflow-y-auto pb-2">
                     {myBots.map((b) => (
@@ -460,7 +471,7 @@ export function ContactsDirectory() {
             >
               <AccordionHeader
                 icon={<Users size={16} />}
-                label="全部联系人"
+                label={t("contacts.directory.sectionAllContacts")}
                 count={contacts.length}
                 expanded={expanded === "allContacts"}
                 onToggle={() => toggle("allContacts")}
@@ -469,7 +480,10 @@ export function ContactsDirectory() {
                 <>
                   <FilterChips value={filter} onChange={setFilter} counts={filterCounts} />
                   {contacts.length === 0 ? (
-                    <EmptyHint icon={<Users size={24} />} text="当前 Space 还没有成员" />
+                    <EmptyHint
+                      icon={<Users size={24} />}
+                      text={t("contacts.directory.emptyAllContacts")}
+                    />
                   ) : useVirtual ? (
                     <div className="flex min-h-0 flex-1">
                       <VirtualizedLetterList

@@ -10,6 +10,8 @@ export type MenuIconKey = "chat" | "contacts" | "matter" | "summary" | "appbot";
 
 export interface MenuMeta {
   sort: number;
+  /** i18n key — 渲染时调 `t(title)`。route staticData 在 module load 时定义,
+   *  不能直接调 t(),所以这里存 key 字符串,延迟到 NavRail 渲染时解析。 */
   title: string;
   icon: MenuIconKey;
 }

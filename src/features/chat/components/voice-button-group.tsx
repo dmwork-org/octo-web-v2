@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2, Mic } from "lucide-react";
 import type { VoiceMode } from "@/features/base/api/endpoints/voice.api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
 
 interface VoiceButtonGroupProps {
   /** 当前状态(决定渲染哪种 UI / 是否可点) */
@@ -18,12 +19,12 @@ interface VoiceButtonGroupProps {
 
 interface ModeOption {
   value: VoiceMode;
-  label: string;
+  labelKey: string;
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { value: "append_only", label: "语音输入" },
-  { value: "edit_only", label: "语音编辑" },
+  { value: "append_only", labelKey: "voiceButtonGroup.modeInput" },
+  { value: "edit_only", labelKey: "voiceButtonGroup.modeEdit" },
 ];
 
 /** hover 触发的下拉(命名 hook:监听 wrapper hover 进出),delay 关闭防抖。 */
@@ -101,6 +102,7 @@ export function VoiceButtonGroup({
   modeMenuDisabled,
   micTitle,
 }: VoiceButtonGroupProps) {
+  const t = useT();
   const { open, wrapperRef, onMouseEnter, onMouseLeave, close } = useHoverDropdown();
   const showMenu = open && state === "idle" && !modeMenuDisabled;
   const wrapperActive = state === "recording" || state === "transcribing";
@@ -120,7 +122,7 @@ export function VoiceButtonGroup({
       <button
         type="button"
         onClick={onMicClick}
-        aria-label="语音输入"
+        aria-label={t("voiceButtonGroup.voiceInputAria")}
         title={micTitle}
         disabled={state === "transcribing" || state === "preparing"}
         className={`flex h-6 items-center justify-center gap-0.5 rounded px-1 transition-colors disabled:cursor-not-allowed ${
@@ -145,7 +147,7 @@ export function VoiceButtonGroup({
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label="语音模式"
+            aria-label={t("voiceButtonGroup.voiceMode")}
             disabled={modeMenuDisabled || wrapperActive}
             className={`flex h-6 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               showMenu ? "text-text-primary" : "text-text-tertiary hover:text-text-primary"
@@ -162,7 +164,7 @@ export function VoiceButtonGroup({
             />
           </button>
         </TooltipTrigger>
-        <TooltipContent>语音模式</TooltipContent>
+        <TooltipContent>{t("voiceButtonGroup.voiceMode")}</TooltipContent>
       </Tooltip>
 
       {showMenu ? (
@@ -178,7 +180,7 @@ export function VoiceButtonGroup({
                 onClick={() => onPickMode(opt.value)}
                 className="block w-full px-3 py-1.5 text-left text-sm text-text-primary transition-colors hover:bg-bg-hover"
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             </li>
           ))}

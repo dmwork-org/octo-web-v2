@@ -7,6 +7,8 @@ import { toast } from "@/components/semi-bridge/toast";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { uploadGroupAvatar } from "@/features/base/api/endpoints/group.api";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface GroupAvatarModalProps {
   open: boolean;
@@ -30,6 +32,7 @@ export function GroupAvatarModal({
   canEdit,
   onClose,
 }: GroupAvatarModalProps) {
+  const tt = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [imgVersion, setImgVersion] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,9 +58,10 @@ export function GroupAvatarModal({
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setImgVersion(Date.now());
-      toast.success("已更换群头像");
+      toast.success(t("groupAvatar.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "上传失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupAvatar.toast.uploadFailed")),
   });
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,11 +69,13 @@ export function GroupAvatarModal({
     e.target.value = ""; // 允许重选同一文件
     if (!file) return;
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error(`图片不能超过 ${MAX_AVATAR_BYTES / 1024 / 1024}MB`);
+      toast.error(
+        t("groupAvatar.toast.tooLarge", { values: { mb: MAX_AVATAR_BYTES / 1024 / 1024 } }),
+      );
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("请选择图片文件");
+      toast.error(t("groupAvatar.toast.imageOnly"));
       return;
     }
     uploadMu.mutate(file);
@@ -83,7 +89,7 @@ export function GroupAvatarModal({
       }}
       side="right"
       size="md"
-      title="群头像"
+      title={tt("groupAvatar.title")}
       showBackButton
       showCloseButton={false}
       onBack={onClose}
@@ -113,7 +119,7 @@ export function GroupAvatarModal({
               loading={uploadMu.isPending}
               onClick={() => fileRef.current?.click()}
             >
-              {uploadMu.isPending ? "上传中…" : "更换头像"}
+              {uploadMu.isPending ? tt("groupAvatar.uploading") : tt("groupAvatar.change")}
             </Button>
           </div>
         ) : null}

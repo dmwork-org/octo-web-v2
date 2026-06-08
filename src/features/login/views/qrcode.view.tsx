@@ -5,6 +5,7 @@ import { useQrcodeLogin } from "@/features/login/hooks/use-qrcode-login.hook";
 import { useFinalizeLogin } from "@/features/login/lib/post-login-flow";
 import { LoginShell } from "@/features/login/components/login-shell";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
+import { useT } from "@/lib/i18n/use-t";
 
 interface QrcodeViewProps {
   redirect?: string;
@@ -25,6 +26,7 @@ interface QrcodeViewProps {
  * - **无下载按钮**(老仓 .wk-login-content-download 不在 qrcode 区块)
  */
 export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const finalize = useFinalizeLogin(inviteCode, redirect);
   const onSuccess = useCallback((resp: LoginResp) => void finalize(resp), [finalize]);
@@ -43,9 +45,9 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
   return (
     <LoginShell>
       <div className="mb-1 text-center text-[22px] leading-[1.25] font-bold text-[#1a1a2e]">
-        扫码登录
+        {t("login.qr.title")}
       </div>
-      <div className="mb-6 text-center text-[13px] text-[#8a8fa8]">更安全、更快速的登录方式</div>
+      <div className="mb-6 text-center text-[13px] text-[#8a8fa8]">{t("login.qr.subtitle")}</div>
 
       {/* QR card */}
       <div className="mx-auto mb-6 flex w-[280px] flex-col items-center rounded-[20px] border-[1.5px] border-[#eef0f8] bg-[#f8f9ff] px-8 pt-7 pb-5">
@@ -68,11 +70,11 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
           {/* 过期遮罩 — 白色 95% + 文字 + refresh icon */}
           {state.status === "expired" ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 rounded-[14px] bg-white/95">
-              <p className="text-[13px] text-[#5a607a]">二维码已失效，点击刷新</p>
+              <p className="text-[13px] text-[#5a607a]">{t("login.qr.expired")}</p>
               <button
                 type="button"
                 onClick={refresh}
-                aria-label="刷新二维码"
+                aria-label={t("login.qr.refreshAria")}
                 className="cursor-pointer opacity-60 transition-opacity hover:opacity-100"
               >
                 <svg
@@ -93,7 +95,9 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
             </div>
           ) : null}
         </div>
-        <div className="mt-3.5 text-center text-[13px] text-[#8a8fa8]">打开 Octo 扫描二维码</div>
+        <div className="mt-3.5 text-center text-[13px] text-[#8a8fa8]">
+          {t("login.qr.tip", { values: { appName: "Octo" } })}
+        </div>
       </div>
 
       {state.error ? <p className="mb-3 text-center text-xs text-error">{state.error}</p> : null}
@@ -101,8 +105,8 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
       {/* 3 步流程图 — 横向 step + 右箭头 divider */}
       <div className="mx-auto mb-6 flex w-[300px] items-start gap-1 px-2">
         <QrStep
-          title="打开 App"
-          desc="手机打开 Octo"
+          title={t("login.qr.appStepTitle")}
+          desc={t("login.qr.appStepDesc", { values: { appName: "Octo" } })}
           icon={
             <svg
               width={22}
@@ -121,8 +125,8 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
         />
         <QrDivider />
         <QrStep
-          title="扫描二维码"
-          desc="聊天 → + → 扫一扫"
+          title={t("login.qr.scanStepTitle")}
+          desc={t("login.qr.scanStepDesc")}
           icon={
             <svg
               width={22}
@@ -144,8 +148,8 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
         />
         <QrDivider />
         <QrStep
-          title="确认登录"
-          desc="手机端点击确认"
+          title={t("login.qr.confirmStepTitle")}
+          desc={t("login.qr.confirmStepDesc")}
           icon={
             <svg
               width={22}
@@ -171,7 +175,7 @@ export function QrcodeView({ redirect, inviteCode }: QrcodeViewProps) {
           onClick={backToLogin}
           className="h-[40px] cursor-pointer rounded-[8px] border-[1.5px] border-[#1C1C23] bg-transparent px-6 text-[14px] font-medium text-[#1C1C23] transition-opacity hover:opacity-80"
         >
-          使用账号密码登录
+          {t("login.qr.accountPassword")}
         </button>
       </div>
     </LoginShell>

@@ -1,4 +1,5 @@
 import { MediaMessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -45,6 +46,6 @@ export class VoiceContent extends MediaMessageContent {
   }
 
   get conversationDigest(): string {
-    return "[语音]";
+    return t("message.digest.voice");
   }
 }

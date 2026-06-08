@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { useT } from "@/lib/i18n/use-t";
 
 const BOTFATHER_UID = "botfather";
 
@@ -13,6 +14,7 @@ const BOTFATHER_UID = "botfather";
  * 会随 spaceId 配色变,BotFather 卡固定紫青色)。
  */
 export function BotfatherBanner() {
+  const t = useT();
   const channel = new Channel(BOTFATHER_UID, ChannelTypePerson);
   const onClick = () => {
     chatSelectedActions.select(channel);
@@ -30,7 +32,7 @@ export function BotfatherBanner() {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[13px] font-medium text-white">BotFather</span>
         <span className="truncate text-[10px] font-medium text-white/70">
-          创建和管理你的 AI 机器人
+          {t("contacts.botFatherBanner.desc")}
         </span>
       </div>
       <ChevronRight size={16} className="shrink-0 text-white/60" />

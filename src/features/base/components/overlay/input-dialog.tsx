@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface InputDialogProps {
@@ -41,12 +42,13 @@ export function InputDialog({
   placeholder,
   initialValue = "",
   validate,
-  okText = "确定",
-  cancelText = "取消",
+  okText,
+  cancelText,
   okLoading = false,
   onOk,
   onCancel,
 }: InputDialogProps) {
+  const t = useT();
   const [value, setValue] = useState(initialValue);
   useResetOnOpen(open, initialValue, setValue);
 
@@ -72,7 +74,7 @@ export function InputDialog({
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={() => handleClose(false)}>
-            {cancelText}
+            {cancelText ?? t("base.common.cancel")}
           </Button>
           <Button
             htmlType="submit"
@@ -82,7 +84,7 @@ export function InputDialog({
             loading={okLoading}
             disabled={!valid}
           >
-            {okText}
+            {okText ?? t("base.common.confirm")}
           </Button>
         </>
       }

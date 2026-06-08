@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCcw, Trash2, X as XIcon } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import {
   cancelSummary,
   deleteSummary,
@@ -28,16 +30,10 @@ function formatTime(iso: string): string {
 }
 
 /**
- * 总结详情面板:
- * - 顶部:task_no + 状态 + 重新生成 / 取消 / 删除(根据 status 智能显示)
- * - 主体:title + 元数据 + result.content(markdown,有 citations 则 CitationText)
- * - 状态轮询由 summaryDetailQueryOptions 内部 refetchInterval 处理
- *
- * Wave 3a:result.citations 存在时切到 CitationText(支持 [N] 引用 popover + 跳转原文)。
- * Wave 3c:summary_mode === BY_PERSON 时主体替换为 PersonalSection,展示我的部分 +
- *   参与者状态 + ConfirmStep(被邀请且未确认时)。
+ * 总结详情面板。
  */
 export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery(summaryDetailQueryOptions(taskId));
 
@@ -52,48 +48,51 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     mutationFn: () => regenerateSummary(taskId!),
     onSuccess: () => {
       invalidate();
-      toast.success("已触发重新生成");
+      toast.success(t("summary.detail.regenerateTriggered"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "重新生成失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.detail.regenerateFailed")),
   });
 
   const cancelMu = useMutation({
     mutationFn: () => cancelSummary(taskId!),
     onSuccess: () => {
       invalidate();
-      toast.success("已取消");
+      toast.success(t("summary.detail.cancelledToast"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "取消失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.detail.cancelFailed")),
   });
 
   const deleteMu = useMutation({
     mutationFn: () => deleteSummary(taskId!),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success("已删除");
+      toast.success(t("summary.detail.deletedToast"));
       onDeleted();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.detail.deleteFailed")),
   });
 
   if (taskId === null) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center text-sm text-text-tertiary">
-        从左侧选一个总结查看详情
+        {tr("summary.detail.empty")}
       </section>
     );
   }
   if (isLoading) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center text-sm text-text-tertiary">
-        加载详情…
+        {tr("summary.detail.loading")}
       </section>
     );
   }
   if (error || !data) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center text-sm text-error">
-        详情加载失败
+        {tr("summary.detail.loadFailed")}
       </section>
     );
   }
@@ -118,7 +117,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
           <SummaryStatusBadge status={data.status} size="md" />
           {isPersonalMode ? (
             <span className="rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-              按人
+              {tr("summary.detail.modeBadgeByPerson")}
             </span>
           ) : null}
         </div>
@@ -132,7 +131,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
               onClick={() => regenMu.mutate()}
             >
               <RefreshCcw size={13} />
-              重新生成
+              {tr("summary.detail.regenerate")}
             </Button>
           ) : null}
           {canCancel ? (
@@ -144,7 +143,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
               onClick={() => cancelMu.mutate()}
             >
               <XIcon size={13} />
-              取消任务
+              {tr("summary.detail.cancelTask")}
             </Button>
           ) : null}
           <Button
@@ -154,7 +153,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
             iconOnly
             loading={deleteMu.isPending}
             onClick={() => {
-              if (window.confirm("确认删除该总结?")) deleteMu.mutate();
+              if (window.confirm(t("summary.detail.confirmDelete"))) deleteMu.mutate();
             }}
           >
             <Trash2 size={14} />
@@ -166,41 +165,47 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         <h1 className="text-xl font-semibold text-text-primary">{data.title}</h1>
 
         <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2 text-xs">
-          <dt className="text-text-tertiary">时间范围</dt>
+          <dt className="text-text-tertiary">{tr("summary.detail.timeRangeLabel")}</dt>
           <dd className="text-text-primary">
             {formatTime(data.time_range_start)} → {formatTime(data.time_range_end)}
           </dd>
-          <dt className="text-text-tertiary">信息来源</dt>
+          <dt className="text-text-tertiary">{tr("summary.detail.sourcesLabel")}</dt>
           <dd className="text-text-primary">
             {data.sources.length > 0
               ? data.sources.map((s) => s.source_name ?? s.source_id).join(", ")
               : "—"}
           </dd>
-          <dt className="text-text-tertiary">参与者</dt>
+          <dt className="text-text-tertiary">{tr("summary.detail.participantsLabel")}</dt>
           <dd className="text-text-primary">
             {data.participants.length > 0
               ? data.participants.map((p) => p.user_name ?? p.user_id).join(", ")
               : "—"}
           </dd>
-          <dt className="text-text-tertiary">创建时间</dt>
+          <dt className="text-text-tertiary">{tr("summary.detail.createdAtLabel")}</dt>
           <dd className="text-text-primary">{formatTime(data.created_at)}</dd>
         </dl>
 
         <div className="border-t border-border-subtle pt-4">
           <h2 className="mb-2 text-sm font-semibold text-text-secondary">
-            {isPersonalMode ? "汇总结果" : "总结内容"}
+            {isPersonalMode
+              ? tr("summary.detail.summaryResultTitle")
+              : tr("summary.detail.summaryContentTitle")}
             {hasCitations ? (
               <span className="ml-2 text-xs font-normal text-text-tertiary">
-                ({citations!.length} 条引用)
+                {tr("summary.detail.citationsCount", { values: { count: citations!.length } })}
               </span>
             ) : null}
           </h2>
           {isProcessing ? (
             <p className="text-sm italic text-text-tertiary">
-              {isPersonalMode ? "等待参与者提交后汇总…" : "总结生成中,自动刷新…"}
+              {isPersonalMode
+                ? tr("summary.detail.waitingPersonalSubmit")
+                : tr("summary.detail.processingDescShort")}
             </p>
           ) : isFailed ? (
-            <p className="text-sm text-error">{data.error_message ?? "生成失败"}</p>
+            <p className="text-sm text-error">
+              {data.error_message ?? tr("summary.detail.failedFallback")}
+            </p>
           ) : data.result ? (
             hasCitations ? (
               <CitationText content={data.result.content} citations={citations!} />
@@ -208,7 +213,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
               <SummaryContent content={data.result.content} />
             )
           ) : !isPersonalMode ? (
-            <p className="text-sm italic text-text-tertiary">暂无内容</p>
+            <p className="text-sm italic text-text-tertiary">{tr("summary.detail.emptyContent")}</p>
           ) : null}
         </div>
 

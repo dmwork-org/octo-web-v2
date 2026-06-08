@@ -6,6 +6,7 @@ import {
   chatAiCollabFoldStore,
   selectAiCollabFoldForChannel,
 } from "@/features/chat/stores/ai-collab-fold";
+import { useT } from "@/lib/i18n/use-t";
 
 interface ConversationTypingDigestProps {
   /** 会话 channel — 取此 channel 的 typing / draft / AI 协作 fold 状态 */
@@ -42,13 +43,17 @@ export function ConversationTypingDigest({
   reminders,
   countHint,
 }: ConversationTypingDigestProps) {
+  const t = useT();
   const typing = useTypingForChannel(channel);
   const draft = useStore(chatDraftStore, selectDraftForChannel(channel));
   const fold = useStore(chatAiCollabFoldStore, selectAiCollabFoldForChannel(channel));
 
   if (typing) {
     const isGroup = channel.channelType !== ChannelTypePerson;
-    const label = isGroup && typing.fromName ? `${typing.fromName} 正在输入` : "正在输入";
+    const label =
+      isGroup && typing.fromName
+        ? t("typingDigest.userTyping", { values: { name: typing.fromName } })
+        : t("typingDigest.typing");
     return (
       <span className="inline-flex min-w-0 items-center gap-1.5">
         <style>{TYPING_DIGEST_KEYFRAMES}</style>
@@ -68,10 +73,11 @@ export function ConversationTypingDigest({
         <style>{AI_COLLAB_KEYFRAMES}</style>
         <span className="ai-collab-tag text-accent inline-flex shrink-0 items-center gap-[3px] rounded-sm px-1 text-[10px] font-semibold">
           <span className="ai-collab-pulse bg-success inline-block h-[5px] w-[5px] rounded-full" />
-          AI协作中
+          {t("typingDigest.aiCollab")}
         </span>
         <span className="min-w-0 truncate text-text-tertiary">
-          {fold.participants.join(" × ")} · {fold.count}条
+          {fold.participants.join(" × ")} ·{" "}
+          {t("typingDigest.messageCount", { values: { count: fold.count } })}
         </span>
       </span>
     );
@@ -83,7 +89,9 @@ export function ConversationTypingDigest({
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      {hasDraft ? <span className="shrink-0 text-xs font-medium text-error">[草稿]</span> : null}
+      {hasDraft ? (
+        <span className="shrink-0 text-xs font-medium text-error">{t("typingDigest.draft")}</span>
+      ) : null}
       {undoneReminders.map((r) => (
         <span key={r.reminderID} className="shrink-0 text-xs font-medium text-error">
           {r.text ?? ""}
@@ -95,7 +103,9 @@ export function ConversationTypingDigest({
         // 成 icon-muted(0.4 灰)**(老仓 css 行 197-198)。countHint 触发条件就是
         // muted+unread>1,所以**永远在 muted 行内显**,实际永远是灰色。
         <span className="shrink-0 font-medium text-[#1c1c23]/40">
-          [{countHint > 99 ? "99+" : countHint} 条]
+          {t("typingDigest.countHint", {
+            values: { count: countHint > 99 ? "99+" : String(countHint) },
+          })}
         </span>
       ) : null}
       {hasDraft ? (

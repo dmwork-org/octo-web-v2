@@ -12,6 +12,8 @@ import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { addGroupMembers } from "@/features/base/api/endpoints/group.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface AddMembersModalProps {
   open: boolean;
@@ -33,6 +35,7 @@ function useResetOnOpen(open: boolean, setSelected: (v: Set<string>) => void) {
  * 浮动元素壳层统一规范 Phase C — 走 BaseDialog。
  */
 export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps) {
+  const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -69,10 +72,11 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
     onSuccess: () => {
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      toast.success(`已加入 ${selected.size} 人`);
+      toast.success(t("addMembers.toast.added", { values: { count: selected.size } }));
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "加入失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("addMembers.toast.failed")),
   });
 
   const toggle = (uid: string) => {
@@ -92,12 +96,16 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
       }}
       size="md"
       height="sm"
-      title={`加成员${selected.size > 0 ? ` (${selected.size})` : ""}`}
+      title={
+        selected.size > 0
+          ? tt("addMembers.titleWithCount", { values: { count: selected.size } })
+          : tt("addMembers.title")
+      }
       contentClassName="overflow-hidden"
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
+            {tt("addMembers.cancel")}
           </Button>
           <Button
             type="primary"
@@ -106,7 +114,9 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
             disabled={selected.size === 0}
             onClick={() => mu.mutate()}
           >
-            添加 {selected.size > 0 ? selected.size : ""}
+            {selected.size > 0
+              ? tt("addMembers.addWithCount", { values: { count: selected.size } })
+              : tt("addMembers.add")}
           </Button>
         </>
       }
@@ -118,7 +128,7 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
             autoFocus
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索 Space 成员"
+            placeholder={tt("addMembers.searchPlaceholder")}
             className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />
         </div>
@@ -128,10 +138,10 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
         {filtered.length === 0 ? (
           <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
             {keyword
-              ? "没有匹配的成员"
+              ? tt("addMembers.noMatches")
               : candidates.length === 0
-                ? "Space 内成员都已在群里"
-                : "暂无可加成员"}
+                ? tt("addMembers.allInGroup")
+                : tt("addMembers.noCandidates")}
           </li>
         ) : (
           filtered.map((m) => {

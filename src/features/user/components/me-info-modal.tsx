@@ -16,13 +16,18 @@ import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
+import { useT } from "@/lib/i18n/use-t";
 
 interface MeInfoModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const SEX_LABEL: Record<number, string> = { 0: "未设置", 1: "男", 2: "女" };
+function getSexLabel(sex: number, t: (k: string) => string): string {
+  if (sex === 1) return t("user.me.sex1");
+  if (sex === 2) return t("user.me.sex2");
+  return t("user.me.sex0");
+}
 
 /** open 翻转时 reset 子面板 + inline 编辑态。 */
 function useResetOnClose(
@@ -49,6 +54,7 @@ type Subpage = "qrcode" | "sex" | "persona";
  * 容器:固定 420×500(老仓 wk-main-sider-meinfo 同款),size=fit + className 控尺寸。
  */
 export function MeInfoModal({ open, onClose }: MeInfoModalProps) {
+  const t = useT();
   const user = useStore(authStore, (s) => s.user);
   const uid = user?.uid ?? "";
   const [editing, setEditing] = useState<string | null>(null);
@@ -66,7 +72,7 @@ export function MeInfoModal({ open, onClose }: MeInfoModalProps) {
         }}
         size="fit"
         mask="interactive"
-        title="个人信息"
+        title={t("user.me.title")}
         className="h-[500px] w-[420px]"
       >
         <RootPanel uid={uid} editing={editing} setEditing={setEditing} setSubpage={setSubpage} />
@@ -89,6 +95,7 @@ interface RootPanelProps {
 }
 
 function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
+  const t = useT();
   const qc = useQueryClient();
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
   const uploadMu = useUploadAvatarMutation(uid);
@@ -140,14 +147,14 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
     <>
       <SectionGroup>
         <NavRow
-          title="头像"
+          title={t("user.me.avatarRow")}
           right={<ChannelAvatar channel={channel} size={32} title={displayName || uid} />}
           onClick={onPickFile}
         />
         <InlineEditRow
-          title="名字"
+          title={t("user.me.nameRow")}
           value={displayName}
-          placeholder="未设置"
+          placeholder={t("user.me.namePlaceholder")}
           canEdit
           maxLength={20}
           pending={updateMu.isPending && editing === "name"}
@@ -156,9 +163,9 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
           onCancel={() => setEditing(null)}
           onSave={(v) => void onSaveName(v)}
         />
-        <NavRow title="OCTO号" subTitle={shortNo || "—"} />
+        <NavRow title={t("user.me.octoIdRow")} subTitle={shortNo || "—"} />
         <NavRow
-          title="我的二维码"
+          title={t("user.me.qrcodeRow")}
           right={<QrCode size={16} className="text-text-tertiary" />}
           onClick={() => setSubpage("qrcode")}
         />
@@ -166,8 +173,8 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
 
       <SectionGroup>
         <NavRow
-          title="性别"
-          subTitle={SEX_LABEL[sex] ?? "未设置"}
+          title={t("user.me.sexRow")}
+          subTitle={getSexLabel(sex, t)}
           onClick={() => setSubpage("sex")}
         />
       </SectionGroup>
@@ -175,28 +182,31 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
       <SectionGroup>
         {realnameVerified ? (
           <NavRow
-            title="实名认证"
+            title={t("user.me.realnameRow")}
             subTitle={(() => {
               const ts = detail?.realname_verified_at;
-              if (!ts || ts <= 0) return "已认证";
+              if (!ts || ts <= 0) return t("user.me.realnameVerified");
               const ms = ts > 10_000_000_000 ? ts : ts * 1000;
               const d = new Date(ms);
-              if (Number.isNaN(d.getTime())) return "已认证";
-              return `已认证 · ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              if (Number.isNaN(d.getTime())) return t("user.me.realnameVerified");
+              const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              return t("user.me.realnameVerifiedAt", { values: { date: dateStr } });
             })()}
             right={<CheckCircle2 size={14} className="text-success" />}
           />
         ) : (
           <NavRow
-            title="实名认证"
-            subTitle={primaryProvider?.accountUrl ? "去认证" : "未配置认证入口"}
+            title={t("user.me.realnameRow")}
+            subTitle={
+              primaryProvider?.accountUrl ? t("user.me.goVerify") : t("user.me.noVerifyEntry")
+            }
             onClick={primaryProvider?.accountUrl ? goVerification : undefined}
           />
         )}
       </SectionGroup>
 
       <SectionGroup>
-        <NavRow title="我的分身" onClick={() => setSubpage("persona")} />
+        <NavRow title={t("user.me.personaRow")} onClick={() => setSubpage("persona")} />
       </SectionGroup>
 
       <input
@@ -219,6 +229,7 @@ interface SecondaryModalProps {
 }
 
 function QrcodeMyModal({ open, uid, onClose }: SecondaryModalProps) {
+  const t = useT();
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
   const name = detail?.name ?? uid;
   return (
@@ -228,7 +239,7 @@ function QrcodeMyModal({ open, uid, onClose }: SecondaryModalProps) {
         if (!next) onClose();
       }}
       size="fit"
-      title="我的二维码"
+      title={t("user.me.qrcodeTitle")}
       className="w-[360px]"
     >
       <div className="flex flex-col items-center justify-center p-6">
@@ -241,6 +252,7 @@ function QrcodeMyModal({ open, uid, onClose }: SecondaryModalProps) {
 // ─── 二级 modal:性别选择 ──────────────────────────────────
 
 function SexSelectModal({ open, uid, onClose }: SecondaryModalProps) {
+  const t = useT();
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
   const updateMu = useUpdateCurrentUserMutation(uid);
   const current = detail?.sex ?? 0;
@@ -265,7 +277,7 @@ function SexSelectModal({ open, uid, onClose }: SecondaryModalProps) {
         if (!next) onClose();
       }}
       size="fit"
-      title="选择性别"
+      title={t("user.me.selectSex")}
       className="w-[320px]"
     >
       <div className="py-2">
@@ -273,7 +285,7 @@ function SexSelectModal({ open, uid, onClose }: SecondaryModalProps) {
           {[0, 1, 2].map((v) => (
             <NavRow
               key={v}
-              title={SEX_LABEL[v]!}
+              title={getSexLabel(v, t)}
               right={v === current ? <Check size={16} className="text-brand" /> : null}
               onClick={() => void onPick(v)}
             />

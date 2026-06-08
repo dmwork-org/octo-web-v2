@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { EMOJI_LIST, emojiImageUrl } from "@/features/chat/lib/emoji-data";
+import { useT } from "@/lib/i18n/use-t";
 
 interface EmojiPickerPopoverProps {
   open: boolean;
@@ -44,6 +45,7 @@ export function EmojiPickerPopover({
   onSelect,
   onClose,
 }: EmojiPickerPopoverProps) {
+  const t = useT();
   useClickOutside(containerRef, onClose, open);
   const [keyword, setKeyword] = useState("");
 
@@ -66,7 +68,7 @@ export function EmojiPickerPopover({
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="搜索表情"
+          placeholder={t("emojiPicker.searchPlaceholder")}
           className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
         />
       </div>
@@ -74,12 +76,12 @@ export function EmojiPickerPopover({
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">
-            没有匹配的表情
+            {t("emojiPicker.noMatches")}
           </div>
         ) : (
           <ul
             role="listbox"
-            aria-label="表情"
+            aria-label={t("emojiPicker.emojiLabel")}
             className="flex flex-wrap"
             style={{ padding: "13px", marginLeft: "8px" }}
           >
@@ -117,7 +119,7 @@ export function EmojiPickerPopover({
         <div
           className="flex shrink-0 items-center justify-center bg-bg-surface"
           style={{ width: 60, height: 40 }}
-          aria-label="表情"
+          aria-label={t("emojiPicker.emojiLabel")}
           aria-selected
         >
           <img src={emojiImageUrl("0_0")} alt="" width={20} height={20} draggable={false} />

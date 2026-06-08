@@ -14,6 +14,8 @@ import {
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { Switch } from "@/features/base/components/section-form/toggle-row";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface PersonaDetailViewProps {
   grantId: number;
@@ -61,6 +63,7 @@ function useConfirmTimer(armed: boolean, reset: () => void, ms = 5000) {
  *   二次点 → 真删除 → 跳回 /persona
  */
 export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: grants, error: grantsError } = usePersonaGrantsQuery();
   const {
@@ -81,27 +84,28 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
   if (grantsError && isPersonaNotDeployed(grantsError)) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center">
-        <p className="text-sm text-text-tertiary">AI 分身功能即将上线</p>
+        <p className="text-sm text-text-tertiary">{t("persona.detail.notDeployed")}</p>
       </div>
     );
   }
   if (!grant) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-text-tertiary">
-        <span>分身不存在或已删除</span>
+        <span>{t("persona.detail.notFound")}</span>
         <button
           type="button"
           onClick={() => void navigate({ href: "/persona" })}
           className="cursor-pointer text-brand underline hover:opacity-80"
         >
-          返回列表
+          {t("persona.detail.backToList")}
         </button>
       </div>
     );
   }
 
   const botName = grant.grantee_bot_name || grant.grantee_bot_uid;
-  const modeLabel = grant.mode === "draft" ? "草稿审批" : "自动回复";
+  const modeLabel =
+    grant.mode === "draft" ? t("persona.detail.modeDraft") : t("persona.detail.modeAuto");
   const scopeList = Array.isArray(scopes) ? scopes : [];
   const scopesNotDeployed = !!(scopesError && isPersonaNotDeployed(scopesError));
   const scopesLoadError = !!(scopesError && !isPersonaNotDeployed(scopesError));
@@ -115,9 +119,9 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
           active: form.active,
         },
       });
-      toast.success("已保存");
+      toast.success(tInst("persona.detail.saved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存失败");
+      toast.error(e instanceof Error ? e.message : tInst("persona.detail.saveFailed"));
     }
   };
 
@@ -125,7 +129,7 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
     try {
       await updateMu.mutateAsync({ id: grantId, payload: { global_enabled: v } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "操作失败");
+      toast.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
     }
   };
 
@@ -133,25 +137,25 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
     try {
       await deleteScopeMu.mutateAsync(scopeId);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "操作失败");
+      toast.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
     }
   };
 
   const onDelete = () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
-      toast.warning("再次点击「删除分身」确认");
+      toast.warning(tInst("persona.detail.confirmDeleteToast"));
       return;
     }
     void deleteGrantMu
       .mutateAsync(grantId)
       .then(() => {
-        toast.success("已删除");
+        toast.success(tInst("persona.detail.deleted"));
         void navigate({ href: "/persona" });
       })
       .catch((e: unknown) => {
         setConfirmDelete(false);
-        toast.error(e instanceof Error ? e.message : "删除失败");
+        toast.error(e instanceof Error ? e.message : tInst("persona.detail.deleteFailed"));
       });
   };
 
@@ -162,27 +166,27 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
           type="button"
           onClick={() => void navigate({ href: "/persona" })}
           className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-          aria-label="返回"
+          aria-label={t("persona.detail.back")}
         >
           <ArrowLeft size={16} />
         </button>
         <h1 className="text-base font-semibold text-text-primary">{botName}</h1>
         <span className="rounded-sm bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">
-          分身
+          {t("persona.detail.badge")}
         </span>
       </header>
 
       {/* Section 1:基础信息 + v2 表单 */}
       <SectionGroup>
-        <NavRow title="关联 Bot" subTitle={botName} />
+        <NavRow title={t("persona.detail.linkedBot")} subTitle={botName} />
 
         {/* 回复风格 prompt — column 布局 */}
         <div className="flex flex-col gap-2 px-4 py-3">
-          <span className="text-[13px] text-text-primary">回复风格 prompt</span>
+          <span className="text-[13px] text-text-primary">{t("persona.detail.promptLabel")}</span>
           <textarea
             value={form.prompt}
             onChange={(e) => setForm({ ...form, prompt: e.target.value })}
-            placeholder="设置分身的回复风格,如:用简洁专业的语气回复"
+            placeholder={t("persona.detail.promptPlaceholder")}
             rows={4}
             className="min-h-20 w-full resize-y rounded-md border border-border-default bg-bg-surface px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
           />
@@ -190,7 +194,9 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
 
         {/* 启用此分身 Switch — 本地态,保存按钮一并提交 */}
         <div className="flex items-center px-4 py-2.5">
-          <span className="flex-1 truncate text-[13px] text-text-primary">启用此分身</span>
+          <span className="flex-1 truncate text-[13px] text-text-primary">
+            {t("persona.detail.enableThis")}
+          </span>
           <Switch
             checked={form.active}
             disabled={updateMu.isPending}
@@ -206,15 +212,17 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
             disabled={updateMu.isPending}
             className="w-full cursor-pointer rounded-md bg-brand px-3 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {updateMu.isPending ? "保存中…" : "保存"}
+            {updateMu.isPending ? t("persona.detail.saving") : t("persona.detail.save")}
           </button>
         </div>
 
-        <NavRow title="模式" subTitle={modeLabel} />
+        <NavRow title={t("persona.detail.mode")} subTitle={modeLabel} />
 
         {/* 全局开关 — 即时保存(对齐老仓 toggleGlobal) */}
         <div className="flex items-center px-4 py-2.5">
-          <span className="flex-1 truncate text-[13px] text-text-primary">全局开关</span>
+          <span className="flex-1 truncate text-[13px] text-text-primary">
+            {t("persona.detail.globalSwitch")}
+          </span>
           <Switch
             checked={!!grant.global_enabled}
             disabled={updateMu.isPending}
@@ -227,20 +235,24 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
       <SectionGroup>
         <div className="flex items-center px-4 py-2.5">
           <span className="flex-1 text-[13px] text-text-primary">
-            已启用的会话 ({scopeList.length})
+            {t("persona.detail.scopesHeader", { values: { count: scopeList.length } })}
           </span>
         </div>
         {scopesLoading ? (
-          <div className="p-4 text-center text-[13px] text-text-tertiary">加载中…</div>
+          <div className="p-4 text-center text-[13px] text-text-tertiary">
+            {t("persona.detail.scopesLoading")}
+          </div>
         ) : scopesNotDeployed ? (
-          <div className="p-4 text-center text-[13px] text-text-tertiary">分身功能即将上线</div>
+          <div className="p-4 text-center text-[13px] text-text-tertiary">
+            {t("persona.detail.scopesNotDeployed")}
+          </div>
         ) : scopesLoadError ? (
-          <div className="p-4 text-center text-[13px] text-text-tertiary">加载失败,请稍后再试</div>
+          <div className="p-4 text-center text-[13px] text-text-tertiary">
+            {t("persona.detail.scopesLoadError")}
+          </div>
         ) : scopeList.length === 0 ? (
-          <div className="p-4 text-center text-[13px] leading-relaxed text-text-tertiary">
-            尚未启用任何会话
-            <br />
-            请去具体会话的「设置 → 分身在此会话代答」开启
+          <div className="p-4 text-center text-[13px] leading-relaxed whitespace-pre-line text-text-tertiary">
+            {t("persona.detail.noScopes")}
           </div>
         ) : (
           scopeList.map((s) => (
@@ -249,7 +261,10 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
               className="flex items-center gap-2 border-t border-border-subtle px-4 py-2 first:border-t-0"
             >
               <span className="flex-1 truncate text-[13px] text-text-primary">
-                {s.channel_type === 2 ? "群聊" : "私聊"} · {s.channel_id}
+                {s.channel_type === 2
+                  ? t("persona.detail.groupChannel")
+                  : t("persona.detail.privateChannel")}{" "}
+                · {s.channel_id}
               </span>
               <button
                 type="button"
@@ -257,7 +272,7 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
                 disabled={deleteScopeMu.isPending}
                 className="cursor-pointer text-[13px] text-error hover:opacity-80 disabled:opacity-50"
               >
-                停止代答
+                {t("persona.detail.stopReply")}
               </button>
             </div>
           ))
@@ -272,7 +287,7 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
           disabled={deleteGrantMu.isPending}
           className="w-full cursor-pointer rounded-md bg-bg-surface px-3 py-3 text-center text-[14px] font-medium text-error transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {confirmDelete ? "再次点击以确认删除" : "删除分身"}
+          {confirmDelete ? t("persona.detail.confirmDeleteBtn") : t("persona.detail.deleteBtn")}
         </button>
       </div>
     </div>

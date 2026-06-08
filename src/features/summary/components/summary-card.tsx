@@ -1,4 +1,5 @@
 import { Calendar, Users } from "lucide-react";
+import { useT } from "@/lib/i18n/use-t";
 import type { SummaryListItem } from "@/features/summary/types/summary.types";
 import { SummaryStatusBadge } from "@/features/summary/components/summary-status-badge";
 
@@ -29,6 +30,7 @@ function formatRange(start: string, end: string): string {
  *   {time range}  · {sources count} 来源 · {total_msg_count} 条
  */
 export function SummaryCard({ item, selected, onClick }: SummaryCardProps) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -53,7 +55,9 @@ export function SummaryCard({ item, selected, onClick }: SummaryCardProps) {
           <Users size={11} />
           {item.sources.length}
         </span>
-        <span>{item.total_msg_count} 条</span>
+        <span>
+          {t("summary.summaryCard.msgCountShort", { values: { count: item.total_msg_count } })}
+        </span>
       </div>
     </button>
   );

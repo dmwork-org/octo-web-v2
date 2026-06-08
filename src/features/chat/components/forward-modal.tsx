@@ -23,6 +23,8 @@ import {
   type MergeforwardUser,
 } from "@/features/base/im/mergeforward-content";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 type ForwardMode = "per" | "merge";
 
@@ -84,8 +86,8 @@ function useResetOnClose(open: boolean, reset: () => void): void {
 
 function useDebouncedKeyword(input: string, setKeyword: (k: string) => void) {
   useEffect(() => {
-    const t = setTimeout(() => setKeyword(input), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setKeyword(input), 300);
+    return () => clearTimeout(timer);
   }, [input, setKeyword]);
 }
 
@@ -189,24 +191,7 @@ function orderConversationsWithThreads(conversations: Conversation[]): ForwardCa
 }
 
 /**
- * 转发弹窗(1:1 对齐老仓 dmworkbase Components/ForwardModal + useForwardModal):
- *
- * **UI**(老仓 Figma 461:9093):625×560 / header 居中 17px 600w 无 X / 左右双列
- *   - 左 296px:搜索框(灰胶囊 32h)+ 候选(方形 checkbox + 28 头像 + 名字 + 外部 + AI)
- *   - 1px 分割线
- *   - 右 flex:已选预览 + X 移除
- *   - footer 右下:取消(白圆角)+ 确认(N)(黑圆角)
- *
- * **数据源**:conversations(按 timestamp + top boost 排,父群下嵌套子区缩进 36px)
- *   + spaceMembers(全员,过滤自己 / robot / 已在 conversations 的 uid)— 对齐老仓
- *   "最近会话 + 全部加入群 + 好友"三源合并(本期 spaceMembers 替代后两源)
- *
- * **过滤**(命中子区带出父群,对齐老仓 useForwardModal filtered 计算):
- *   - 命中项进 includeIDs
- *   - 命中子区且其 parentChannelID 未被命中 → 父群一起带出
- *   - 保持树形顺序(遍历 allCandidates 按 order 过滤)
- *
- * **模式**:defaultMode 由 selection-toolbar 入口传(per/merge),modal 内不显 toggle。
+ * 转发弹窗(1:1 对齐老仓 dmworkbase Components/ForwardModal + useForwardModal)。
  */
 export function ForwardModal({
   open,
@@ -215,6 +200,7 @@ export function ForwardModal({
   onClose,
   onSuccess,
 }: ForwardModalProps) {
+  const tt = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [input, setInput] = useState("");
@@ -241,10 +227,6 @@ export function ForwardModal({
     enabled: open && !!spaceId,
   });
 
-  /**
-   * 全量候选 = 会话(已 timestamp+top 排序 + 父群下嵌套子区) + spaceMembers(去自己/robot/
-   * 已在会话的 uid),保留出现顺序(会话在前,好友在后)。
-   */
   const allCandidates = useMemo<ForwardCandidate[]>(() => {
     const fromConvs = orderConversationsWithThreads(conversations ?? []);
     const convDmIds = new Set(
@@ -267,9 +249,6 @@ export function ForwardModal({
     return [...fromConvs, ...fromMembers];
   }, [conversations, members, myUid]);
 
-  /**
-   * 过滤命中 + 命中子区带出父群,保持树形顺序(对齐老仓 useForwardModal L298-318)。
-   */
   const filtered = useMemo<ForwardCandidate[]>(() => {
     const kw = keyword.trim().toLowerCase();
     if (!kw) return allCandidates;
@@ -282,11 +261,9 @@ export function ForwardModal({
     }
     const matchedIDs = new Set(matched.map((c) => c.channelID));
     const includeIDs = new Set([...matchedIDs, ...parentIDsToInclude]);
-    // 保持原顺序(allCandidates 已按 父群→子区 排好)
     return allCandidates.filter((c) => includeIDs.has(c.channelID));
   }, [allCandidates, keyword]);
 
-  // 已选用 allCandidates 反查(搜索过滤不影响右栏)
   const selectedCandidates = useMemo<ForwardCandidate[]>(() => {
     return allCandidates.filter((c) => selectedIds.has(c.channelID));
   }, [allCandidates, selectedIds]);
@@ -309,13 +286,26 @@ export function ForwardModal({
       }
     },
     onSuccess: () => {
-      const modeLabel = isMulti ? (mode === "merge" ? "合并" : "逐条") : "";
-      const summary = isMulti ? `${modeLabel}转发 ${messages.length} 条到` : "已转发到";
-      toast.success(`${summary} ${selectedIds.size} 个会话`);
+      if (isMulti) {
+        toast.success(
+          mode === "merge"
+            ? t("forwardModalLocal.toast.mergeSuccess", {
+                values: { count: messages.length, targets: selectedIds.size },
+              })
+            : t("forwardModalLocal.toast.perSuccess", {
+                values: { count: messages.length, targets: selectedIds.size },
+              }),
+        );
+      } else {
+        toast.success(
+          t("forwardModalLocal.toast.singleSuccess", { values: { targets: selectedIds.size } }),
+        );
+      }
       onSuccess?.();
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "转发失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("forwardModalLocal.toast.failed")),
   });
 
   const toggle = (id: string) => {
@@ -328,8 +318,10 @@ export function ForwardModal({
   };
 
   const headerTitle = isMulti
-    ? `${mode === "merge" ? "合并转发" : "逐条转发"} (${messages.length} 条)`
-    : "转发";
+    ? mode === "merge"
+      ? tt("forwardModalLocal.titleMerge", { values: { count: messages.length } })
+      : tt("forwardModalLocal.titlePer", { values: { count: messages.length } })
+    : tt("forwardModalLocal.title");
 
   return (
     <BaseDialog
@@ -349,7 +341,7 @@ export function ForwardModal({
             onClick={onClose}
             className="inline-flex h-9 items-center rounded-full border border-[rgba(28,28,35,0.15)] bg-white px-4 text-[14px] text-[rgba(28,28,35,0.8)] transition-colors hover:bg-[rgba(28,28,35,0.04)]"
           >
-            取消
+            {tt("forwardModalLocal.cancel")}
           </button>
           <button
             type="button"
@@ -357,7 +349,11 @@ export function ForwardModal({
             disabled={selectedIds.size === 0 || mu.isPending}
             className="inline-flex h-9 min-w-16 items-center justify-center rounded-full bg-[#1c1c23] px-4 text-[14px] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-35"
           >
-            {mu.isPending ? "发送中…" : selectedIds.size > 0 ? `确认(${selectedIds.size})` : "确认"}
+            {mu.isPending
+              ? tt("forwardModalLocal.sending")
+              : selectedIds.size > 0
+                ? tt("forwardModalLocal.confirmWithCount", { values: { count: selectedIds.size } })
+                : tt("forwardModalLocal.confirm")}
           </button>
         </div>
       }
@@ -371,7 +367,7 @@ export function ForwardModal({
               autoFocus
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="搜索"
+              placeholder={tt("forwardModalLocal.searchPlaceholder")}
               className="flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
             />
           </div>
@@ -379,7 +375,9 @@ export function ForwardModal({
           <div className="flex-1 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <div className="flex h-20 items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
-                {keyword ? "没有匹配的会话" : "暂无联系人"}
+                {keyword
+                  ? tt("forwardModalLocal.noMatches")
+                  : tt("forwardModalLocal.noContactsLocal")}
               </div>
             ) : (
               filtered.map((c) => {
@@ -393,7 +391,6 @@ export function ForwardModal({
                       isChild ? "pl-9" : ""
                     }`}
                   >
-                    {/* 方形 checkbox(对齐老仓 .wk-checkbox__box 18x18 rounded-xs ✓ stroke) */}
                     <span
                       role="checkbox"
                       aria-checked={checked}
@@ -413,7 +410,7 @@ export function ForwardModal({
                     </span>
                     {c.isExternal ? (
                       <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-medium text-text-secondary">
-                        外部
+                        {tt("forwardModalLocal.external")}
                       </span>
                     ) : null}
                     {c.isAI ? <AiBadge size="small" /> : null}
@@ -430,12 +427,14 @@ export function ForwardModal({
         <div className="flex flex-1 flex-col overflow-hidden py-2">
           {selectedCandidates.length === 0 ? (
             <div className="flex h-full items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
-              未选择
+              {tt("forwardModalLocal.notSelected")}
             </div>
           ) : (
             <>
               <div className="shrink-0 px-2 pb-1.5 text-[12px] text-[rgba(28,28,35,0.4)]">
-                已选 {selectedCandidates.length} 人
+                {tt("forwardModalLocal.selectedCount", {
+                  values: { count: selectedCandidates.length },
+                })}
               </div>
               <div className="flex-1 overflow-y-auto">
                 {selectedCandidates.map((c) => (
@@ -455,7 +454,7 @@ export function ForwardModal({
                         e.stopPropagation();
                         toggle(c.channelID);
                       }}
-                      aria-label="移除"
+                      aria-label={tt("forwardModalLocal.remove")}
                       className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.06)] hover:text-text-primary"
                     >
                       <X size={14} strokeWidth={2} />

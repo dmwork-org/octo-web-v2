@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK from "wukongimjssdk";
 import { imConnectionStore } from "@/features/base/stores/im-connection";
 import { imLatencyQueryOptions } from "@/features/chat/queries/im-latency.query";
+import { useT } from "@/lib/i18n/use-t";
 
 /** 延迟 → 信号格档位(对齐旧 dmworkbase ConnectionStatus.getSignalBars)。 */
 function bandsOf(ms: number | undefined, connected: boolean): 0 | 1 | 2 | 3 {
@@ -20,16 +21,6 @@ function colorOf(ms: number | undefined): string {
   if (ms < 100) return "#22c55e";
   if (ms <= 300) return "#eab308";
   return "#ef4444";
-}
-
-function formatDuration(since: number | null): string {
-  if (!since) return "";
-  const sec = Math.floor((Date.now() - since) / 1000);
-  if (sec < 60) return `${sec} 秒`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} 分钟`;
-  const hr = Math.floor(min / 60);
-  return `${hr} 小时${min % 60} 分`;
 }
 
 /**
@@ -87,6 +78,7 @@ function SignalBars({
  * (覆盖 SDK 自动重连失败场景)。
  */
 export function ConnectionStatusBadge() {
+  const t = useT();
   const status = useStore(imConnectionStore, (s) => s.status);
   const connectedSince = useStore(imConnectionStore, (s) => s.connectedSince);
   const lastError = useStore(imConnectionStore, (s) => s.lastError);
@@ -106,19 +98,32 @@ export function ConnectionStatusBadge() {
     return "#ef4444";
   }, [connected, connecting, latency]);
 
+  const formatDuration = (since: number | null): string => {
+    if (!since) return "";
+    const sec = Math.floor((Date.now() - since) / 1000);
+    if (sec < 60) return t("connectionStatus.seconds", { values: { count: sec } });
+    const min = Math.floor(sec / 60);
+    if (min < 60) return t("connectionStatus.minutes", { values: { count: min } });
+    const hr = Math.floor(min / 60);
+    return t("connectionStatus.hoursMinutes", { values: { hr, min: min % 60 } });
+  };
+
   const labelText = (() => {
-    if (connected) return latency !== undefined ? `${latency}ms` : "测速中…";
-    if (connecting) return "连接中…";
-    if (status === "kicked") return "已下线";
-    return "已断开";
+    if (connected)
+      return latency !== undefined
+        ? t("connectionStatus.latencyMs", { values: { ms: latency } })
+        : t("connectionStatus.measuring");
+    if (connecting) return t("connectionStatus.connecting");
+    if (status === "kicked") return t("connectionStatus.offline");
+    return t("connectionStatus.disconnected");
   })();
 
   const statusText = (() => {
-    if (connected) return "已连接";
-    if (connecting) return "连接中";
-    if (status === "kicked") return "已被踢下线";
-    if (status === "failed") return "连接失败";
-    return "已断开";
+    if (connected) return t("connectionStatus.statusConnected");
+    if (connecting) return t("connectionStatus.statusConnecting");
+    if (status === "kicked") return t("connectionStatus.statusKicked");
+    if (status === "failed") return t("connectionStatus.statusFailed");
+    return t("connectionStatus.statusDisconnected");
   })();
 
   const handleClick = () => {
@@ -137,7 +142,7 @@ export function ConnectionStatusBadge() {
       onMouseLeave={() => setHovered(false)}
       onClick={handleClick}
       role={connected ? "status" : "button"}
-      aria-label={`连接状态:${statusText}`}
+      aria-label={t("connectionStatus.ariaLabel", { values: { status: statusText } })}
     >
       <SignalBars size={12} bands={bands} activeColor={activeColor} blink={connecting} />
       <span
@@ -150,12 +155,23 @@ export function ConnectionStatusBadge() {
       {hovered ? (
         <div className="pointer-events-none absolute top-full right-0 z-50 mt-1 flex w-44 flex-col gap-0.5 rounded-md border border-border-subtle bg-bg-surface px-2.5 py-2 text-[12px] leading-snug text-text-primary shadow-lg">
           <div>
-            状态:<span style={{ color: activeColor }}>{statusText}</span>
+            {t("connectionStatus.statusLabel")}
+            <span style={{ color: activeColor }}>{statusText}</span>
           </div>
-          {connected && latency !== undefined ? <div>延迟:{latency} ms</div> : null}
-          {connected && connectedSince ? <div>已连接:{formatDuration(connectedSince)}</div> : null}
+          {connected && latency !== undefined ? (
+            <div>{t("connectionStatus.latencyLabel", { values: { ms: latency } })}</div>
+          ) : null}
+          {connected && connectedSince ? (
+            <div>
+              {t("connectionStatus.connectedFor", {
+                values: { duration: formatDuration(connectedSince) },
+              })}
+            </div>
+          ) : null}
           {!connected && lastError ? <div className="text-text-tertiary">{lastError}</div> : null}
-          {!connected && !connecting ? <div className="mt-1 text-brand">点击重连</div> : null}
+          {!connected && !connecting ? (
+            <div className="mt-1 text-brand">{t("connectionStatus.clickReconnect")}</div>
+          ) : null}
         </div>
       ) : null}
     </div>

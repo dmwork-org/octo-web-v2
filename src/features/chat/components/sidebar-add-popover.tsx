@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Columns2 } from "lucide-react";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * mousedown 落在 ref 容器外部 → 关闭 popover。
@@ -89,6 +90,7 @@ export function SidebarAddPopover({
   onAddFriend,
   onCreateCategory,
 }: SidebarAddPopoverProps) {
+  const t = useT();
   useClickOutside(containerRef, onClose, open);
   if (!open) return null;
   return (
@@ -96,7 +98,7 @@ export function SidebarAddPopover({
       {showCreateCategory ? (
         <MenuItem
           icon={<Columns2 size={16} strokeWidth={1.5} className="text-text-primary" />}
-          label="创建分组"
+          label={t("sidebarAdd.createCategory")}
           bottomDivider
           onClick={() => {
             onClose();
@@ -108,7 +110,7 @@ export function SidebarAddPopover({
         icon={
           <img src="/popmenus/popmenus_startchat.png" alt="" className="h-4 w-4 object-contain" />
         }
-        label="发起群聊"
+        label={t("sidebarAdd.startGroup")}
         onClick={() => {
           onClose();
           onStartGroup();
@@ -118,7 +120,7 @@ export function SidebarAddPopover({
         icon={
           <img src="/popmenus/popmenus_friendadd.png" alt="" className="h-4 w-4 object-contain" />
         }
-        label="添加朋友"
+        label={t("sidebarAdd.addFriend")}
         onClick={() => {
           onClose();
           onAddFriend();

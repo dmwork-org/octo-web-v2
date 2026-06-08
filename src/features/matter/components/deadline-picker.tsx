@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n/use-t";
 import { useUpdateMatter } from "@/features/matter/mutations/matters.mutation";
 
 interface DeadlinePickerProps {
@@ -10,12 +11,15 @@ interface DeadlinePickerProps {
   deadline?: string | null;
 }
 
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-
-function formatDeadlineLabel(iso: string): string {
-  const d = new Date(iso);
-  return `截止到 ${d.getMonth() + 1}/${d.getDate()} ${WEEKDAYS[d.getDay()]}`;
-}
+const WEEKDAY_KEYS = [
+  "matter.weekday.sun",
+  "matter.weekday.mon",
+  "matter.weekday.tue",
+  "matter.weekday.wed",
+  "matter.weekday.thu",
+  "matter.weekday.fri",
+  "matter.weekday.sat",
+];
 
 /** 把本地选中的 Date 转为后端约定的 ISO(本地时区午夜)。 */
 function toIsoLocalMidnight(d: Date): string {
@@ -49,6 +53,7 @@ function CalendarIcon() {
  * 提交策略:onSelect 立即触发,无 Cancel/Confirm。错误由 withErrorToast 兜底。
  */
 export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const updateMu = useUpdateMatter();
 
@@ -65,6 +70,17 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
 
   const selectedDate = deadline ? new Date(deadline) : undefined;
 
+  const formatDeadlineLabel = (iso: string): string => {
+    const d = new Date(iso);
+    return t("matter.deadline.untilMonthDayWeekday", {
+      values: {
+        month: d.getMonth() + 1,
+        day: d.getDate(),
+        weekday: t(WEEKDAY_KEYS[d.getDay()]),
+      },
+    });
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -74,12 +90,12 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
           className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-sm leading-[18px] text-text-tertiary transition-colors hover:text-text-primary disabled:opacity-50"
         >
           <CalendarIcon />
-          {deadline ? formatDeadlineLabel(deadline) : "设置截止日期"}
+          {deadline ? formatDeadlineLabel(deadline) : t("matter.deadline.set")}
           {deadline ? (
             <span
               role="button"
               tabIndex={0}
-              aria-label="清除截止日期"
+              aria-label={t("matter.deadline.clear")}
               onClick={handleClear}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {

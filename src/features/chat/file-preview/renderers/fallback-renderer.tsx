@@ -2,6 +2,7 @@ import { Download, File, FileAudio, FileImage, FileText, FileVideo, Info } from 
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { formatFileSize } from "@/features/chat/file-preview/config";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 兜底 renderer(1:1 对齐旧 FallbackRenderer):
@@ -40,6 +41,7 @@ function pickIcon(ext: string): typeof File {
 }
 
 export function FallbackRenderer({ file }: BaseRendererProps) {
+  const t = useT();
   const Icon = pickIcon(file.ext);
   const size = formatFileSize(file.size);
   return (
@@ -61,12 +63,12 @@ export function FallbackRenderer({ file }: BaseRendererProps) {
           className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-default disabled:opacity-40"
         >
           <Download size={14} />
-          <span>下载</span>
+          <span>{t("filePreview.download")}</span>
         </button>
       </div>
       <div className="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
         <Info size={14} />
-        <span>暂不支持预览此文件类型</span>
+        <span>{t("filePreview.unsupportedType")}</span>
       </div>
     </div>
   );

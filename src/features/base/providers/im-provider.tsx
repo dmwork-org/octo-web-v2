@@ -7,6 +7,7 @@ import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
 import { registerContentTypes } from "@/features/base/im/register-content";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
+import { t } from "@/lib/i18n/instance";
 import { router } from "@/lib/router";
 
 /**
@@ -35,7 +36,11 @@ function mapStatus(status: ConnectStatus): ImConnectionStatus {
  */
 function handleAuthLost(reason: "kicked" | "auth-failed") {
   authActions.signOut();
-  imConnectionActions.setError(reason === "kicked" ? "账号在其他设备登录" : "鉴权失败");
+  imConnectionActions.setError(
+    reason === "kicked"
+      ? t("base.connection.kickedByOtherDevice")
+      : t("base.connection.authFailed"),
+  );
   const redirectTo = encodeURIComponent(window.location.href);
   void router.navigate({ href: `/login?redirect=${redirectTo}` });
 }
@@ -65,9 +70,11 @@ function useImConnection(uid: string | null, token: string | null) {
         try {
           const addrs = await getImConnectAddrs(uid);
           if (addrs[0]) callback(addrs[0]);
-          else imConnectionActions.setError("未拿到 IM 网关地址");
+          else imConnectionActions.setError(t("base.connection.noGateway"));
         } catch (err) {
-          imConnectionActions.setError(err instanceof Error ? err.message : "拉取 IM 网关地址失败");
+          imConnectionActions.setError(
+            err instanceof Error ? err.message : t("base.connection.fetchGatewayFailed"),
+          );
         }
       })();
     };

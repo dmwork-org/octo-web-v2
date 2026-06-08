@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { LogIn } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
@@ -64,6 +65,7 @@ export function GroupCardModal({
   fallbackMemberCount,
   onClose,
 }: GroupCardModalProps) {
+  const t = useT();
   const { info, loading } = useGroupInfo(groupNo);
   const channel = groupNo ? new Channel(groupNo, ChannelTypeGroup) : null;
   const name = info?.name ?? fallbackName ?? groupNo ?? "";
@@ -83,12 +85,14 @@ export function GroupCardModal({
       }}
       size="sm"
       // a11y:无可见 title 时用 sr-only description 兜底 Radix 要求
-      description={name ? `${name} 群名片` : "群名片"}
+      description={
+        name ? t("base.groupCard.cardOf", { values: { name } }) : t("base.groupCard.cardFallback")
+      }
       contentClassName="overflow-visible"
     >
       {loading && !info ? (
         <div className="flex h-48 items-center justify-center text-sm text-text-tertiary">
-          加载中…
+          {t("base.common.loading")}
         </div>
       ) : channel ? (
         <>
@@ -97,18 +101,20 @@ export function GroupCardModal({
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-text-primary">{name}</h2>
               <span className="rounded-sm bg-bg-elevated px-1.5 text-[10px] font-semibold text-text-tertiary">
-                群
+                {t("base.groupCard.groupTag")}
               </span>
             </div>
             {memberCount > 0 ? (
-              <span className="text-xs text-text-tertiary">{memberCount} 位成员</span>
+              <span className="text-xs text-text-tertiary">
+                {t("base.groupCard.memberCount", { values: { count: memberCount } })}
+              </span>
             ) : null}
           </div>
 
           <div className="flex shrink-0 items-center justify-center border-t border-border-subtle px-6 py-4">
             <Button type="primary" theme="solid" onClick={handleEnter}>
               <LogIn size={14} />
-              进入群聊
+              {t("base.groupCard.enter")}
             </Button>
           </div>
         </>

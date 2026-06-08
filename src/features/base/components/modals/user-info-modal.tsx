@@ -5,6 +5,7 @@ import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { authStore } from "@/features/base/stores/auth";
@@ -42,6 +43,7 @@ const REL_BLACKLIST = 2;
  * Sections 4 段 + 底部按钮 5 分支(F-1a 已对齐 UserInfo.getBottomPanel)。
  */
 export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
+  const t = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const myName = useStore(authStore, (s) => s.user?.name ?? s.user?.username ?? "");
@@ -64,41 +66,45 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     mutationFn: (remark: string) => setUserRemark(uid!, remark),
     onSuccess: () => {
       invalidate();
-      toast.success("已保存");
+      toast.success(t("base.userInfo.saved"));
       setRemarkEditing(false);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "设置备注失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.userInfo.setRemarkFailed")),
   });
 
   const deleteFriendMu = useMutation({
     mutationFn: () => deleteFriend(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success("已删除好友");
+      toast.success(t("base.userInfo.friendDeleted"));
       setConfirm(null);
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除好友失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.userInfo.deleteFriendFailed")),
   });
 
   const blacklistAddMu = useMutation({
     mutationFn: () => blacklistAdd(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success("已加入黑名单");
+      toast.success(t("base.userInfo.blacklistAdded"));
       setConfirm(null);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "加入黑名单失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.userInfo.blacklistAddFailed")),
   });
 
   const blacklistRemoveMu = useMutation({
     mutationFn: () => blacklistRemove(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success("已移出黑名单");
+      toast.success(t("base.userInfo.blacklistRemoved"));
       setConfirm(null);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "移出黑名单失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.userInfo.blacklistRemoveFailed")),
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
@@ -137,7 +143,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     if (isExternal) {
       return (
         <div className="flex items-center justify-center px-6 py-3 text-xs text-text-tertiary">
-          仅可在群内交流
+          {t("base.userInfo.onlyInGroup")}
         </div>
       );
     }
@@ -145,7 +151,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       return (
         <Button type="primary" theme="solid" onClick={handleMessage}>
           <MessageCircle size={14} />
-          发送消息
+          {t("base.userInfo.sendMessage")}
         </Button>
       );
     }
@@ -153,26 +159,28 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       return (
         <Button type="primary" theme="solid" onClick={handleMessage}>
           <MessageCircle size={14} />
-          发送消息
+          {t("base.userInfo.sendMessage")}
         </Button>
       );
     }
     if (isBot) {
       return (
         <Button type="primary" theme="solid" onClick={() => setFriendApplyOpen(true)}>
-          添加好友
+          {t("base.userInfo.addFriend")}
         </Button>
       );
     }
     if (!hasVercode) return null;
     return (
       <Button type="secondary" theme="light" onClick={() => setFriendApplyOpen(true)}>
-        添加好友
+        {t("base.userInfo.addFriend")}
       </Button>
     );
   };
 
-  const applyDefaultMessage = isBot ? `我想使用${display}` : `我是${myName}`;
+  const applyDefaultMessage = isBot
+    ? t("base.userInfo.applyToBotMessage", { values: { name: display } })
+    : t("base.userInfo.applyFromMe", { values: { name: myName } });
 
   const renderSections = () => {
     if (isSelf) return null;
@@ -181,9 +189,9 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     sections.push(
       <SectionGroup key="remark">
         <InlineEditRow
-          title="设置备注"
+          title={t("base.userInfo.setRemark")}
           value={data?.remark ?? ""}
-          placeholder="未设置"
+          placeholder={t("base.common.notSet")}
           canEdit
           maxLength={20}
           pending={remarkMu.isPending}
@@ -200,34 +208,34 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
         <SectionGroup key="others">
           {isFriend ? (
             <NavRow
-              title="解除好友关系"
+              title={t("base.userInfo.releaseFriend")}
               danger
               onClick={() =>
                 setConfirm({
                   action: "deleteFriend",
-                  content: `将联系人"${display}"删除,同时删除与该联系人的聊天记录`,
+                  content: t("base.userInfo.deleteFriendContent", { values: { name: display } }),
                 })
               }
             />
           ) : null}
           {isBlacklisted ? (
             <NavRow
-              title="拉出黑名单"
+              title={t("base.userInfo.blacklistRemoveAction")}
               onClick={() =>
                 setConfirm({
                   action: "blacklistRemove",
-                  content: "将该联系人从黑名单中移出?",
+                  content: t("base.userInfo.blacklistRemoveContent"),
                 })
               }
             />
           ) : (
             <NavRow
-              title="拉入黑名单"
+              title={t("base.userInfo.blacklistAddAction")}
               danger
               onClick={() =>
                 setConfirm({
                   action: "blacklistAdd",
-                  content: "加入黑名单,你将不再收到对方的消息。",
+                  content: t("base.userInfo.blacklistAddContent"),
                 })
               }
             />
@@ -239,13 +247,13 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     if (isExternal && data?.source_space_name) {
       sections.push(
         <SectionGroup key="source">
-          <NavRow title="来源" subTitle={data.source_space_name} />
+          <NavRow title={t("base.userInfo.source")} subTitle={data.source_space_name} />
         </SectionGroup>,
       );
     } else if (!isExternal && isFriend && data?.source_desc) {
       sections.push(
         <SectionGroup key="source">
-          <NavRow title="来源" subTitle={data.source_desc} />
+          <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
         </SectionGroup>,
       );
     }
@@ -257,7 +265,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
           className="mx-4 mb-2 flex items-center justify-center gap-1 rounded-md bg-error/10 px-4 py-2 text-[12px] text-error"
         >
           <AlertCircle size={12} />
-          已添加至黑名单,你将不再收到对方的消息
+          {t("base.userInfo.blacklistedTip")}
         </div>,
       );
     }
@@ -283,11 +291,15 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
           if (!next) onClose();
         }}
         size="sm"
-        description={display ? `${display} 的名片` : "用户名片"}
+        description={
+          display
+            ? t("base.userInfo.cardOf", { values: { name: display } })
+            : t("base.userInfo.cardFallback")
+        }
       >
         {isLoading || !channel ? (
           <div className="flex h-64 items-center justify-center text-sm text-text-tertiary">
-            加载中…
+            {t("base.common.loading")}
           </div>
         ) : (
           <>
@@ -302,7 +314,11 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
                   {showRealname ? <RealnameVerifiedBadge variant="full" /> : null}
                 </div>
                 <ul className="flex flex-col gap-0.5 text-[12px] text-text-tertiary">
-                  {hasRemark ? <li>昵称: {data?.name ?? "—"}</li> : null}
+                  {hasRemark ? (
+                    <li>
+                      {t("base.userInfo.nicknameLabel")}: {data?.name ?? "—"}
+                    </li>
+                  ) : null}
                   {data?.short_no ? (
                     <li>
                       {APP_NAME}号: {data.short_no}
@@ -329,7 +345,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
           toUid={uid}
           vercode={vercode || data?.vercode}
           defaultMessage={applyDefaultMessage}
-          title={isBot ? "申请添加好友" : "申请添加朋友"}
+          title={isBot ? t("base.userInfo.applyToBot") : t("base.userInfo.applyToPerson")}
           onClose={() => setFriendApplyOpen(false)}
           onSuccess={() => {
             setFriendApplyOpen(false);

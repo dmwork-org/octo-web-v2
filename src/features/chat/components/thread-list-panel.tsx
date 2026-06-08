@@ -22,6 +22,8 @@ import {
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -38,20 +40,10 @@ type View = "list" | "detail";
 
 /**
  * 子区 panel — 1:1 复刻旧 dmworkbase ThreadPanel
- * (`packages/dmworkbase/src/Components/ThreadPanel/index.tsx`)
- *
- * **两个 view**:
- * - `list`:子区列表(分组活跃中/已归档,relative time,unread 红点)
- * - `detail`:进入子区后的对话(MessageList + Composer,header 加 返回 + ··· 菜单)
- *
- * **布局**:panel 是父容器 flex sibling,主区被自动挤压(`calc(100% - 380px)`),
- *   不是 absolute overlay。挂在 `chat-main` 横向 flex 内。
- *
- * 操作(加入/离开)入口走 detail view 的 ··· 菜单。
  */
 export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps) {
+  const tt = useT();
   const qc = useQueryClient();
-  // 宽度拖拽(左边缘,共享 file-preview-panel localStorage,对齐老仓 ThreadPanel)
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
   const [view, setView] = useState<View>("list");
@@ -76,27 +68,25 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     onSuccess: () => {
       invalidate();
       setCreateOpen(false);
-      toast.success("子区创建成功");
+      toast.success(t("threadPanelLocal.toast.created"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.createFailed")),
   });
 
   if (!open) return null;
 
   const threads = (data ?? [])
     .slice()
-    // 按活跃时间倒序(对齐 ThreadPanel:line 439 threads.sort by updated_at desc)
     .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-  const activeThreads = threads.filter((t) => !t.status || t.status === THREAD_STATUS_ACTIVE);
-  const archivedThreads = threads.filter((t) => t.status === THREAD_STATUS_ARCHIVED);
+  const activeThreads = threads.filter((th) => !th.status || th.status === THREAD_STATUS_ACTIVE);
+  const archivedThreads = threads.filter((th) => th.status === THREAD_STATUS_ARCHIVED);
 
   const openDetail = (thread: ThreadRaw) => {
     setActiveThread(thread);
     setView("detail");
   };
 
-  // 关 panel 时把 view/activeThread 重置 — 下次重开默认进 list
-  // (panel 用 `if (!open) return null` 早退,内部 state 不卸载,不 reset 会停在 detail)
   const close = () => {
     setView("list");
     setActiveThread(null);
@@ -143,14 +133,12 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
         />
       ) : null}
 
-      {/* 创建子区 modal — 文案对齐旧 ThreadPanel handleCreateThread:
-            title=创建子区 / label=话题名称 / placeholder=输入讨论话题... / okText=创建 */}
       <InputModal
         open={createOpen}
-        title="创建子区"
-        label="话题名称"
-        placeholder="输入讨论话题..."
-        okText="创建"
+        title={tt("threadPanelLocal.createTitle")}
+        label={tt("threadPanelLocal.topicLabel")}
+        placeholder={tt("threadPanelLocal.topicPlaceholder")}
+        okText={tt("threadPanelLocal.create")}
         validate={(v) => v.trim().length > 0}
         okLoading={createMu.isPending}
         onOk={(name) => {
@@ -161,7 +149,6 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
         onCancel={() => setCreateOpen(false)}
       />
 
-      {/* 左边缘 splitter:hover/drag 显紫色细线;双击重置默认 432 */}
       <PanelSplitter
         side="left"
         isDragging={isDragging}
@@ -206,11 +193,11 @@ function ListView({
   selectedChannelId: string | undefined;
   onSelect: (thread: ThreadRaw) => void;
 }) {
+  const tt = useT();
   return (
     <>
-      <PanelHeader title="子区" onClose={onClose} />
+      <PanelHeader title={tt("threadPanelLocal.threadHeader")} onClose={onClose} />
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* "+ 新建子区" — 1px dashed,wk-ai-surface/wk-ai-border 真值 */}
         <button
           type="button"
           onClick={onOpenCreate}
@@ -229,41 +216,41 @@ function ListView({
           }}
         >
           <Plus size={16} />
-          新建子区
+          {tt("threadPanelLocal.newThread")}
         </button>
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            加载中…
+            {tt("threadPanelLocal.loading")}
           </div>
         ) : error ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm">
             <span className="text-error">
-              {error instanceof Error ? error.message : "子区加载失败"}
+              {error instanceof Error ? error.message : tt("threadPanelLocal.loadFailed")}
             </span>
             <button
               type="button"
               onClick={onRetry}
               className="text-xs text-text-accent hover:underline"
             >
-              重试
+              {tt("threadPanelLocal.retry")}
             </button>
           </div>
         ) : (
           <>
             <ThreadGroup
-              label="活跃中"
+              label={tt("threadPanelLocal.active")}
               expanded={activeExpanded}
               onToggle={toggleActive}
               threads={activeThreads}
-              emptyText="暂无活跃子区"
+              emptyText={tt("threadPanelLocal.noActive")}
               groupNo={groupNo}
               selectedChannelId={selectedChannelId}
               onSelect={onSelect}
             />
             {archivedThreads.length > 0 && (
               <ThreadGroup
-                label="已归档"
+                label={tt("threadPanelLocal.archived")}
                 expanded={archivedExpanded}
                 onToggle={toggleArchived}
                 threads={archivedThreads}
@@ -296,10 +283,10 @@ function DetailView({
   onBack: () => void;
   onClose: () => void;
   onInvalidate: () => void;
-  /** 改名/状态变更后,通知外层更新 activeThread,detail header 实时显示新值。 */
   onThreadUpdated?: (patch: Partial<ThreadRaw>) => void;
   onAfterDelete: () => void;
 }) {
+  const tt = useT();
   const [moreOpen, setMoreOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -315,9 +302,10 @@ function DetailView({
       onInvalidate();
       onThreadUpdated?.({ name });
       setRenameOpen(false);
-      toast.success("已更新");
+      toast.success(t("threadPanelLocal.toast.updated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "更新失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.updateFailed")),
   });
 
   const deleteMu = useMutation({
@@ -326,9 +314,10 @@ function DetailView({
       onInvalidate();
       setDeleteOpen(false);
       onAfterDelete();
-      toast.success("已删除");
+      toast.success(t("threadPanelLocal.toast.deleted"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "删除失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.deleteFailed")),
   });
 
   return (
@@ -340,17 +329,17 @@ function DetailView({
               <button
                 type="button"
                 onClick={onBack}
-                aria-label="返回全部子区"
+                aria-label={tt("threadPanelLocal.backAll")}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <ArrowLeft size={16} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>返回全部子区</TooltipContent>
+            <TooltipContent>{tt("threadPanelLocal.backAll")}</TooltipContent>
           </Tooltip>
           <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
             <ThreadIcon size={18} className="shrink-0 text-text-secondary" />
-            <span className="truncate">{thread.name || "子区"}</span>
+            <span className="truncate">{thread.name || tt("threadPanelLocal.threadHeader")}</span>
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -358,8 +347,8 @@ function DetailView({
             <PopoverTrigger asChild>
               <button
                 type="button"
-                aria-label="更多操作"
-                title="更多操作"
+                aria-label={tt("threadPanelLocal.moreActions")}
+                title={tt("threadPanelLocal.moreActions")}
                 className="flex h-7 w-7 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <MoreHorizontal size={16} />
@@ -375,7 +364,7 @@ function DetailView({
                 }}
                 className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
               >
-                在完整视图打开
+                {tt("threadPanelLocal.openFull")}
               </button>
               <button
                 type="button"
@@ -385,7 +374,7 @@ function DetailView({
                 }}
                 className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
               >
-                编辑子区名称
+                {tt("threadPanelLocal.editName")}
               </button>
               <button
                 type="button"
@@ -395,14 +384,14 @@ function DetailView({
                 }}
                 className="block w-full rounded-sm px-3 py-2 text-left text-sm text-error hover:bg-bg-hover"
               >
-                删除子区
+                {tt("threadPanelLocal.deleteThread")}
               </button>
             </PopoverContent>
           </Popover>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={tt("threadPanelLocal.close")}
             className="flex h-7 w-7 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <X size={18} />
@@ -417,11 +406,11 @@ function DetailView({
 
       <InputModal
         open={renameOpen}
-        title="编辑子区名称"
-        label="话题名称"
-        placeholder="输入子区名称"
+        title={tt("threadPanelLocal.editNameTitle")}
+        label={tt("threadPanelLocal.topicLabel")}
+        placeholder={tt("threadPanelLocal.threadNamePlaceholder")}
         initialValue={thread.name}
-        okText="保存"
+        okText={tt("threadPanelLocal.save")}
         validate={(v) => v.trim().length > 0 && v.trim() !== thread.name}
         okLoading={renameMu.isPending}
         onOk={(name) => {
@@ -434,9 +423,9 @@ function DetailView({
 
       <ConfirmModal
         open={deleteOpen}
-        title="删除子区"
-        content={`确定删除子区"${thread.name}"?此操作不可撤销。`}
-        okText="删除"
+        title={tt("threadPanelLocal.deleteTitle")}
+        content={tt("threadPanelLocal.deleteContent", { values: { name: thread.name } })}
+        okText={tt("threadPanelLocal.deleteOk")}
         okDanger
         okLoading={deleteMu.isPending}
         onOk={() => deleteMu.mutate()}
@@ -449,6 +438,7 @@ function DetailView({
 // ─── shared ─────────────────────────────────────────────────────────────────
 
 function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const tt = useT();
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default bg-bg-surface px-4">
       <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -458,7 +448,7 @@ function PanelHeader({ title, onClose }: { title: string; onClose: () => void })
       <button
         type="button"
         onClick={onClose}
-        aria-label="关闭"
+        aria-label={tt("threadPanelLocal.close")}
         className="flex h-7 w-7 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
         <X size={18} />
@@ -503,14 +493,14 @@ function ThreadGroup({
           ) : null
         ) : (
           <div className="px-2">
-            {threads.map((t) => {
-              const channelId = buildThreadChannelId(groupNo, t.short_id);
+            {threads.map((th) => {
+              const channelId = buildThreadChannelId(groupNo, th.short_id);
               return (
                 <ThreadItem
-                  key={t.short_id}
-                  thread={t}
+                  key={th.short_id}
+                  thread={th}
                   selected={selectedChannelId === channelId}
-                  onClick={() => onSelect(t)}
+                  onClick={() => onSelect(th)}
                 />
               );
             })}
@@ -530,6 +520,7 @@ function ThreadItem({
   selected: boolean;
   onClick: () => void;
 }) {
+  const tt = useT();
   const hasUnread = (thread.unread_count ?? 0) > 0;
   const creatorName = getCreatorName(thread);
   const lastSender = thread.last_message_sender_name ?? "";
@@ -554,14 +545,22 @@ function ThreadItem({
         </span>
       </div>
       <div className="mb-1 text-[12px] text-text-tertiary">
-        {thread.message_count || 0} 条回复 · 参与 {thread.member_count || 0} 人 · {creatorName} 发起
+        {tt("threadPanelLocal.itemMeta", {
+          values: {
+            replies: thread.message_count || 0,
+            members: thread.member_count || 0,
+            creator: creatorName,
+          },
+        })}
       </div>
       {lastContent ? (
         <div className="truncate text-[13px] text-text-secondary">
           {lastSender}: {lastContent}
         </div>
       ) : (
-        <div className="truncate text-[13px] italic text-text-tertiary">暂无消息</div>
+        <div className="truncate text-[13px] italic text-text-tertiary">
+          {tt("threadPanelLocal.noMessages")}
+        </div>
       )}
     </div>
   );
@@ -569,9 +568,6 @@ function ThreadItem({
 
 /**
  * 创建人名称解析(1:1 复刻 ThreadPanel line 967-978 getCreatorName)
- * 1. thread.creator_name 直接用
- * 2. 否则查 channelManager 的 personal channelInfo.title
- * 3. fallback uid → "未知"
  */
 function getCreatorName(thread: ThreadRaw): string {
   if (thread.creator_name) return thread.creator_name;
@@ -581,12 +577,11 @@ function getCreatorName(thread: ThreadRaw): string {
     );
     return info?.title || thread.creator_uid;
   }
-  return "未知";
+  return t("threadPanelLocal.unknown");
 }
 
 /**
  * 相对时间格式化(1:1 复刻 dmworkbase/src/Utils/time.ts:136 formatRelativeTime)
- * 刚刚 / N 分钟前 / N 小时前 / N 天前 / 日期(7 天以上走 toLocaleDateString)
  */
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return "";
@@ -597,9 +592,9 @@ function formatRelativeTime(dateStr?: string): string {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟前`;
-  if (hours < 24) return `${hours} 小时前`;
-  if (days < 7) return `${days} 天前`;
+  if (minutes < 1) return t("threadPanelLocal.justNow");
+  if (minutes < 60) return t("threadPanelLocal.minutesAgo", { values: { count: minutes } });
+  if (hours < 24) return t("threadPanelLocal.hoursAgo", { values: { count: hours } });
+  if (days < 7) return t("threadPanelLocal.daysAgo", { values: { count: days } });
   return date.toLocaleDateString();
 }

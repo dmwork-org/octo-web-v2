@@ -11,6 +11,8 @@ import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface CreatePersonaModalProps {
   open: boolean;
@@ -42,6 +44,7 @@ function useResetOnClose(
  * bot 列表来源、过滤、提交逻辑保留,仅改外壳。
  */
 export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
+  const t = useT();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
   const onSubmit = async () => {
     if (!selectedUid) return;
     if (!spaceId) {
-      setInlineError("请先选择一个空间");
+      setInlineError(tInst("persona.create.requireSpace"));
       return;
     }
     setInlineError(null);
@@ -113,18 +116,18 @@ export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
         if (!next) onClose();
       }}
       size="fit"
-      title="新建分身"
+      title={t("persona.create.title")}
       className="h-[70vh] w-[460px]"
       contentClassName="p-3"
     >
       {loading ? (
         <div className="flex flex-1 items-center justify-center p-6 text-sm text-text-tertiary">
-          加载中…
+          {t("persona.create.loading")}
         </div>
       ) : bots.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center text-sm leading-relaxed text-text-tertiary">
-          <span>暂无可关联的 Bot</span>
-          <span>请先去 AI 广场添加一个 bot</span>
+          <span>{t("persona.create.noBots")}</span>
+          <span>{t("persona.create.noBotsHint")}</span>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -152,12 +155,12 @@ export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
           {selectedBot ? (
             <div className="mt-2 flex flex-col gap-2 rounded-md border border-border-default bg-bg-surface p-3">
               <span className="text-[13px] font-medium text-text-secondary">
-                回复风格 prompt(可选)
+                {t("persona.create.replyStyleLabel")}
               </span>
               <textarea
                 value={personaPrompt}
                 onChange={(e) => setPersonaPrompt(e.target.value)}
-                placeholder="设置分身的回复风格,如:用简洁专业的语气回复"
+                placeholder={t("persona.create.replyStylePlaceholder")}
                 rows={4}
                 className="min-h-20 w-full resize-y rounded-md border border-border-default bg-bg-base px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
               />
@@ -168,7 +171,7 @@ export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
                 disabled={createMu.isPending}
                 className="mt-1 w-full cursor-pointer rounded-md bg-brand px-3 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {createMu.isPending ? "创建中…" : "创建分身"}
+                {createMu.isPending ? t("persona.create.creating") : t("persona.create.submitBtn")}
               </button>
             </div>
           ) : null}

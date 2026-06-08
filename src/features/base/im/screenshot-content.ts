@@ -1,4 +1,5 @@
 import WKSDK, { Channel, ChannelTypePerson, MessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
@@ -26,12 +27,13 @@ export class ScreenshotContent extends MessageContent {
   /** 提示文案:本人 → "你",他人 → channelInfo.title or fromName。 */
   get tip(): string {
     const myUid = authStore.state.user?.uid ?? "";
-    if (this.fromUID === myUid) return "你在聊天中截屏了";
+    if (this.fromUID === myUid)
+      return t("message.screenshot.text", { values: { name: t("message.screenshot.you") } });
     const info = WKSDK.shared().channelManager.getChannelInfo(
       new Channel(this.fromUID, ChannelTypePerson),
     );
     const name = info?.title || this.fromName || this.fromUID;
-    return `${name} 在聊天中截屏了`;
+    return t("message.screenshot.text", { values: { name } });
   }
 
   get conversationDigest(): string {

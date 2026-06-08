@@ -7,6 +7,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * conversation-list 行内"最后一条消息"展示文本(1:1 对齐旧 dmworkbase
@@ -30,8 +31,8 @@ export function lastMessageDigest(conv: Conversation, myUid: string): string {
 
   if (last.remoteExtra?.revoke) {
     const revoker = last.remoteExtra.revoker || last.fromUID;
-    const name = revoker === myUid ? "你" : personDisplayName(revoker);
-    return `${name}撤回了一条消息`;
+    const name = revoker === myUid ? t("revoke.you") : personDisplayName(revoker);
+    return t("revoke.revokedMessage", { values: { name } });
   }
 
   const digest =

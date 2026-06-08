@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
@@ -128,15 +129,17 @@ export function MemberSelect({
   excludeBots = false,
   excludeUids,
   searchable = true,
-  placeholder = "搜索成员…",
+  placeholder,
   autoFocus,
 }: MemberSelectProps) {
+  const t = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const debouncedKeyword = useDebouncedKeyword(input, 300);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const effectivePlaceholder = placeholder ?? t("base.memberSelect.placeholder");
 
   useClickOutside(wrapperRef, open, () => {
     setOpen(false);
@@ -222,13 +225,13 @@ export function MemberSelect({
                       e.stopPropagation();
                       remove(uid);
                     }}
-                    aria-label={`移除 ${name}`}
+                    aria-label={t("base.memberSelect.removeWithName", { values: { name } })}
                     className="flex items-center px-0.5 text-[10px] leading-none text-text-tertiary transition-colors hover:text-error"
                   >
                     ✕
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>移除</TooltipContent>
+                <TooltipContent>{t("base.memberSelect.remove")}</TooltipContent>
               </Tooltip>
             </span>
           );
@@ -242,11 +245,11 @@ export function MemberSelect({
             onChange={(e) => setInput(e.target.value)}
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
-            placeholder={value.length === 0 ? placeholder : ""}
+            placeholder={value.length === 0 ? effectivePlaceholder : ""}
             className="min-w-[80px] flex-1 bg-transparent text-text-primary placeholder:text-brand/30 focus:outline-none"
           />
         ) : value.length === 0 ? (
-          <span className="text-brand/30">{placeholder}</span>
+          <span className="text-brand/30">{effectivePlaceholder}</span>
         ) : null}
       </div>
 
@@ -254,7 +257,7 @@ export function MemberSelect({
         <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg">
           {candidates.length === 0 ? (
             <p className="px-3 py-3 text-center text-xs text-text-tertiary">
-              {debouncedKeyword ? "未找到匹配成员" : "暂无可选成员"}
+              {debouncedKeyword ? t("base.memberSelect.noMatch") : t("base.memberSelect.empty")}
             </p>
           ) : (
             candidates.map((m) => {

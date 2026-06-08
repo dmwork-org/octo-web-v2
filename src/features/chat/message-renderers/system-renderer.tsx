@@ -1,4 +1,5 @@
 import { type Message, type SystemContent } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
 
 interface SystemRendererProps {
   message: Message;
@@ -15,9 +16,12 @@ interface SystemRendererProps {
  * 新仓中文字体 PingFang SC 下 medium 视觉过粗,跟旧仓视觉不一致 — 用 default 400。
  */
 export function SystemRenderer({ message }: SystemRendererProps) {
+  const t = useT();
   const content = message.content as SystemContent;
   const text =
-    content?.displayText && content.displayText !== "" ? content.displayText : "[系统消息]";
+    content?.displayText && content.displayText !== ""
+      ? content.displayText
+      : t("systemRenderer.fallbackText");
   return (
     <div className="flex justify-center">
       <span className="rounded-full bg-[rgba(0,0,0,0.03)] px-2.5 py-0.5 text-[11px] leading-[1.5] text-text-tertiary">

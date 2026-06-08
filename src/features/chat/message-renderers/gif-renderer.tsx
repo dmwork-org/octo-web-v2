@@ -2,6 +2,7 @@ import { useStore } from "@tanstack/react-store";
 import { type Message } from "wukongimjssdk";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { GifContent } from "@/features/base/im/gif-content";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * GIF 动图渲染(对应旧 dmworkbase Messages/Gif GifCell):
@@ -39,6 +40,7 @@ interface GifRendererProps {
 }
 
 export function GifRenderer({ message }: GifRendererProps) {
+  const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const content = message.content as GifContent;
   const url = resolveUrl(content.url, baseURL);
@@ -47,7 +49,7 @@ export function GifRenderer({ message }: GifRendererProps) {
   if (!url) {
     return (
       <span className="rounded bg-bg-elevated px-2 py-1 text-[11px] text-text-tertiary">
-        [动图]
+        {t("message.digest.gif")}
       </span>
     );
   }

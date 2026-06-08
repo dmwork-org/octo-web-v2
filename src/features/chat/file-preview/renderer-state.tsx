@@ -1,6 +1,7 @@
 import { AlertTriangle, Download, Info, Loader2 } from "lucide-react";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { formatFileSize } from "@/features/chat/file-preview/config";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * Renderer 通用 Loading / Error / Empty / FileTooLarge UI(1:1 对齐旧
@@ -10,16 +11,19 @@ import { formatFileSize } from "@/features/chat/file-preview/config";
  * 各写各的。
  */
 
-export function RendererLoading({ message = "加载中…" }: { message?: string }) {
+export function RendererLoading({ message }: { message?: string }) {
+  const t = useT();
+  const text = message ?? t("filePreview.loading");
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-text-tertiary">
       <Loader2 size={20} className="animate-spin" />
-      <span className="text-sm">{message}</span>
+      <span className="text-sm">{text}</span>
     </div>
   );
 }
 
 export function RendererError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const t = useT();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <AlertTriangle size={32} className="text-error" />
@@ -30,18 +34,18 @@ export function RendererError({ message, onRetry }: { message: string; onRetry?:
           onClick={onRetry}
           className="cursor-pointer rounded-md border border-border-default px-3 py-1 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          重试
+          {t("filePreview.retry")}
         </button>
       ) : null}
     </div>
   );
 }
 
-export function RendererEmpty({ message = "暂无内容" }: { message?: string }) {
+export function RendererEmpty({ message }: { message?: string }) {
+  const t = useT();
+  const text = message ?? t("filePreview.empty");
   return (
-    <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-      {message}
-    </div>
+    <div className="flex h-full items-center justify-center text-sm text-text-tertiary">{text}</div>
   );
 }
 
@@ -50,10 +54,13 @@ export function RendererEmpty({ message = "暂无内容" }: { message?: string }
  *   提示文件超过预览阈值 + 名 + 大小 + 下载按钮。
  */
 export function FileTooLarge({ name, size, url }: { name: string; size?: number; url: string }) {
+  const t = useT();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <Info size={32} className="text-text-tertiary" />
-      <div className="text-sm font-medium text-text-primary">文件过大,无法在线预览</div>
+      <div className="text-sm font-medium text-text-primary">
+        {t("filePreview.tooLargeNotPreviewable")}
+      </div>
       <div className="flex flex-col items-center gap-1 text-xs text-text-tertiary">
         <span className="max-w-[260px] truncate">{name}</span>
         {size ? <span>{formatFileSize(size)}</span> : null}
@@ -64,7 +71,7 @@ export function FileTooLarge({ name, size, url }: { name: string; size?: number;
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border-default px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
         <Download size={14} />
-        <span>下载</span>
+        <span>{t("filePreview.download")}</span>
       </button>
     </div>
   );

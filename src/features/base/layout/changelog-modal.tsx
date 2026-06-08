@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/use-t";
+import { i18n } from "@/lib/i18n/instance";
 import { getChangelog, type ChangelogResp } from "@/features/base/api/endpoints/updater.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
@@ -39,6 +41,7 @@ function useFetchChangelog(
  * 卡片宽 480px(固定,跟老仓一致)→ size=fit + className 控宽。
  */
 export function ChangelogModal({ open, onClose }: ChangelogModalProps) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ChangelogResp | null>(null);
   useFetchChangelog(open, setLoading, setData);
@@ -46,7 +49,7 @@ export function ChangelogModal({ open, onClose }: ChangelogModalProps) {
   const pubDateLabel = data?.pub_date
     ? (() => {
         try {
-          return new Date(data.pub_date).toLocaleDateString("zh-CN");
+          return new Date(data.pub_date).toLocaleDateString(i18n.getLocale());
         } catch {
           return data.pub_date;
         }
@@ -60,23 +63,23 @@ export function ChangelogModal({ open, onClose }: ChangelogModalProps) {
         if (!next) onClose();
       }}
       size="fit"
-      title="更新日志"
+      title={t("base.changelog.title")}
       // z-system-overlay 覆盖默认 z-dialog,@utility source order 后定义的 system-overlay 数值 600 赢
       className="z-system-overlay w-[480px] max-h-[70vh]"
     >
       <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
         {loading ? (
           <div className="flex flex-1 items-center justify-center p-8 text-sm text-text-tertiary">
-            加载中…
+            {t("base.common.loading")}
           </div>
         ) : !data ? (
           <div className="flex flex-1 items-center justify-center p-8 text-sm text-text-tertiary">
-            暂无更新日志
+            {t("base.changelog.empty")}
           </div>
         ) : (
           <>
             <div className="mb-3 text-[12px] text-text-tertiary">
-              版本 {data.version || "未知"}
+              {t("base.changelog.version")} {data.version || t("base.changelog.unknownVersion")}
               {pubDateLabel ? ` · ${pubDateLabel}` : ""}
             </div>
             <pre className="m-0 font-sans text-[14px] leading-[1.7] whitespace-pre-wrap break-words text-text-primary">

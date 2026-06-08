@@ -3,6 +3,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Trash2 } from "lucide-react";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { RichEditor } from "@/components/rich/rich-editor";
@@ -28,14 +30,6 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-function formatGroupHeader(d: Date, now: Date): string {
-  if (isSameDay(d, now)) return "今天";
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (isSameDay(d, yesterday)) return "昨天";
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
 function formatTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
@@ -50,7 +44,10 @@ interface TimelineGroup {
  * 把扁平 entries 按"今天/昨天/MM-DD"分组,每组内按时间升序。
  * 后端返回最新在前(DESC),这里 reverse 让最旧在前,符合"看完前面看后面"阅读顺序。
  */
-function groupTimelineEntries(entries: TimelineEntry[]): TimelineGroup[] {
+function groupTimelineEntries(
+  entries: TimelineEntry[],
+  formatGroupHeader: (d: Date, now: Date) => string,
+): TimelineGroup[] {
   const now = new Date();
   const groups = new Map<string, TimelineGroup>();
   const ordered = [...entries].reverse();
@@ -85,31 +82,10 @@ function useFetchNextOnInView(
 }
 
 /**
- * Matter 评论 / 时间线区段(P3-matter D-4 扩展):
- *
- *   [— 今天 —]
- *     [头像] {name}  HH:mm                   [删除(自己)]
- *     {content RichEditor 渲染}
- *     [头像] ...
- *
- *   [— 昨天 —] ...
- *
- *   [sentinel] ← 触底加载更老
- *
- *   ┌─ 输入区 ───────────────────────────────────────────┐
- *   │ <RichEditor placeholder="添加评论…">                │
- *   │                                          [发送]    │
- *   └─────────────────────────────────────────────────────┘
- *
- * 与原 dmworktodo 的差异:
- * - 不分 channel 渲染(本期 channel-picker 仍 P3+,timeline 平铺)
- * - 不做附件上传(IM 文件接口跨 chat feature,P3+)
- * - 不做 @mention(同上,P3+)
- *
- * 内容用 TipTap RichEditor 写入(支持加粗 / 列表 / 链接);只读渲染由
- * RichEditor readOnly 模式 dangerouslySetInnerHTML 等价输出。
+ * Matter 评论 / 时间线区段(P3-matter D-4 扩展)。
  */
 export function TimelineSection({ matterId }: TimelineSectionProps) {
+  const tr = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const query = useInfiniteQuery(timelineInfiniteQueryOptions(matterId));
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
@@ -121,7 +97,20 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const all = useMemo<TimelineEntry[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
-  const groups = useMemo(() => groupTimelineEntries(all), [all]);
+
+  const formatGroupHeader = (d: Date, now: Date): string => {
+    if (isSameDay(d, now)) return tr("matter.day.today");
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (isSameDay(d, yesterday)) return tr("matter.day.yesterday");
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const groups = useMemo(
+    () => groupTimelineEntries(all, formatGroupHeader),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, tr],
+  );
 
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
 
@@ -142,19 +131,21 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
 
   return (
     <section className="mt-4 flex flex-col gap-3 border-t border-border-subtle pt-4">
-      <h3 className="text-xs font-semibold text-text-secondary">评论 / 时间线</h3>
+      <h3 className="text-xs font-semibold text-text-secondary">{tr("matter.timeline.title")}</h3>
 
       <div ref={sentinelRef} className="h-1 shrink-0" aria-hidden />
       {isFetchingNextPage ? (
-        <p className="py-1 text-center text-[11px] text-text-tertiary">加载更早…</p>
+        <p className="py-1 text-center text-[11px] text-text-tertiary">
+          {tr("matter.timeline.loadingMore")}
+        </p>
       ) : null}
 
       {isLoading ? (
-        <p className="px-1 py-2 text-xs text-text-tertiary">加载中…</p>
+        <p className="px-1 py-2 text-xs text-text-tertiary">{tr("matter.activity.loading")}</p>
       ) : error ? (
-        <p className="px-1 py-2 text-xs text-error">加载失败</p>
+        <p className="px-1 py-2 text-xs text-error">{tr("matter.timeline.loadFailed")}</p>
       ) : groups.length === 0 ? (
-        <p className="px-1 py-2 text-xs text-text-tertiary">暂无评论,在下方写第一条</p>
+        <p className="px-1 py-2 text-xs text-text-tertiary">{tr("matter.timeline.emptyHint")}</p>
       ) : (
         groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2">
@@ -190,17 +181,18 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          aria-label="删除评论"
+                          aria-label={tr("matter.timeline.deleteCommentAria")}
                           disabled={delMu.isPending && delMu.variables === e.id}
                           onClick={() => {
-                            if (window.confirm("确认删除该评论?")) delMu.mutate(e.id);
+                            if (window.confirm(t("matter.toast.commentDeleteConfirm")))
+                              delMu.mutate(e.id);
                           }}
                           className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors group-hover:flex hover:bg-bg-elevated hover:text-error disabled:opacity-50"
                         >
                           <Trash2 size={12} />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>删除</TooltipContent>
+                      <TooltipContent>{tr("matter.action.delete")}</TooltipContent>
                     </Tooltip>
                   ) : null}
                 </article>
@@ -214,7 +206,7 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
         <RichEditor
           value={draft}
           onChange={setDraft}
-          placeholder="添加评论…(支持加粗 / 列表 / 链接)"
+          placeholder={tr("matter.timeline.commentPlaceholder")}
         />
         <div className="flex justify-end">
           <Button
@@ -225,7 +217,7 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
             disabled={isEmptyContent(draft)}
             onClick={handleSend}
           >
-            发送
+            {tr("matter.common.send")}
           </Button>
         </div>
       </div>

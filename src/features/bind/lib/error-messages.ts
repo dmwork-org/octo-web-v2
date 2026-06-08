@@ -8,6 +8,7 @@
  */
 
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
+import { t } from "@/lib/i18n/instance";
 
 export type BindEndpoint =
   | "info"
@@ -40,30 +41,36 @@ export function mapBindError(endpoint: BindEndpoint, err: unknown): BindErrorDis
   // 都没法让用户在原 stage 继续
   if (endpoint === "info") {
     if (status === 401 || status === 403 || status === 404 || status === 410) {
-      return { message: "绑定链接已失效，请重新发起 SSO 登录", terminal: true };
+      return { message: t("bind.error.bindLinkExpired"), terminal: true };
     }
     if (status === 409) {
-      return { message: "当前链接已使用过，请重新发起 SSO 登录", terminal: true };
+      return { message: t("bind.error.linkConsumed"), terminal: true };
     }
-    return { message: extractSafeErrorMessage(err) || "加载绑定信息失败", terminal: true };
+    return {
+      message: extractSafeErrorMessage(err) || t("bind.error.loadInfoFailed"),
+      terminal: true,
+    };
   }
 
   // confirm / create — terminal:token 已消费或 session 异常
   if (endpoint === "confirm" || endpoint === "create") {
     if (status === 401 || status === 403 || status === 410) {
-      return { message: "会话已失效，请重新发起 SSO 登录", terminal: true };
+      return { message: t("bind.error.sessionExpired"), terminal: true };
     }
     if (status === 409) {
-      return { message: "当前链接已使用过，请重新发起 SSO 登录", terminal: true };
+      return { message: t("bind.error.linkConsumed"), terminal: true };
     }
-    return { message: extractSafeErrorMessage(err) || "绑定失败，请重试", terminal: false };
+    return { message: extractSafeErrorMessage(err) || t("bind.error.bindFailed"), terminal: false };
   }
 
   // verify_*:大多 inline(密码错 / 验证码错 / 发送过频)
   if (status === 429) {
-    return { message: "发送过于频繁，请稍后再试", terminal: false };
+    return { message: t("bind.error.sendTooFrequent"), terminal: false };
   }
-  return { message: extractSafeErrorMessage(err) || "操作失败，请重试", terminal: false };
+  return {
+    message: extractSafeErrorMessage(err) || t("bind.error.operationFailed"),
+    terminal: false,
+  };
 }
 
 /** verify_password / verify_otp_check 收到 409 = 已 verified,直接跳 confirm(非错误)。 */

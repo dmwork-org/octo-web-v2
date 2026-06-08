@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/use-t";
 
 export type DialogSize = "sm" | "md" | "lg" | "xl" | "fit";
 export type DialogHeight = "auto" | "sm" | "md" | "lg" | "full";
@@ -130,6 +131,7 @@ export function BaseDialog({
   className,
   children,
 }: BaseDialogProps) {
+  const t = useT();
   const depth = useContext(DialogNestingContext);
   const zClass = useNestingZClass();
   const renderHeader = !hideHeader && (title || showCloseButton);
@@ -167,7 +169,7 @@ export function BaseDialog({
                 ) : null}
                 {showCloseButton ? (
                   <DialogClose
-                    aria-label="关闭"
+                    aria-label={t("base.common.close")}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
                   >
                     <X size={16} />

@@ -23,6 +23,8 @@ import {
 import type { BindEntryParams } from "@/features/bind/lib/parse-entry";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 const FALLBACK_PROVIDER_ID = "default";
 
@@ -69,6 +71,7 @@ interface BindViewProps {
  * **finalize**:成功 → signIn + 清 pending_oidc_login + 跳 returnTo(经 sanitize)。
  */
 export function BindView({ initialSearch }: BindViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   // bind_token / entry 全程只在 useRef 持有(老仓 PR#73 §2.2 安全约束)
   const entryRef = useRef<BindEntryParams | null>(null);
@@ -163,7 +166,7 @@ export function BindView({ initialSearch }: BindViewProps) {
       const hasAction = info.methods.length > 0 || createState.kind === "available";
       if (!hasAction) {
         const message =
-          createState.kind === "blocked" ? createState.reason : "无可用的绑定方式，请联系管理员";
+          createState.kind === "blocked" ? createState.reason : tInst("bind.error.noMethods");
         setStage({ kind: "fatal", display: { message, terminal: true } });
         return;
       }
@@ -177,7 +180,7 @@ export function BindView({ initialSearch }: BindViewProps) {
   const onMissing = useCallback(() => {
     setStage({
       kind: "fatal",
-      display: { message: "链接无效，请重新发起登录", terminal: true },
+      display: { message: tInst("bind.error.linkInvalid"), terminal: true },
     });
   }, []);
 
@@ -222,7 +225,7 @@ export function BindView({ initialSearch }: BindViewProps) {
   const onSubmitPassword = async () => {
     if (stage.kind !== "verify_password") return;
     if (!identifier || !password) {
-      setInlineError("请输入账号和密码");
+      setInlineError(tInst("bind.password.requireFields"));
       return;
     }
     const token = entryRef.current?.token;
@@ -248,7 +251,7 @@ export function BindView({ initialSearch }: BindViewProps) {
   const onSubmitOtp = async () => {
     if (stage.kind !== "verify_otp") return;
     if (!otp || otp.length < 6) {
-      setInlineError("请输入 6 位验证码");
+      setInlineError(tInst("bind.otp.require6Digit"));
       return;
     }
     const token = entryRef.current?.token;
@@ -274,31 +277,31 @@ export function BindView({ initialSearch }: BindViewProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-base">
       <div className="flex w-96 flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-text-primary">绑定账号</h1>
+        <h1 className="text-xl font-semibold text-text-primary">{t("bind.title")}</h1>
 
         {stage.kind === "init" || stage.kind === "loading_info" ? (
           <div className="flex items-center gap-2 text-sm text-text-secondary">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-            加载绑定信息…
+            {t("bind.loading")}
           </div>
         ) : null}
 
         {stage.kind === "confirming" || stage.kind === "creating" ? (
           <div className="flex items-center gap-2 text-sm text-text-secondary">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-            {stage.kind === "creating" ? "创建账号中…" : "绑定中…"}
+            {stage.kind === "creating" ? t("bind.creating") : t("bind.binding")}
           </div>
         ) : null}
 
         {stage.kind === "success" ? (
-          <p className="text-sm text-success">绑定成功,正在跳转…</p>
+          <p className="text-sm text-success">{t("bind.success")}</p>
         ) : null}
 
         {stage.kind === "fatal" ? (
           <>
             <p className="text-sm text-error">{stage.display.message}</p>
             <Button onClick={() => void navigate({ href: "/login", replace: true })}>
-              重新登录
+              {t("bind.relogin")}
             </Button>
           </>
         ) : null}
@@ -314,7 +317,7 @@ export function BindView({ initialSearch }: BindViewProps) {
         {stage.kind === "verify_password" ? (
           <div className="flex flex-col gap-3">
             <label className="block text-sm text-text-secondary">
-              账号(邮箱 / 用户名)
+              {t("bind.password.identifierLabel")}
               <input
                 type="text"
                 value={identifier}
@@ -324,7 +327,7 @@ export function BindView({ initialSearch }: BindViewProps) {
               />
             </label>
             <label className="block text-sm text-text-secondary">
-              密码
+              {t("bind.password.passwordLabel")}
               <input
                 type="password"
                 value={password}
@@ -341,7 +344,7 @@ export function BindView({ initialSearch }: BindViewProps) {
               onClick={() => void onSubmitPassword()}
               className="w-full"
             >
-              验证并绑定
+              {t("bind.password.submit")}
             </Button>
           </div>
         ) : null}
@@ -350,13 +353,15 @@ export function BindView({ initialSearch }: BindViewProps) {
           <div className="flex flex-col gap-3">
             <p className="text-xs text-text-tertiary">
               {stage.sending
-                ? "正在发送验证码…"
+                ? t("bind.otp.sending")
                 : stage.sent
-                  ? `验证码已发送至 ${stage.info.masked_phone ?? "您的手机"}`
-                  : "请获取验证码"}
+                  ? t("bind.otp.sentTo", {
+                      values: { phone: stage.info.masked_phone ?? t("bind.otp.yourPhone") },
+                    })
+                  : t("bind.otp.pleaseGet")}
             </p>
             <label className="block text-sm text-text-secondary">
-              6 位验证码
+              {t("bind.otp.codeLabel")}
               <input
                 type="text"
                 inputMode="numeric"
@@ -369,7 +374,7 @@ export function BindView({ initialSearch }: BindViewProps) {
             {inlineError ? <p className="text-xs text-error">{inlineError}</p> : null}
             <div className="flex gap-2">
               <Button onClick={() => void onResendOtp()} disabled={busy || stage.sending}>
-                重新发送
+                {t("bind.otp.resend")}
               </Button>
               <Button
                 type="primary"
@@ -378,7 +383,7 @@ export function BindView({ initialSearch }: BindViewProps) {
                 onClick={() => void onSubmitOtp()}
                 className="flex-1"
               >
-                验证并绑定
+                {t("bind.password.submit")}
               </Button>
             </div>
           </div>
@@ -397,25 +402,28 @@ function ChooseMethodPanel({
   onSelect: (m: BindMethod) => void;
   onCreate: () => void;
 }) {
+  const t = useT();
   const createState = deriveCreateState(info);
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-text-secondary">
-        请选择验证方式将 SSO 身份绑定到 {info.name ? <strong>{info.name}</strong> : "已有账号"}:
+        {t("bind.chooseMethod.intro", {
+          values: { name: info.name ?? t("bind.chooseMethod.introExisting") },
+        })}
       </p>
       {createState.kind === "available" ? (
         <Button type="primary" theme="solid" className="w-full" onClick={onCreate}>
-          创建新账号(推荐)
+          {t("bind.chooseMethod.createNew")}
         </Button>
       ) : null}
       {info.methods.includes("password") ? (
         <Button onClick={() => onSelect("password")} className="w-full">
-          用密码验证已有账号
+          {t("bind.chooseMethod.password")}
         </Button>
       ) : null}
       {info.methods.includes("sms_otp") ? (
         <Button onClick={() => onSelect("sms_otp")} className="w-full">
-          用短信验证码验证已有账号
+          {t("bind.chooseMethod.smsOtp")}
         </Button>
       ) : null}
       {createState.kind === "blocked" ? (

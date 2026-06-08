@@ -6,6 +6,7 @@ import {
   type LoginResp,
 } from "@/features/base/api/endpoints/user.api";
 import { buildDevicePayload } from "@/features/login/lib/device";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 二维码登录 hook(对齐老仓 LoginVM `requestUUID + pullLoginStatus + requestLogin`)。
@@ -79,7 +80,11 @@ function useQrcodePollEffect(
           LOG("loginuuid response", r);
           if (!alive) return;
           if (!r?.qrcode) {
-            setState((p) => ({ ...p, loading: false, error: "二维码加载失败:响应缺 qrcode 字段" }));
+            setState((p) => ({
+              ...p,
+              loading: false,
+              error: t("login.qr.errors.missingField"),
+            }));
             return;
           }
           setState({
@@ -92,7 +97,7 @@ function useQrcodePollEffect(
         } catch (e) {
           LOG("loginuuid error", e);
           if (!alive) return;
-          setState((p) => ({ ...p, loading: false, error: "二维码加载失败,请重试" }));
+          setState((p) => ({ ...p, loading: false, error: t("login.qr.errors.loadFailed") }));
         }
       })();
       return () => {
@@ -125,7 +130,11 @@ function useQrcodePollEffect(
               onSuccessRef.current?.(loginResp);
             } catch {
               if (!alive) return;
-              setState((p) => ({ ...p, status: "getUUID", error: "登录失败,请重新扫码" }));
+              setState((p) => ({
+                ...p,
+                status: "getUUID",
+                error: t("login.qr.errors.loginFailed"),
+              }));
             }
             return;
           } else if (next === "expired") {
@@ -137,7 +146,11 @@ function useQrcodePollEffect(
           LOG(`poll error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS})`, e);
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             if (!alive) return;
-            setState((p) => ({ ...p, status: "getUUID", error: "网络异常,重新获取二维码" }));
+            setState((p) => ({
+              ...p,
+              status: "getUUID",
+              error: t("login.qr.errors.networkRefresh"),
+            }));
             return;
           }
         }

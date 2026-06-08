@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type Message, type MessageImage } from "wukongimjssdk";
 import { X } from "lucide-react";
+import { useT } from "@/lib/i18n/use-t";
 
 interface ImageRendererProps {
   message: Message;
@@ -22,6 +23,7 @@ const MAX_H = 372; // 旧 MAX_HEIGHT
  * 点击 overlay 全屏预览(P5 接 lightbox 完整工具栏)。
  */
 export function ImageRenderer({ message }: ImageRendererProps) {
+  const t = useT();
   const image = message.content as MessageImage;
   const [preview, setPreview] = useState(false);
 
@@ -38,7 +40,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
         type="button"
         onClick={() => src && setPreview(true)}
         className="w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
-        aria-label="查看大图"
+        aria-label={t("imageRenderer.viewLargeImage")}
       >
         {src ? (
           <img
@@ -51,7 +53,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
           />
         ) : (
           <div className="flex h-32 w-32 items-center justify-center text-xs text-text-tertiary">
-            图片加载中…
+            {t("imageRenderer.imageLoading")}
           </div>
         )}
       </button>
@@ -64,7 +66,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
         >
           <button
             type="button"
-            aria-label="关闭"
+            aria-label={t("imageRenderer.close")}
             className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
             onClick={(e) => {
               e.stopPropagation();

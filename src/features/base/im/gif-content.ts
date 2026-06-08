@@ -1,4 +1,5 @@
 import { MessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -30,7 +31,7 @@ export class GifContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return "[动图]";
+    return t("message.digest.gif");
   }
 }
 

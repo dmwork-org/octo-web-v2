@@ -8,6 +8,8 @@ import {
   useUpdateMemberRoleMutation,
 } from "@/features/space/mutations";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface SpaceMembersListProps {
   spaceId: string;
@@ -20,9 +22,9 @@ const ROLE_ADMIN = 2;
 const ROLE_MEMBER = 3;
 
 function roleLabel(role: number): string {
-  if (role === ROLE_OWNER) return "创建者";
-  if (role === ROLE_ADMIN) return "管理员";
-  return "成员";
+  if (role === ROLE_OWNER) return tInst("space.members.roleOwner");
+  if (role === ROLE_ADMIN) return tInst("space.members.roleAdmin");
+  return tInst("space.members.roleMember");
 }
 
 /**
@@ -35,6 +37,7 @@ function roleLabel(role: number): string {
  * - 只有 owner / admin 能看到操作菜单(currentUserRole < 3 时可写)
  */
 export function SpaceMembersList({ spaceId, currentUserRole }: SpaceMembersListProps) {
+  const t = useT();
   const { data: members } = useQuery({
     queryKey: spaceMembersQueryKey(spaceId),
     queryFn: () => getSpaceMembers(spaceId, 1, 10000),
@@ -52,23 +55,25 @@ export function SpaceMembersList({ spaceId, currentUserRole }: SpaceMembersListP
     try {
       await updateRoleMu.mutateAsync({ uid: m.uid, role });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "改角色失败");
+      setError(e instanceof Error ? e.message : tInst("space.members.changeRoleFailed"));
     }
   };
 
   const onRemove = async (m: SpaceMember) => {
     setError(null);
-    if (!window.confirm(`确认移除 ${m.name}?`)) return;
+    if (!window.confirm(tInst("space.members.confirmRemove", { values: { name: m.name } }))) return;
     try {
       await removeMu.mutateAsync([m.uid]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "移除失败");
+      setError(e instanceof Error ? e.message : tInst("space.members.removeFailed"));
     }
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="text-xs text-text-tertiary">成员 {list.length} 人</div>
+      <div className="text-xs text-text-tertiary">
+        {t("space.members.count", { values: { count: list.length } })}
+      </div>
       {error ? <p className="text-xs text-error">{error}</p> : null}
       <div className="flex-1 overflow-hidden rounded border border-border-subtle">
         <Virtuoso
@@ -92,20 +97,24 @@ export function SpaceMembersList({ spaceId, currentUserRole }: SpaceMembersListP
                 <span className="truncate text-sm text-text-primary">{m.name}</span>
                 <span className="text-[11px] text-text-tertiary">
                   {roleLabel(m.role)}
-                  {m.robot === 1 ? " · Bot" : ""}
+                  {m.robot === 1 ? t("space.members.bot") : ""}
                 </span>
               </div>
 
               {canWrite && m.role !== ROLE_OWNER ? (
                 <div className="flex shrink-0 gap-1">
                   {m.role === ROLE_MEMBER ? (
-                    <Button onClick={() => void onChangeRole(m, ROLE_ADMIN)}>设为管理员</Button>
+                    <Button onClick={() => void onChangeRole(m, ROLE_ADMIN)}>
+                      {t("space.members.setAdmin")}
+                    </Button>
                   ) : null}
                   {m.role === ROLE_ADMIN && currentUserRole === ROLE_OWNER ? (
-                    <Button onClick={() => void onChangeRole(m, ROLE_MEMBER)}>取消管理员</Button>
+                    <Button onClick={() => void onChangeRole(m, ROLE_MEMBER)}>
+                      {t("space.members.unsetAdmin")}
+                    </Button>
                   ) : null}
                   <Button onClick={() => void onRemove(m)} type="danger">
-                    移除
+                    {t("space.members.remove")}
                   </Button>
                 </div>
               ) : null}

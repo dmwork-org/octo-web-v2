@@ -6,6 +6,7 @@ import {
 } from "@/features/chat/file-preview/renderer-state";
 import { isFileTooLarge } from "@/features/chat/file-preview/config";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 图片 renderer(对齐旧 ImageRenderer):
@@ -15,6 +16,7 @@ import type { BaseRendererProps } from "@/features/chat/file-preview/types";
  *   - error 提供重试按钮
  */
 export function ImageRenderer({ file, onError }: BaseRendererProps) {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -23,8 +25,8 @@ export function ImageRenderer({ file, onError }: BaseRendererProps) {
   const onLoadError = useCallback(() => {
     setLoading(false);
     setErrored(true);
-    onError?.("图片加载失败");
-  }, [onError]);
+    onError?.(t("filePreview.image.loadFailed"));
+  }, [onError, t]);
 
   const onRetry = useCallback(() => {
     setLoading(true);
@@ -37,7 +39,7 @@ export function ImageRenderer({ file, onError }: BaseRendererProps) {
   }
 
   if (errored) {
-    return <RendererError message="图片加载失败" onRetry={onRetry} />;
+    return <RendererError message={t("filePreview.image.loadFailed")} onRetry={onRetry} />;
   }
 
   return (

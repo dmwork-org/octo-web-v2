@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { RichEditor } from "@/components/rich/rich-editor";
+import { useT } from "@/lib/i18n/use-t";
 import { useUpdateMatter } from "@/features/matter/mutations/matters.mutation";
 
 interface MainGoalEditorProps {
@@ -24,6 +25,7 @@ interface MainGoalEditorProps {
  * - 提交中显示"保存中…";失败由 withErrorToast 拦截器兜底
  */
 export function MainGoalEditor({ matterId, description }: MainGoalEditorProps) {
+  const t = useT();
   const initial = description ?? "";
   const [draft, setDraft] = useState(initial);
   const [dirty, setDirty] = useState(false);
@@ -51,17 +53,19 @@ export function MainGoalEditor({ matterId, description }: MainGoalEditorProps) {
       >
         <div className="flex items-center gap-1 text-sm leading-5 font-semibold text-text-secondary">
           <span aria-hidden>🎯</span>
-          主要目标
+          {t("matter.field.goal")}
         </div>
         {updateMu.isPending ? (
-          <span className="text-[11px] font-normal text-text-tertiary">保存中…</span>
+          <span className="text-[11px] font-normal text-text-tertiary">
+            {t("matter.create.goalSavingHint")}
+          </span>
         ) : null}
       </div>
       <RichEditor
         value={draft}
         onChange={handleChange}
         onBlur={handleBlur}
-        placeholder="点击添加描述…"
+        placeholder={t("matter.create.goalPlaceholder")}
       />
     </div>
   );

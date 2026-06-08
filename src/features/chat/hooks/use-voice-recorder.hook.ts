@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 语音录音 hook(对应旧 dmworkbase Components/MessageInput/useVoiceInput,简化版):
@@ -102,7 +103,7 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}): UseVoic
   const start = useCallback(async () => {
     if (isRecording) return;
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      onError?.(new Error("浏览器不支持录音"));
+      onError?.(new Error(t("voiceRecorder.browserUnsupported")));
       return;
     }
     try {
@@ -118,7 +119,7 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}): UseVoic
       };
       rec.onstop = () => {
         const tracks = streamRef.current?.getTracks() ?? [];
-        for (const t of tracks) t.stop();
+        for (const track of tracks) track.stop();
         streamRef.current = null;
         setIsRecording(false);
 

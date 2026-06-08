@@ -10,6 +10,8 @@ import {
 import { CreatePersonaModal } from "@/features/persona/components/create-persona-modal";
 import { Button } from "@/components/semi-bridge/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 /**
  * AI 分身列表(对齐老仓 PersonaSettings 主页):
@@ -21,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * - **404 降级**:isPersonaNotDeployed → 显"功能即将上线"
  */
 export function PersonaListView() {
+  const t = useT();
   const navigate = useNavigate();
   const { data: grants, isLoading, error } = usePersonaGrantsQuery();
   const updateMu = useUpdateGrantMutation();
@@ -31,7 +34,7 @@ export function PersonaListView() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-        加载中…
+        {t("persona.list.loadingPage")}
       </div>
     );
   }
@@ -40,8 +43,10 @@ export function PersonaListView() {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center">
         <div className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold text-text-primary">AI 分身功能即将上线</h2>
-          <p className="text-sm text-text-tertiary">敬请期待</p>
+          <h2 className="text-base font-semibold text-text-primary">
+            {t("persona.list.notDeployedTitle")}
+          </h2>
+          <p className="text-sm text-text-tertiary">{t("persona.list.notDeployedSub")}</p>
         </div>
       </div>
     );
@@ -59,7 +64,7 @@ export function PersonaListView() {
   };
 
   const onDelete = async (id: number, name: string) => {
-    if (!window.confirm(`确认删除分身「${name}」?`)) return;
+    if (!window.confirm(tInst("persona.list.confirmDelete", { values: { name } }))) return;
     setBusyUid(id);
     try {
       await deleteMu.mutateAsync(id);
@@ -71,16 +76,18 @@ export function PersonaListView() {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text-primary">AI 分身</h1>
+        <h1 className="text-lg font-semibold text-text-primary">
+          {t("user.settings.personaTitle")}
+        </h1>
         <Button type="primary" theme="solid" onClick={() => setCreateOpen(true)}>
           <Plus size={14} />
-          <span className="ml-1">新建分身</span>
+          <span className="ml-1">{t("persona.list.newBtn")}</span>
         </Button>
       </header>
 
       {list.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-          还没有分身,点击右上角"新建分身"开始
+          {t("persona.list.emptyHintPage")}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -98,10 +105,10 @@ export function PersonaListView() {
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium text-text-primary">
-                    Bot {g.grantee_bot_uid}
+                    {t("persona.list.botPrefix", { values: { uid: g.grantee_bot_uid } })}
                   </span>
                   <span className="truncate text-[11px] text-text-tertiary">
-                    {g.mode === "auto" ? "自动回复" : "草稿模式"}
+                    {g.mode === "auto" ? t("persona.list.modeAuto") : t("persona.list.modeDraft")}
                     {g.persona_prompt ? ` · ${g.persona_prompt}` : ""}
                   </span>
                 </div>
@@ -112,26 +119,26 @@ export function PersonaListView() {
                     disabled={busy}
                     onChange={(e) => void onToggleActive(g.id, e.target.checked)}
                   />
-                  启用
+                  {t("persona.list.enable")}
                 </label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label="管理 Scope"
+                      aria-label={t("persona.list.manageScope")}
                       onClick={() => void navigate({ href: `/personadetail?id=${g.id}` })}
                       className="shrink-0 text-text-tertiary hover:text-text-primary"
                     >
                       <Settings size={14} />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>管理 Scope</TooltipContent>
+                  <TooltipContent>{t("persona.list.manageScope")}</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label="删除"
+                      aria-label={t("persona.list.delete")}
                       onClick={() => void onDelete(g.id, String(g.grantee_bot_uid))}
                       disabled={busy}
                       className="shrink-0 text-text-tertiary hover:text-error disabled:opacity-50"
@@ -139,7 +146,7 @@ export function PersonaListView() {
                       <Trash2 size={14} />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>删除分身</TooltipContent>
+                  <TooltipContent>{t("persona.list.deletePersona")}</TooltipContent>
                 </Tooltip>
               </div>
             );

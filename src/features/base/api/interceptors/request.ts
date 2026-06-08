@@ -2,11 +2,23 @@ import type { FetchContext } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import type { SpaceState } from "@/features/base/stores/space";
+import { i18n } from "@/lib/i18n/instance";
 
 function ensureHeaders(options: FetchContext["options"]): Headers {
   const headers = new Headers(options.headers as HeadersInit | undefined);
   options.headers = headers;
   return headers;
+}
+
+/**
+ * 跟上游 `packages/dmworkbase/src/Service/apiLanguage.ts` 一致:
+ * 当前 locale 排首位,其它候选降权回退,后端 i18n 走 Accept-Language header 协商。
+ */
+function buildAcceptLanguage(): string {
+  if (i18n.getLocale() === "zh-CN") {
+    return "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7";
+  }
+  return "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7";
 }
 
 export const withAuthToken =
@@ -39,4 +51,13 @@ export const withReqId =
   ({ options }: FetchContext) => {
     const headers = ensureHeaders(options);
     headers.set("X-Request-Id", crypto.randomUUID());
+  };
+
+export const withAcceptLanguage =
+  () =>
+  ({ options }: FetchContext) => {
+    const headers = ensureHeaders(options);
+    if (!headers.has("Accept-Language")) {
+      headers.set("Accept-Language", buildAcceptLanguage());
+    }
   };

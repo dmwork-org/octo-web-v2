@@ -1,4 +1,5 @@
 import { MessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -27,6 +28,6 @@ export class CardContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return "[名片]";
+    return t("message.digest.card");
   }
 }

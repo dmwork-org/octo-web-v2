@@ -8,6 +8,7 @@ import {
   type TopAttachmentItem,
 } from "@/features/chat/lib/composer-files";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
 
 interface ComposerTopAttachmentBarProps {
   items: TopAttachmentItem[];
@@ -15,18 +16,10 @@ interface ComposerTopAttachmentBarProps {
 }
 
 /**
- * 顶部附件区(1:1 对齐旧 dmworkbase .wk-messageinput-top-attachments + .wk-attachment-node-card):
- *
- * 横向滚动卡片列表,所有类型(图片/视频/文件)都走统一 `224×56` 卡片样式:
- *   [48×48 缩略/封面/icon] [name 14/regular + ✕ / size 14 tertiary]
- *
- * 仅 upload / drag 路径 + paste 非图走这里;paste 图片走 editor inline AttachmentNode。
- *
- * - 容器 margin-bottom 8px(对齐旧 var(--wk-sp-2))
- * - 横滚 padding 4px 0(给项目阴影留空)
- * - 滚动条 thin + 4px 高(scrollbar-width: thin / -webkit-scrollbar height: 4px)
+ * 顶部附件区(1:1 对齐旧 dmworkbase .wk-messageinput-top-attachments + .wk-attachment-node-card)。
  */
 export function ComposerTopAttachmentBar({ items, onRemove }: ComposerTopAttachmentBarProps) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
     <div className="mb-2 w-full overflow-hidden">
@@ -82,13 +75,13 @@ export function ComposerTopAttachmentBar({ items, onRemove }: ComposerTopAttachm
                       <button
                         type="button"
                         onClick={() => onRemove(item.id)}
-                        aria-label="移除"
+                        aria-label={t("composerAttachment.remove")}
                         className="flex h-4 w-4 shrink-0 items-center justify-center bg-transparent p-0 text-text-tertiary transition-colors hover:text-text-primary"
                       >
                         <X size={16} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>移除</TooltipContent>
+                    <TooltipContent>{t("composerAttachment.remove")}</TooltipContent>
                   </Tooltip>
                 </div>
                 <span className="text-[14px] leading-5 text-text-tertiary">

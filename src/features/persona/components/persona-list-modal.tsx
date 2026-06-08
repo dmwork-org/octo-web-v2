@@ -9,6 +9,7 @@ import {
 import { CreatePersonaModal } from "@/features/persona/components/create-persona-modal";
 import { Switch } from "@/features/base/components/section-form/toggle-row";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { useT } from "@/lib/i18n/use-t";
 
 interface PersonaListModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface PersonaListModalProps {
  * 自动 z-dialog-secondary;内嵌 CreatePersonaModal 自动 z-dialog-tertiary。
  */
 export function PersonaListModal({ open, onClose }: PersonaListModalProps) {
+  const t = useT();
   const navigate = useNavigate();
   const { data: grants, isLoading, error, refetch } = usePersonaGrantsQuery();
   const updateMu = useUpdateGrantMutation();
@@ -55,7 +57,7 @@ export function PersonaListModal({ open, onClose }: PersonaListModalProps) {
           if (!next) onClose();
         }}
         size="fit"
-        title="我的分身"
+        title={t("persona.list.title")}
         className="h-[70vh] w-[460px]"
         contentClassName="p-3"
       >
@@ -67,34 +69,34 @@ export function PersonaListModal({ open, onClose }: PersonaListModalProps) {
             className="mb-3 flex w-full cursor-pointer items-center justify-center gap-1 rounded-md bg-brand px-3 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus size={14} />
-            新建分身
+            {t("persona.list.newBtn")}
           </button>
         ) : null}
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center p-6 text-sm text-text-tertiary">
-            加载中…
+            {t("persona.list.loading")}
           </div>
         ) : notDeployed ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center text-sm leading-relaxed text-text-tertiary">
-            <span>分身功能即将上线</span>
-            <span>敬请期待 ✨</span>
+            <span>{t("persona.list.comingSoon")}</span>
+            <span>{t("persona.list.staytuned")}</span>
           </div>
         ) : loadError ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-text-tertiary">
-            <span>加载失败</span>
+            <span>{t("persona.list.loadFailed")}</span>
             <button
               type="button"
               onClick={() => void refetch()}
               className="cursor-pointer text-brand underline hover:opacity-80"
             >
-              重新加载
+              {t("persona.list.retry")}
             </button>
           </div>
         ) : list.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center text-sm leading-relaxed text-text-tertiary">
-            <span>还没有创建任何分身</span>
-            <span>点击上方「新建分身」开始</span>
+            <span>{t("persona.list.empty")}</span>
+            <span>{t("persona.list.emptyHint")}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -104,7 +106,9 @@ export function PersonaListModal({ open, onClose }: PersonaListModalProps) {
               const name = g.grantee_bot_name || g.grantee_bot_uid;
               const initial = (name || "P").charAt(0).toUpperCase();
               const sub =
-                g.persona_prompt && g.persona_prompt.trim() ? g.persona_prompt : "未设置回复风格";
+                g.persona_prompt && g.persona_prompt.trim()
+                  ? g.persona_prompt
+                  : t("persona.list.noPromptHint");
               return (
                 <button
                   key={g.id}
@@ -126,7 +130,7 @@ export function PersonaListModal({ open, onClose }: PersonaListModalProps) {
                           {name}
                         </span>
                         <span className="shrink-0 rounded-sm bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">
-                          分身
+                          {t("persona.list.badge")}
                         </span>
                       </div>
                       <div className="mt-0.5 truncate text-[13px] text-text-tertiary">{sub}</div>

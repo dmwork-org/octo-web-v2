@@ -1,4 +1,5 @@
 import { MediaMessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -61,6 +62,6 @@ export class FileContent extends MediaMessageContent {
   }
 
   get conversationDigest(): string {
-    return "[文件]";
+    return t("message.digest.file");
   }
 }

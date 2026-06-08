@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n/instance";
+
 /**
  * 密码强度评估(对齐老仓 dmworklogin/src/passwordStrength.ts):
  *
@@ -22,22 +24,25 @@ export interface PasswordStrengthResult {
   feedback: string[];
 }
 
-const STRENGTH_TABLE: Array<{ label: string; color: string }> = [
-  { label: "非常弱", color: "#ff4d4f" },
-  { label: "弱", color: "#ff7a45" },
-  { label: "一般", color: "#faad14" },
-  { label: "强", color: "#52c41a" },
-  { label: "非常强", color: "#389e0d" },
-];
+/** 5 档颜色固定;label 在每次评估时取 i18n(避免 module load 时 locale 未稳)。 */
+const STRENGTH_COLORS: readonly string[] = ["#ff4d4f", "#ff7a45", "#faad14", "#52c41a", "#389e0d"];
+
+const STRENGTH_LABEL_KEYS = [
+  "login.password.levels.veryWeak",
+  "login.password.levels.weak",
+  "login.password.levels.fair",
+  "login.password.levels.strong",
+  "login.password.levels.veryStrong",
+] as const;
 
 /** 返回错误字符串(无效)或 null(有效)。对齐老仓 `validatePassword`。 */
 export function validatePassword(pwd: string): string | null {
-  if (!pwd) return "密码不能为空";
+  if (!pwd) return t("login.password.required");
   if (pwd.length < MIN_PASSWORD_LENGTH) {
-    return `密码长度至少需要 ${MIN_PASSWORD_LENGTH} 位`;
+    return t("login.password.lengthMin", { values: { count: MIN_PASSWORD_LENGTH } });
   }
   const r = evaluatePasswordStrength(pwd);
-  if (r.score < 2) return "密码强度太弱，请设置更安全的密码";
+  if (r.score < 2) return t("login.password.tooWeak");
   return null;
 }
 
@@ -52,11 +57,13 @@ export function evaluatePasswordStrength(pwd: string): PasswordStrengthResult {
   if (/[^A-Za-z0-9]/.test(pwd)) raw++;
 
   const score = (isValid ? Math.min(raw, 4) : 0) as 0 | 1 | 2 | 3 | 4;
-  const meta = STRENGTH_TABLE[score];
+  const label = t(STRENGTH_LABEL_KEYS[score]);
+  const color = STRENGTH_COLORS[score];
   const feedback: string[] = [];
-  if (!isValid) feedback.push(`密码长度至少需要 ${MIN_PASSWORD_LENGTH} 位`);
-  else if (score < 2) feedback.push("建议加入大小写字母、数字和特殊字符");
-  else if (score < 4) feedback.push("可加入更多字符类型让密码更强");
+  if (!isValid)
+    feedback.push(t("login.password.lengthMin", { values: { count: MIN_PASSWORD_LENGTH } }));
+  else if (score < 2) feedback.push(t("login.password.feedbackBasic.weak"));
+  else if (score < 4) feedback.push(t("login.password.feedbackBasic.medium"));
 
-  return { score, label: meta.label, color: meta.color, isValid, feedback };
+  return { score, label, color, isValid, feedback };
 }

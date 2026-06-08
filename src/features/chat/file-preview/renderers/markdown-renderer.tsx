@@ -9,6 +9,7 @@ import {
 } from "@/features/chat/file-preview/renderer-state";
 import { CommonCodeView } from "@/features/chat/file-preview/renderers/common-code-view";
 import type { BaseRendererProps, TocItem } from "@/features/chat/file-preview/types";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * Markdown 文件 renderer(对齐旧 MarkdownRenderer):
@@ -26,6 +27,7 @@ export function MarkdownRenderer({
   viewMode = "preview",
   onTocChange,
 }: BaseRendererProps) {
+  const t = useT();
   const enabled = shouldFetchContent(file.size || 0);
   const { content, loading, error, reload } = useFileContent({ url: file.url, enabled });
   const previewRef = useRef<HTMLDivElement>(null);
@@ -38,7 +40,7 @@ export function MarkdownRenderer({
   });
 
   if (!enabled) {
-    if (onError) onError("文件过大,无法预览");
+    if (onError) onError(t("filePreview.markdown.tooLargeCannotPreview"));
     return <FileTooLarge name={file.name} size={file.size} url={file.url} />;
   }
   if (loading) return <RendererLoading />;

@@ -1,13 +1,14 @@
 import { useStore } from "@tanstack/react-store";
+import { useT } from "@/lib/i18n/use-t";
 import { imConnectionStore, type ImConnectionStatus } from "@/features/base/stores/im-connection";
 
-const STATUS_LABEL: Record<ImConnectionStatus, string> = {
-  idle: "未连接",
-  connecting: "连接中",
-  connected: "已连接",
-  disconnected: "已断开",
-  failed: "连接失败",
-  kicked: "在其他设备登录",
+const STATUS_LABEL_KEY: Record<ImConnectionStatus, string> = {
+  idle: "base.connection.idle",
+  connecting: "base.connection.connecting",
+  connected: "base.connection.connected",
+  disconnected: "base.connection.disconnected",
+  failed: "base.connection.failed",
+  kicked: "base.connection.kicked",
 };
 
 function dotClass(status: ImConnectionStatus): string {
@@ -31,9 +32,11 @@ function dotClass(status: ImConnectionStatus): string {
  * 顶/侧栏 IM 连接状态小圆点。读 imConnectionStore,纯显示。
  */
 export function ConnectionBadge() {
+  const t = useT();
   const status = useStore(imConnectionStore, (s) => s.status);
   const lastError = useStore(imConnectionStore, (s) => s.lastError);
-  const tooltip = lastError ? `${STATUS_LABEL[status]} — ${lastError}` : STATUS_LABEL[status];
+  const label = t(STATUS_LABEL_KEY[status]);
+  const tooltip = lastError ? `${label} — ${lastError}` : label;
   return (
     <div
       role="status"

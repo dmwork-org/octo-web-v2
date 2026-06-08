@@ -18,6 +18,7 @@ import type { FilePreviewInfo, TocItem } from "@/features/chat/file-preview/type
 import { useReplyToFileMessage } from "@/features/chat/hooks/use-reply-to-file-message.hook";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 文件预览面板(1:1 对齐旧 dmworkbase Components/FilePreviewPanel + FilePreviewHeader)。
@@ -49,6 +50,7 @@ export function FilePreviewPanel() {
 }
 
 function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
+  const t = useT();
   const ext = getExtension(file.ext, file.name);
   const { renderer: Renderer, type } = fileRendererRegistry.getRenderer(file.ext, file.name);
 
@@ -105,7 +107,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
           ) : null}
           {tocAvailable ? (
             <IconBtn
-              label={tocOpen ? "收起目录" : "展开目录"}
+              label={tocOpen ? t("filePreview.collapseToc") : t("filePreview.expandToc")}
               active={tocOpen}
               onClick={() => setTocOpen((v) => !v)}
             >
@@ -114,7 +116,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
           ) : null}
           {type === "html" ? (
             <IconBtn
-              label="在新窗口打开"
+              label={t("filePreview.openInNewWindow")}
               onClick={() => openInNewWindow(file.url)}
               disabled={!file.url}
             >
@@ -122,19 +124,23 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
             </IconBtn>
           ) : null}
           {onReply ? (
-            <IconBtn label="回复" onClick={onReply}>
+            <IconBtn label={t("filePreview.reply")} onClick={onReply}>
               <MessageSquare size={16} />
             </IconBtn>
           ) : null}
           <IconBtn
-            label="下载"
+            label={t("filePreview.download")}
             onClick={() => void triggerDownload(file.url, file.name)}
             disabled={!file.url}
           >
             <Download size={16} />
           </IconBtn>
           <Sep />
-          <IconBtn label="关闭" onClick={() => chatSidePanelActions.close()} danger>
+          <IconBtn
+            label={t("filePreview.close")}
+            onClick={() => chatSidePanelActions.close()}
+            danger
+          >
             <X size={18} />
           </IconBtn>
         </div>
@@ -170,15 +176,24 @@ function ViewToggle({
   value: "preview" | "source";
   onChange: (v: "preview" | "source") => void;
 }) {
+  const t = useT();
   return (
     <div className="inline-flex items-center rounded-md border border-border-subtle">
-      <ViewBtn active={value === "preview"} onClick={() => onChange("preview")} title="预览">
+      <ViewBtn
+        active={value === "preview"}
+        onClick={() => onChange("preview")}
+        title={t("filePreview.preview")}
+      >
         <Eye size={12} />
-        <span>预览</span>
+        <span>{t("filePreview.preview")}</span>
       </ViewBtn>
-      <ViewBtn active={value === "source"} onClick={() => onChange("source")} title="源码">
+      <ViewBtn
+        active={value === "source"}
+        onClick={() => onChange("source")}
+        title={t("filePreview.source")}
+      >
         <CodeIcon size={12} />
-        <span>源码</span>
+        <span>{t("filePreview.source")}</span>
       </ViewBtn>
     </div>
   );

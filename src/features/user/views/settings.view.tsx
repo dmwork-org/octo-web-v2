@@ -5,6 +5,7 @@ import { User, Layers, Bot, LogOut } from "lucide-react";
 import { authActions, authStore } from "@/features/base/stores/auth";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 设置主页(对齐老仓 NavSettingsPanel 导航 hub):
@@ -15,63 +16,85 @@ import { Button } from "@/components/semi-bridge/button";
  * - 退出登录 → authActions.signOut + 跳 /login
  */
 export function SettingsView() {
+  const t = useT();
   const user = useStore(authStore, (s) => s.user);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <header>
-        <h1 className="text-lg font-semibold text-text-primary">设置</h1>
-        <p className="text-xs text-text-tertiary">{user?.name ?? user?.username ?? "未登录"}</p>
+        <h1 className="text-lg font-semibold text-text-primary">{t("user.settings.title")}</h1>
+        <p className="text-xs text-text-tertiary">
+          {user?.name ?? user?.username ?? t("user.settings.notLoggedIn")}
+        </p>
       </header>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-semibold text-text-tertiary">账号</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">
+          {t("user.settings.accountSection")}
+        </h2>
         <Link
           to="/meinfo"
           className="flex items-center gap-3 rounded-md border border-border-subtle p-3 transition-colors hover:bg-bg-hover"
         >
           <User size={16} className="text-text-tertiary" />
-          <span className="flex-1 text-sm text-text-primary">个人资料</span>
-          <span className="text-xs text-text-tertiary">头像 / 昵称 / 实名</span>
+          <span className="flex-1 text-sm text-text-primary">
+            {t("user.settings.profileTitle")}
+          </span>
+          <span className="text-xs text-text-tertiary">{t("user.settings.profileSub")}</span>
         </Link>
         <Link
           to="/persona"
           className="flex items-center gap-3 rounded-md border border-border-subtle p-3 transition-colors hover:bg-bg-hover"
         >
           <Bot size={16} className="text-text-tertiary" />
-          <span className="flex-1 text-sm text-text-primary">AI 分身</span>
-          <span className="text-xs text-text-tertiary">代理回复 / Scope 管理</span>
+          <span className="flex-1 text-sm text-text-primary">
+            {t("user.settings.personaTitle")}
+          </span>
+          <span className="text-xs text-text-tertiary">{t("user.settings.personaSub")}</span>
         </Link>
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-semibold text-text-tertiary">空间</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">
+          {t("user.settings.spaceSection")}
+        </h2>
         {(spaces ?? []).length === 0 ? (
-          <p className="px-3 text-xs text-text-tertiary">暂无空间(可在侧边栏底部加入 / 创建)</p>
+          <p className="px-3 text-xs text-text-tertiary">{t("user.settings.noSpaces")}</p>
         ) : (
-          (spaces ?? []).map((sp) => (
-            <Link
-              key={sp.space_id}
-              to="/spacesettings"
-              search={{ id: sp.space_id }}
-              className="flex items-center gap-3 rounded-md border border-border-subtle p-3 transition-colors hover:bg-bg-hover"
-            >
-              <Layers size={16} className="text-text-tertiary" />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm text-text-primary">{sp.name}</span>
-                <span className="truncate text-[11px] text-text-tertiary">
-                  {sp.member_count ?? 0} 人 · 角色{" "}
-                  {sp.role === 1 ? "创建者" : sp.role === 2 ? "管理员" : "成员"}
-                </span>
-              </div>
-            </Link>
-          ))
+          (spaces ?? []).map((sp) => {
+            const roleText =
+              sp.role === 1
+                ? t("user.settings.roleOwner")
+                : sp.role === 2
+                  ? t("user.settings.roleAdmin")
+                  : t("user.settings.roleMember");
+            return (
+              <Link
+                key={sp.space_id}
+                to="/spacesettings"
+                search={{ id: sp.space_id }}
+                className="flex items-center gap-3 rounded-md border border-border-subtle p-3 transition-colors hover:bg-bg-hover"
+              >
+                <Layers size={16} className="text-text-tertiary" />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm text-text-primary">{sp.name}</span>
+                  <span className="truncate text-[11px] text-text-tertiary">
+                    {t("user.settings.memberSummary", {
+                      values: { count: sp.member_count ?? 0, role: roleText },
+                    })}
+                  </span>
+                </div>
+              </Link>
+            );
+          })
         )}
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-semibold text-text-tertiary">账户操作</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">
+          {t("user.settings.accountActions")}
+        </h2>
         <Button
           type="danger"
           onClick={() => {
@@ -80,7 +103,7 @@ export function SettingsView() {
           }}
         >
           <LogOut size={14} />
-          <span className="ml-1">退出登录</span>
+          <span className="ml-1">{t("user.settings.logout")}</span>
         </Button>
       </section>
     </div>

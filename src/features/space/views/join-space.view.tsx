@@ -7,6 +7,8 @@ import { getInviteInfo, type SpaceInviteInfo } from "@/features/base/api/endpoin
 import { useJoinSpaceMutation } from "@/features/space/mutations";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 const INVITE_CODE_REGEX = /^[a-zA-Z0-9_-]+$/;
 const SPACE_ICON_COLORS = ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#43e97b", "#fa709a"];
@@ -37,6 +39,7 @@ type View = "home" | "join" | "confirm";
  *  - 已是成员 → 静默 setSpace + 跳 /
  */
 export function JoinSpaceView() {
+  const t = useT();
   const navigate = useNavigate();
   const token = useStore(authStore, (s) => s.token);
   const [view, setView] = useState<View>("home");
@@ -52,8 +55,8 @@ export function JoinSpaceView() {
 
   const handleVerify = async () => {
     const trimmed = code.trim();
-    if (!trimmed) return toast.warning("请输入邀请码");
-    if (!INVITE_CODE_REGEX.test(trimmed)) return toast.error("邀请码格式不正确");
+    if (!trimmed) return toast.warning(tInst("space.join.welcomePrompt"));
+    if (!INVITE_CODE_REGEX.test(trimmed)) return toast.error(tInst("space.join.invalidCode"));
     setVerifying(true);
     try {
       const i = await getInviteInfo(trimmed);
@@ -62,9 +65,9 @@ export function JoinSpaceView() {
     } catch (e) {
       const msg = extractSafeErrorMessage(e);
       if (msg.includes("已满")) {
-        toast.error("该空间已满，无法加入");
+        toast.error(tInst("space.join.spaceFullVerify"));
       } else {
-        toast.error("邀请码无效或已过期");
+        toast.error(tInst("space.join.codeInvalidOrExpired"));
       }
     } finally {
       setVerifying(false);
@@ -76,17 +79,17 @@ export function JoinSpaceView() {
     try {
       await joinMu.mutateAsync(info.invite_code);
       spaceActions.setSpace(info.space_id);
-      toast.success(`已加入 ${info.space_name}`);
+      toast.success(tInst("space.join.joined", { values: { name: info.space_name } }));
       void navigate({ to: "/" });
     } catch (e) {
       const msg = extractSafeErrorMessage(e);
       if (msg.includes("已满")) {
-        toast.error("空间已满，无法加入");
+        toast.error(tInst("space.join.spaceFull"));
       } else if (msg.includes("已是成员") || msg.includes("already")) {
         spaceActions.setSpace(info.space_id);
         void navigate({ to: "/" });
       } else {
-        toast.error(msg || "加入失败，请重试");
+        toast.error(msg || tInst("space.join.joinFailed"));
       }
     }
   };
@@ -124,21 +127,23 @@ export function JoinSpaceView() {
           onClick={onLogout}
           className="absolute top-3 right-4 cursor-pointer text-[12px] text-[#999] transition-colors hover:text-[#1a1a1a]"
         >
-          退出登录
+          {t("space.joinView.logout")}
         </button>
 
         {view === "home" ? (
           <>
             <div className="mb-3 text-[40px] leading-none">👋</div>
-            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">欢迎使用 Octo！</h2>
-            <p className="mb-1 text-[16px] text-[#666]">输入邀请码加入你的团队</p>
+            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">
+              {t("space.joinView.welcome")}
+            </h2>
+            <p className="mb-1 text-[16px] text-[#666]">{t("space.joinView.welcomeHint")}</p>
             <div className="mt-7 flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => setView("join")}
                 className="h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover"
               >
-                📩 输入邀请码加入
+                {t("space.joinView.enterCodeBtn")}
               </button>
             </div>
           </>
@@ -154,10 +159,12 @@ export function JoinSpaceView() {
               }}
               className="mb-5 inline-flex cursor-pointer items-center bg-transparent text-[13px] text-[#888] transition-colors hover:text-[#1a1a1a]"
             >
-              ← 返回
+              {t("space.joinView.back")}
             </button>
-            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">输入邀请码</h2>
-            <p className="mb-1 text-[16px] text-[#666]">粘贴邀请码以查看并加入团队</p>
+            <h2 className="mb-2 text-[22px] font-bold text-[#1a1a1a]">
+              {t("space.joinView.title")}
+            </h2>
+            <p className="mb-1 text-[16px] text-[#666]">{t("space.joinView.subtitle")}</p>
             <input
               type="text"
               autoFocus
@@ -166,7 +173,7 @@ export function JoinSpaceView() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleVerify();
               }}
-              placeholder="输入邀请码"
+              placeholder={t("space.joinView.placeholder")}
               className="mt-5 mb-1 h-[44px] w-full rounded-[8px] border-[1.5px] border-[#e4e6ef] bg-white px-4 text-[16px] text-[#1a1a1a] transition-all outline-none placeholder:text-[#b0b4c8] focus:border-[#1C1C23] focus:shadow-[0_0_0_3px_rgba(28,28,35,0.12)]"
             />
             <button
@@ -175,7 +182,7 @@ export function JoinSpaceView() {
               disabled={verifying}
               className="mt-4 h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {verifying ? "验证中…" : "验证邀请码"}
+              {verifying ? t("space.joinView.verifying") : t("space.joinView.verifyBtn")}
             </button>
           </>
         ) : null}
@@ -189,11 +196,13 @@ export function JoinSpaceView() {
               {info.space_name.charAt(0).toUpperCase()}
             </div>
             <div className="mb-2 text-[24px] font-bold text-[#1a1a1a]">{info.space_name}</div>
-            <p className="mb-1 text-[16px] text-[#666]">邀请你加入</p>
+            <p className="mb-1 text-[16px] text-[#666]">{t("space.joinView.inviteSubtitle")}</p>
             <div className="mb-8 text-[14px] text-[#999]">
               {typeof info.max_users === "number" && info.max_users > 0
-                ? `${info.member_count ?? 0} / ${info.max_users} 人`
-                : `${info.member_count ?? 0} 位成员`}
+                ? t("space.joinView.memberCountFull", {
+                    values: { count: info.member_count ?? 0, max: info.max_users },
+                  })
+                : t("space.joinView.memberCount", { values: { count: info.member_count ?? 0 } })}
             </div>
             <button
               type="button"
@@ -201,7 +210,11 @@ export function JoinSpaceView() {
               disabled={joinMu.isPending || isFull}
               className="h-[44px] w-full cursor-pointer rounded-[8px] !bg-brand text-[16px] font-semibold text-white transition-colors hover:!bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isFull ? "空间已满" : joinMu.isPending ? "加入中…" : "确认加入"}
+              {isFull
+                ? t("space.joinView.isFull")
+                : joinMu.isPending
+                  ? t("space.joinView.joining")
+                  : t("space.joinView.confirmJoin")}
             </button>
             <button
               type="button"
@@ -211,7 +224,7 @@ export function JoinSpaceView() {
               }}
               className="mt-5 inline-flex cursor-pointer items-center bg-transparent text-[13px] text-[#888] transition-colors hover:text-[#1a1a1a]"
             >
-              ← 重新输入邀请码
+              {t("space.joinView.reEnterCode")}
             </button>
           </>
         ) : null}

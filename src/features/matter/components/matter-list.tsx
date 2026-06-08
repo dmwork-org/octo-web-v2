@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChevronRight } from "lucide-react";
 import type { Channel } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { mattersListInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
@@ -11,10 +12,10 @@ import type { Matter, MatterListParams } from "@/features/matter/types/matter.ty
 
 export type MatterTab = "mine" | "created" | "all";
 
-const TABS: { id: MatterTab; label: string }[] = [
-  { id: "mine", label: "我负责的" },
-  { id: "created", label: "我创建的" },
-  { id: "all", label: "全部" },
+const TAB_KEYS: { id: MatterTab; key: string }[] = [
+  { id: "mine", key: "matter.tabs.mine" },
+  { id: "created", key: "matter.tabs.created" },
+  { id: "all", key: "matter.tabs.all" },
 ];
 
 interface MatterListProps {
@@ -79,6 +80,7 @@ function filterByTab(all: Matter[], tab: MatterTab, myUid: string): Matter[] {
  *   切 tab 走本地 filter(对齐旧 ChatMatterPanel.displayMatters)
  */
 export function MatterList({ selectedId, onSelect, onTabChange, channel }: MatterListProps) {
+  const t = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const isChannelMode = !!channel;
@@ -109,32 +111,32 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
   const sentinelRef = useRef<HTMLDivElement>(null);
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
 
-  const handleTabChange = (t: MatterTab) => {
-    if (t === tab) return;
-    setTab(t);
+  const handleTabChange = (tb: MatterTab) => {
+    if (tb === tab) return;
+    setTab(tb);
     setArchivedOpen(false);
-    onTabChange?.(t);
+    onTabChange?.(tb);
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full bg-bg-elevated p-1">
-        {TABS.map((t) => {
-          const isActive = tab === t.id;
+        {TAB_KEYS.map((tk) => {
+          const isActive = tab === tk.id;
           // count:激活 tab 显示该 tab 命中数(channel 模式按本地 filter;非 channel 模式直接 all.length)
           const count = isActive ? (isChannelMode ? filtered.length : all.length) : null;
           return (
             <button
-              key={t.id}
+              key={tk.id}
               type="button"
-              onClick={() => handleTabChange(t.id)}
+              onClick={() => handleTabChange(tk.id)}
               className={`flex-1 rounded-full py-1.5 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
                 isActive
                   ? "bg-bg-surface text-text-primary shadow-sm"
                   : "text-text-tertiary hover:text-text-secondary"
               }`}
             >
-              {t.label}
+              {t(tk.key)}
               {count !== null && count > 0 ? (
                 <span className="ml-1 font-semibold">{count}</span>
               ) : null}
@@ -146,17 +148,19 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
         {isLoading ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            加载事项…
+            {t("matter.list.loading")}
           </p>
         ) : error ? (
-          <p className="flex flex-1 items-center justify-center text-sm text-error">事项加载失败</p>
+          <p className="flex flex-1 items-center justify-center text-sm text-error">
+            {t("matter.list.loadFailed")}
+          </p>
         ) : filtered.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            暂无事项
+            {t("matter.state.empty")}
           </p>
         ) : (
           <>
-            <SegmentLabel text="未归档" />
+            <SegmentLabel text={t("matter.sidebar.unarchived")} />
             {active.map((m) => (
               <SidebarCard
                 key={m.id}
@@ -171,7 +175,9 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
               onClick={() => setArchivedOpen((v) => !v)}
               className="mt-2 flex items-center justify-between rounded-md px-1 py-1.5 text-left transition-colors hover:bg-bg-hover"
             >
-              <SegmentLabel text={`已归档 (${archived.length})`} />
+              <SegmentLabel
+                text={t("matter.sidebar.archivedWithCount", { values: { count: archived.length } })}
+              />
               <ChevronRight
                 size={14}
                 className={`text-text-tertiary transition-transform ${archivedOpen ? "rotate-90" : ""}`}
@@ -190,7 +196,9 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
 
             <div ref={sentinelRef} className="h-4 shrink-0" aria-hidden />
             {isFetchingNextPage ? (
-              <p className="py-2 text-center text-[11px] text-text-tertiary">加载更多…</p>
+              <p className="py-2 text-center text-[11px] text-text-tertiary">
+                {t("matter.list.loadingMore")}
+              </p>
             ) : null}
           </>
         )}

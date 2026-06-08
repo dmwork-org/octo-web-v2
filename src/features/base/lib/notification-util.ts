@@ -10,6 +10,7 @@
  *
  * 调用方做过滤(自己发的 / 静音 / 当前会话 / noPersist / 无 reddot 等),本模块只管"如何弹"。
  */
+import { i18n } from "@/lib/i18n/instance";
 
 const STORAGE_KEY = "octo:settings:desktopNotificationsOff";
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -86,7 +87,7 @@ export function sendNotification(opts: SendNotificationOptions): void {
       body: opts.body,
       icon: opts.icon,
       tag: opts.tag,
-      lang: "zh-CN",
+      lang: i18n.getLocale(),
     });
     if (opts.onClick) {
       noti.onclick = () => {

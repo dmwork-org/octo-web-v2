@@ -4,6 +4,8 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
 import {
   addAssignee,
@@ -55,15 +57,6 @@ function toExtractMsgs(msgs: Message[]): ExtractMessage[] {
  * AI 智能创建事项 modal — 对齐旧 dmworktodo SmartCreateModal。
  *
  * 浮动元素壳层统一规范 Phase C3 — 走 BaseDialog。
- *
- * 触发:**selection-toolbar 多选消息 → "创建新事项"** 唯一入口
- * (chat ✓ / Alt+Enter 走 CreateMatterModal,messages 空时不在本组件)。
- *
- * 流程:
- *   1. open 即调 extractMatter(LLM 抽取并落 matter 拿 id;后端自动把 creator_uid 加 assignee)
- *   2. extract 返 title/description prefill 进 MatterFormBody
- *   3. 用户补齐 assignee(默认 prefill 自己)+ deadline
- *   4. 保存:updateMatter(id) + assignees reconcile(diff toAdd/toRemove,避免 409)
  */
 export function SmartCreateModal({
   open,
@@ -72,6 +65,7 @@ export function SmartCreateModal({
   messages,
   onClose,
 }: SmartCreateModalProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -100,21 +94,19 @@ export function SmartCreateModal({
         description: result.description || prev.description,
       }));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "AI 抽取失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("matter.toast.aiExtractFailed")),
   });
   useTriggerExtract(open, !!draftId, extractMu.mutate);
 
   const saveMu = useMutation({
     mutationFn: async () => {
-      if (!draftId) throw new Error("缺少 matter id");
+      if (!draftId) throw new Error(t("matter.toast.missingMatterId"));
       await updateMatter(draftId, {
         title: values.title.trim(),
         description: values.description.trim(),
         deadline: buildDeadlineISO(values.deadline),
       });
-      // assignees reconcile:extract 创建 matter 时后端已把 creator_uid 自动加 assignee,
-      // 直接 add 会 409 Conflict。先 getMatter 拿当前 assignees,diff 出 toAdd/toRemove
-      // (对齐老仓 dmworktodo/module.tsx L791-807)。
       const detail = await getMatter(draftId);
       const currentUids = new Set((detail.assignees ?? []).map((a) => a.user_id));
       const desiredUids = new Set(values.assigneeUids);
@@ -128,10 +120,11 @@ export function SmartCreateModal({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
       void qc.invalidateQueries({ queryKey: ["matter", "list"] });
-      toast.success("事项已创建");
+      toast.success(t("matter.toast.matterCreated"));
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const isExtracting = extractMu.isPending && !draftId;
@@ -155,7 +148,7 @@ export function SmartCreateModal({
         if (!next) onClose();
       }}
       size="fit"
-      title={`AI 智能创建事项 (${messages.length} 条消息)`}
+      title={tr("matter.create.smartTitleWithCount", { values: { count: messages.length } })}
       className="w-[480px] max-w-full"
       contentClassName="px-4 py-[10px]"
       footer={
@@ -165,7 +158,7 @@ export function SmartCreateModal({
             onClick={onClose}
             className="inline-flex h-7 items-center rounded-full border border-brand/10 bg-bg-surface px-3 text-[13px] font-semibold text-text-strong transition-colors hover:bg-bg-hover"
           >
-            取消
+            {tr("matter.common.cancel")}
           </button>
           <button
             type="button"
@@ -173,27 +166,30 @@ export function SmartCreateModal({
             disabled={!canSave}
             className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {saveMu.isPending ? "保存中..." : "保存"}
+            {saveMu.isPending ? tr("matter.action.saving") : tr("matter.action.save")}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-4" onKeyDown={onKeyDown}>
         {isExtracting ? (
-          // 对齐老仓 SmartCreateModal L205-219:60px 上下 padding + spinner + 14px 提示文案
           <div className="flex flex-col items-center justify-center gap-4 py-[60px]">
             <span
-              aria-label="加载中"
+              aria-label={tr("matter.create.aiLoadingAria")}
               className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-border-default border-t-brand"
             />
-            <div className="text-[14px] text-text-tertiary">AI 正在努力提取事项信息...</div>
+            <div className="text-[14px] text-text-tertiary">
+              {tr("matter.create.aiExtractingDesc")}
+            </div>
           </div>
         ) : extractMu.error && !draftId ? (
           <div className="flex h-32 flex-col items-center justify-center gap-3">
             <span className="text-sm text-error">
-              {extractMu.error instanceof Error ? extractMu.error.message : "AI 抽取失败"}
+              {extractMu.error instanceof Error
+                ? extractMu.error.message
+                : tr("matter.toast.aiExtractFailed")}
             </span>
-            <Button onClick={() => extractMu.mutate()}>重试</Button>
+            <Button onClick={() => extractMu.mutate()}>{tr("matter.create.retry")}</Button>
           </div>
         ) : draftId ? (
           <MatterFormBody

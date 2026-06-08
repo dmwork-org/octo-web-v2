@@ -4,6 +4,8 @@ import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { createSchedule, updateSchedule } from "@/features/summary/api/summary.api";
@@ -11,7 +13,7 @@ import { schedulesQueryKey } from "@/features/summary/queries/summaries.query";
 import {
   SourceType,
   SummaryMode,
-  TimeRangeTypeLabel,
+  TIME_RANGE_TYPE_KEY,
   type ScheduleItem,
   type SourceItem,
   type SummaryModeType,
@@ -26,16 +28,14 @@ interface ScheduleFormModalProps {
   onClose: () => void;
 }
 
-const CRON_PRESETS: { value: string; label: string }[] = [
-  { value: "0 9 * * *", label: "每天 09:00" },
-  { value: "0 9 * * 1-5", label: "工作日 09:00" },
-  { value: "0 9 * * 1", label: "每周一 09:00" },
-  { value: "0 9 1 * *", label: "每月 1 日 09:00" },
+const CRON_PRESETS: { value: string; labelKey: string }[] = [
+  { value: "0 9 * * *", labelKey: "summary.schedule.cronPresetDaily" },
+  { value: "0 9 * * 1-5", labelKey: "summary.schedule.cronPresetWorkdays" },
+  { value: "0 9 * * 1", labelKey: "summary.schedule.cronPresetWeekly" },
+  { value: "0 9 1 * *", labelKey: "summary.schedule.cronPresetMonthly" },
 ];
 
-const TIME_RANGE_OPTIONS: { value: TimeRangeTypeValue; label: string }[] = (
-  Object.entries(TimeRangeTypeLabel) as [string, string][]
-).map(([k, v]) => ({ value: Number(k) as TimeRangeTypeValue, label: v }));
+const TIME_RANGE_OPTION_VALUES: TimeRangeTypeValue[] = [1, 2, 3, 4];
 
 function convToSource(c: Conversation): SourceItem {
   const type =
@@ -85,6 +85,7 @@ function useResetFormOnOpen(
  * 浮动元素壳层统一规范 Phase C5 — 走 BaseDialog。
  */
 export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModalProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
 
@@ -142,10 +143,13 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: schedulesQueryKey });
-      toast.success(schedule ? "已更新" : "已创建");
+      toast.success(
+        schedule ? t("summary.schedule.updatedToast") : t("summary.schedule.createdToast"),
+      );
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const finalCron = (useCustomCron ? customCron : cron).trim();
@@ -171,13 +175,13 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
       open={open}
       onOpenChange={(next) => !next && onClose()}
       size="fit"
-      title={schedule ? "编辑定时总结" : "新建定时总结"}
+      title={schedule ? tr("summary.schedule.editTitle") : tr("summary.schedule.createTitle")}
       className="max-h-[90vh] w-full max-w-lg"
       contentClassName="overflow-hidden"
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
+            {tr("summary.common.cancel")}
           </Button>
           <Button
             htmlType="submit"
@@ -187,7 +191,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
             loading={mu.isPending}
             disabled={!canSubmit}
           >
-            保存
+            {tr("summary.common.save")}
           </Button>
         </>
       }
@@ -195,29 +199,35 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
       <form id="schedule-form" onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
         <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">标题</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {tr("summary.schedule.titleLabel")}
+            </span>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, 1000))}
-              placeholder="例:每周项目周报"
+              placeholder={tr("summary.schedule.titlePlaceholder")}
               className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
             />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">总结模式</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {tr("summary.schedule.modeLabel")}
+            </span>
             <select
               value={mode}
               onChange={(e) => setMode(Number(e.target.value) as SummaryModeType)}
               className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
             >
-              <option value={SummaryMode.BY_GROUP}>按群总结</option>
-              <option value={SummaryMode.BY_PERSON}>按人总结</option>
+              <option value={SummaryMode.BY_GROUP}>{tr("summary.mode.byGroup")}</option>
+              <option value={SummaryMode.BY_PERSON}>{tr("summary.mode.byPerson")}</option>
             </select>
           </label>
 
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">执行频率</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {tr("summary.schedule.frequencyLabel")}
+            </span>
             {!useCustomCron ? (
               <>
                 <select
@@ -227,7 +237,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                 >
                   {CRON_PRESETS.map((p) => (
                     <option key={p.value} value={p.value}>
-                      {p.label}
+                      {tr(p.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -236,7 +246,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                   onClick={() => setUseCustomCron(true)}
                   className="self-start text-[12px] text-brand hover:underline"
                 >
-                  自定义 cron 表达式
+                  {tr("summary.schedule.customCron")}
                 </button>
               </>
             ) : (
@@ -244,7 +254,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                 <input
                   value={customCron}
                   onChange={(e) => setCustomCron(e.target.value)}
-                  placeholder="cron 表达式,如 0 9 * * 1-5"
+                  placeholder={tr("summary.schedule.customCronPlaceholder")}
                   className="rounded-md border border-border-default bg-bg-base px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
                 />
                 <button
@@ -252,22 +262,24 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                   onClick={() => setUseCustomCron(false)}
                   className="self-start text-[12px] text-brand hover:underline"
                 >
-                  使用预设
+                  {tr("summary.schedule.usePreset")}
                 </button>
               </>
             )}
           </div>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">时间范围</span>
+            <span className="text-xs font-medium text-text-secondary">
+              {tr("summary.schedule.timeRangeLabel")}
+            </span>
             <select
               value={timeRangeType}
               onChange={(e) => setTimeRangeType(Number(e.target.value) as TimeRangeTypeValue)}
               className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
             >
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              {TIME_RANGE_OPTION_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {tr(TIME_RANGE_TYPE_KEY[v])}
                 </option>
               ))}
             </select>
@@ -275,11 +287,13 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
 
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">
-              信息来源 ({selectedIds.size} 选中)
+              {tr("summary.schedule.sourcesLabel", { values: { count: selectedIds.size } })}
             </span>
             <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
               {candidates.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-text-tertiary">没有可选会话</div>
+                <div className="px-3 py-4 text-center text-xs text-text-tertiary">
+                  {tr("summary.schedule.noChats")}
+                </div>
               ) : (
                 candidates.map((c) => {
                   const id = c.channel.channelID;
@@ -301,7 +315,9 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                       />
                       <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
                       <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                        {isGroup ? "群" : "私聊"}
+                        {isGroup
+                          ? tr("summary.schedule.tagGroup")
+                          : tr("summary.schedule.tagDirect")}
                       </span>
                     </label>
                   );

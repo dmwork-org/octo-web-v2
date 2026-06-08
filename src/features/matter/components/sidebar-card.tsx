@@ -1,4 +1,5 @@
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserName } from "@/features/matter/components/user-name";
 import type { Matter, MatterStatus } from "@/features/matter/types/matter.types";
@@ -9,10 +10,10 @@ interface SidebarCardProps {
   onClick: () => void;
 }
 
-const STATUS_LABELS: Record<MatterStatus, string> = {
-  open: "进行中",
-  done: "已完成",
-  archived: "已归档",
+const STATUS_KEY: Record<MatterStatus, string> = {
+  open: "matter.status.open",
+  done: "matter.status.done",
+  archived: "matter.status.archived",
 };
 
 /**
@@ -82,7 +83,8 @@ function MetaRow({ label, children }: MetaRowProps) {
  * - selected:bg-bg-surface + brand 描边 + shadow 轻微浮起
  */
 export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
-  const statusLabel = STATUS_LABELS[matter.status];
+  const t = useT();
+  const statusLabel = t(STATUS_KEY[matter.status]);
   const statusClass = STATUS_CLASS[matter.status];
   const assignees = matter.assignees ?? [];
   const visibleAssignees = assignees.slice(0, 3);
@@ -121,7 +123,7 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
 
       {/* 第三行:创建人 + 负责人 */}
       <div className="flex flex-col gap-1">
-        <MetaRow label="创建人:">
+        <MetaRow label={t("matter.sidebar.createdByLabel")}>
           <ChannelAvatar
             channel={new Channel(matter.creator_id, ChannelTypePerson)}
             size={16}
@@ -131,7 +133,7 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
         </MetaRow>
 
         {assignees.length > 0 && firstAssigneeUid ? (
-          <MetaRow label="负责人:">
+          <MetaRow label={t("matter.sidebar.assigneeLabel")}>
             <span className="inline-flex items-center">
               {visibleAssignees.map((a, i) => (
                 <span
@@ -149,7 +151,9 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
             </span>
             <span className="text-text-primary">
               <UserName uid={firstAssigneeUid} />
-              {assignees.length > 1 ? `等${assignees.length}人` : ""}
+              {assignees.length > 1
+                ? t("matter.sidebar.assigneeCountSuffix", { values: { count: assignees.length } })
+                : ""}
             </span>
           </MetaRow>
         ) : null}

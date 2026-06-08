@@ -1,4 +1,5 @@
 import type { BindInfoResp } from "@/features/base/api/endpoints/oidc.api";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * Create button UI 三态(对齐老仓 dmworklogin BindPage.deriveCreateState):
@@ -21,13 +22,13 @@ export function deriveCreateState(info: BindInfoResp): CreateState {
   if (blocked === "") return { kind: "available" };
   if (blocked === "disabled") return { kind: "hidden" };
   if (blocked === "claims_incomplete") {
-    return { kind: "blocked", reason: "SSO 身份信息不完整，无法自助创建账号" };
+    return { kind: "blocked", reason: t("bind.error.ssoInfoIncomplete") };
   }
   if (blocked === "manual_conflict") {
-    return { kind: "blocked", reason: "您的 SSO 身份匹配到多个 Octo 账号，需要管理员协助处理" };
+    return { kind: "blocked", reason: t("bind.error.manualConflict") };
   }
   if (blocked === "consumed") {
-    return { kind: "blocked", reason: "当前链接已使用过，请重新发起 SSO 登录" };
+    return { kind: "blocked", reason: t("bind.error.linkConsumed") };
   }
   return { kind: "hidden" };
 }

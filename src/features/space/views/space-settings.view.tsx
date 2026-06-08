@@ -17,6 +17,8 @@ import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface SpaceSettingsViewProps {
   spaceId: string;
@@ -39,6 +41,7 @@ const ROLE_ADMIN = 2;
  * 改用 SectionGroup + InlineEditRow + NavRow(行内编辑 / 一行一字段 / 整行可点)。
  */
 export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data: spaces } = useQuery(mySpacesQueryOptions());
@@ -59,7 +62,7 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
   if (!space) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-        空间不存在或无权访问
+        {t("space.settings.notFound")}
       </div>
     );
   }
@@ -110,7 +113,8 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
   };
 
   const onLeave = async () => {
-    if (!window.confirm(`确认离开「${space.name}」?`)) return;
+    if (!window.confirm(tInst("space.settings.confirmLeave", { values: { name: space.name } })))
+      return;
     setInlineError(null);
     try {
       await leaveMu.mutateAsync(spaceId);
@@ -126,7 +130,8 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
   };
 
   const onDismiss = async () => {
-    if (!window.confirm(`确认解散「${space.name}」?此操作不可撤销。`)) return;
+    if (!window.confirm(tInst("space.settings.confirmDismiss", { values: { name: space.name } })))
+      return;
     setInlineError(null);
     try {
       await dismissMu.mutateAsync(spaceId);
@@ -144,17 +149,17 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
     <div className="flex h-full flex-col gap-3 overflow-y-auto py-4">
       <header className="px-4">
         <h1 className="text-lg font-semibold text-text-primary">{space.name}</h1>
-        <p className="text-xs text-text-tertiary">空间设置</p>
+        <p className="text-xs text-text-tertiary">{t("space.settings.subtitle")}</p>
       </header>
 
       {/* 基本信息 */}
       <SectionGroup>
         <InlineEditRow
-          title="名称"
+          title={t("space.settings.nameTitle")}
           value={name}
-          placeholder="未设置"
+          placeholder={t("space.settings.unset")}
           canEdit={canEdit}
-          cantEditMessage="只有空间所有者 / 管理员可编辑"
+          cantEditMessage={t("space.settings.cantEditMessage")}
           maxLength={32}
           pending={updateMu.isPending && editing === "name"}
           editing={editing === "name"}
@@ -163,11 +168,11 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
           onSave={(v) => void onSaveName(v)}
         />
         <InlineEditRow
-          title="描述"
+          title={t("space.settings.descTitle")}
           value={description}
-          placeholder="未设置"
+          placeholder={t("space.settings.unset")}
           canEdit={canEdit}
-          cantEditMessage="只有空间所有者 / 管理员可编辑"
+          cantEditMessage={t("space.settings.cantEditMessage")}
           multiline
           maxLength={200}
           pending={updateMu.isPending && editing === "description"}
@@ -182,14 +187,14 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
       {canEdit ? (
         <SectionGroup>
           <NavRow
-            title="邀请码"
-            subTitle={inviteCode ?? "点击生成"}
+            title={t("space.settings.inviteTitle")}
+            subTitle={inviteCode ?? t("space.settings.inviteClickGenerate")}
             right={
               inviteCode ? (
                 <button
                   type="button"
                   onClick={(e) => void onCopy(e)}
-                  aria-label="复制邀请码"
+                  aria-label={t("space.settings.copyInvite")}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
                 >
                   <Copy size={14} />
@@ -203,7 +208,9 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
 
       {/* 成员管理 — 保留原结构(虚拟化列表需要的样式约束多,不适合塞 NavRow 行) */}
       <section className="flex min-h-0 flex-1 flex-col gap-2 px-4">
-        <h2 className="text-xs font-semibold text-text-tertiary">成员</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">
+          {t("space.settings.membersHeader")}
+        </h2>
         <div className="min-h-[320px] flex-1">
           <SpaceMembersList spaceId={spaceId} currentUserRole={role} />
         </div>
@@ -214,9 +221,13 @@ export function SpaceSettingsView({ spaceId }: SpaceSettingsViewProps) {
       {/* 危险区域 */}
       <SectionGroup>
         {role === ROLE_OWNER ? (
-          <NavRow title="解散空间" danger onClick={() => void onDismiss()} />
+          <NavRow
+            title={t("space.settings.dismissTitle")}
+            danger
+            onClick={() => void onDismiss()}
+          />
         ) : (
-          <NavRow title="离开空间" danger onClick={() => void onLeave()} />
+          <NavRow title={t("space.settings.leaveTitle")} danger onClick={() => void onLeave()} />
         )}
       </SectionGroup>
     </div>

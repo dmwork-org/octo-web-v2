@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { useT } from "@/lib/i18n/use-t";
 import { userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
 import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
@@ -48,6 +49,7 @@ interface UserAvatarProps {
 }
 
 function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
+  const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [failed, setFailed] = useState(false);
   const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
@@ -58,14 +60,14 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
         <button
           type="button"
           onClick={onClick}
-          aria-label="我的信息"
+          aria-label={t("base.sidebar.myInfo")}
           className="relative block cursor-pointer"
         >
           <div className="h-10 w-10 overflow-hidden rounded-full bg-bg-elevated text-sm font-medium text-text-secondary transition-transform duration-150 ease-(--ease-emphasized) hover:scale-105">
             {url && !failed ? (
               <img
                 src={url}
-                alt="我的头像"
+                alt={t("base.sidebar.myAvatar")}
                 width={40}
                 height={40}
                 onError={() => setFailed(true)}
@@ -80,12 +82,12 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
           {isOnline ? (
             <span
               className="absolute right-0 bottom-0 box-border h-2 w-2 rounded-full border-2 border-bg-navrail bg-online"
-              aria-label="在线"
+              aria-label={t("base.sidebar.online")}
             />
           ) : null}
         </button>
       </TooltipTrigger>
-      <TooltipContent>我的信息</TooltipContent>
+      <TooltipContent>{t("base.sidebar.myInfo")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -101,6 +103,7 @@ function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
  *   - SpaceSwitcher(楼图标 trigger + dropdown)
  */
 export function Sidebar() {
+  const t = useT();
   const user = useStore(authStore, (s) => s.user);
   const location = useLocation();
   const router = useRouter();
@@ -126,7 +129,7 @@ export function Sidebar() {
   return (
     <>
       <nav
-        aria-label="主导航"
+        aria-label={t("base.sidebar.nav")}
         className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
       >
         <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">
@@ -154,7 +157,7 @@ export function Sidebar() {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="设置"
+                aria-label={t("base.sidebar.settings")}
                 onClick={() => setSettingsOpen((v) => !v)}
                 className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
                   settingsOpen
@@ -165,7 +168,7 @@ export function Sidebar() {
                 <SettingsIcon size={20} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>设置</TooltipContent>
+            <TooltipContent>{t("base.sidebar.settings")}</TooltipContent>
           </Tooltip>
           <SpaceSwitcher />
         </div>

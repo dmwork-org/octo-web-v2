@@ -1,4 +1,5 @@
 import WKSDK, { Message, MessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -62,7 +63,7 @@ export class MergeforwardContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return "[合并转发]";
+    return t("mergeForward.digest");
   }
 }
 
@@ -83,8 +84,8 @@ function mapToMessage(raw: Record<string, unknown>): Message {
   m.timestamp = typeof raw.timestamp === "number" ? raw.timestamp : 0;
   m.fromUID = typeof raw.from_uid === "string" ? raw.from_uid : "";
   const payloadObj = (raw.payload as Record<string, unknown> | undefined) ?? {};
-  const t = typeof payloadObj.type === "number" ? payloadObj.type : 0;
-  const content = WKSDK.shared().getMessageContent(t);
+  const contentType = typeof payloadObj.type === "number" ? payloadObj.type : 0;
+  const content = WKSDK.shared().getMessageContent(contentType);
   const bytes = new TextEncoder().encode(JSON.stringify(payloadObj));
   content.decode(bytes);
   m.content = content;

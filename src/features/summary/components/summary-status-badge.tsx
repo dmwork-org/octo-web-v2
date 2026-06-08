@@ -1,12 +1,13 @@
 import { TaskStatus, type TaskStatusType } from "@/features/summary/types/summary.types";
+import { useT } from "@/lib/i18n/use-t";
 
-const LABELS: Record<TaskStatusType, string> = {
-  [TaskStatus.PENDING]: "排队中",
-  [TaskStatus.WAITING_CONFIRM]: "待确认",
-  [TaskStatus.PROCESSING]: "生成中",
-  [TaskStatus.COMPLETED]: "已完成",
-  [TaskStatus.FAILED]: "失败",
-  [TaskStatus.CANCELLED]: "已取消",
+const LABEL_KEY: Record<TaskStatusType, string> = {
+  [TaskStatus.PENDING]: "summary.status.pending",
+  [TaskStatus.WAITING_CONFIRM]: "summary.status.waitingConfirm",
+  [TaskStatus.PROCESSING]: "summary.status.processing",
+  [TaskStatus.COMPLETED]: "summary.status.completed",
+  [TaskStatus.FAILED]: "summary.status.failed",
+  [TaskStatus.CANCELLED]: "summary.status.cancelled",
 };
 
 const CLS: Record<TaskStatusType, string> = {
@@ -24,12 +25,13 @@ interface SummaryStatusBadgeProps {
 }
 
 export function SummaryStatusBadge({ status, size = "sm" }: SummaryStatusBadgeProps) {
+  const t = useT();
   const sizeCls = size === "sm" ? "px-1.5 text-[10px]" : "px-2 py-0.5 text-xs";
   return (
     <span
       className={`inline-flex shrink-0 items-center rounded-sm font-semibold ${CLS[status]} ${sizeCls}`}
     >
-      {LABELS[status]}
+      {t(LABEL_KEY[status])}
     </span>
   );
 }

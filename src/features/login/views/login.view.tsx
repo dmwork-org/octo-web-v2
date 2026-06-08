@@ -10,6 +10,7 @@ import { useFinalizeLogin, writePendingInviteCode } from "@/features/login/lib/p
 import { LoginShell } from "@/features/login/components/login-shell";
 import { DownloadButtons } from "@/features/login/components/download-buttons";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 
 interface LoginViewProps {
   redirect?: string;
@@ -32,6 +33,7 @@ interface LoginViewProps {
  * (扫码 / 没有账号？注册 / 忘记密码)+ 下载按钮。
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const loginMu = useLoginMutation();
   const { providers, primaryProvider, ssoModuleEnabled } = useSsoProviders();
@@ -55,7 +57,9 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
       <LoginShell>
         <div className="flex flex-col items-center gap-3 py-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5b5be5] border-t-transparent" />
-          <p className="text-sm text-[#8a8fa8]">正在通过 {providerName} 登录…</p>
+          <p className="text-sm text-[#8a8fa8]">
+            {t("login.oidc.resuming", { values: { provider: providerName ?? "SSO" } })}
+          </p>
         </div>
       </LoginShell>
     );
@@ -89,13 +93,15 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const inviteBanner = inviteInfo ? (
     <div className="rounded-[10px] border border-[#1C1C23]/15 bg-[#1C1C23]/[0.06] px-4 py-3 text-[14px] leading-[1.6] text-[#1C1C23]">
       <div>
-        你被邀请加入 <strong>{inviteInfo.space_name}</strong>
+        {t("login.login.invite")} <strong>{inviteInfo.space_name}</strong>
       </div>
       {typeof inviteInfo.member_count === "number" ? (
         <div>
           {typeof inviteInfo.max_users === "number" && inviteInfo.max_users > 0
-            ? `${inviteInfo.member_count}/${inviteInfo.max_users} 人`
-            : `${inviteInfo.member_count} 位成员`}
+            ? t("login.login.memberCountWithMax", {
+                values: { count: inviteInfo.member_count, max: inviteInfo.max_users },
+              })
+            : t("login.login.memberCount", { values: { count: inviteInfo.member_count } })}
         </div>
       ) : null}
     </div>
@@ -106,9 +112,11 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     return (
       <LoginShell topBanner={inviteBanner}>
         <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-          欢迎回来
+          {t("login.login.welcome")}
         </div>
-        <div className="mb-7 text-left text-sm text-[#8a8fa8]">使用手机号或邮箱即可登录</div>
+        <div className="mb-7 text-left text-sm text-[#8a8fa8]">
+          {t("login.login.ssoSub", { values: { provider: primaryProvider.name, appName: "Octo" } })}
+        </div>
 
         <div className="flex flex-col">
           <Button
@@ -118,16 +126,19 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             className="h-[50px] w-full cursor-pointer rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
             onClick={onStartOidc}
           >
-            {oidcStarting ? "跳转中…" : "登录 / 注册"}
+            {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.passwordCtaLink")}
           </Button>
           <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
-            <span>已有账号将自动登录，新用户将自动注册</span>
+            <span>{t("login.login.ssoAutoCreate")}</span>
             <span className="text-[#b0b4c8]">·</span>
             <span
               className="cursor-help underline decoration-dotted underline-offset-2"
-              title={`${primaryProvider.name} 是 Mininglamp 统一身份服务，登录后可在所有 Mininglamp 产品中通用`}
+              title={t("login.login.ssoMetaBrandTitle", {
+                values: { provider: primaryProvider.name },
+              })}
             >
-              由 {primaryProvider.name} 提供
+              {t("login.login.ssoMetaPrefix")} {primaryProvider.name}{" "}
+              {t("login.login.ssoMetaSuffix")}
             </span>
           </div>
         </div>
@@ -143,15 +154,15 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   return (
     <LoginShell topBanner={inviteBanner}>
       <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-        欢迎回来
+        {t("login.login.welcome")}
       </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">登录你的账号以继续</div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">{t("login.login.defaultSub")}</div>
 
       <form onSubmit={onPasswordSubmit} aria-label="login form" className="flex flex-col gap-0">
         <input
           type="text"
           name="username"
-          placeholder="邮箱"
+          placeholder={t("login.form.email")}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
@@ -161,7 +172,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         <input
           type="password"
           name="password"
-          placeholder="密码"
+          placeholder={t("login.form.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -176,7 +187,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           loading={loginMu.isPending}
           className="mt-2 h-[46px] w-full cursor-pointer rounded-[10px] !bg-brand text-[15px] font-semibold tracking-[0.3px] text-white hover:!bg-brand-hover"
         >
-          {loginMu.isPending ? "登录中…" : "登录"}
+          {loginMu.isPending ? t("login.login.button.loading") : t("login.login.button")}
         </Button>
       </form>
 
@@ -187,7 +198,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           onClick={() => void navigate({ to: "/qrcode", search: subSearch })}
           className="cursor-pointer text-[#8a8fa8] transition-colors hover:text-[#1C1C23]"
         >
-          扫码登录
+          {t("login.login.scanLogin")}
         </button>
         <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
         <button
@@ -195,7 +206,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           onClick={() => void navigate({ to: "/register", search: subSearch })}
           className="cursor-pointer font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
-          没有账号？注册
+          {t("login.login.noAccountRegister")}
         </button>
         <span className="mx-4 h-3 w-px bg-[#e4e6ef]" />
         <button
@@ -203,7 +214,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           onClick={onClickForget}
           className="cursor-pointer font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
         >
-          忘记密码
+          {t("login.login.forgotPassword")}
         </button>
       </div>
 

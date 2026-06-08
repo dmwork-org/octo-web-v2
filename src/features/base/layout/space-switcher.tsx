@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { Check } from "lucide-react";
 import { spaceActions, spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
+import { useT } from "@/lib/i18n/use-t";
 import { JoinSpaceModal } from "@/features/space/components/join-space-modal";
 import { BuildingIcon } from "@/components/ui/icons/building";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
@@ -96,10 +97,13 @@ interface SpaceRowProps {
  * - selected → 右侧 ✓
  */
 function SpaceRow({ space, selected, onClick }: SpaceRowProps) {
+  const t = useT();
   const meta =
     typeof space.max_users === "number" && space.max_users > 0
-      ? `${space.member_count ?? 0}/${space.max_users} 人`
-      : `${space.member_count ?? 0} 人`;
+      ? t("base.spaceSwitcher.memberCountMax", {
+          values: { count: space.member_count ?? 0, max: space.max_users },
+        })
+      : t("base.spaceSwitcher.memberCount", { values: { count: space.member_count ?? 0 } });
   const bgClass = selected
     ? "before:bg-[rgba(28,28,35,0.06)] hover:before:bg-[rgba(28,28,35,0.08)]"
     : "hover:before:bg-[rgba(28,28,35,0.04)]";
@@ -156,6 +160,7 @@ function SpaceRow({ space, selected, onClick }: SpaceRowProps) {
  *      - 右 16px chevron(40% black)
  */
 export function SpaceSwitcher() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -181,8 +186,8 @@ export function SpaceSwitcher() {
     <div ref={ref} className="relative">
       <button
         type="button"
-        title={current?.name ?? "切换 Space"}
-        aria-label="切换 Space"
+        title={current?.name ?? t("base.spaceSwitcher.switch")}
+        aria-label={t("base.spaceSwitcher.switch")}
         onClick={() => setOpen((v) => !v)}
         className={`flex h-11 w-14 cursor-pointer items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
           open
@@ -199,11 +204,13 @@ export function SpaceSwitcher() {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0 px-3 py-2 text-[12px] font-semibold text-[rgba(28,28,35,0.40)]">
-            已加入 Space
+            {t("base.spaceSwitcher.joined")}
           </div>
           <div className="flex flex-1 flex-col gap-1 overflow-y-auto pb-1">
             {list.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-text-tertiary">暂无空间</div>
+              <div className="px-3 py-4 text-center text-xs text-text-tertiary">
+                {t("base.spaceSwitcher.empty")}
+              </div>
             ) : (
               list.map((sp) => (
                 <SpaceRow
@@ -229,7 +236,9 @@ export function SpaceSwitcher() {
             <span className="relative z-[1] flex h-4 w-4 shrink-0 items-center justify-center text-[rgba(31,28,35,0.60)]">
               <JoinSpaceIcon size={14} />
             </span>
-            <span className="relative z-[1] flex-1 font-normal">加入新 Space</span>
+            <span className="relative z-[1] flex-1 font-normal">
+              {t("base.spaceSwitcher.joinNew")}
+            </span>
             <span className="relative z-[1] flex shrink-0 items-center text-[rgba(28,28,35,0.40)]">
               <ChevronRightIcon size={16} />
             </span>

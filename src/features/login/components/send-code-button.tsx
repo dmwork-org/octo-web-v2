@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n/use-t";
 
 interface SendCodeButtonProps {
   /** 父组件用 useCodeCountdown 持有的 count(s)。 */
@@ -39,11 +40,12 @@ function useClearLoadingWhenCountdownStarts(countdown: number, setLoading: (v: b
  * 改用原生 `<button>` 直出。
  */
 export function SendCodeButton({ countdown, onSend, disabled }: SendCodeButtonProps) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   useClearLoadingWhenCountdownStarts(countdown, setLoading);
 
   const isDisabled = countdown > 0 || loading || disabled;
-  const label = countdown > 0 ? `${countdown}s` : "发送验证码";
+  const label = countdown > 0 ? `${countdown}s` : t("login.sendCode");
 
   const onClick = async () => {
     if (isDisabled) return;

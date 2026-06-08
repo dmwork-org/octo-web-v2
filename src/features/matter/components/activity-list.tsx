@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import { UserName } from "@/features/matter/components/user-name";
@@ -11,18 +12,18 @@ interface ActivityListProps {
 }
 
 /**
- * action label 映射(对齐原 dmworktodo MatterDetailPanel/index.tsx:1538-1548)。
+ * action label key 映射(对齐原 dmworktodo MatterDetailPanel/index.tsx:1538-1548)。
  */
-const ACTION_LABELS: Record<string, string> = {
-  created: "创建了事项",
-  title_changed: "更新了标题",
-  description_changed: "更新了主要目标",
-  deadline_changed: "更新了截止日期",
-  status_changed: "切换了状态",
-  assignee_added: "添加了负责人",
-  assignee_removed: "移除了负责人",
-  channel_linked: "关联了群聊",
-  channel_unlinked: "取消了群聊关联",
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  created: "matter.activityAction.created",
+  title_changed: "matter.activityAction.titleChanged",
+  description_changed: "matter.activityAction.descriptionChanged",
+  deadline_changed: "matter.activityAction.deadlineChanged",
+  status_changed: "matter.activityAction.statusChanged",
+  assignee_added: "matter.activityAction.assigneeAdded",
+  assignee_removed: "matter.activityAction.assigneeRemoved",
+  channel_linked: "matter.activityAction.channelLinked",
+  channel_unlinked: "matter.activityAction.channelUnlinked",
 };
 
 function formatActivityTime(iso: string): string {
@@ -31,21 +32,6 @@ function formatActivityTime(iso: string): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${mm} ${hh}:${mi}`;
-}
-
-function describeActivity(a: ActivityEntry): string {
-  const label = ACTION_LABELS[a.action] ?? a.action;
-  const detail = a.detail ?? {};
-  const summary = detail["summary"];
-  const from = detail["from"];
-  const to = detail["to"];
-  if (typeof summary === "string" && summary.trim()) return `${label}: ${summary}`;
-  if (typeof from === "string" || typeof to === "string") {
-    const fromStr = typeof from === "string" ? from : "—";
-    const toStr = typeof to === "string" ? to : "—";
-    return `${label}: ${fromStr} → ${toStr}`;
-  }
-  return label;
 }
 
 function useFetchNextOnInView(
@@ -77,6 +63,7 @@ function useFetchNextOnInView(
  * activity icon 区分。
  */
 export function ActivityList({ matterId }: ActivityListProps) {
+  const t = useT();
   const query = useInfiniteQuery(activitiesInfiniteQueryOptions(matterId));
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
 
@@ -85,14 +72,30 @@ export function ActivityList({ matterId }: ActivityListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
 
+  const describeActivity = (a: ActivityEntry): string => {
+    const labelKey = ACTION_LABEL_KEYS[a.action];
+    const label = labelKey ? t(labelKey) : a.action;
+    const detail = a.detail ?? {};
+    const summary = detail["summary"];
+    const from = detail["from"];
+    const to = detail["to"];
+    if (typeof summary === "string" && summary.trim()) return `${label}: ${summary}`;
+    if (typeof from === "string" || typeof to === "string") {
+      const fromStr = typeof from === "string" ? from : "—";
+      const toStr = typeof to === "string" ? to : "—";
+      return `${label}: ${fromStr} → ${toStr}`;
+    }
+    return label;
+  };
+
   if (isLoading) {
-    return <p className="px-1 py-2 text-xs text-text-tertiary">加载中…</p>;
+    return <p className="px-1 py-2 text-xs text-text-tertiary">{t("matter.activity.loading")}</p>;
   }
   if (error) {
-    return <p className="px-1 py-2 text-xs text-error">加载失败</p>;
+    return <p className="px-1 py-2 text-xs text-error">{t("matter.activity.loadFailed")}</p>;
   }
   if (all.length === 0) {
-    return <p className="px-1 py-2 text-xs text-text-tertiary">暂无变更记录</p>;
+    return <p className="px-1 py-2 text-xs text-text-tertiary">{t("matter.activity.empty")}</p>;
   }
   return (
     <ul className="flex flex-col gap-2">
@@ -117,7 +120,9 @@ export function ActivityList({ matterId }: ActivityListProps) {
       ))}
       <div ref={sentinelRef} className="h-1 shrink-0" aria-hidden />
       {isFetchingNextPage ? (
-        <p className="py-1 text-center text-[11px] text-text-tertiary">加载更早…</p>
+        <p className="py-1 text-center text-[11px] text-text-tertiary">
+          {t("matter.activity.loadingEarlier")}
+        </p>
       ) : null}
     </ul>
   );

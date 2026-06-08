@@ -4,6 +4,7 @@ interface RealnameVerifiedBadgeProps {
 }
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * OCTO 实名认证标识(对应旧 dmworkbase Components/RealnameVerifiedBadge):
@@ -16,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * 仍不用于:@mention / 联系人列表 / 已读列表 / 会话列表(避免噪音)。
  */
 export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadgeProps) {
+  const t = useT();
   const showIcon = variant !== "tag";
   const showText = variant !== "icon";
   return (
@@ -24,7 +26,7 @@ export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadg
         <span
           className="ml-1.5 inline-flex shrink-0 items-center gap-[3px] text-[12px] font-medium leading-4 align-middle"
           style={{ color: "#2f8cff" }}
-          aria-label="已实名"
+          aria-label={t("base.realname.tag")}
           role="img"
         >
           {showIcon ? (
@@ -52,12 +54,12 @@ export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadg
               className="h-4 rounded-[3px] px-[5px] text-[11px] font-medium leading-4 tracking-[0.02em]"
               style={{ background: "rgba(47, 140, 255, 0.12)", color: "#2f8cff" }}
             >
-              已实名
+              {t("base.realname.tag")}
             </span>
           ) : null}
         </span>
       </TooltipTrigger>
-      <TooltipContent>已完成实名认证</TooltipContent>
+      <TooltipContent>{t("base.realname.tooltip")}</TooltipContent>
     </Tooltip>
   );
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
 interface ConfirmDialogProps {
@@ -31,13 +32,14 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   content,
-  okText = "确定",
-  cancelText = "取消",
+  okText,
+  cancelText,
   okDanger = false,
   okLoading = false,
   onOk,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT();
   const handleClose = (next: boolean) => {
     if (!next) onCancel?.();
     onOpenChange?.(next);
@@ -54,7 +56,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={() => handleClose(false)}>
-            {cancelText}
+            {cancelText ?? t("base.common.cancel")}
           </Button>
           <Button
             type={okDanger ? "danger" : "primary"}
@@ -62,7 +64,7 @@ export function ConfirmDialog({
             loading={okLoading}
             onClick={onOk}
           >
-            {okText}
+            {okText ?? t("base.common.confirm")}
           </Button>
         </>
       }

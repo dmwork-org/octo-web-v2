@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/use-t";
 
 export type DrawerSide = "right" | "left" | "bottom" | "top";
 export type DrawerSize = "sm" | "md" | "lg" | "full";
@@ -135,6 +136,7 @@ export function BaseDrawer({
   className,
   children,
 }: BaseDrawerProps) {
+  const t = useT();
   const depth = useContext(DrawerNestingContext);
   const zClass = useNestingZClass();
   const isHorizontal = side === "right" || side === "left";
@@ -182,7 +184,7 @@ export function BaseDrawer({
                   <button
                     type="button"
                     onClick={handleBack}
-                    aria-label="返回"
+                    aria-label={t("base.common.back")}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
                   >
                     <ArrowLeft size={16} />
@@ -200,7 +202,7 @@ export function BaseDrawer({
                 ) : null}
                 {showCloseButton ? (
                   <DialogClose
-                    aria-label="关闭"
+                    aria-label={t("base.common.close")}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
                   >
                     <X size={16} />

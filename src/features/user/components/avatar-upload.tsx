@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { useUploadAvatarMutation } from "@/features/user/mutations";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInst } from "@/lib/i18n/instance";
 
 interface AvatarUploadProps {
   uid: string;
@@ -17,6 +19,7 @@ interface AvatarUploadProps {
  * - 上传中显 loading 蒙层
  */
 export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
+  const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadMu = useUploadAvatarMutation(uid);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
     try {
       await uploadMu.mutateAsync(file);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "上传失败");
+      setError(err instanceof Error ? err.message : tInst("user.avatar.uploadFailed"));
     }
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -57,7 +60,7 @@ export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
       </div>
       <div className="flex flex-col gap-1">
         <Button onClick={() => fileRef.current?.click()} disabled={uploadMu.isPending}>
-          上传头像
+          {t("user.avatar.uploadBtn")}
         </Button>
         {error ? <p className="text-xs text-error">{error}</p> : null}
       </div>

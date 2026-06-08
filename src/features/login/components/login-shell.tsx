@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * Login 页面外壳 — 两栏布局(对齐老仓 dmworklogin login.css `.wk-login`):
@@ -20,6 +21,10 @@ interface LoginShellProps {
 }
 
 export function LoginShell({ children, topBanner }: LoginShellProps) {
+  const t = useT();
+  // headline/subline 含 \n 换行符,locale 字符串里用 "\n" 编码;split 后 map 出 <br/>
+  const headlineLines = t("login.welcome.headline").split("\n");
+  const sublineLines = t("login.welcome.subline").split("\n");
   return (
     <div className="absolute top-0 left-0 flex min-h-screen w-full overflow-y-auto bg-[#f5f6fa]">
       {/* 左 brand panel */}
@@ -52,32 +57,28 @@ export function LoginShell({ children, topBanner }: LoginShellProps) {
         {/* 中部 hero */}
         <div className="relative z-10 mx-auto w-full max-w-[440px]">
           <div className="mb-3 text-[40px] leading-[1.25] font-bold text-white">
-            AI Agent 时代的
-            <br />
-            即时通讯平台
+            {headlineLines.map((line, i) => (
+              <span key={i}>
+                {line}
+                {i < headlineLines.length - 1 ? <br /> : null}
+              </span>
+            ))}
           </div>
           <div className="mb-9 text-[15px] leading-[1.65] text-white/80">
-            连接人与 AI，让协作更高效。
-            <br />
-            支持 Web、Mac、Windows、Linux 全平台。
+            {sublineLines.map((line, i) => (
+              <span key={i}>
+                {line}
+                {i < sublineLines.length - 1 ? <br /> : null}
+              </span>
+            ))}
           </div>
         </div>
 
         {/* 聊天气泡装饰 — 绝对底部,fadeIn 错位 */}
         <div className="absolute right-16 bottom-9 left-16 z-10 flex max-w-[380px] flex-col gap-2.5">
-          <ChatBubble
-            side="left"
-            name="Octo AI"
-            text="你好！我可以帮你整理今天的会议纪要 📝"
-            delay="0.2s"
-          />
-          <ChatBubble side="right" text="好的，会议录音已发给你" delay="0.5s" />
-          <ChatBubble
-            side="left"
-            name="Octo AI"
-            text="收到，正在生成摘要，稍等片刻 ⚡"
-            delay="0.8s"
-          />
+          <ChatBubble side="left" name="Octo AI" text={t("login.welcome.chat1")} delay="0.2s" />
+          <ChatBubble side="right" text={t("login.welcome.chat2")} delay="0.5s" />
+          <ChatBubble side="left" name="Octo AI" text={t("login.welcome.chat3")} delay="0.8s" />
         </div>
       </div>
 

@@ -12,6 +12,8 @@ import { SendCodeButton } from "@/features/login/components/send-code-button";
 import { LoginPrimaryButton } from "@/features/login/components/login-primary-button";
 import { PasswordStrengthMeter } from "@/features/login/components/password-strength-meter";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInstance } from "@/lib/i18n/instance";
 
 /**
  * 找回密码视图 — 独立路由 `/forgetpassword`,1:1 对齐老仓 dmworklogin login.tsx
@@ -33,6 +35,7 @@ import { toast } from "@/components/semi-bridge/toast";
  * (1:1 对齐老仓 login.tsx 行 648-650;**无独立成功页**)。
  */
 export function ForgetPasswordView() {
+  const t = useT();
   const navigate = useNavigate();
   const sendCodeMu = useSendEmailCodeMutation();
   const resetMu = useResetPasswordMutation();
@@ -45,7 +48,7 @@ export function ForgetPasswordView() {
 
   const sendCode = async () => {
     if (!isValidEmail(email)) {
-      toast.error("请输入正确的邮箱地址！");
+      toast.error(tInstance("login.validation.emailInvalid"));
       throw new Error("invalid email");
     }
     try {
@@ -59,16 +62,16 @@ export function ForgetPasswordView() {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isValidEmail(email)) return toast.error("请输入正确的邮箱地址！");
-    if (!code) return toast.error("验证码不能为空！");
+    if (!isValidEmail(email)) return toast.error(tInstance("login.validation.emailInvalid"));
+    if (!code) return toast.error(tInstance("login.validation.codeRequired"));
     const pwdErr = validatePassword(newPassword);
     if (pwdErr) return toast.error(pwdErr);
-    if (newPassword !== confirm) return toast.error("两次密码输入不一致！");
+    if (newPassword !== confirm) return toast.error(tInstance("login.validation.passwordMismatch"));
     try {
       await resetMu.mutateAsync({ email, code, new_password: newPassword });
       // 老仓行为(login.tsx 行 648-650):toast.success + 立即切回登录页,
       // 不显独立成功页。
-      toast.success("密码重置成功，请登录");
+      toast.success(tInstance("login.validation.resetSuccess"));
       void navigate({ to: "/login" });
     } catch (err) {
       toast.error(extractSafeErrorMessage(err));
@@ -81,25 +84,25 @@ export function ForgetPasswordView() {
   const ssoResetHint =
     ssoModuleEnabled && primaryProvider?.resetPasswordUrl ? (
       <div className="mb-4 rounded-[8px] border border-[rgba(91,91,229,0.2)] bg-[rgba(91,91,229,0.06)] px-3 py-2.5 text-[13px] leading-[1.6] text-[rgba(0,0,0,0.7)]">
-        企业统一认证账号请前往{" "}
+        {t("login.reset.oidcHintPrefix")}{" "}
         <a
           href={primaryProvider.resetPasswordUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="mx-1 font-medium text-[#5b5be5] no-underline hover:underline"
         >
-          {primaryProvider.name} 账户中心
+          {t("login.reset.accountCenter", { values: { provider: primaryProvider.name } })}
         </a>{" "}
-        修改密码。
+        {t("login.reset.oidcHintSuffix")}
       </div>
     ) : null;
 
   return (
     <LoginShell>
       <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-        重置密码
+        {t("login.reset.title")}
       </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">输入注册邮箱，我们将发送验证码</div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">{t("login.reset.sub")}</div>
 
       {ssoResetHint}
 
@@ -108,7 +111,7 @@ export function ForgetPasswordView() {
           type="email"
           name="forget-email"
           autoComplete="email"
-          placeholder="注册邮箱"
+          placeholder={t("login.form.registeredEmail")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -120,7 +123,7 @@ export function ForgetPasswordView() {
             autoComplete="one-time-code"
             inputMode="numeric"
             maxLength={6}
-            placeholder="验证码"
+            placeholder={t("login.form.code")}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             noMargin
@@ -136,7 +139,7 @@ export function ForgetPasswordView() {
           type="password"
           name="forget-new-pwd"
           autoComplete="off"
-          placeholder="新密码"
+          placeholder={t("login.form.newPassword")}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
         />
@@ -147,14 +150,14 @@ export function ForgetPasswordView() {
           type="password"
           name="forget-confirm-pwd"
           autoComplete="off"
-          placeholder="确认新密码"
+          placeholder={t("login.form.confirmNewPassword")}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />
 
         <div className="mt-5">
           <LoginPrimaryButton htmlType="submit" loading={resetMu.isPending}>
-            {resetMu.isPending ? "重置中…" : "重置密码"}
+            {resetMu.isPending ? t("login.reset.button.loading") : t("login.reset.button")}
           </LoginPrimaryButton>
         </div>
 
@@ -164,7 +167,7 @@ export function ForgetPasswordView() {
             onClick={backToLogin}
             className="cursor-pointer text-[14px] font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
           >
-            返回登录
+            {t("login.common.backLogin")}
           </button>
         </div>
       </form>

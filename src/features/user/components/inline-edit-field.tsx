@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 
 interface InlineEditFieldProps {
   label: string;
@@ -32,6 +33,7 @@ export function InlineEditField({
   placeholder,
   onSave,
 }: InlineEditFieldProps) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
@@ -65,7 +67,7 @@ export function InlineEditField({
             className="flex-1 rounded border border-border-default bg-bg-surface px-2 py-1 text-sm text-text-primary"
           />
           <Button onClick={() => void onSubmit()} loading={saving} type="primary" theme="solid">
-            保存
+            {t("user.inlineEdit.save")}
           </Button>
           <Button
             onClick={() => {
@@ -74,7 +76,7 @@ export function InlineEditField({
             }}
             disabled={saving}
           >
-            取消
+            {t("user.inlineEdit.cancel")}
           </Button>
         </>
       ) : (
@@ -85,7 +87,7 @@ export function InlineEditField({
             onClick={() => setEditing(true)}
             className="text-xs text-brand hover:underline"
           >
-            编辑
+            {t("user.inlineEdit.edit")}
           </button>
         </>
       )}

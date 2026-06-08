@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import { Hash, MoreHorizontal, Plus, Tag } from "lucide-react";
+import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -23,10 +24,10 @@ interface MatterDetailPanelProps {
 
 type SecondaryTab = "channels" | "changelog";
 
-const STATUS_LABELS: Record<MatterStatus, string> = {
-  open: "进行中",
-  done: "已完成",
-  archived: "已归档",
+const STATUS_KEY: Record<MatterStatus, string> = {
+  open: "matter.status.open",
+  done: "matter.status.done",
+  archived: "matter.status.archived",
 };
 
 const STATUS_CLASS: Record<MatterStatus, string> = {
@@ -48,36 +49,12 @@ function nextStatusForToggle(s: MatterStatus): MatterStatus {
   return s === "open" ? "done" : "open";
 }
 
-function toggleLabel(s: MatterStatus): string {
-  return s === "open" ? "标完成" : "重新打开";
-}
-
 /**
  * Matter 详情面板(1:1 对齐 P3-matter 设计稿 + 原 dmworktodo MatterDetailPanel
- * 独立模式样式):
- *
- *   ┌ Header(底部 1px 分隔线)─────────────────────────────
- *   │ [进行中｜M-142] 📅 截止到 5/29 周五               ⋯
- *   ├──────────────────────────────────────────────────────
- *   │ {title 大字 20px semibold}
- *   │ ┌─🎯 主要目标─────────────────┐  渐变 chip-like 标签
- *   │ │ {description 富文本编辑}     │
- *   │ └──────────────────────────────┘
- *   │ 🏷 来自 #源 · {creator} · {time}
- *   │ [创建人: chip] [负责人: chip ...]
- *   │ ─── 二级 tabs(关联群聊 P3+ 占位 / 变更记录 — activities)
- *   │ ✦ Matter 是 IM 工作的 hierarchy 任务卡 · …(footer)
- *   └
- *
- * 关键差异(对齐设计稿):
- * - 状态 + M-序号 合并 pill(同 SidebarCard 风格,不再独立徽章)
- * - DDL 文案"截止到 M/D 周X",自定义封套日历 SVG
- * - 主要目标:渐变 chip 标签 + description 紧跟,无大背景卡
- * - 关联群聊 tab:占位"+ 关联新群"按钮(channel-picker 仍 P3+)+ dashed 空态
- * - 删 ✕ 关闭按钮(独立模式无,功能由切换 matter / URL `?id=` 清除替代)
- * - ⋯ 菜单保留(标完成/归档/编辑负责人/删除入口,设计稿无此显式按钮但功能必须留)
+ * 独立模式样式)。
  */
 export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
+  const t = useT();
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
   const transitionMu = useTransitionMatter();
   const deleteMu = useDeleteMatter();
@@ -89,6 +66,9 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   const menuRef = useRef<HTMLDivElement>(null);
 
   const assigneeUids = useMemo(() => data.assignees.map((a) => a.user_id), [data.assignees]);
+
+  const toggleLabel = (s: MatterStatus): string =>
+    s === "open" ? t("matter.action.markDone") : t("matter.action.reopen");
 
   const handleToggle = () => {
     setMenuOpen(false);
@@ -118,7 +98,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         <div ref={menuRef} className="relative ml-auto flex shrink-0 items-center">
           <button
             type="button"
-            aria-label="更多操作"
+            aria-label={t("matter.detail.menuMore")}
             onClick={() => setMenuOpen((v) => !v)}
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
@@ -131,7 +111,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               </MenuItem>
               {data.status !== "archived" ? (
                 <MenuItem onClick={handleArchive} disabled={transitionMu.isPending}>
-                  归档
+                  {t("matter.action.archive")}
                 </MenuItem>
               ) : null}
               <MenuItem
@@ -140,7 +120,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                   setPickerOpen(true);
                 }}
               >
-                编辑负责人
+                {t("matter.action.editAssignees")}
               </MenuItem>
               <div className="my-1 h-px bg-border-subtle" />
               <MenuItem
@@ -150,7 +130,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                   setConfirmDelete(true);
                 }}
               >
-                删除
+                {t("matter.action.delete")}
               </MenuItem>
             </div>
           ) : null}
@@ -171,7 +151,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             <div className="inline-flex items-center gap-1 text-sm leading-[18px] text-text-primary">
               <Tag size={14} className="shrink-0 text-text-tertiary" />
               <span>
-                来自 <span className="text-brand">#{data.source_name}</span> ·{" "}
+                {t("matter.label.fromChannel", {
+                  values: { name: "" },
+                })}{" "}
+                <span className="text-brand">#{data.source_name}</span> ·{" "}
                 <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
                 {formatDateTime(data.created_at)}
               </span>
@@ -181,10 +164,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
         <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-8 text-sm text-text-tertiary">
-          <FieldChip label="创建人:">
+          <FieldChip label={t("matter.sidebar.createdByLabel")}>
             <UserChip uid={data.creator_id} />
           </FieldChip>
-          <FieldChip label="负责人:">
+          <FieldChip label={t("matter.sidebar.assigneeLabel")}>
             {assigneeUids.length > 0 ? (
               <ul className="flex flex-wrap items-center gap-1.5">
                 {assigneeUids.map((uid) => (
@@ -194,14 +177,14 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                 ))}
               </ul>
             ) : (
-              <span>暂无</span>
+              <span>{t("matter.assignee.empty")}</span>
             )}
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
               className="ml-1 rounded px-1.5 py-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
-              编辑
+              {t("matter.action.edit")}
             </button>
           </FieldChip>
         </div>
@@ -212,12 +195,12 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
               onClick={() => setSecondaryTab("channels")}
-              label="关联群聊"
+              label={t("matter.detail.linkChannelTab")}
             />
             <SecondaryTabBtn
               active={secondaryTab === "changelog"}
               onClick={() => setSecondaryTab("changelog")}
-              label="变更记录"
+              label={t("matter.detail.changelogTab")}
             />
           </div>
         </div>
@@ -235,7 +218,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
         {/* ── Footer 说明文案 ── */}
         <p className="mt-8 mb-4 text-center text-xs text-text-tertiary">
-          ✦ Matter 是 IM 工作的 hierarchy 任务卡 · AI 从群聊持续蒸馏 · 用户只确认, 不维护
+          {t("matter.detail.footer")}
         </p>
       </div>
 
@@ -248,9 +231,9 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
       <ConfirmModal
         open={confirmDelete}
-        title="确认删除"
-        content="事项删除后无法恢复,确认继续?"
-        okText="删除"
+        title={t("matter.confirm.deleteTitle")}
+        content={t("matter.confirm.deleteContent")}
+        okText={t("matter.action.delete")}
         okDanger
         okLoading={deleteMu.isPending}
         onOk={handleDelete}
@@ -262,10 +245,11 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
 /** 状态 + M-序号 合并 pill(同 SidebarCard 风格)。 */
 function StatusPill({ status, seqNo }: { status: MatterStatus; seqNo: number }) {
+  const t = useT();
   const cls = STATUS_CLASS[status];
   return (
     <span className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${cls}`}>
-      <span className="font-semibold">{STATUS_LABELS[status]}</span>
+      <span className="font-semibold">{t(STATUS_KEY[status])}</span>
       {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
     </span>
   );
@@ -306,6 +290,7 @@ function ChannelsTab({
   sourceChannelId?: string;
   sourceChannelType?: number;
 }) {
+  const t = useT();
   const hasSource = !!sourceChannelId && sourceChannelType != null;
   const channel =
     hasSource && sourceChannelId
@@ -335,10 +320,10 @@ function ChannelsTab({
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-bg-surface">
                 <Plus size={12} strokeWidth={3} />
               </span>
-              关联新群
+              {t("matter.detail.linkNewGroup")}
             </button>
           </TooltipTrigger>
-          <TooltipContent>channel-picker 留 P3+</TooltipContent>
+          <TooltipContent>{t("matter.detail.linkPickerHint")}</TooltipContent>
         </Tooltip>
       </div>
       {hasSource && channel ? (
@@ -352,11 +337,13 @@ function ChannelsTab({
             {isGroup ? null : <Hash size={12} className="shrink-0 text-text-tertiary" />}
             <span className="truncate text-sm text-text-primary">{title}</span>
           </div>
-          <span className="shrink-0 text-[11px] text-text-tertiary">跳转 ›</span>
+          <span className="shrink-0 text-[11px] text-text-tertiary">
+            {t("matter.detail.jumpArrow")}
+          </span>
         </button>
       ) : (
         <div className="rounded-md border border-dashed border-border-default px-4 py-8 text-center text-xs text-text-tertiary">
-          暂无关联群聊
+          {t("matter.detail.noLinkedGroups")}
         </div>
       )}
     </div>

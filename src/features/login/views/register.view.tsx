@@ -12,6 +12,8 @@ import { SendCodeButton } from "@/features/login/components/send-code-button";
 import { LoginPrimaryButton } from "@/features/login/components/login-primary-button";
 import { PasswordStrengthMeter } from "@/features/login/components/password-strength-meter";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t as tInstance } from "@/lib/i18n/instance";
 
 interface RegisterViewProps {
   redirect?: string;
@@ -41,6 +43,7 @@ interface RegisterViewProps {
  * 底部 "已有账号？登录" → navigate 回 /login(search 透传)。
  */
 export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const sendCodeMu = useSendEmailCodeMutation();
   const registerMu = useRegisterByEmailMutation();
@@ -54,7 +57,7 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
 
   const sendCode = async () => {
     if (!isValidEmail(email)) {
-      toast.error("请先输入正确的邮箱地址！");
+      toast.error(tInstance("login.validation.emailInvalidBeforeSend"));
       throw new Error("invalid email");
     }
     try {
@@ -68,12 +71,12 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isValidEmail(email)) return toast.error("请输入正确的邮箱地址！");
-    if (!code) return toast.error("邮箱验证码不能为空！");
-    if (!name) return toast.error("昵称不能为空！");
+    if (!isValidEmail(email)) return toast.error(tInstance("login.validation.emailInvalid"));
+    if (!code) return toast.error(tInstance("login.validation.emailCodeRequired"));
+    if (!name) return toast.error(tInstance("login.validation.nicknameRequired"));
     const pwdErr = validatePassword(password);
     if (pwdErr) return toast.error(pwdErr);
-    if (password !== confirm) return toast.error("两次密码输入不一致！");
+    if (password !== confirm) return toast.error(tInstance("login.validation.passwordMismatch"));
     try {
       const resp = await registerMu.mutateAsync({ email, code, name, password });
       void finalize(resp);
@@ -95,16 +98,18 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
   return (
     <LoginShell>
       <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-        创建账号
+        {t("login.register.title")}
       </div>
-      <div className="mb-7 text-left text-sm text-[#8a8fa8]">加入 Octo，开始高效协作</div>
+      <div className="mb-7 text-left text-sm text-[#8a8fa8]">
+        {t("login.register.sub", { values: { appName: "Octo" } })}
+      </div>
 
       <form onSubmit={onSubmit} aria-label="register form" className="flex flex-col">
         <LoginInput
           type="email"
           name="reg-email"
           autoComplete="email"
-          placeholder="邮箱"
+          placeholder={t("login.form.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -117,7 +122,7 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
             autoComplete="one-time-code"
             inputMode="numeric"
             maxLength={6}
-            placeholder="邮箱验证码"
+            placeholder={t("login.form.emailCode")}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             noMargin
@@ -133,7 +138,7 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
           type="text"
           name="reg-name"
           autoComplete="name"
-          placeholder="昵称"
+          placeholder={t("login.form.nickname")}
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={20}
@@ -143,7 +148,7 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
           type="password"
           name="reg-password"
           autoComplete="off"
-          placeholder="密码"
+          placeholder={t("login.form.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -154,14 +159,14 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
           type="password"
           name="reg-confirm-password"
           autoComplete="off"
-          placeholder="确认密码"
+          placeholder={t("login.form.confirmPassword")}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />
 
         <div className="mt-5">
           <LoginPrimaryButton htmlType="submit" loading={registerMu.isPending}>
-            {registerMu.isPending ? "注册中…" : "注册"}
+            {registerMu.isPending ? t("login.register.button.loading") : t("login.register.button")}
           </LoginPrimaryButton>
         </div>
 
@@ -172,7 +177,7 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
             onClick={backToLogin}
             className="cursor-pointer text-[14px] font-medium text-[#1C1C23] transition-opacity hover:opacity-75"
           >
-            已有账号？登录
+            {t("login.register.hasAccount")}
           </button>
         </div>
       </form>

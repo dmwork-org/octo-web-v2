@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Channel } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
 import { MemberSelect } from "@/features/base/components/member-select";
 import { todayDateStr, type MatterFormValues } from "@/features/matter/lib/matter-form";
 
@@ -65,13 +66,14 @@ export function MatterFormBody({
   titleReadonly,
   autoFocus,
 }: MatterFormBodyProps) {
+  const t = useT();
   const titleRef = useRef<HTMLInputElement>(null);
   useAutoFocusTitle(autoFocus, titleRef);
   const today = todayDateStr();
 
   return (
     <>
-      <Field label="事项名称" required>
+      <Field label={t("matter.field.title")} required>
         <input
           ref={titleRef}
           type="text"
@@ -79,7 +81,7 @@ export function MatterFormBody({
           onChange={
             titleReadonly ? undefined : (e) => onChange({ title: e.target.value.slice(0, 200) })
           }
-          placeholder="请输入"
+          placeholder={t("matter.common.inputPlaceholder")}
           maxLength={200}
           readOnly={titleReadonly}
           className={`h-8 w-full rounded-sm border-0 px-3 text-sm leading-5 text-text-primary placeholder:text-brand/30 focus:outline-none ${
@@ -90,12 +92,12 @@ export function MatterFormBody({
         />
       </Field>
 
-      <Field label="主要目标" required>
+      <Field label={t("matter.field.goal")} required>
         <div className="relative">
           <textarea
             value={values.description}
             onChange={(e) => onChange({ description: e.target.value.slice(0, 200) })}
-            placeholder="一句话说清这件事"
+            placeholder={t("matter.create.descPlaceholder")}
             rows={3}
             maxLength={200}
             className="block h-[75px] w-full resize-none rounded-sm border-0 bg-brand/[0.04] px-3 pt-1.5 pb-5 font-sans text-sm leading-5 text-text-primary placeholder:text-brand/30 focus:bg-brand/[0.06] focus:outline-none"
@@ -106,12 +108,12 @@ export function MatterFormBody({
         </div>
       </Field>
 
-      <Field label="负责人" required>
+      <Field label={t("matter.field.assignee")} required>
         <MemberSelect
           value={values.assigneeUids}
           onChange={(uids) => onChange({ assigneeUids: uids })}
           channel={channel}
-          placeholder="请选择"
+          placeholder={t("matter.common.selectPlaceholder")}
         />
       </Field>
 

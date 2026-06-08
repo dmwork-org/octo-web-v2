@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
 
 /** editing 由 false → true 时把 draft 同步成最新 value(避免上次编辑残留)。 */
 function useSyncDraftOnEnterEdit(editing: boolean, value: string, setDraft: (v: string) => void) {
@@ -77,6 +78,7 @@ export function InlineEditRow({
   onCancel: () => void;
   onSave: (v: string) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -98,7 +100,7 @@ export function InlineEditRow({
       >
         <span className="flex-1 truncate text-[13px] text-text-primary">{title}</span>
         <span className="shrink-0 max-w-[60%] truncate text-[12px] text-text-tertiary">
-          {value || placeholder || "未设置"}
+          {value || placeholder || t("base.common.notSet")}
         </span>
       </button>
     );
@@ -161,7 +163,7 @@ export function InlineEditRow({
           disabled={pending}
           className="rounded-md px-3 py-1 text-[12px] text-text-tertiary transition-colors hover:bg-bg-hover disabled:opacity-50"
         >
-          取消
+          {t("base.common.cancel")}
         </button>
         <button
           type="button"
@@ -169,7 +171,7 @@ export function InlineEditRow({
           disabled={pending}
           className="rounded-md bg-brand px-3 py-1 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {pending ? "保存中…" : "保存"}
+          {pending ? t("base.common.saving") : t("base.common.save")}
         </button>
       </div>
     </div>

@@ -4,6 +4,8 @@ import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -42,6 +44,7 @@ export function AssigneePicker({
   currentAssigneeUids,
   onClose,
 }: AssigneePickerProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -72,12 +75,17 @@ export function AssigneePicker({
       void qc.invalidateQueries({ queryKey: mattersQueryKey(undefined).slice(0, 2) });
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
       const parts: string[] = [];
-      if (added) parts.push(`新增 ${added}`);
-      if (removed) parts.push(`移除 ${removed}`);
-      toast.success(parts.length ? `已${parts.join(" / ")}人` : "未变更");
+      if (added) parts.push(t("matter.assignee.added", { values: { count: added } }));
+      if (removed) parts.push(t("matter.assignee.removed", { values: { count: removed } }));
+      toast.success(
+        parts.length
+          ? t("matter.assignee.changeSummary", { values: { summary: parts.join(" / ") } })
+          : t("matter.assignee.noChanges"),
+      );
       onClose();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "保存失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const toggle = (uid: string) => {
@@ -103,12 +111,12 @@ export function AssigneePicker({
       }}
       size="md"
       height="md"
-      title="选择受理人"
+      title={tr("matter.assignee.pickerTitle")}
       contentClassName="overflow-hidden"
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
+            {tr("matter.common.cancel")}
           </Button>
           <Button
             htmlType="submit"
@@ -117,7 +125,7 @@ export function AssigneePicker({
             theme="solid"
             loading={mu.isPending}
           >
-            保存
+            {tr("matter.action.save")}
           </Button>
         </>
       }
@@ -128,12 +136,12 @@ export function AssigneePicker({
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
-          已选 {selected.size} 人
+          {tr("matter.assignee.selectedPeople", { values: { count: selected.size } })}
         </div>
         <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
           {candidates.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-              当前 Space 没有可选成员
+              {tr("matter.assignee.noSpaceMembers")}
             </div>
           ) : (
             candidates.map((m) => {

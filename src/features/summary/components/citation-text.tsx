@@ -13,6 +13,8 @@ import type { Plugin } from "unified";
 import type { Node, Parent } from "unist";
 import type { Root, Text } from "mdast";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import type { CitationContextMessage, CitationItem } from "@/features/summary/types/summary.types";
 
@@ -158,6 +160,7 @@ function ContextMessages({ messages }: { messages?: CitationContextMessage[] }) 
 }
 
 function JumpToOriginal({ citation, onJump }: { citation: CitationItem; onJump: () => void }) {
+  const tr = useT();
   if (!citation.channel_id || !citation.message_seq || citation.channel_type == null) return null;
   return (
     <div className="mt-2 border-t border-border-subtle pt-1.5 text-right">
@@ -172,7 +175,7 @@ function JumpToOriginal({ citation, onJump }: { citation: CitationItem; onJump: 
           chatSelectedActions.select(ch);
         }}
       >
-        跳转到原文 →
+        {tr("summary.citation.jumpToOriginal")}
       </button>
     </div>
   );
@@ -355,7 +358,9 @@ function CitationSingleBadge({ index, citations, badgeKey }: CitationSingleBadge
               </span>
             </div>
             {citation.source ? (
-              <div className="mb-1 text-[12px] text-text-tertiary">来源:{citation.source}</div>
+              <div className="mb-1 text-[12px] text-text-tertiary">
+                {t("summary.citation.sourceLine", { values: { source: citation.source } })}
+              </div>
             ) : null}
             <div className="break-words">{citation.content}</div>
           </div>
@@ -378,16 +383,7 @@ interface CitationGroupNodeProps {
 }
 
 /**
- * 总结正文(含引用 [1] [2] [3]):
- *
- * - remark 插件扫文本节点,把连续相同 channel_id 的 [N][M] 合并为 group badge
- *   `[1-3]`(`indices` 属性传 `1,2,3`),孤立 `[N]` 渲染单 badge
- * - badge click 显示 popover:被引消息 + 上下文 + 跳转原文(调用
- *   `chatSelectedActions.select`)
- * - activeKey 单 popover 互斥;空白点击关闭
- *
- * 旧 dmworksummary CitationText 用 Semi Popover + rehype-sanitize,这里用 absolute
- * span 自管(无新依赖),click outside 由父 div onClick 关掉。
+ * 总结正文(含引用 [1] [2] [3])。
  */
 export function CitationText({ content, citations }: CitationTextProps) {
   const [activeKey, setActiveKey] = useState<string | null>(null);

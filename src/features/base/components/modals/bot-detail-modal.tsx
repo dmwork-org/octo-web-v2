@@ -5,6 +5,7 @@ import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Camera, Check, Edit2, MessageCircle, Plus } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -35,6 +36,7 @@ interface BotDetailModalProps {
  * - 底部:已加好友 → 已添加 + 发消息;未加好友 → "添加"按钮 + inline applyRemark Input
  */
 export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
+  const t = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -65,20 +67,22 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid!, ChannelTypePerson));
       invalidate();
-      toast.success("头像已更新");
+      toast.success(t("base.botDetail.avatarUpdated"));
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "头像上传失败,请重试"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.botDetail.avatarUploadFailedRetry")),
   });
 
   const updateDescMu = useMutation({
     mutationFn: (desc: string) => setBotDescription(uid!, desc),
     onSuccess: () => {
       invalidate();
-      toast.success("简介已更新");
+      toast.success(t("base.botDetail.descUpdated"));
       setEditingDesc(false);
       setDescDraft("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "简介更新失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.botDetail.descUpdateFailed")),
   });
 
   const applyMu = useMutation({
@@ -90,17 +94,19 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
       }),
     onSuccess: () => {
       invalidate();
-      toast.success("好友申请已发送");
+      toast.success(t("base.botDetail.applySent"));
       setShowApplyInput(false);
       setApplyRemark("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "申请失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.botDetail.applyFailed")),
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
   const name = data?.name || uid || "";
   const username = data?.username;
-  const description = data?.bot_description || data?.description || data?.bio || "暂无简介";
+  const noDescription = t("base.botDetail.noDescription");
+  const description = data?.bot_description || data?.description || data?.bio || noDescription;
   const isFriend = data?.follow === 1;
 
   const handleAvatarClick = () => {
@@ -116,12 +122,12 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
 
   const handleStartEditDesc = () => {
     if (!isOwner) return;
-    setDescDraft(description === "暂无简介" ? "" : description);
+    setDescDraft(description === noDescription ? "" : description);
     setEditingDesc(true);
   };
 
   const handleShowApply = () => {
-    setApplyRemark(`我想使用${name}`);
+    setApplyRemark(t("base.botDetail.applyToBotMessage", { values: { name } }));
     setShowApplyInput(true);
   };
 
@@ -144,14 +150,14 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
       ? {
           cls: "bg-[rgba(34,197,94,0.1)] text-[#16a34a]",
           icon: "✅",
-          text: "已上报 Agent 信息",
+          text: t("base.botDetail.reported"),
           showHelp: false,
         }
       : reported === false
         ? {
             cls: "bg-[rgba(148,163,184,0.15)] text-[#64748b]",
             icon: "🔌",
-            text: "未上报 Agent 信息",
+            text: t("base.botDetail.notReported"),
             showHelp: true,
           }
         : null;
@@ -163,11 +169,13 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
         if (!next) onClose();
       }}
       size="md"
-      description={name ? `${name} bot 名片` : "bot 名片"}
+      description={
+        name ? t("base.botDetail.cardOf", { values: { name } }) : t("base.botDetail.cardFallback")
+      }
     >
       {isLoading || !channel ? (
         <div className="flex h-64 items-center justify-center text-sm text-text-tertiary">
-          加载中…
+          {t("base.common.loading")}
         </div>
       ) : (
         <>
@@ -188,7 +196,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
               {isOwner ? (
                 <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
                   {uploadAvatarMu.isPending ? (
-                    <span className="text-xs text-white">上传中…</span>
+                    <span className="text-xs text-white">{t("base.botDetail.uploading")}</span>
                   ) : (
                     <Camera size={20} className="text-white" />
                   )}
@@ -222,15 +230,13 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                       <button
                         type="button"
                         onClick={(e) => e.stopPropagation()}
-                        aria-label="帮助"
+                        aria-label={t("base.common.help")}
                         className="ml-1 inline-flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-semibold leading-none text-[#64748b] hover:bg-white"
                       >
                         ?
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      请在 OctoPush 中打开该 Agent 的「上报机器信息」开关。
-                    </TooltipContent>
+                    <TooltipContent>{t("base.botDetail.reportHelp")}</TooltipContent>
                   </Tooltip>
                 ) : null}
               </span>
@@ -239,12 +245,14 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
 
           <div className="border-t border-border-subtle px-6 py-4">
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-xs font-medium text-text-tertiary">简介</h3>
+              <h3 className="text-xs font-medium text-text-tertiary">
+                {t("base.botDetail.intro")}
+              </h3>
               {isOwner && !editingDesc ? (
                 <button
                   type="button"
                   onClick={handleStartEditDesc}
-                  aria-label="编辑简介"
+                  aria-label={t("base.botDetail.editIntro")}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
                   <Edit2 size={12} />
@@ -258,7 +266,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                   value={descDraft}
                   onChange={(e) => setDescDraft(e.target.value)}
                   rows={4}
-                  placeholder="为这个 bot 写一段简介"
+                  placeholder={t("base.botDetail.introPlaceholder")}
                   className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
                 />
                 <div className="flex items-center justify-end gap-2">
@@ -271,7 +279,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                       setDescDraft("");
                     }}
                   >
-                    取消
+                    {t("base.common.cancel")}
                   </Button>
                   <Button
                     type="primary"
@@ -280,7 +288,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                     loading={updateDescMu.isPending}
                     onClick={() => updateDescMu.mutate(descDraft)}
                   >
-                    保存
+                    {t("base.common.save")}
                   </Button>
                 </div>
               </div>
@@ -295,13 +303,13 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
             <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 border-t border-border-subtle px-6 py-4 text-xs">
               {data?.bot_creator_name ? (
                 <>
-                  <dt className="text-text-tertiary">创建者</dt>
+                  <dt className="text-text-tertiary">{t("base.botDetail.creator")}</dt>
                   <dd className="text-text-primary">{data.bot_creator_name}</dd>
                 </>
               ) : null}
               {data?.bot_commands ? (
                 <>
-                  <dt className="text-text-tertiary">命令</dt>
+                  <dt className="text-text-tertiary">{t("base.botDetail.commands")}</dt>
                   <dd className="font-mono whitespace-pre-wrap text-text-primary">
                     {data.bot_commands}
                   </dd>
@@ -315,11 +323,11 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
               <div className="flex items-center justify-center gap-2">
                 <Button type="tertiary" theme="borderless" disabled>
                   <Check size={14} />
-                  已添加
+                  {t("base.botDetail.added")}
                 </Button>
                 <Button type="primary" theme="solid" onClick={handleMessage}>
                   <MessageCircle size={14} />
-                  发消息
+                  {t("base.botDetail.sendMessageShort")}
                 </Button>
               </div>
             ) : showApplyInput ? (
@@ -328,7 +336,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                   autoFocus
                   value={applyRemark}
                   onChange={(e) => setApplyRemark(e.target.value)}
-                  placeholder="请输入申请备注"
+                  placeholder={t("base.botDetail.applyPlaceholder")}
                   className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
                 />
                 <div className="flex items-center justify-end gap-2">
@@ -341,7 +349,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                       setApplyRemark("");
                     }}
                   >
-                    取消
+                    {t("base.common.cancel")}
                   </Button>
                   <Button
                     type="primary"
@@ -351,7 +359,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
                     disabled={!applyRemark.trim()}
                     onClick={handleSubmitApply}
                   >
-                    发送申请
+                    {t("base.botDetail.sendApply")}
                   </Button>
                 </div>
               </div>
@@ -359,7 +367,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
               <div className="flex items-center justify-center">
                 <Button type="primary" theme="solid" onClick={handleShowApply}>
                   <Plus size={14} />
-                  添加
+                  {t("base.botDetail.add")}
                 </Button>
               </div>
             )}

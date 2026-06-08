@@ -5,6 +5,7 @@ import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { toast } from "@/components/semi-bridge/toast";
 import { useI18n } from "@/lib/i18n/use-i18n";
+import { useT } from "@/lib/i18n/use-t";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
 import {
   isNotificationsOff,
@@ -48,6 +49,7 @@ function useCloseOnOutside(open: boolean, onClose: () => void) {
  * **形态**:fixed flyout(`left: 56px; bottom: 32px; width: 180px`)+ mask 拦截外部点击。
  */
 export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
+  const t = useT();
   const { primaryProvider } = useSsoProviders();
   const { data: spaces } = useQuery(mySpacesQueryOptions());
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -82,7 +84,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     // 另一个 repo 单独部署,跟主 chat 同源共用 token)。本 repo 不重构这个后台 — 等同事
     // 把 admin SPA 部署到 `/space` 后,这里改回 `window.location.href = "/space"`。
     console.info("[settings] 空间管理 clicked → /space (独立 admin SPA,另一个 repo,待部署)");
-    toast.info("空间管理在独立后台,本仓暂未接入");
+    toast.info(t("base.settings.manageSpaceUnavailable"));
   };
 
   // 打开桌面通知:先 requestPermission,granted 才真启用
@@ -91,21 +93,21 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     const willEnable = notiOff; // 当前是关,点击是要打开
     if (willEnable) {
       if (!isNotificationSupported()) {
-        toast.warning("当前浏览器不支持桌面通知");
+        toast.warning(t("base.settings.notiUnsupported"));
         return;
       }
       const perm = await requestNotificationPermission();
       if (perm !== "granted") {
-        toast.warning("浏览器拒绝了通知权限,请到浏览器设置中允许");
+        toast.warning(t("base.settings.notiDenied"));
         return;
       }
       setNotiOff(false);
       setNotificationsOff(false);
-      toast.success("已打开桌面通知");
+      toast.success(t("base.settings.notiOpened"));
     } else {
       setNotiOff(true);
       setNotificationsOff(true);
-      toast.info("已关闭桌面通知");
+      toast.info(t("base.settings.notiClosed"));
     }
   };
 
@@ -131,17 +133,23 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
             role="menu"
           >
             {showAccountCenter ? (
-              <FlyoutItem onClick={onClickAccountCenter}>账户中心</FlyoutItem>
+              <FlyoutItem onClick={onClickAccountCenter}>
+                {t("base.settings.accountCenter")}
+              </FlyoutItem>
             ) : null}
-            <FlyoutItem onClick={onClickChangelog}>更新日志</FlyoutItem>
-            {canManageSpace ? <FlyoutItem onClick={onClickManageSpace}>空间管理</FlyoutItem> : null}
+            <FlyoutItem onClick={onClickChangelog}>{t("base.settings.changelog")}</FlyoutItem>
+            {canManageSpace ? (
+              <FlyoutItem onClick={onClickManageSpace}>{t("base.settings.manageSpace")}</FlyoutItem>
+            ) : null}
             <FlyoutItem onClick={() => void onToggleDesktopNoti()}>
-              {notiOff ? "打开桌面通知" : "关闭桌面通知"}
+              {notiOff ? t("base.settings.openDesktopNoti") : t("base.settings.closeDesktopNoti")}
             </FlyoutItem>
             <FlyoutItem onClick={onClickToggleLocale}>
-              {locale === "zh-CN" ? "English" : "切换为中文"}
+              {locale === "zh-CN"
+                ? t("base.settings.switchToEnglish")
+                : t("base.settings.switchToChinese")}
             </FlyoutItem>
-            <FlyoutItem onClick={onClickLogout}>退出登录</FlyoutItem>
+            <FlyoutItem onClick={onClickLogout}>{t("base.settings.logout")}</FlyoutItem>
           </ul>
         </>
       ) : null}

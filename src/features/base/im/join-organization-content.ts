@@ -1,4 +1,5 @@
 import { MessageContent } from "wukongimjssdk";
+import { t } from "@/lib/i18n/instance";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 /**
@@ -36,6 +37,6 @@ export class JoinOrganizationContent extends MessageContent {
   }
 
   get conversationDigest(): string {
-    return "[邀请加入组织]";
+    return t("message.digest.joinOrganization");
   }
 }

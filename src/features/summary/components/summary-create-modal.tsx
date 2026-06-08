@@ -5,6 +5,8 @@ import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongim
 import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
+import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { createSummary } from "@/features/summary/api/summary.api";
@@ -37,14 +39,10 @@ function convToSource(c: Conversation): SourceItem {
 }
 
 /**
- * 创建总结(Wave 3c 加 mode 切换 + participants):
- *
- * - mode 按钮组(按群 / 按人)切换
- * - BY_GROUP:title + topic + 来源会话 multi-select(原 Wave 2 流程)
- * - BY_PERSON:title + topic + 参与者 multi-select(ParticipantPicker);来源可留空
- *   让被邀者 confirm 时自选,后端再 confirm_timeout_hours 默认 24 小时
+ * 创建总结(Wave 3c 加 mode 切换 + participants)。
  */
 export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateModalProps) {
+  const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [title, setTitle] = useState("");
@@ -84,7 +82,11 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
     },
     onSuccess: ({ task_id }) => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success(mode === SummaryMode.BY_PERSON ? "已发起,等待参与者确认" : "总结任务已创建");
+      toast.success(
+        mode === SummaryMode.BY_PERSON
+          ? t("summary.create.successPerson")
+          : t("summary.create.successGroup"),
+      );
       setTitle("");
       setTopic("");
       setSelectedIds(new Set());
@@ -92,7 +94,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
       setMode(SummaryMode.BY_GROUP);
       onCreated(task_id);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "创建失败"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t("summary.create.failed")),
   });
 
   if (!open) return null;
@@ -101,7 +103,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
     e.preventDefault();
     if (!topic.trim() || mu.isPending) return;
     if (mode === SummaryMode.BY_PERSON && participantUids.length === 0) {
-      toast.error("请至少选择一位参与者");
+      toast.error(t("summary.create.personOnRequest"));
       return;
     }
     mu.mutate();
@@ -122,11 +124,13 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xl">
         <header className="flex shrink-0 items-center justify-between border-b border-border-subtle px-5 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">新建总结</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {tr("summary.create.modalTitle")}
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={tr("summary.create.closeAria")}
             className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
           >
             <X size={16} />
@@ -136,12 +140,14 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
         <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">总结模式</span>
+              <span className="text-xs font-medium text-text-secondary">
+                {tr("summary.create.modeLabel")}
+              </span>
               <div className="flex gap-1 rounded-md bg-bg-elevated p-1">
                 {(
                   [
-                    { v: SummaryMode.BY_GROUP, label: "按群" },
-                    { v: SummaryMode.BY_PERSON, label: "按人" },
+                    { v: SummaryMode.BY_GROUP, labelKey: "summary.create.modeByGroup" },
+                    { v: SummaryMode.BY_PERSON, labelKey: "summary.create.modeByPerson" },
                   ] as const
                 ).map((o) => (
                   <button
@@ -154,38 +160,44 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
                         : "text-text-secondary hover:text-text-primary"
                     }`}
                   >
-                    {o.label}
+                    {tr(o.labelKey)}
                   </button>
                 ))}
               </div>
               {isPerson ? (
                 <p className="text-[11px] text-text-tertiary">
-                  按人:邀请参与者各自整理总结提交,系统聚合最终结果(默认 24h 确认窗口)
+                  {tr("summary.create.modeByPersonHint")}
                 </p>
               ) : (
-                <p className="text-[11px] text-text-tertiary">按群:从选定会话拉消息直接生成总结</p>
+                <p className="text-[11px] text-text-tertiary">
+                  {tr("summary.create.modeByGroupHint")}
+                </p>
               )}
             </div>
 
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">想总结什么 *</span>
+              <span className="text-xs font-medium text-text-secondary">
+                {tr("summary.create.topicLabel")}
+              </span>
               <textarea
                 autoFocus
                 value={topic}
                 onChange={(e) => setTopic(e.target.value.slice(0, 1000))}
                 rows={3}
-                placeholder="例:总结本周项目进度 / 整理客户反馈"
+                placeholder={tr("summary.create.topicPlaceholder")}
                 className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
               />
               <span className="self-end text-[10px] text-text-tertiary">{topic.length}/1000</span>
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-secondary">标题(留空用 topic)</span>
+              <span className="text-xs font-medium text-text-secondary">
+                {tr("summary.create.titleLabel")}
+              </span>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="可选"
+                placeholder={tr("summary.create.titleOptional")}
                 className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
               />
             </label>
@@ -193,7 +205,9 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
             {isPerson ? (
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-text-secondary">
-                  参与者 * ({participantUids.length})
+                  {tr("summary.create.participantsLabel", {
+                    values: { count: participantUids.length },
+                  })}
                 </span>
                 <ParticipantPicker value={participantUids} onChange={setParticipantUids} />
               </div>
@@ -201,12 +215,17 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
 
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-secondary">
-                信息来源{isPerson ? "(可留空,由参与者自选)" : ""} ({selectedIds.size} 选中)
+                {tr("summary.create.sourcesLabel", {
+                  values: {
+                    personSuffix: isPerson ? tr("summary.create.sourcesPersonSuffix") : "",
+                    count: selectedIds.size,
+                  },
+                })}
               </span>
               <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
                 {candidates.length === 0 ? (
                   <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                    没有可选会话
+                    {tr("summary.create.noChats")}
                   </div>
                 ) : (
                   candidates.map((c) => {
@@ -229,7 +248,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
                         />
                         <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
                         <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                          {isGroup ? "群" : "私聊"}
+                          {isGroup ? tr("summary.create.tagGroup") : tr("summary.create.tagDirect")}
                         </span>
                       </label>
                     );
@@ -241,7 +260,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
 
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
             <Button type="tertiary" theme="borderless" onClick={onClose}>
-              取消
+              {tr("summary.common.cancel")}
             </Button>
             <Button
               htmlType="submit"
@@ -250,7 +269,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
               loading={mu.isPending}
               disabled={!topic.trim() || (isPerson && participantUids.length === 0)}
             >
-              创建
+              {tr("summary.create.create")}
             </Button>
           </div>
         </form>

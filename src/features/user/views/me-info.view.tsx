@@ -11,6 +11,7 @@ import { InlineEditField } from "@/features/user/components/inline-edit-field";
 import { SexSelect } from "@/features/user/components/sex-select";
 import { QrcodeMy } from "@/features/user/components/qrcode-my";
 import { Button } from "@/components/semi-bridge/button";
+import { useT } from "@/lib/i18n/use-t";
 
 /**
  * 个人信息页 MeInfo(对齐老仓 dmworkbase Components/MeInfo):
@@ -22,6 +23,7 @@ import { Button } from "@/components/semi-bridge/button";
  *   - 回跳后 `?verified=1`,后端 sync_worker 15min 自动同步,前端 invalidate 即可
  */
 export function MeInfoView() {
+  const t = useT();
   const user = useStore(authStore, (s) => s.user);
   const uid = user?.uid ?? null;
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
@@ -57,7 +59,7 @@ export function MeInfoView() {
   if (!uid) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-        未登录
+        {t("user.meinfo.notLoggedIn")}
       </div>
     );
   }
@@ -65,25 +67,27 @@ export function MeInfoView() {
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <header>
-        <h1 className="text-lg font-semibold text-text-primary">个人资料</h1>
+        <h1 className="text-lg font-semibold text-text-primary">{t("user.meinfo.profile")}</h1>
       </header>
 
       <section className="flex flex-col gap-4 rounded-md border border-border-subtle p-4">
-        <h2 className="text-xs font-semibold text-text-tertiary">个人资料</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">{t("user.meinfo.profile")}</h2>
         <AvatarUpload uid={uid} currentAvatar={avatar} name={displayName} />
         <InlineEditField
-          label="昵称"
+          label={t("user.meinfo.nickname")}
           value={displayName}
           maxLength={20}
-          placeholder="点击编辑"
+          placeholder={t("user.meinfo.nicknamePlaceholder")}
           onSave={onSaveName}
         />
         <div className="flex items-center gap-3">
-          <span className="w-20 shrink-0 text-sm text-text-tertiary">号码</span>
+          <span className="w-20 shrink-0 text-sm text-text-tertiary">
+            {t("user.meinfo.shortNo")}
+          </span>
           <span className="flex-1 truncate text-sm text-text-primary">{shortNo}</span>
         </div>
         <div>
-          <span className="block text-sm text-text-tertiary">我的二维码</span>
+          <span className="block text-sm text-text-tertiary">{t("user.meinfo.qrcode")}</span>
           <div className="mt-2">
             <QrcodeMy uid={uid} name={displayName} />
           </div>
@@ -91,28 +95,34 @@ export function MeInfoView() {
       </section>
 
       <section className="flex flex-col gap-4 rounded-md border border-border-subtle p-4">
-        <h2 className="text-xs font-semibold text-text-tertiary">偏好设置</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">{t("user.meinfo.preferences")}</h2>
         <SexSelect value={detail?.sex} onChange={onChangeSex} />
       </section>
 
       <section className="flex flex-col gap-4 rounded-md border border-border-subtle p-4">
-        <h2 className="text-xs font-semibold text-text-tertiary">账号安全</h2>
+        <h2 className="text-xs font-semibold text-text-tertiary">{t("user.meinfo.security")}</h2>
         <div className="flex items-center gap-3">
-          <span className="w-20 shrink-0 text-sm text-text-tertiary">实名认证</span>
+          <span className="w-20 shrink-0 text-sm text-text-tertiary">
+            {t("user.meinfo.realname")}
+          </span>
           {realnameVerified ? (
             <div className="flex flex-1 items-center gap-2 text-sm text-success">
               <CheckCircle2 size={16} />
-              <span>已认证 · {detail?.real_name ?? "已实名"}</span>
+              <span>
+                {t("user.meinfo.verifiedWithName", {
+                  values: { name: detail?.real_name ?? t("user.meinfo.verifiedFallback") },
+                })}
+              </span>
             </div>
           ) : (
             <div className="flex flex-1 items-center gap-3">
-              <span className="text-sm text-text-tertiary">未认证</span>
+              <span className="text-sm text-text-tertiary">{t("user.meinfo.notVerified")}</span>
               {primaryProvider?.accountUrl ? (
                 <Button onClick={goVerification} type="primary" theme="light">
-                  去认证
+                  {t("user.meinfo.goVerify")}
                 </Button>
               ) : (
-                <span className="text-xs text-text-tertiary">未配置认证入口</span>
+                <span className="text-xs text-text-tertiary">{t("user.meinfo.noVerifyEntry")}</span>
               )}
             </div>
           )}

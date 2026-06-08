@@ -13,6 +13,7 @@ import {
 } from "@/features/login/oidc/poller";
 import { OIDC_AUTH_STATUS, type OidcProvider } from "@/features/base/api/endpoints/oidc.api";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
+import { t } from "@/lib/i18n/instance";
 
 /**
  * 登录页 mount 时检 pending OIDC session,有则启动 poll(对齐老仓
@@ -59,13 +60,17 @@ function useResumeEffect(
     if (urlState.error && pending) {
       const name = options.providers.find((p) => p.id === pending.providerId)?.name ?? "SSO";
       clearPendingOidcLogin();
-      setState(() => ({ resuming: false, providerName: name, error: `${name} 登录失败，请重试` }));
+      setState(() => ({
+        resuming: false,
+        providerName: name,
+        error: t("login.oidc.failedWithProvider", { values: { provider: name } }),
+      }));
       return;
     }
     if (!pending) return; // 普通登录,无 OIDC 流程
     if (isPendingExpired(pending)) {
       clearPendingOidcLogin();
-      setState(() => ({ resuming: false, error: "登录超时，请重新发起" }));
+      setState(() => ({ resuming: false, error: t("login.oidc.timeout") }));
       return;
     }
 
@@ -94,15 +99,17 @@ function useResumeEffect(
           setState(() => ({
             resuming: false,
             providerName,
-            error: result.msg || `${providerName} 登录失败`,
+            error:
+              result.msg ||
+              t("login.oidc.failedWithProvider", { values: { provider: providerName } }),
           }));
         }
       } catch (e) {
         clearPendingOidcLogin();
-        let msg = "登录失败，请重试";
-        if (e instanceof OidcPollTimeoutError) msg = "登录超时，请重新发起";
-        else if (e instanceof OidcPollCancelledError) msg = "已取消登录";
-        else if (e instanceof OidcPollNetworkError) msg = "网络异常，请检查网络后重试";
+        let msg = t("login.oidc.failed");
+        if (e instanceof OidcPollTimeoutError) msg = t("login.oidc.timeout");
+        else if (e instanceof OidcPollCancelledError) msg = t("login.oidc.canceled");
+        else if (e instanceof OidcPollNetworkError) msg = t("login.oidc.network");
         setState(() => ({ resuming: false, providerName, error: msg }));
       }
     };

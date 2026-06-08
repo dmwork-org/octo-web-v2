@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
+import { useT } from "@/lib/i18n/use-t";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { applyFriend } from "@/features/contacts/api/friends.api";
 
@@ -29,21 +30,24 @@ export function FriendApplyModal({
   toUid,
   vercode,
   defaultMessage = "",
-  title = "申请添加朋友",
+  title,
   onClose,
   onSuccess,
 }: FriendApplyModalProps) {
+  const t = useT();
   const [message, setMessage] = useState(defaultMessage);
+  const effectiveTitle = title ?? t("base.friendApply.titleDefault");
 
   useResetMessageOnOpen(open, defaultMessage, setMessage);
 
   const mu = useMutation({
     mutationFn: () => applyFriend({ to_uid: toUid, remark: message.trim(), vercode }),
     onSuccess: () => {
-      toast.success("好友申请已发送");
+      toast.success(t("base.friendApply.sent"));
       onSuccess();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "申请失败"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.friendApply.failed")),
   });
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -59,11 +63,11 @@ export function FriendApplyModal({
         if (!next) onClose();
       }}
       size="sm"
-      title={title}
+      title={effectiveTitle}
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
-            取消
+            {t("base.common.cancel")}
           </Button>
           <Button
             htmlType="submit"
@@ -73,7 +77,7 @@ export function FriendApplyModal({
             loading={mu.isPending}
             disabled={!message.trim()}
           >
-            发送
+            {t("base.common.send")}
           </Button>
         </>
       }
@@ -81,7 +85,9 @@ export function FriendApplyModal({
     >
       <form id="friend-apply-form" onSubmit={onSubmit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-text-secondary">发送验证申请</span>
+          <span className="text-xs font-medium text-text-secondary">
+            {t("base.friendApply.label")}
+          </span>
           <textarea
             autoFocus
             value={message}

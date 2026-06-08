@@ -19,12 +19,13 @@
 
 **先做这一批**:新仓没 i18n 框架,后续搬业务时 string 就裸 hardcoded,以后再补 i18n 成本翻倍。先把基础设施搬过来,后续 batch 自然带 i18n。
 
-- [ ] `b79eab8d` 2026-05-28 **feat(i18n): add frontend internationalization** — 295+ files,整套 i18n 框架 + locale 文件
-- [ ] `fe5bbc5d` 2026-05-29 **feat(i18n): align backend language contract** — 39+ files,跟后端 language header 对齐
-- [ ] `f223293f` 2026-05-28 **fix(i18n): sync Semi locale with app language** — Semi UI 文案跟 app 语言同步
+- [x] `b79eab8d` 2026-05-28 **feat(i18n): add frontend internationalization** — 295+ files,整套 i18n 框架 + locale 文件
+- [x] `fe5bbc5d` 2026-05-29 **feat(i18n): align backend language contract** — 39+ files,跟后端 language header 对齐(本仓 ofetch interceptor 形式,只搬 Accept-Language;backend user.language sync 因本仓登录流程未复刻该接口而跳过)
+- [~] `f223293f` 2026-05-28 **fix(i18n): sync Semi locale with app language** — 本仓不用 Semi UI(用 shadcn/ui + tw),**跳过**
 
-**预期工作量**:大,但价值高 — 是后续所有业务搬运的依赖。可能要 1 个独立 MR(或拆"框架 + 全仓 i18n key 替换"两个)。
-**手测**:切语言能切;chat/contact 已有页面 UI 文案能切。
+**完成于 2026-06-08(MR #29 已合并)**:实际搬了 156 files / locale 287→2738 keys,8 个 commit 分 step。架构关键点:`useT()` reactive hook(useSyncExternalStore 订阅 i18n.subscribe),非 React 上下文用 `import { t } from "@/lib/i18n/instance"`;切语言入口在 NavRail 底部齿轮上方(Languages 图标)。
+
+**手测**:NavRail 翻译图标点击 → zh-CN ↔ en-US toggle;chat/contact/matter/summary/appbot/login 各页面文案切换 OK;Network 面板 API Accept-Language header 跟随 locale。
 
 ---
 
@@ -262,7 +263,11 @@
 1. 选定 batch 编号(如 1.1)→ 基于 origin/main 新建分支(如 `feat/upstream-i18n`)
 2. 按清单逐 commit 实现 + `pnpm vp check` 0 errors
 3. push + 创 MR,MR 描述带本 batch checkbox 进度
-4. 合并后**只动两个文件**:
-   - 本文件对应 batch 行 `[ ]` → `[x]`
-   - `docs/sync-log.md` 追加一段"Batch X.Y 搬了 N 个 SHA,新仓 commits = ..."
-5. **不动** `docs/upstream-audit.md`(snapshot 锁定),**不动** sync-log 头部 `baseline SHA`(等显式"拉远程更新"才动)
+4. 陈超手测验证 → 提 review 意见 → AI 修(同 branch 续 commit)
+5. **验证通过后**,AI 把以下 2 个改动 push 到**同一 MR**(无需另开 PR):
+   - 本文件对应 batch 行 `[ ]` → `[x]`(跳过/不适用的标 `[~]` + 一行解释)
+   - `docs/sync-log.md` 追加一段"Batch X.Y 搬了 N 个 SHA,新仓 commits = ...,跳过 M 个(原因)"
+6. 陈超合并 MR — 一次性把代码 + plan 状态一起进 main。
+7. **不动** `docs/upstream-audit.md`(snapshot 锁定),**不动** sync-log 头部 `baseline SHA`(等显式"拉远程更新"才动)
+
+> **流程变更记录**(2026-06-08):原 step 4 是"合并后只动两个文件"(分两次进 main)。陈超提出 plan checkbox 应跟代码 commit 一起合并到 main,避免合并后还要补单独 PR 更新 plan 状态。新流程减少一次切换 + 让 checkbox 真实反映"已验证+已合并"状态。

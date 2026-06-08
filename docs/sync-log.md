@@ -42,3 +42,17 @@ PreToolUse hook 真触发验证通过:
 
 - **vp create 模板与 .oxlintrc.json 设计冲突**:harness 的 `vp create react-ts` 模板生成的 vite.config.ts 内联了 lint 配置,与 harness 自带的 `.oxlintrc.json`(挂 jsPlugins + taste 规则)是两套独立来源,会让业务规则失效。harness README 应警告:**新建项目后,把 .oxlintrc.json 的 jsPlugins + 自定义规则手动合并到 vite.config.ts 的 lint 字段,然后删除 .oxlintrc.json**(或反过来,但二选一,不能并存)。
 - **hook tmp 文件位置约定**:`pre-tool-use.sh` 注释里的 K10 备注已过时(说"tmp 必须放 project 内非 ignorePatterns 内"),实测还需要"放原文件同目录、非 hidden、tsconfig include 能匹配到",否则 type-aware 上下文不对。harness 该 hook 同步修。
+
+## 2026-06-08 — Batch 1.1 i18n 基础设施
+
+- MR: <https://codex.mlamp.cn/0003639/octo-web-2/-/merge_requests/29>(已合并)
+- 搬了 2 个上游 SHA:
+  - `b79eab8d` 整套 i18n runtime + locale(本仓 src/lib/i18n/,9 文件 + 2 locale JSON)
+  - `fe5bbc5d` backend language contract — 只搬 Accept-Language interceptor 部分
+- 跳过 1 个:
+  - `f223293f` Semi locale sync — 本仓不用 Semi UI
+- 跳过 fe5bbc5d 内的 backend user.language sync — 本仓登录流程未复刻该接口
+- 本仓 commits:362c7b9 / cc1c15d / c131e9c / 6d0df3e / 50549bb / 25e13c4 / bf26ad4 / d9a9c3a / b3ee9fb / 6e2f03a(10 个 commit,8 个 feat + 2 个 fix:i18n namespace 修正、语言切换入口挪到 NavRail)
+- 156 业务 file 改 t() 调用,locale 287 → 2738 keys
+- 架构关键点:`useT()` reactive hook(useSyncExternalStore 订阅 i18n.subscribe);非 React 上下文用 `import { t } from "@/lib/i18n/instance"`
+- 切语言入口:NavRail 底部齿轮上方 Languages 图标

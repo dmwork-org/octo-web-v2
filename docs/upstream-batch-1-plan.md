@@ -1,0 +1,256 @@
+# 上游搬运 Batch 1 — Todo 清单
+
+> **生成依据**:`docs/upstream-audit.md`(baseline `f32a1360` → HEAD `1906c874`,共 109 commits)
+> **优先级原则**(陈超 2026-06-08 决策):
+>
+> - **P0 高优**:chat / contact / i18n + matter/summary/persona 中跟 chat/contact 关联的
+> - **P2 低优(backlog 记录,先不做)**:matter / summary / persona 独立改动 — 这 3 个模块新仓本身没复刻好,先记录待后续
+> - **杂项**:CI / ISSUE_TEMPLATE / CODEOWNERS / docs(upstream 自维护) — 跳过
+> - **Login**:作为基础设施,中优(P1) — 不在 chat/contact 主线但全局影响
+> - **AppBot**:1 个小 fix,低优
+
+执行节奏:每个 batch 一个独立 MR,跑完手测确认 → 合并 → 更新 `docs/sync-log.md` baseline → 下一个 batch。
+
+---
+
+## P0 — 高优搬运
+
+### Batch 1.1 — i18n 基础设施(3 commits)
+
+**先做这一批**:新仓没 i18n 框架,后续搬业务时 string 就裸 hardcoded,以后再补 i18n 成本翻倍。先把基础设施搬过来,后续 batch 自然带 i18n。
+
+- [ ] `b79eab8d` 2026-05-28 **feat(i18n): add frontend internationalization** — 295+ files,整套 i18n 框架 + locale 文件
+- [ ] `fe5bbc5d` 2026-05-29 **feat(i18n): align backend language contract** — 39+ files,跟后端 language header 对齐
+- [ ] `f223293f` 2026-05-28 **fix(i18n): sync Semi locale with app language** — Semi UI 文案跟 app 语言同步
+
+**预期工作量**:大,但价值高 — 是后续所有业务搬运的依赖。可能要 1 个独立 MR(或拆"框架 + 全仓 i18n key 替换"两个)。
+**手测**:切语言能切;chat/contact 已有页面 UI 文案能切。
+
+---
+
+### Batch 1.2 — Chat 输入框 / mention(8 commits)
+
+- [ ] `e33d3887` 2026-06-05 fix: resolve mention nodes returning 'undefined' in textBetween leafText
+- [ ] `006b2411` 2026-05-22 fix(message-input): preserve multiline content when pasting lists
+- [ ] `2e89e772` 2026-05-31 fix(voice-mention): 语音 @所有AI 识别 + @所有人 走 humans
+- [ ] `405bbe98` 2026-05-23 fix(mention): expand bot UIDs into mention.uids on @所有AI + skip broadcast token
+- [ ] `90556da2` 2026-06-05 fix(mention): protect all-ai routing uids
+- [ ] `76189c1d` 2026-06-03 fix(message): highlight broadcast mentions
+- [ ] `ff46fa58` 2026-06-02 fix(message-input): hide broadcast mentions in direct chats
+- [ ] `bbac229d` 2026-05-27 fix(conversation): block folder drop to prevent ghost file messages
+
+**手测**:输入框 @全员/@所有AI/@某人 各场景;粘贴 list 不丢行;拖文件夹被拦截。
+
+---
+
+### Batch 1.3 — Chat 会话列表 / 排序 / 折叠(11 commits)
+
+- [ ] `f85ba4d0` 2026-06-06 fix(chat): trust backend recent conversations
+- [ ] `1f8c40a2` 2026-06-05 feat: navigate recent tab to unread conversation
+- [ ] `de16d69f` 2026-06-06 fix(chat): move mention badge to preview area
+- [ ] `275762d7` 2026-06-06 fix: preserve compact thread collapse with disabled pin split
+- [ ] `5dbc0c40` 2026-06-06 fix: use setActivatorNodeRef to isolate drag activation on handle
+- [ ] `645fa295` 2026-06-08 fix: hide archived threads in follow list when expanding group
+- [ ] `35b35757` 2026-06-02 Fix/issue 193 thread list follow
+- [ ] `72a8adc3` 2026-06-04 fix(#203): sync sidebar snapshot on conversation unread change
+- [ ] `2c5eccbb` 2026-06-02 fix: refresh followed sidebar after thread creation
+- [ ] `ff7f39f1` 2026-05-27 fix(chat): refresh recent ordering on live updates
+- [ ] `1286d289` 2026-06-06 fix(datasource): pass recent filter for recent conversations
+
+**手测**:最近 tab 点击跳到第一条未读;sidebar unread 数实时变;创建子区后 follow tab 立即出现;归档子区在 follow tab 展开父群时隐藏。
+
+---
+
+### Batch 1.4 — Chat 消息渲染 / 文件预览(8 commits)
+
+- [ ] `c1eaadca` 2026-06-08 fix: align AI assistant history timestamps
+- [ ] `97dbec4d` 2026-05-31 fix(conversation): show last message of fold session when expanded
+- [ ] `ed5cfbcd` 2026-05-30 fix(ai-chat): preview files in folded sessions instead of downloading
+- [ ] `4b2e89c0` 2026-05-28 fix(file): prefer filename suffix over content.extension for preview detection
+- [ ] `e41a1d7b` 2026-05-28 fix(#125): 合并转发中文件卡片点击应弹出预览而非下载
+- [ ] `817f87a6` 2026-05-27 fix: show pending state for image sends
+- [ ] `2b1c78c3` 2026-06-08 修复群聊 AI 备注名不立即生效
+- [ ] `195625e8` 2026-05-27 Fix message grouping for same-sender messages after long gaps
+
+**手测**:AI 折叠 session 展开后能预览文件 / 看时间;mergeforward 内文件点了弹预览;图片发送中 pending 态;群里 AI 改备注立即生效。
+
+---
+
+### Batch 1.5 — Chat 会话窗口 / scroll / typing(8 commits)
+
+- [ ] `30185565` 2026-06-02 fix(conversation): clear draft after sending
+- [ ] `1bfc1b4e` 2026-06-04 fix: restore conversation scroll anchors
+- [ ] `7a42c23a` 2026-06-01 fix(typing): reset typing on foreground/reconnect
+- [ ] `c1c17307` 2026-06-03 fix: stabilize local message send ordering
+- [ ] `2ce66f09` 2026-05-29 fix: stabilize AI streaming message layout
+- [ ] `c2f9e18e` 2026-06-06 fix(#308): treat screenshot as boundary message in messageContinuity
+- [ ] `23b59a41` 2026-05-27 Fix thread archive state refresh
+- [ ] `d8213ec1` 2026-05-27 fix(upload): preflight credentials so rejected files surface error
+
+**手测**:发送后草稿清;翻历史不抖;AI 流式不抖;tab 失焦回来 typing 清零;消息顺序稳;上传被拒能看到原因。
+
+---
+
+### Batch 1.6 — Chat / Contact 跨模块 + 群管理(5 commits)
+
+跨模块归这里(包括 contact 的两个 P0)。
+
+- [ ] `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch — **chat+contact 跨模块**
+- [ ] `b04a0618` 2026-06-03 fix(wkmodal): guard against Semi modal overrides — **跨多模块**
+- [ ] `7bc98795` 2026-06-02 fix(contextmenu): 群聊右键菜单撤回按钮根据角色权限隐藏 — **chat 右键菜单**
+- [ ] `bbac882b` 2026-06-04 fix(group): move allow-no-mention toggle into Group Management screen
+- [ ] `ceffa569` 2026-06-04 feat(octo-web): group-level allow no-mention toggle (owner/admin)
+
+**手测**:切 space 后 SDK 缓存还在;切 contact tab 不卡;群设置里有"允许无@消息"开关;右键撤回按角色隐藏。
+
+---
+
+### Batch 1.7 — Contact P0(4 commits)
+
+- [ ] `f55f0bec` 2026-06-04 fix: create group from private chat add member
+- [ ] `2b974c00` 2026-06-02 fix(contacts): allow search results to scroll
+- [ ] `ce693bd3` 2026-05-29 Improve contacts tab switching
+- [ ] (P1)`5b65f5ce` 2026-05-29 Fix/matter recent files display — **跨 chat+matter+thread panel,因主要改 chat 文件预览,挪 chat batch?这里也可放**
+
+**手测**:私聊里加成员能创群;通讯录搜索结果能滚;通讯录 tab 切换流畅。
+
+---
+
+### Batch 1.8 — Chat 大特性 1:RichText 14 图文混合(4 commits)
+
+文件多、改动大,单独 MR。
+
+- [ ] `b1bb31df` 2026-06-03 feat(octo-web): 接收渲染 RichText=14 图文混排 (Phase 1)
+- [ ] `b5a3b68e` 2026-06-03 feat(octo-web): send RichText=14 mixed text+image + SmartCreateModal digest (Phase 1)
+- [ ] `fff36eb1` 2026-06-04 feat: migrate rich text mixed content UI
+- [ ] `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip
+
+**手测**:粘贴图+文混排发出去;接收方正确渲染;复制走 round trip 不丢东西。
+
+---
+
+### Batch 1.9 — Chat 大特性 2:BotManage 三级下钻(2 commits)
+
+- [ ] `e7c5e0be` 2026-06-03 [octo-web] 独立 Bot 管理模块（三级下钻）+ 免@回答群列表
+- [ ] `ee4275b4` 2026-06-03 fix: restore bot remark editing
+- [ ] `d6c20ed4` 2026-06-02 fix: unify avatar upload handling
+
+**手测**:点 bot 头像 → 三级下钻 → 免@回答群列表;改 bot 备注能保存;头像上传统一行为。
+
+---
+
+### Batch 1.10 — Chat 大特性 3:Voice 设置面板(5 commits)
+
+- [ ] `c0a6f1ea` 2026-05-22 feat(voice): ASR privacy controls — feedback settings, notice popup, keyboard fix
+- [ ] `aec22081` 2026-05-26 feat: voice settings panel redesign
+- [ ] `ed5bc4bd` 2026-05-27 feat(voice): local ASR toggle in VoiceSettingsPanel + fix triple probe
+- [ ] `9d1fa159` 2026-05-26 feat: include ASR params in uploadLocal feedback metadata
+- [ ] `c4fd2a13` 2026-05-28 feat: use reset endpoint instead of delete for restoring defaults
+
+**手测**:NavRail 设置 → voice 面板有隐私开关 / 重设;录音时键盘交互;ASR 上传元数据完整。
+
+---
+
+### Batch 1.11 — Chat-Summary 关联:窗口内右上 entry(2 commits)
+
+跟 chat 主区强关联(WKLayout 等)虽然实际改 summary 模块。
+
+- [ ] `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n — **chat 主区右上 entry,33+ files**
+- [ ] `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge
+
+**手测**:进 chat 窗口右上看到 summary entry;NavRail summary 有未读 badge;session list 实时刷新。
+
+---
+
+### Batch 1.12 — Chat-Matter 关联:多选事项 / 文件 tab(2 commits)
+
+跟 chat 多选 → 事项 / 文件预览交集。
+
+- [ ] `66d474c9` 2026-06-03 refactor(todo): unify create-task modal — all entries use SmartCreate
+- [ ] `60afb75e` 2026-05-28 feat(matters): add 产出文件 tab to matter detail panel
+
+**手测**:任意入口创建事项都走 SmartCreateModal;matter 详情有"产出文件" tab。
+
+---
+
+### Batch 1.13 — 杂项小 fix(3 commits)
+
+- [ ] `0f024d2d` 2026-06-04 fix(group-md): render escaped newlines as markdown — GroupMdEditor
+- [ ] `12e579a4` 2026-06-03 fix: restore MeInfo modal content height
+- [ ] `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries
+
+**手测**:GroupMd 里 \\n 渲染换行;MeInfo modal 高度正常;子区归档按钮一致。
+
+---
+
+### Batch 1.14 — Conversation 大特性:drag-drop / 多选(2 commits)
+
+- [ ] `361447b6` 2026-06-04 feat(conversation): widen drag-drop hit area + file-size guard + edge-case hardening
+- [ ] `930b8fa5` 2026-06-02 fix: unify message multiselect behavior
+
+**手测**:文件拖拽 hit area 大;超大文件被拦;多选模式跨场景行为一致(fold session / 普通)。
+
+---
+
+## P1 — Login 模块(中优)
+
+独立模块,跟主线 chat/contact 关联弱,但全局影响登录入口。
+
+- [ ] `5ef5150f` 2026-05-22 feat(login): SSO panel redesign per Figma + theme-token compliance
+- [ ] `1bf42ba2` 2026-05-23 fix(login): breathe out the non-SSO panel layout
+- [ ] `2d4d4d51` 2026-05-27 Update Octo login button copy
+- [ ] `7de93ff1` 2026-05-30 feat(login): add Aegis migration notice
+- [ ] `86c5837b` 2026-06-02 fix: complete OIDC logout flow
+- [ ] `89d56e35` 2026-06-02 fix(web): add logout path to no-space pages
+- [ ] `43e7d354` 2026-05-29 feat: support disabling user space creation
+
+**预期工作量**:中,Login 模块独立。
+
+---
+
+## P2 — Backlog(记录,先不做)
+
+3 个模块本身没复刻好,等模块复刻完再回头搬增量;现在只记录避免遗忘。
+
+### Matter 独立(2 commits)
+
+- 〇 `f2d723fb` 2026-05-29 feat(matters): tidy timeline rendering + render attachments preview/download
+- 〇 `01cd20a1` 2026-05-28 feat(matters): support linking threads (子区) in addition to groups
+
+### Summary 独立(2 commits)
+
+- 〇 `85687e19` 2026-06-08 feat: allow editing topic on regenerate (smart-summary#70)
+- 〇 `df1557a4` 2026-06-05 feat: raise chat selection limit from 10 to 30
+
+### Persona 独立(3 commits)
+
+- 〇 `0e494e60` 2026-05-25 fix(persona): bot picker — filter myBotsRaw by creator_uid
+- 〇 `bce18fbe` 2026-05-23 feat(meinfo): hide persona settings behind experimental features
+- 〇 `c0319928` 2026-05-22 fix(persona): PersonaCreate subscribes to VM notifyListener fan-out
+
+### AppBot(1 commit)
+
+- 〇 `7d4800a3` 2026-05-27 Fix app bot nav icon color
+
+---
+
+## 跳过 — CI / ISSUE_TEMPLATE / Docs(28 commits)
+
+`Mininglamp-OSS` 仓库治理相关,本仓有自己的 harness/CI,不搬。注意 `7d1806b5 docs: add CLAUDE.md for AI agent coding guidance` 本仓也有 CLAUDE.md,**可选**参考上游内容(但本仓针对 miaoa-fe-harness 写,大概率不冲突)。
+
+### Files-only(跳)
+
+`f8302652` `97983d9e` `93c93b3e` `3ff271dc` `874e6c7d` `52af7256` `2e84fc2e` `7d1806b5` `13b714f5` `9da23ad5` `05dd11e1` `247e1a41` `23a7c244` `2cb9ab52` `81ee67ed` `933a028f` `69a322a7` `c271d50d` `6a18a22f` `534d7d7f` `f9b6fab8` `860c3335` `3ecbec72` `5c17ac9d` `0f6ff97f`(space prefill,放 chat 已涵盖) `8e0c8166` `b04a0618`(WKModal,已在 1.6)
+
+---
+
+## 流程
+
+1. **每个 batch 完成**:
+   - MR 描述清单 + 手测过的项
+   - 合并后改 `docs/sync-log.md` 头部 `baseline SHA + last audited`
+   - 本文件对应 batch 行 `[ ]` → `[x]` + 在 sync-log 下追加"Batch X.Y 搬了哪些"
+2. **新一轮 batch 1.X**:
+   - 上一 batch 合并后,跑 `pnpm scan:upstream --out docs/upstream-audit.md`,提 audit.md 更新 commit
+   - 选下个 batch
+3. **本文件随每次 batch 推进**:勾选 / 补充新发现的 commit / 调整优先级

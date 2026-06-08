@@ -1,0 +1,371 @@
+# 上游变更扫描
+
+- generated: 2026-06-08
+- upstream: `https://github.com/Mininglamp-OSS/octo-web.git`
+- baseline: `f32a1360`
+- HEAD: `1906c874`
+- total: 109 commits
+
+## 业务 UI (Components) (56 commits)
+
+- `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries (#283) (#314)
+  - packages/dmworkbase/src/Components/ThreadPanel/index.tsx, packages/dmworkbase/src/Service/**tests**/threadArchiveAction.test.ts, packages/dmworkbase/src/Service/**tests**/threadPermission.test.ts +2
+- `c1eaadca` 2026-06-08 fix: align AI assistant history timestamps (#333)
+  - packages/dmworkbase/src/Components/Conversation/FoldSessionExpandedList.tsx, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/Base/index.tsx +4
+- `645fa295` 2026-06-08 fix: hide archived threads in follow list when expanding group (#285) (#316)
+  - packages/dmworkbase/src/Components/ConversationListGrouped/**tests**/archivedThreads.test.ts, packages/dmworkbase/src/Components/ConversationListGrouped/archivedThreads.ts, packages/dmworkbase/src/Components/ConversationListGrouped/index.tsx +1
+- `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip (#328)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/richTextMixedSend.test.ts, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/Conversation/richTextMixedSend.ts +15
+- `275762d7` 2026-06-06 fix: preserve compact thread collapse with disabled pin split (#317)
+  - packages/dmworkbase/src/Components/ConversationList/index.tsx
+- `5dbc0c40` 2026-06-06 fix: use setActivatorNodeRef to isolate drag activation on handle, re… (#313)
+  - packages/dmworkbase/src/Components/CategoryHeader/index.tsx, packages/dmworkbase/src/Components/CategorySection/index.tsx
+- `de16d69f` 2026-06-06 fix(chat): move mention badge to preview area (#307)
+  - packages/dmworkbase/src/Components/ConversationList/index.css, packages/dmworkbase/src/Components/ConversationList/index.tsx, packages/dmworkbase/src/i18n/locales/en-US.json +1
+- `f85ba4d0` 2026-06-06 fix(chat): trust backend recent conversations (#302)
+  - packages/dmworkbase/src/Components/ChatConversationList/**tests**/ChatConversationList.test.tsx, packages/dmworkbase/src/Components/ChatConversationList/index.tsx, packages/dmworkbase/src/Pages/Chat/index.tsx
+- `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n (#272)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/WKLayout/**tests**/layoutWidth.test.ts, packages/dmworkbase/src/Components/WKLayout/layoutWidth.ts +33
+- `90556da2` 2026-06-05 fix(mention): protect all-ai routing uids (#279)
+  - apps/web/src/**tests**/mentionRefactor.test.ts, apps/web/src/**tests**/voiceMention.test.ts, packages/dmworkbase/src/Components/Conversation/**tests**/sendContentProxy.test.ts +6
+- `1f8c40a2` 2026-06-05 feat: navigate recent tab to unread conversation (#281)
+  - packages/dmworkbase/src/Components/ChatConversationList/index.tsx, packages/dmworkbase/src/Components/ConversationList/index.css, packages/dmworkbase/src/Components/ConversationList/index.tsx +4
+- `e33d3887` 2026-06-05 fix: resolve mention nodes returning 'undefined' in textBetween leafText callback (#209)
+  - packages/dmworkbase/src/Components/MessageInput/index.tsx
+- `361447b6` 2026-06-04 feat(conversation): widen drag-drop hit area + file-size guard + edge-case hardening (#269)
+  - packages/dmworkbase/src/Components/Conversation/index.css, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/i18n/locales/en-US.json +1
+- `fff36eb1` 2026-06-04 feat: migrate rich text mixed content UI (#264)
+  - packages/dmworkbase/src/Components/MergeforwardMessageList/index.tsx, packages/dmworkbase/src/Messages/MessageCell.tsx, packages/dmworkbase/src/Messages/RichText/RichTextContent.ts +10
+- `bbac882b` 2026-06-04 fix(group): move allow-no-mention toggle into Group Management screen (#267)
+  - packages/dmworkbase/src/Components/GroupManagement/**tests**/allowNoMention.test.ts, packages/dmworkbase/src/Components/GroupManagement/allowNoMention.ts, packages/dmworkbase/src/Components/GroupManagement/index.css +6
+- `72a8adc3` 2026-06-04 fix(#203): sync sidebar snapshot on conversation unread change (#251)
+  - packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Hooks/**tests**/useFollowSidebar.test.tsx, packages/dmworkbase/src/Hooks/useFollowSidebar.ts
+- `1bfc1b4e` 2026-06-04 fix: restore conversation scroll anchors (#259)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/historyScroll.test.ts, packages/dmworkbase/src/Components/Conversation/historyScroll.ts, packages/dmworkbase/src/Components/Conversation/index.tsx +1
+- `0f024d2d` 2026-06-04 fix(group-md): render escaped newlines as markdown (#254)
+  - packages/dmworkbase/src/Components/GroupMdEditor/**tests**/GroupMdEditor.test.tsx, packages/dmworkbase/src/Components/GroupMdEditor/index.css, packages/dmworkbase/src/Components/GroupMdEditor/index.tsx
+- `e7c5e0be` 2026-06-03 [octo-web] 独立 Bot 管理模块（三级下钻）+ 免@回答群列表 (Fixes #235) (#236)
+  - apps/web/src/**tests**/components/BotManage.test.tsx, packages/dmworkbase/src/Components/BotDetailModal/index.tsx, packages/dmworkbase/src/Components/BotManage/BotManageMenu.tsx +7
+- `c1c17307` 2026-06-03 fix: stabilize local message send ordering (#242)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/messageOrder.test.ts, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/Model.tsx
+- `b5a3b68e` 2026-06-03 feat(octo-web): send RichText=14 mixed text+image + SmartCreateModal digest (Phase 1) (#227)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/MessageInput/**tests**/sendFlow.test.ts, packages/dmworkbase/src/Components/MessageInput/index.tsx +4
+- `b04a0618` 2026-06-03 fix(wkmodal): guard against Semi modal overrides (#230)
+  - .github/workflows/ci.yml, package.json, packages/dmworkbase/src/Components/WKModal/index.css +2
+- `76189c1d` 2026-06-03 fix(message): highlight broadcast mentions (#234)
+  - apps/web/src/**tests**/mentionRefactor.test.ts, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/Text/MarkdownContent.tsx +7
+- `ee4275b4` 2026-06-03 fix: restore bot remark editing (#220)
+  - apps/web/src/**tests**/components/BotDetailModalRemark.test.tsx, packages/dmworkbase/src/Components/BotDetailModal/index.css, packages/dmworkbase/src/Components/BotDetailModal/index.tsx +2
+- `d6c20ed4` 2026-06-02 fix: unify avatar upload handling (#215)
+  - packages/dmworkbase/src/Components/BotDetailModal/index.css, packages/dmworkbase/src/Components/BotDetailModal/index.tsx, packages/dmworkbase/src/Components/ChannelAvatar/index.tsx +11
+- `30185565` 2026-06-02 fix(conversation): clear draft after sending (#183)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/ConversationList/index.tsx, packages/dmworkbase/src/Utils/**tests**/draftLifecycle.test.ts +5
+- `86c5837b` 2026-06-02 fix: complete OIDC logout flow (#210)
+  - apps/web/src/Components/JoinSpacePage/index.tsx, apps/web/src/Components/SpaceGate/index.tsx, apps/web/src/**tests**/disableUserCreateSpace.test.ts +6
+- `ff46fa58` 2026-06-02 fix(message-input): hide broadcast mentions in direct chats (#213)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/MessageInput/index.tsx, packages/dmworkbase/src/Utils/**tests**/mentionRender.test.ts +1
+- `8e0c8166` 2026-06-02 fix: standardize modal spacing (#189)
+  - packages/dmworkbase/package.json, packages/dmworkbase/src/Components/BotDetailModal/index.css, packages/dmworkbase/src/Components/ClawInfoModal/ClawInfoModal.css +22
+- `35b35757` 2026-06-02 Fix/issue 193 thread list follow (#208)
+  - .gitignore, packages/dmworkbase/src/Components/ConversationList/index.tsx, packages/dmworkbase/src/Components/ThreadPanel/index.css +5
+- `930b8fa5` 2026-06-02 fix: unify message multiselect behavior (#202)
+  - packages/dmworkbase/src/Components/Conversation/FoldSessionCard/index.tsx, packages/dmworkbase/src/Components/Conversation/FoldSessionExpandedList.tsx, packages/dmworkbase/src/Components/Conversation/index.tsx +18
+- `7a42c23a` 2026-06-01 fix(typing): reset typing on foreground/reconnect + refresh conversation on reconnect (#188)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/TypingManager.tsx +1
+- `2e89e772` 2026-05-31 fix(voice-mention): 语音 @所有AI 识别 + @所有人 走 humans (#177)
+  - apps/web/src/**tests**/voiceMention.test.ts, packages/dmworkbase/src/Components/MessageInput/index.tsx
+- `97dbec4d` 2026-05-31 fix(conversation): show last message of fold session when expanded (#174)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/foldSessionSummary.test.ts, packages/dmworkbase/src/Components/Conversation/foldSessionSummary.ts, packages/dmworkbase/src/Components/Conversation/vm.ts
+- `ed5cfbcd` 2026-05-30 fix(ai-chat): preview files in folded sessions instead of downloading (#172)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/File/index.tsx
+- `5b65f5ce` 2026-05-29 Fix/matter recent files display (#168)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/FilePreviewPanel/types.ts, packages/dmworkbase/src/Components/ThreadPanel/index.tsx +4
+- `2ce66f09` 2026-05-29 fix: stabilize AI streaming message layout (#166)
+  - packages/dmworkbase/src/Components/Conversation/foldSessionSummary.ts, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/**tests**/messageContinuity.test.ts +1
+- `43e7d354` 2026-05-29 feat: support disabling user space creation (#167)
+  - apps/web/src/Components/JoinSpacePage/index.tsx, apps/web/src/Components/SpaceGate/index.tsx, apps/web/src/Pages/Main/index.tsx +9
+- `fe5bbc5d` 2026-05-29 feat(i18n): align backend language contract (#164)
+  - apps/extension/entrypoints/offscreen/main.ts, apps/web/src/Components/ConnectionStatus/index.tsx, apps/web/src/Components/InviteLanding/index.tsx +39
+- `c4fd2a13` 2026-05-28 feat: use reset endpoint instead of delete for restoring defaults (#158)
+  - apps/web/src/**tests**/voiceService.test.ts, packages/dmworkbase/src/Components/NavRail/VoiceSettingsPanel.tsx, packages/dmworkbase/src/Service/VoiceService.ts
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `4b2e89c0` 2026-05-28 fix(file): prefer filename suffix over content.extension for preview detection (#153)
+  - packages/dmworkbase/src/Components/FilePreviewPanel/**tests**/getExtension.test.ts, packages/dmworkbase/src/Components/FilePreviewPanel/types.ts, packages/dmworkbase/src/Messages/File/index.tsx
+- `e41a1d7b` 2026-05-28 fix(#125): 合并转发中文件卡片点击应弹出预览而非下载 (#136)
+  - packages/dmworkbase/src/Components/MergeforwardMessageList/index.tsx
+- `ed5bc4bd` 2026-05-27 feat(voice): local ASR toggle in VoiceSettingsPanel + fix triple probe (#151)
+  - apps/web/src/**tests**/voiceService.test.ts, packages/dmworkbase/src/Components/MessageInput/useVoiceInput.ts, packages/dmworkbase/src/Components/NavRail/VoiceSettingsPanel.tsx +1
+- `23b59a41` 2026-05-27 Fix thread archive state refresh (#145)
+  - packages/dmworkbase/src/Components/Conversation/index.css, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/ListItem/index.css +9
+- `d8213ec1` 2026-05-27 fix(upload): preflight credentials so rejected files surface error (#119) (#135)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Service/UploadCredentials.ts, packages/dmworkbase/src/Service/**tests**/UploadCredentials.test.ts
+- `bbac229d` 2026-05-27 fix(conversation): block folder drop to prevent ghost file messages (#115) (#138)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx
+- `aec22081` 2026-05-26 feat: voice settings panel redesign (#134)
+  - packages/dmworkbase/src/Components/MessageInput/VoiceFeedbackNotice.tsx, packages/dmworkbase/src/Components/MessageInput/VoiceInputIndicator.tsx, packages/dmworkbase/src/Components/MessageInput/**tests**/useSpaceFeedbackSetting.test.ts +12
+- `9d1fa159` 2026-05-26 feat: include ASR params in uploadLocal feedback metadata (#132)
+  - apps/web/src/**tests**/VoiceFeedback.test.ts, apps/web/src/**tests**/useVoiceInput.test.ts, packages/dmworkbase/src/Components/MessageInput/useVoiceInput.ts +1
+- `0e494e60` 2026-05-25 fix(persona): bot picker — filter myBotsRaw by creator_uid (#114)
+  - packages/dmworkbase/src/Components/PersonaSettings/**tests**/PersonaCreate.test.tsx, packages/dmworkbase/src/Components/PersonaSettings/**tests**/vm.test.ts, packages/dmworkbase/src/Components/PersonaSettings/vm.tsx
+- `405bbe98` 2026-05-23 fix(mention): expand bot UIDs into mention.uids on @所有AI + skip broadcast token in legacy parser (#100)
+  - packages/dmworkbase/src/Components/MessageInput/index.tsx, packages/dmworkbase/src/Service/Model.tsx
+- `bce18fbe` 2026-05-23 feat(meinfo): hide persona settings behind experimental features (#98) (#99)
+  - packages/dmworkbase/src/Components/ExperimentalFeatures/index.css, packages/dmworkbase/src/Components/ExperimentalFeatures/index.tsx, packages/dmworkbase/src/Components/MeInfo/vm.tsx
+- `c0319928` 2026-05-22 fix(persona): PersonaCreate subscribes to VM notifyListener fan-out (#96)
+  - packages/dmworkbase/src/Components/PersonaSettings/**tests**/PersonaCreate.test.tsx, packages/dmworkbase/src/Components/PersonaSettings/index.tsx, packages/dmworkbase/src/Service/Provider.tsx +1
+- `c0a6f1ea` 2026-05-22 feat(voice): ASR privacy controls — feedback settings, notice popup, keyboard fix (#93)
+  - apps/web/src/**tests**/NavVoiceFeedbackItem.test.tsx, apps/web/src/**tests**/VoiceFeedback.test.ts, apps/web/src/**tests**/useSpaceFeedbackSetting.test.ts +15
+- `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch (#90)
+  - apps/web/src/Pages/Main/index.tsx, packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/ChatConversationList/index.tsx +9
+- `006b2411` 2026-05-22 fix(message-input): preserve multiline content when pasting lists (#92)
+  - packages/dmworkbase/src/Components/MessageInput/index.tsx
+
+## Message renderers (14 commits)
+
+- `c1eaadca` 2026-06-08 fix: align AI assistant history timestamps (#333)
+  - packages/dmworkbase/src/Components/Conversation/FoldSessionExpandedList.tsx, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/Base/index.tsx +4
+- `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip (#328)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/richTextMixedSend.test.ts, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/Conversation/richTextMixedSend.ts +15
+- `2b1c78c3` 2026-06-08 修复群聊 AI 备注名不立即生效 (#327)
+  - packages/dmworkbase/src/Messages/Base/index.tsx, packages/dmworkbase/src/Utils/**tests**/displayName.test.ts, packages/dmworkbase/src/Utils/displayName.ts +2
+- `fff36eb1` 2026-06-04 feat: migrate rich text mixed content UI (#264)
+  - packages/dmworkbase/src/Components/MergeforwardMessageList/index.tsx, packages/dmworkbase/src/Messages/MessageCell.tsx, packages/dmworkbase/src/Messages/RichText/RichTextContent.ts +10
+- `b5a3b68e` 2026-06-03 feat(octo-web): send RichText=14 mixed text+image + SmartCreateModal digest (Phase 1) (#227)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/MessageInput/**tests**/sendFlow.test.ts, packages/dmworkbase/src/Components/MessageInput/index.tsx +4
+- `76189c1d` 2026-06-03 fix(message): highlight broadcast mentions (#234)
+  - apps/web/src/**tests**/mentionRefactor.test.ts, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/Text/MarkdownContent.tsx +7
+- `b1bb31df` 2026-06-03 feat(octo-web): 接收渲染 RichText=14 图文混排 (Phase 1) (#218)
+  - .i18n/scan-config.json, packages/dmworkbase/src/Messages/RichText/RichTextContent.ts, packages/dmworkbase/src/Messages/RichText/**tests**/RichTextContent.test.ts +8
+- `930b8fa5` 2026-06-02 fix: unify message multiselect behavior (#202)
+  - packages/dmworkbase/src/Components/Conversation/FoldSessionCard/index.tsx, packages/dmworkbase/src/Components/Conversation/FoldSessionExpandedList.tsx, packages/dmworkbase/src/Components/Conversation/index.tsx +18
+- `ed5cfbcd` 2026-05-30 fix(ai-chat): preview files in folded sessions instead of downloading (#172)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Messages/File/index.tsx
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `4b2e89c0` 2026-05-28 fix(file): prefer filename suffix over content.extension for preview detection (#153)
+  - packages/dmworkbase/src/Components/FilePreviewPanel/**tests**/getExtension.test.ts, packages/dmworkbase/src/Components/FilePreviewPanel/types.ts, packages/dmworkbase/src/Messages/File/index.tsx
+- `817f87a6` 2026-05-27 fix: show pending state for image sends (#156)
+  - packages/dmworkbase/src/Messages/Image/**tests**/ImageContent.test.ts, packages/dmworkbase/src/Messages/Image/index.tsx, packages/dmworkbase/src/ui/message/ImageContent/ImageContent.stories.tsx +3
+- `23b59a41` 2026-05-27 Fix thread archive state refresh (#145)
+  - packages/dmworkbase/src/Components/Conversation/index.css, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/ListItem/index.css +9
+- `195625e8` 2026-05-27 Fix message grouping for same-sender messages after long gaps (#140)
+  - packages/dmworkbase/src/Messages/Base/index.tsx, packages/dmworkbase/src/Service/Model.tsx, packages/dmworkbase/src/Service/**tests**/messageContinuity.test.ts +2
+
+## Service / API / Model (29 commits)
+
+- `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries (#283) (#314)
+  - packages/dmworkbase/src/Components/ThreadPanel/index.tsx, packages/dmworkbase/src/Service/**tests**/threadArchiveAction.test.ts, packages/dmworkbase/src/Service/**tests**/threadPermission.test.ts +2
+- `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip (#328)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/richTextMixedSend.test.ts, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/Conversation/richTextMixedSend.ts +15
+- `c2f9e18e` 2026-06-06 fix(#308): treat screenshot as boundary message in messageContinuity (#309)
+  - packages/dmworkbase/src/Service/**tests**/messageContinuity.test.ts, packages/dmworkbase/src/Service/messageContinuity.ts
+- `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n (#272)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/WKLayout/**tests**/layoutWidth.test.ts, packages/dmworkbase/src/Components/WKLayout/layoutWidth.ts +33
+- `90556da2` 2026-06-05 fix(mention): protect all-ai routing uids (#279)
+  - apps/web/src/**tests**/mentionRefactor.test.ts, apps/web/src/**tests**/voiceMention.test.ts, packages/dmworkbase/src/Components/Conversation/**tests**/sendContentProxy.test.ts +6
+- `bbac882b` 2026-06-04 fix(group): move allow-no-mention toggle into Group Management screen (#267)
+  - packages/dmworkbase/src/Components/GroupManagement/**tests**/allowNoMention.test.ts, packages/dmworkbase/src/Components/GroupManagement/allowNoMention.ts, packages/dmworkbase/src/Components/GroupManagement/index.css +6
+- `ceffa569` 2026-06-04 feat(octo-web): group-level allow no-mention toggle (owner/admin) (#262)
+  - packages/dmworkbase/src/Service/ChannelSetting.ts, packages/dmworkbase/src/Service/Convert.ts, packages/dmworkbase/src/Service/**tests**/channelSettingRows.test.ts +5
+- `c1c17307` 2026-06-03 fix: stabilize local message send ordering (#242)
+  - packages/dmworkbase/src/Components/Conversation/**tests**/messageOrder.test.ts, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/Model.tsx
+- `b5a3b68e` 2026-06-03 feat(octo-web): send RichText=14 mixed text+image + SmartCreateModal digest (Phase 1) (#227)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/MessageInput/**tests**/sendFlow.test.ts, packages/dmworkbase/src/Components/MessageInput/index.tsx +4
+- `b1bb31df` 2026-06-03 feat(octo-web): 接收渲染 RichText=14 图文混排 (Phase 1) (#218)
+  - .i18n/scan-config.json, packages/dmworkbase/src/Messages/RichText/RichTextContent.ts, packages/dmworkbase/src/Messages/RichText/**tests**/RichTextContent.test.ts +8
+- `86c5837b` 2026-06-02 fix: complete OIDC logout flow (#210)
+  - apps/web/src/Components/JoinSpacePage/index.tsx, apps/web/src/Components/SpaceGate/index.tsx, apps/web/src/**tests**/disableUserCreateSpace.test.ts +6
+- `7bc98795` 2026-06-02 fix(contextmenu): 群聊右键菜单撤回按钮根据角色权限隐藏 (#207)
+  - packages/dmworkbase/src/Service/DataSource/DataSource.ts, packages/dmworkbase/src/Service/**tests**/revokePermission.test.ts, packages/dmworkbase/src/Service/revokePermission.ts +2
+- `35b35757` 2026-06-02 Fix/issue 193 thread list follow (#208)
+  - .gitignore, packages/dmworkbase/src/Components/ConversationList/index.tsx, packages/dmworkbase/src/Components/ThreadPanel/index.css +5
+- `930b8fa5` 2026-06-02 fix: unify message multiselect behavior (#202)
+  - packages/dmworkbase/src/Components/Conversation/FoldSessionCard/index.tsx, packages/dmworkbase/src/Components/Conversation/FoldSessionExpandedList.tsx, packages/dmworkbase/src/Components/Conversation/index.tsx +18
+- `7a42c23a` 2026-06-01 fix(typing): reset typing on foreground/reconnect + refresh conversation on reconnect (#188)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/TypingManager.tsx +1
+- `2ce66f09` 2026-05-29 fix: stabilize AI streaming message layout (#166)
+  - packages/dmworkbase/src/Components/Conversation/foldSessionSummary.ts, packages/dmworkbase/src/Components/Conversation/vm.ts, packages/dmworkbase/src/Service/**tests**/messageContinuity.test.ts +1
+- `fe5bbc5d` 2026-05-29 feat(i18n): align backend language contract (#164)
+  - apps/extension/entrypoints/offscreen/main.ts, apps/web/src/Components/ConnectionStatus/index.tsx, apps/web/src/Components/InviteLanding/index.tsx +39
+- `c4fd2a13` 2026-05-28 feat: use reset endpoint instead of delete for restoring defaults (#158)
+  - apps/web/src/**tests**/voiceService.test.ts, packages/dmworkbase/src/Components/NavRail/VoiceSettingsPanel.tsx, packages/dmworkbase/src/Service/VoiceService.ts
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `ed5bc4bd` 2026-05-27 feat(voice): local ASR toggle in VoiceSettingsPanel + fix triple probe (#151)
+  - apps/web/src/**tests**/voiceService.test.ts, packages/dmworkbase/src/Components/MessageInput/useVoiceInput.ts, packages/dmworkbase/src/Components/NavRail/VoiceSettingsPanel.tsx +1
+- `23b59a41` 2026-05-27 Fix thread archive state refresh (#145)
+  - packages/dmworkbase/src/Components/Conversation/index.css, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/ListItem/index.css +9
+- `d8213ec1` 2026-05-27 fix(upload): preflight credentials so rejected files surface error (#119) (#135)
+  - packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Service/UploadCredentials.ts, packages/dmworkbase/src/Service/**tests**/UploadCredentials.test.ts
+- `195625e8` 2026-05-27 Fix message grouping for same-sender messages after long gaps (#140)
+  - packages/dmworkbase/src/Messages/Base/index.tsx, packages/dmworkbase/src/Service/Model.tsx, packages/dmworkbase/src/Service/**tests**/messageContinuity.test.ts +2
+- `aec22081` 2026-05-26 feat: voice settings panel redesign (#134)
+  - packages/dmworkbase/src/Components/MessageInput/VoiceFeedbackNotice.tsx, packages/dmworkbase/src/Components/MessageInput/VoiceInputIndicator.tsx, packages/dmworkbase/src/Components/MessageInput/**tests**/useSpaceFeedbackSetting.test.ts +12
+- `9d1fa159` 2026-05-26 feat: include ASR params in uploadLocal feedback metadata (#132)
+  - apps/web/src/**tests**/VoiceFeedback.test.ts, apps/web/src/**tests**/useVoiceInput.test.ts, packages/dmworkbase/src/Components/MessageInput/useVoiceInput.ts +1
+- `0f6ff97f` 2026-05-24 fix(space): prefill channelSpaceMap from conversation sync (#107) (#108)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Pages/Chat/vm.ts, packages/dmworkbase/src/Service/Convert.ts +3
+- `405bbe98` 2026-05-23 fix(mention): expand bot UIDs into mention.uids on @所有AI + skip broadcast token in legacy parser (#100)
+  - packages/dmworkbase/src/Components/MessageInput/index.tsx, packages/dmworkbase/src/Service/Model.tsx
+- `c0319928` 2026-05-22 fix(persona): PersonaCreate subscribes to VM notifyListener fan-out (#96)
+  - packages/dmworkbase/src/Components/PersonaSettings/**tests**/PersonaCreate.test.tsx, packages/dmworkbase/src/Components/PersonaSettings/index.tsx, packages/dmworkbase/src/Service/Provider.tsx +1
+- `c0a6f1ea` 2026-05-22 feat(voice): ASR privacy controls — feedback settings, notice popup, keyboard fix (#93)
+  - apps/web/src/**tests**/NavVoiceFeedbackItem.test.tsx, apps/web/src/**tests**/VoiceFeedback.test.ts, apps/web/src/**tests**/useSpaceFeedbackSetting.test.ts +15
+
+## Pages / Views (12 commits)
+
+- `645fa295` 2026-06-08 fix: hide archived threads in follow list when expanding group (#285) (#316)
+  - packages/dmworkbase/src/Components/ConversationListGrouped/**tests**/archivedThreads.test.ts, packages/dmworkbase/src/Components/ConversationListGrouped/archivedThreads.ts, packages/dmworkbase/src/Components/ConversationListGrouped/index.tsx +1
+- `f85ba4d0` 2026-06-06 fix(chat): trust backend recent conversations (#302)
+  - packages/dmworkbase/src/Components/ChatConversationList/**tests**/ChatConversationList.test.tsx, packages/dmworkbase/src/Components/ChatConversationList/index.tsx, packages/dmworkbase/src/Pages/Chat/index.tsx
+- `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n (#272)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/WKLayout/**tests**/layoutWidth.test.ts, packages/dmworkbase/src/Components/WKLayout/layoutWidth.ts +33
+- `1f8c40a2` 2026-06-05 feat: navigate recent tab to unread conversation (#281)
+  - packages/dmworkbase/src/Components/ChatConversationList/index.tsx, packages/dmworkbase/src/Components/ConversationList/index.css, packages/dmworkbase/src/Components/ConversationList/index.tsx +4
+- `8e0c8166` 2026-06-02 fix: standardize modal spacing (#189)
+  - packages/dmworkbase/package.json, packages/dmworkbase/src/Components/BotDetailModal/index.css, packages/dmworkbase/src/Components/ClawInfoModal/ClawInfoModal.css +22
+- `5b65f5ce` 2026-05-29 Fix/matter recent files display (#168)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/FilePreviewPanel/types.ts, packages/dmworkbase/src/Components/ThreadPanel/index.tsx +4
+- `43e7d354` 2026-05-29 feat: support disabling user space creation (#167)
+  - apps/web/src/Components/JoinSpacePage/index.tsx, apps/web/src/Components/SpaceGate/index.tsx, apps/web/src/Pages/Main/index.tsx +9
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `ff7f39f1` 2026-05-27 fix(chat): refresh recent ordering on live updates (#150)
+  - packages/dmworkbase/src/Pages/Chat/**tests**/vm.sortConversations.test.ts, packages/dmworkbase/src/Pages/Chat/vm.ts
+- `23b59a41` 2026-05-27 Fix thread archive state refresh (#145)
+  - packages/dmworkbase/src/Components/Conversation/index.css, packages/dmworkbase/src/Components/Conversation/index.tsx, packages/dmworkbase/src/Components/ListItem/index.css +9
+- `0f6ff97f` 2026-05-24 fix(space): prefill channelSpaceMap from conversation sync (#107) (#108)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Pages/Chat/vm.ts, packages/dmworkbase/src/Service/Convert.ts +3
+- `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch (#90)
+  - apps/web/src/Pages/Main/index.tsx, packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/ChatConversationList/index.tsx +9
+
+## Matter / Todo (8 commits)
+
+- `66d474c9` 2026-06-03 refactor(todo): unify create-task modal — all entries use SmartCreate… (#216)
+  - packages/dmworktodo/src/i18n/en-US.json, packages/dmworktodo/src/i18n/zh-CN.json, packages/dmworktodo/src/module.tsx +6
+- `5b65f5ce` 2026-05-29 Fix/matter recent files display (#168)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/FilePreviewPanel/types.ts, packages/dmworkbase/src/Components/ThreadPanel/index.tsx +4
+- `fe5bbc5d` 2026-05-29 feat(i18n): align backend language contract (#164)
+  - apps/extension/entrypoints/offscreen/main.ts, apps/web/src/Components/ConnectionStatus/index.tsx, apps/web/src/Components/InviteLanding/index.tsx +39
+- `f2d723fb` 2026-05-29 feat(matters): tidy timeline rendering and render attachments with preview/download (#112)
+  - packages/dmworktodo/package.json, packages/dmworktodo/src/**mocks**/dmworkBase.ts, packages/dmworktodo/src/i18n/en-US.json +7
+- `60afb75e` 2026-05-28 feat(matters): add 产出文件 tab to matter detail panel (#97)
+  - packages/dmworkbase/src/i18n/locales/en-US.json, packages/dmworkbase/src/i18n/locales/zh-CN.json, packages/dmworktodo/src/api/**tests**/todoApi.test.ts +9
+- `f223293f` 2026-05-28 fix(i18n): sync Semi locale with app language (#161)
+  - docs/i18n-agent-guide.md, packages/dmworkbase/src/i18n/I18nProvider.tsx, packages/dmworkbase/src/i18n/I18nService.ts +9
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `01cd20a1` 2026-05-28 feat(matters): support linking threads (子区) in addition to groups (#110)
+  - packages/dmworktodo/src/**mocks**/dmworkBase.ts, packages/dmworktodo/src/panel/MatterDetailPanel/index.tsx, packages/dmworktodo/src/ui/AnchorPopover/AnchorPopover.stories.tsx +6
+
+## Summary (6 commits)
+
+- `85687e19` 2026-06-08 feat: allow editing topic on regenerate (smart-summary#70) (#321)
+  - .gitignore, packages/dmworksummary/src/api/summaryApi.ts, packages/dmworksummary/src/components/SummaryCard.tsx +3
+- `df1557a4` 2026-06-05 feat: raise chat selection limit from 10 to 30 (#287)
+  - packages/dmworksummary/src/components/ChatSelectorModal.tsx, packages/dmworksummary/src/components/ChatSummaryNewModal.tsx, packages/dmworksummary/src/constants/limits.ts +1
+- `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n (#272)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/WKLayout/**tests**/layoutWidth.test.ts, packages/dmworkbase/src/Components/WKLayout/layoutWidth.ts +33
+- `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge (#194)
+  - apps/web/src/App/index.tsx, packages/dmworksummary/src/pages/SummaryListPage.tsx
+- `fe5bbc5d` 2026-05-29 feat(i18n): align backend language contract (#164)
+  - apps/extension/entrypoints/offscreen/main.ts, apps/web/src/Components/ConnectionStatus/index.tsx, apps/web/src/Components/InviteLanding/index.tsx +39
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+
+## Contacts (6 commits)
+
+- `f55f0bec` 2026-06-04 fix: create group from private chat add member (#263)
+  - packages/dmworkcontacts/src/Organizational/GroupNew/**tests**/memberUids.test.ts, packages/dmworkcontacts/src/Organizational/GroupNew/index.tsx, packages/dmworkcontacts/src/Organizational/GroupNew/memberUids.ts
+- `b04a0618` 2026-06-03 fix(wkmodal): guard against Semi modal overrides (#230)
+  - .github/workflows/ci.yml, package.json, packages/dmworkbase/src/Components/WKModal/index.css +2
+- `2b974c00` 2026-06-02 fix(contacts): allow search results to scroll (#204)
+  - packages/dmworkcontacts/src/Contacts/index.css
+- `ce693bd3` 2026-05-29 Improve contacts tab switching (#169)
+  - packages/dmworkcontacts/src/Contacts/index.tsx
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch (#90)
+  - apps/web/src/Pages/Main/index.tsx, packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Components/ChatConversationList/index.tsx +9
+
+## AppBot (2 commits)
+
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `7d4800a3` 2026-05-27 Fix app bot nav icon color (#148)
+  - packages/dmworkappbot/src/module.tsx
+
+## Login (6 commits)
+
+- `7de93ff1` 2026-05-30 feat(login): add Aegis migration notice (#170)
+  - packages/dmworkbase/src/App.tsx, packages/dmworklogin/src/**tests**/loginMigrationNoticeUrl.test.ts, packages/dmworklogin/src/**tests**/login_migration_notice_config.test.ts +5
+- `fe5bbc5d` 2026-05-29 feat(i18n): align backend language contract (#164)
+  - apps/extension/entrypoints/offscreen/main.ts, apps/web/src/Components/ConnectionStatus/index.tsx, apps/web/src/Components/InviteLanding/index.tsx +39
+- `b79eab8d` 2026-05-28 feat(i18n): add frontend internationalization (#157)
+  - .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/ci.yml, .gitignore +295
+- `2d4d4d51` 2026-05-27 Update Octo login button copy (#137)
+  - packages/dmworklogin/src/login.tsx
+- `1bf42ba2` 2026-05-23 fix(login): breathe out the non-SSO panel layout (#102)
+  - packages/dmworklogin/src/login.css, packages/dmworklogin/src/login.tsx
+- `5ef5150f` 2026-05-22 feat(login): SSO panel redesign per Figma + theme-token compliance (#94)
+  - packages/dmworklogin/src/login.css, packages/dmworklogin/src/login.tsx
+
+## 其他 (28 commits)
+
+- `1286d289` 2026-06-06 fix(datasource): pass recent filter for recent conversations (#304)
+  - packages/dmworkdatasource/src/module.test.ts, packages/dmworkdatasource/src/module.ts
+- `f8302652` 2026-06-06 ci: bump Node.js version from 20 to 22 (#271)
+  - .github/workflows/ci.yml
+- `97983d9e` 2026-06-04 ci: set fail-on-vuln false on scheduled OSV scan (#268)
+  - .github/workflows/osv-scanner.yml
+- `93c93b3e` 2026-06-04 fix: skip OSV-Scanner SARIF upload for Dependabot PRs (#265)
+  - .github/workflows/osv-scanner.yml
+- `3ff271dc` 2026-06-04 ci: add Docker lint workflow (hadolint + shellcheck) (#261)
+  - .github/workflows/docker-lint.yml
+- `874e6c7d` 2026-06-04 ci: add OSV-Scanner vulnerability scanning (#260)
+  - .github/workflows/osv-scanner.yml
+- `52af7256` 2026-06-03 Fix/message attachment icons (#214)
+  - packages/dmworkbase/src/assets/files/html.svg, packages/dmworkbase/src/assets/files/md.svg, packages/dmworkbase/src/assets/files/txt.svg
+- `12e579a4` 2026-06-03 fix: restore MeInfo modal content height (#225)
+  - apps/web/src/Pages/Main/index.css
+- `2c5eccbb` 2026-06-02 fix: refresh followed sidebar after thread creation (#200)
+  - packages/dmworkbase/src/App.tsx, packages/dmworkbase/src/Hooks/**tests**/useFollowSidebar.test.tsx, packages/dmworkbase/src/Hooks/useFollowSidebar.ts +2
+- `89d56e35` 2026-06-02 fix(web): add logout path to no-space pages (#199)
+  - apps/web/src/Components/JoinSpacePage/index.css, apps/web/src/Components/JoinSpacePage/index.tsx, apps/web/src/Components/SpaceGate/index.css +4
+- `2e84fc2e` 2026-05-31 fix(ci): add ready_for_review to check-sprint trigger types (#180)
+  - .github/workflows/check-sprint.yml
+- `7d1806b5` 2026-05-31 docs: add CLAUDE.md for AI agent coding guidance (#179)
+  - CLAUDE.md
+- `13b714f5` 2026-05-31 fix(ci): finalize PR notification design (remove octo-pr-feed + fix result-notify) (#176)
+  - .github/workflows/octo-pr-feed.yml, .github/workflows/octo-pr-result-notify.yml
+- `9da23ad5` 2026-05-30 chore(ci): add octo-pr-feed workflow to activate global pr-feed channel (#171)
+  - .github/workflows/octo-pr-feed.yml
+- `05dd11e1` 2026-05-28 fix: restrict review-feed to ready_for_review and review_requested (#162)
+  - .github/workflows/octo-pr-review-feed.yml
+- `247e1a41` 2026-05-28 feat: add pr-review-feed and pr-result-notify caller workflows (#160)
+  - .github/workflows/octo-pr-feed.yml, .github/workflows/octo-pr-result-notify.yml, .github/workflows/octo-pr-review-feed.yml
+- `23a7c244` 2026-05-28 chore(ci): add edited trigger to check-sprint and auto-add workflows (#154)
+  - .github/workflows/auto-add-to-project.yml, .github/workflows/check-sprint.yml
+- `2cb9ab52` 2026-05-27 fix: move permissions to workflow top level for pr-contributor-welcome (#144)
+  - .github/workflows/pr-contributor-welcome.yml
+- `81ee67ed` 2026-05-25 Merge pull request #109 from Mininglamp-OSS/fix/issue-template-labels
+  - (no files)
+- `933a028f` 2026-05-25 fix: quote type:\* labels in YAML flow arrays + restore dependencies label
+  - .github/release-drafter.yml
+- `69a322a7` 2026-05-25 fix: align release-drafter labels with type:\* naming convention
+  - .github/release-drafter.yml
+- `c271d50d` 2026-05-25 chore: remove legacy .md issue template (superseded by .yml form)
+  - .github/ISSUE_TEMPLATE/feature_request.md
+- `6a18a22f` 2026-05-25 chore: remove legacy .md issue template (superseded by .yml form)
+  - .github/ISSUE_TEMPLATE/bug_report.md
+- `534d7d7f` 2026-05-25 fix: align issue template labels with repo label scheme
+  - .github/ISSUE_TEMPLATE/feature_request.yml
+- `f9b6fab8` 2026-05-25 fix: align issue template labels with repo label scheme
+  - .github/ISSUE_TEMPLATE/bug_report.yml
+- `860c3335` 2026-05-25 Merge pull request #106 from Mininglamp-OSS/feat/check-sprint
+  - (no files)
+- `3ecbec72` 2026-05-23 feat: add check-sprint-on-merge workflow
+  - .github/workflows/check-sprint.yml
+- `5c17ac9d` 2026-05-22 chore: add @Mininglamp-OSS/web-maintainers to CODEOWNERS (#91)
+  - .github/CODEOWNERS

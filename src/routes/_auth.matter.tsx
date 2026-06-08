@@ -27,6 +27,6 @@ export const Route = createFileRoute("/_auth/matter")({
       mattersListInfiniteQueryOptions(spaceId, { assignee_id: myUid }),
     );
   },
-  staticData: { menu: { sort: 4001, title: "事项", icon: "matter" } },
+  staticData: { menu: { sort: 4001, title: "matter.menu.title", icon: "matter" } },
   component: MatterView,
 });

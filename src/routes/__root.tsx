@@ -2,6 +2,7 @@ import { Outlet, createRootRouteWithContext, ErrorComponent } from "@tanstack/re
 import type { QueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/semi-bridge/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { NotFoundView } from "@/components/ui/not-found";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -15,10 +16,5 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     </TooltipProvider>
   ),
   errorComponent: ErrorComponent,
-  notFoundComponent: () => (
-    <div style={{ padding: 24 }}>
-      <h1>404</h1>
-      <p>页面不存在</p>
-    </div>
-  ),
+  notFoundComponent: NotFoundView,
 });

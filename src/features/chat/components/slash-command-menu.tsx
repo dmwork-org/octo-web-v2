@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useT } from "@/lib/i18n/use-t";
 
 export interface BotCommand {
   command: string;
@@ -42,6 +43,7 @@ export function SlashCommandMenu({
   activeIndex,
   onSelect,
 }: SlashCommandMenuProps) {
+  const t = useT();
   const filtered = useMemo<BotCommand[]>(() => {
     if (!filter) return commands;
     const kw = filter.toLowerCase();
@@ -58,10 +60,12 @@ export function SlashCommandMenu({
   return (
     <div className="absolute bottom-full left-0 z-10 mb-1 max-h-[300px] w-full overflow-y-auto rounded-md border border-border-default bg-bg-surface py-1 shadow-lg">
       <div className="border-b border-border-subtle px-3 py-1.5 text-xs text-text-tertiary">
-        机器人命令
+        {t("slashCommand.botCommands")}
       </div>
       {filtered.length === 0 ? (
-        <div className="px-3 py-3 text-center text-[13px] text-text-tertiary">无匹配的命令</div>
+        <div className="px-3 py-3 text-center text-[13px] text-text-tertiary">
+          {t("slashCommand.noMatches")}
+        </div>
       ) : (
         filtered.map((cmd, idx) => {
           const isActive = idx === activeIndex;

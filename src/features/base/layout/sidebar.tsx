@@ -25,11 +25,13 @@ function isActive(item: MenuItem, path: string): boolean {
  *  - 激活:`text-brand`(无背景)— 老仓"选中态只有颜色变化,无背景,无指示条"
  */
 function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
+  const t = useT();
+  const label = t(item.title);
   return (
     <Link
       to={item.to}
-      title={item.title}
-      aria-label={item.title}
+      title={label}
+      aria-label={label}
       className={`relative flex h-11 w-14 items-center justify-center transition-colors duration-150 ease-(--ease-emphasized) ${
         active
           ? "text-brand"

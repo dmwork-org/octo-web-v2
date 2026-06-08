@@ -24,6 +24,6 @@ export const Route = createFileRoute("/_auth/contacts")({
       context.queryClient.ensureQueryData(myGroupsQueryOptions(spaceId)),
     ]);
   },
-  staticData: { menu: { sort: 4000, title: "通讯录", icon: "contacts" } },
+  staticData: { menu: { sort: 4000, title: "contacts.menu.title", icon: "contacts" } },
   component: ContactsView,
 });

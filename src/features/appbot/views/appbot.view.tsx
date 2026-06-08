@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
+import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -82,13 +83,14 @@ export function AppbotView() {
       setSelectedUid(bot.uid);
       chatSelectedActions.select(channel);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "无法连接到该应用"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("appbot.error.connectFailed")),
   });
 
   if (!spaceId) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-text-tertiary">
-        先在顶部切换到一个 Space,才能加载应用
+        {t("appbot.state.noSpace")}
       </div>
     );
   }
@@ -97,7 +99,7 @@ export function AppbotView() {
     <div className="flex flex-1 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
         <header className="flex h-14 shrink-0 items-center border-b border-border-subtle bg-bg-surface px-5 text-base font-semibold text-text-primary">
-          应用
+          {t("appbot.page.title")}
         </header>
 
         <div className="shrink-0 px-3 pt-3 pb-2">
@@ -106,7 +108,7 @@ export function AppbotView() {
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索应用"
+              placeholder={t("appbot.page.searchPlaceholder")}
               className="flex-1 border-0 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
             />
           </div>
@@ -115,22 +117,22 @@ export function AppbotView() {
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              加载应用…
+              {t("appbot.state.loading")}
             </div>
           ) : error ? (
             <div className="flex flex-1 items-center justify-center text-sm text-error">
-              应用加载失败
+              {t("appbot.state.loadFailed")}
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              {keyword ? "未找到匹配的应用" : "暂无可用应用"}
+              {keyword ? t("appbot.state.noMatches") : t("appbot.state.empty")}
             </div>
           ) : (
             <>
               {platformBots.length > 0 ? (
                 <section className="flex flex-col gap-0.5">
                   <header className="px-3 py-1 text-[11px] font-semibold text-text-tertiary">
-                    平台应用
+                    {t("appbot.section.platform")}
                   </header>
                   {platformBots.map((b) => (
                     <BotRow
@@ -145,7 +147,7 @@ export function AppbotView() {
               {spaceBots.length > 0 ? (
                 <section className="flex flex-col gap-0.5">
                   <header className="px-3 py-1 text-[11px] font-semibold text-text-tertiary">
-                    空间应用
+                    {t("appbot.section.space")}
                   </header>
                   {spaceBots.map((b) => (
                     <BotRow

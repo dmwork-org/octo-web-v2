@@ -4,6 +4,7 @@ import { authActions } from "@/features/base/stores/auth";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { toast } from "@/components/semi-bridge/toast";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
 import {
   isNotificationsOff,
@@ -51,6 +52,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
   const { data: spaces } = useQuery(mySpacesQueryOptions());
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [notiOff, setNotiOff] = useState<boolean>(isNotificationsOff);
+  const { locale, setLocale } = useI18n();
   useCloseOnOutside(open, onClose);
 
   // 任一 space 是 owner(1) 或 admin(2) 才显"空间管理"
@@ -107,6 +109,11 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     }
   };
 
+  const onClickToggleLocale = () => {
+    onClose();
+    setLocale(locale === "zh-CN" ? "en-US" : "zh-CN");
+  };
+
   const onClickLogout = () => {
     onClose();
     authActions.signOut();
@@ -130,6 +137,9 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
             {canManageSpace ? <FlyoutItem onClick={onClickManageSpace}>空间管理</FlyoutItem> : null}
             <FlyoutItem onClick={() => void onToggleDesktopNoti()}>
               {notiOff ? "打开桌面通知" : "关闭桌面通知"}
+            </FlyoutItem>
+            <FlyoutItem onClick={onClickToggleLocale}>
+              {locale === "zh-CN" ? "English" : "切换为中文"}
             </FlyoutItem>
             <FlyoutItem onClick={onClickLogout}>退出登录</FlyoutItem>
           </ul>

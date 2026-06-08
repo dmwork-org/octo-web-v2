@@ -16,7 +16,8 @@
     "structure-lint": "tsx scripts/structure-lint.ts",
     "backlog-events": "tsx scripts/backlog-events.ts",
     "ingest-failure": "tsx scripts/ingest-failure.ts",
-    "harness-health": "tsx scripts/harness-health.ts"
+    "harness-health": "tsx scripts/harness-health.ts",
+    "scan:upstream": "tsx scripts/audit-upstream.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

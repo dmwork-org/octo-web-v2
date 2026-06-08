@@ -1,5 +1,20 @@
 # octo-web — 同步日志
 
+## Upstream Baseline
+
+- upstream: <https://github.com/Mininglamp-OSS/octo-web>
+- baseline SHA: `f32a1360` (2026-05-22 — `feat(matters): UI optimization aligned with Figma (#78)`)
+- last audited: 2026-06-08
+
+> 本仓不是 fork,是用 miaoa-fe-harness 全新搭建后**复刻业务**得来。
+> 上游 `Mininglamp-OSS/octo-web` 是变更源,本字段记录"业务对齐到上游哪个 commit"。
+>
+> 工作流(详见 plan `~/.claude/plans/concurrent-sparking-bengio.md`):
+>
+> 1. `pnpm scan:upstream` → 列 baseline..HEAD 未搬变更(按目录 bucket)
+> 2. 陈超挑要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并
+> 3. 合并后更新本字段 baseline SHA + last audited + 本日志追加 batch 记录
+
 ## 2026-05-22
 
 - from miaoa-fe-harness commit: 8e05d5a (branch: scaffold/harness-skeleton)

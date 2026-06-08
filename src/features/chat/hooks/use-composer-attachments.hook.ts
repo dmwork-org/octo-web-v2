@@ -71,6 +71,30 @@ interface MentionFlags {
   ais: boolean;
 }
 
+/**
+ * Tiptap 块级节点名集合(对齐上游 `006b2411` TIPTAP_BLOCK_TYPES)。
+ * 用于 extractOrderedBlocks 递归遍历时,在块级 sibling 之间插入 "\n"。
+ *
+ * 本仓 composer 关掉了 bulletList/orderedList extension,但 paste 富文本(如 Word/网页)
+ * 时 Tiptap default schema 仍可能产出 orderedList → listItem → paragraph → text
+ * 嵌套结构。旧版 extractOrderedBlocks 平铺遍历对 listItem 调 inlineToText 返回 ""
+ * 导致列表内容静默丢失。递归遍历可下探任意深度容器。
+ */
+const TIPTAP_BLOCK_TYPES = new Set([
+  "paragraph",
+  "heading",
+  "blockquote",
+  "codeBlock",
+  "orderedList",
+  "bulletList",
+  "listItem",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
+  "horizontalRule",
+]);
+
 function inlineToText(node: TipTapNode, uids: string[], flags: MentionFlags): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "mention") {
@@ -200,22 +224,40 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
       pendingFlags = { all: false, humans: false, ais: false };
     };
 
-    for (let i = 0; i < json.content.length; i++) {
-      const topNode = json.content[i] as TipTapNode;
-      if (pendingText) pendingText += "\n";
-      const children = topNode.content ?? [];
-      for (const child of children) {
-        if (child.type === "attachment" && child.attrs) {
-          const attrs = child.attrs as unknown as AttachmentAttributes;
-          const file = filesRef.current.get(attrs.id);
-          if (!file) continue;
-          flushText();
-          const isImage = isImageMime(file.type, file.name);
-          blocks.push({ type: isImage ? "image" : "file", file });
-        } else {
-          pendingText += inlineToText(child, pendingUids, pendingFlags);
+    /**
+     * 递归遍历节点(对齐上游 `006b2411` processNode):
+     * - attachment 是终止节点,flush 当前文本再 push 独立块
+     * - inline 节点(text/mention/hardBreak)累积到 pendingText
+     * - 容器节点(orderedList/listItem/paragraph 等)递归下探,sibling 间加 "\n"
+     */
+    const processNode = (node: TipTapNode): void => {
+      if (node.type === "attachment" && node.attrs) {
+        const attrs = node.attrs as unknown as AttachmentAttributes;
+        const file = filesRef.current.get(attrs.id);
+        if (!file) return;
+        flushText();
+        const isImage = isImageMime(file.type, file.name);
+        blocks.push({ type: isImage ? "image" : "file", file });
+        return;
+      }
+      if (node.type === "text" || node.type === "mention" || node.type === "hardBreak") {
+        pendingText += inlineToText(node, pendingUids, pendingFlags);
+        return;
+      }
+      if (node.content) {
+        for (let i = 0; i < node.content.length; i++) {
+          const child = node.content[i];
+          if (i > 0 && TIPTAP_BLOCK_TYPES.has(child.type)) {
+            pendingText += "\n";
+          }
+          processNode(child);
         }
       }
+    };
+
+    for (let i = 0; i < json.content.length; i++) {
+      if (i > 0) pendingText += "\n";
+      processNode(json.content[i] as TipTapNode);
     }
     flushText();
     return blocks;

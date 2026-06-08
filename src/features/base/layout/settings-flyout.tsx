@@ -4,7 +4,6 @@ import { authActions } from "@/features/base/stores/auth";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { toast } from "@/components/semi-bridge/toast";
-import { useI18n } from "@/lib/i18n/use-i18n";
 import { useT } from "@/lib/i18n/use-t";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
 import {
@@ -46,6 +45,8 @@ function useCloseOnOutside(open: boolean, onClose: () => void) {
  *      接受 / 已 granted → 写 localStorage flag → `useDesktopNotifications` hook 即时生效
  *   6. 退出登录(始终)— `authActions.signOut()`(内部已整页跳 /login)
  *
+ * 语言切换不在这里 — 已挪到 NavRail 底部齿轮上方独立按钮(LanguageToggle)。
+ *
  * **形态**:fixed flyout(`left: 56px; bottom: 32px; width: 180px`)+ mask 拦截外部点击。
  */
 export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
@@ -54,7 +55,6 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
   const { data: spaces } = useQuery(mySpacesQueryOptions());
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [notiOff, setNotiOff] = useState<boolean>(isNotificationsOff);
-  const { locale, setLocale } = useI18n();
   useCloseOnOutside(open, onClose);
 
   // 任一 space 是 owner(1) 或 admin(2) 才显"空间管理"
@@ -111,11 +111,6 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     }
   };
 
-  const onClickToggleLocale = () => {
-    onClose();
-    setLocale(locale === "zh-CN" ? "en-US" : "zh-CN");
-  };
-
   const onClickLogout = () => {
     onClose();
     authActions.signOut();
@@ -143,11 +138,6 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
             ) : null}
             <FlyoutItem onClick={() => void onToggleDesktopNoti()}>
               {notiOff ? t("base.settings.openDesktopNoti") : t("base.settings.closeDesktopNoti")}
-            </FlyoutItem>
-            <FlyoutItem onClick={onClickToggleLocale}>
-              {locale === "zh-CN"
-                ? t("base.settings.switchToEnglish")
-                : t("base.settings.switchToChinese")}
             </FlyoutItem>
             <FlyoutItem onClick={onClickLogout}>{t("base.settings.logout")}</FlyoutItem>
           </ul>

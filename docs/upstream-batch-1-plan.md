@@ -246,11 +246,23 @@
 
 ## 流程
 
-1. **每个 batch 完成**:
-   - MR 描述清单 + 手测过的项
-   - 合并后改 `docs/sync-log.md` 头部 `baseline SHA + last audited`
-   - 本文件对应 batch 行 `[ ]` → `[x]` + 在 sync-log 下追加"Batch X.Y 搬了哪些"
-2. **新一轮 batch 1.X**:
-   - 上一 batch 合并后,跑 `pnpm scan:upstream --out docs/upstream-audit.md`,提 audit.md 更新 commit
-   - 选下个 batch
-3. **本文件随每次 batch 推进**:勾选 / 补充新发现的 commit / 调整优先级
+**关键约定:每个 batch 合并后只更新 plan checkbox,不重新跑 audit / 不拉远程。**
+
+理由(陈超 2026-06-08):上游频繁更新,每个 batch 完都 fetch + 调整 plan 太费劲。本 plan 锁定的 109 commits 视为"已审视过",依据是出 plan 时的 audit snapshot
+(`docs/upstream-audit.md` 文件本身就是那次 snapshot)。Backlog / 跳过的 commits 在本 checkbox 里 tracked,**不依赖 audit md 自动跟踪**。
+
+**只有陈超显式说"拉远程更新"时才做**:
+
+- `pnpm scan:upstream --out docs/upstream-audit.md` 覆盖 snapshot
+- 推进 sync-log.md 头部 `baseline SHA` 到当时 upstream HEAD
+- 出 batch 2 plan(新清单 = 上游新增的 + batch 1 未完成的 P2 backlog)
+
+### Batch 内部流程
+
+1. 选定 batch 编号(如 1.1)→ 基于 origin/main 新建分支(如 `feat/upstream-i18n`)
+2. 按清单逐 commit 实现 + `pnpm vp check` 0 errors
+3. push + 创 MR,MR 描述带本 batch checkbox 进度
+4. 合并后**只动两个文件**:
+   - 本文件对应 batch 行 `[ ]` → `[x]`
+   - `docs/sync-log.md` 追加一段"Batch X.Y 搬了 N 个 SHA,新仓 commits = ..."
+5. **不动** `docs/upstream-audit.md`(snapshot 锁定),**不动** sync-log 头部 `baseline SHA`(等显式"拉远程更新"才动)

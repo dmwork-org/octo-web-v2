@@ -451,6 +451,7 @@
   "composer.sendFileAria": "发送文件",
   "composer.sendFileTooltip": "发送文件 / 图片",
   "composer.slashAria": "斜杠命令",
+  "composer.toast.folderUnsupported": "暂不支持上传文件夹，请选择具体文件",
   "composer.toast.noVoiceDetected": "未检测到语音",
   "composer.toast.recordFailed": "录音失败",
   "composer.toast.sendFailed": "发送失败",

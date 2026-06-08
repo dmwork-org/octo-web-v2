@@ -546,9 +546,25 @@ export function Composer({ channel }: ComposerProps) {
   };
 
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
+    const items = Array.from(e.dataTransfer?.items ?? []);
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return;
     e.preventDefault();
+    // 对齐上游 bbac229d:浏览器拖文件夹时 dataTransfer.files 会塞 type=""/size=0
+    // 的伪 File,旧路径直接当附件上传会出"幽灵消息"(UI 显已发送但 server 没存)。
+    // 主路径用 webkitGetAsEntry().isDirectory 检测,兜底用 type==""/size===0。
+    const hasDirectory = items.length
+      ? items.some((it) => {
+          const entry = (
+            it as DataTransferItem & { webkitGetAsEntry?: () => FileSystemEntry | null }
+          ).webkitGetAsEntry?.();
+          return entry ? entry.isDirectory : false;
+        })
+      : files.some((f) => f.type === "" && f.size === 0);
+    if (hasDirectory) {
+      toast.error(t("composer.toast.folderUnsupported"));
+      return;
+    }
     void attachments.addAttachments(files, "upload", editor);
   };
 

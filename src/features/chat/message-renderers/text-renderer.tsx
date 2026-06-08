@@ -14,6 +14,9 @@ import {
   getSingleCustomEmoji,
 } from "@/features/base/emoji/emoji-data";
 
+/** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
+type MentionWithFlags = Mention & { humans?: number; ais?: number };
+
 interface TextRendererProps {
   message: Message;
 }
@@ -136,7 +139,11 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
  *   2. 候选 name token:为每个 uid 收集所有候选 name,作为额外保险
  *      (text 里 mention 后紧接特殊字符,正则边界没覆盖的 case 仍能匹配)
  *
- * - mention.all=true 时额外加 "@所有人" / "@all" token
+ * - mention.all=true 时额外加 "@所有人" / "@all" token(legacy)
+ * - mention.humans=1 时加 "@所有人" broadcast token(新三态,上游 76189c1d)
+ * - mention.ais=1 时加 "@所有AI" broadcast token,且 uids 视为 routing
+ *   bot uid(不参与 text 主路径/兜底匹配,避免误绑到裸写 @xxx;上游 90556da2
+ *   fail-closed guard)
  * - 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段
  */
 function mentionTokens(
@@ -144,7 +151,11 @@ function mentionTokens(
   mention: Mention | undefined,
   channel: Channel,
 ): MarkdownToken[] {
-  if (!mention || (!mention.uids?.length && !mention.all)) return [];
+  if (!mention) return [];
+  const flags = mention as MentionWithFlags;
+  if (!mention.uids?.length && !mention.all && !flags.humans && !flags.ais) {
+    return [];
+  }
   const tokens: MarkdownToken[] = [];
   if (mention.all) {
     for (const txt of ["@所有人", "@all"] as const) {
@@ -157,6 +168,32 @@ function mentionTokens(
         ),
       });
     }
+  }
+  if (flags.humans) {
+    tokens.push({
+      match: "@所有人",
+      render: (key) => (
+        <MentionTag key={key} isAll>
+          @所有人
+        </MentionTag>
+      ),
+    });
+  }
+  if (flags.ais) {
+    tokens.push({
+      match: "@所有AI",
+      render: (key) => (
+        <MentionTag key={key} isAll>
+          @所有AI
+        </MentionTag>
+      ),
+    });
+  }
+  // mention.ais=1 时 uids 是 routing bot uid(client 端 expand 进去给 legacy
+  // adapter bot 收到的,不是用户面 mention),不能绑给文本里的 @xxx —— 否则会
+  // 把 routing uid 绑给 @所有AI 之外的 @ops 等裸 @text。fail-closed guard。
+  if (flags.ais) {
+    return tokens;
   }
   // 主路径:正则提取
   for (const { match, uid } of extractAtSpansFromText(text, mention.uids ?? [])) {

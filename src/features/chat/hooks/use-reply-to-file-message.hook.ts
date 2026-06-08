@@ -83,7 +83,9 @@ export function useReplyToFileMessage(file: FilePreviewInfo): (() => void) | nul
       chatReplyActions.set(channel, fake);
     }
 
-    if (file.fromUID && file.fromUID !== myUid) {
+    if (file.fromUID && file.fromUID !== myUid && channelType !== ChannelTypePerson) {
+      // 私聊里 reply 不需要 @对方(只有两人,默认就是对方,@只是噪音)
+      // 对齐上游 ff46fa58:addReplyMention 在 ChannelTypePerson 时直接返回
       const name = getFromName(file.fromUID);
       chatMentionRequestActions.request(channel, { uid: file.fromUID, label: name });
     }

@@ -241,7 +241,10 @@ export function Composer({ channel }: ComposerProps) {
               suggestion: createMentionSuggestion((query) => {
                 const kw = query.toLowerCase();
                 const list = candidatesRef.current;
-                if (!kw) return [...STICKY_MENTIONS, ...list.slice(0, 8)];
+                // 私聊不显 sticky 广播项(对齐上游 ff46fa58:私聊里 @所有人/@所有AI 无意义)
+                const stickyForChannel =
+                  channel.channelType === ChannelTypePerson ? [] : STICKY_MENTIONS;
+                if (!kw) return [...stickyForChannel, ...list.slice(0, 8)];
                 return list
                   .filter(
                     (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),

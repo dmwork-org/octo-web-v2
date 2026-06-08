@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import { t } from "@/lib/i18n/instance";
+import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -34,6 +34,7 @@ import type { AppBotInfo } from "@/features/appbot/types/app-bot.types";
  * spaceId 维度也会自动 invalidate(main.tsx clear)。
  */
 export function AppbotView() {
+  const t = useT();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [keyword, setKeyword] = useState("");
   const [selectedUid, setSelectedUid] = useState<string | null>(null);

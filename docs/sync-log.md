@@ -45,7 +45,8 @@ PreToolUse hook 真触发验证通过:
 
 ## 2026-06-08 — Batch 1.1 i18n 基础设施
 
-- MR: <https://codex.mlamp.cn/0003639/octo-web-2/-/merge_requests/29>(已合并)
+- MR: 旧 `0003639/octo-web-2!29` review/合并(迁仓后 path 失效);现仓 `frontend/octo-web-2` main 已含对应 commits
+- 迁仓:`git@codex.mlamp.cn:0003639/octo-web-2.git` → `git@codex.mlamp.cn:frontend/octo-web-2.git`(2026-06-08 后)
 - 搬了 2 个上游 SHA:
   - `b79eab8d` 整套 i18n runtime + locale(本仓 src/lib/i18n/,9 文件 + 2 locale JSON)
   - `fe5bbc5d` backend language contract — 只搬 Accept-Language interceptor 部分

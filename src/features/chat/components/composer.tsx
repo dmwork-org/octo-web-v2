@@ -356,9 +356,21 @@ export function Composer({ channel }: ComposerProps) {
           if (hasMention) {
             const m = new ImMention() as ImMention & { humans?: number; ais?: number };
             if (b.all) m.all = true;
-            if (b.uids.length > 0) m.uids = b.uids;
+            const uids = [...b.uids];
             if (b.humans) m.humans = 1;
-            if (b.ais) m.ais = 1;
+            if (b.ais) {
+              m.ais = 1;
+              // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
+              // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
+              // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
+              // (octo-server PR#145)对客户端发送的消息无效。
+              const botUids = candidatesRef.current
+                .filter((m) => m.isBot)
+                .map((m) => m.id)
+                .filter((uid) => !uids.includes(uid));
+              if (botUids.length > 0) uids.push(...botUids);
+            }
+            if (uids.length > 0) m.uids = uids;
             content.mention = m;
           }
           attachReplyOnce(content);

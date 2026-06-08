@@ -145,8 +145,10 @@ function summarizeFiles(files: string[]): string {
 }
 
 function build(commits: Commit[], baseline: string, head: string): string {
+  const generated = new Date().toISOString().slice(0, 10);
   let md = `# 上游变更扫描
 
+- generated: ${generated}
 - upstream: \`${UPSTREAM_URL}\`
 - baseline: \`${baseline}\`
 - HEAD: \`${head}\`

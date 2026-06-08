@@ -1,6 +1,8 @@
 import {
+  MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
-  MENTION_UID_LEGACY_ALL,
+  MENTION_UID_AIS,
+  MENTION_UID_HUMANS,
 } from "@/features/base/lib/mention-three-state";
 
 export interface VoiceMentionMember {
@@ -22,11 +24,15 @@ function escapeRegExp(s: string): string {
  *
  * 边界:右侧必须紧跟空格 / 中英文标点 / 行末,避免 "@张三北京" 误识别成 "@张三"。
  *
- * @所有人 / @all / @everyone 都映射到 legacy all(mention.all=1,server 端 rewrite 成
- * humans=1)— 与旧仓 parseMentionMarkers 同口径。
+ * 三态(对齐上游 2e89e772):
+ *   @所有人 / @all / @everyone → HUMANS(mention.humans=1,纯人不含 AI)
+ *   @所有AI / @All AIs        → AIS(mention.ais=1,全部 bot)
+ *
+ * 老 LEGACY_ALL(-1)不再由语音转写产生 — 它是早期"all" 语义,server 端会 rewrite 成
+ * humans=1;新 HUMANS/AIS 拆分后语音侧直接发对应三态,避免歧义。
  */
 export function buildVoiceMentionRegex(members: VoiceMentionMember[]): RegExp {
-  const specialNames = ["所有人", "all", "everyone"];
+  const specialNames = ["所有人", "all", "everyone", "所有AI", "All AIs"];
   const allNames = [...specialNames, ...members.map((m) => m.name)];
   const unique = [...new Set(allNames)];
   unique.sort((a, b) => b.length - a.length);
@@ -37,12 +43,14 @@ export function buildVoiceMentionRegex(members: VoiceMentionMember[]): RegExp {
 /**
  * 解析语音转写文本里的 @mention 标记,转成 TipTap content 节点数组。
  *
- * 1:1 对齐旧 dmworkbase MessageInput parseMentionMarkers:
- *   - 匹配 `@{member.name}` / `@所有人` / `@all` / `@everyone`
+ * 1:1 对齐上游 `2e89e772` parseMentionMarkers(拆 humans/ais 三态版):
+ *   - `@{member.name}` → 普通 mention(uid=member.uid)
+ *   - `@所有人 / @all / @everyone` → HUMANS mention(uid=-2)
+ *   - `@所有AI / @All AIs` → AIS mention(uid=-3)
  *   - 匹配项后吞掉一个空白(避免插入 mention 后多个空格)
  *   - 不匹配的 @ 保留原文(不转 mention)
  *
- * 如果 members 为空或文本不含 "@",直接返回单个 text 节点(兼容 inserContent)。
+ * 如果 members 为空或文本不含 "@",直接返回单个 text 节点(兼容 insertContent)。
  */
 export function parseVoiceMentions(text: string, members: VoiceMentionMember[]): ParsedNode[] {
   if (!text) return [];
@@ -63,16 +71,21 @@ export function parseVoiceMentions(text: string, members: VoiceMentionMember[]):
       result.push({ type: "text", text: text.slice(lastIndex, matchStart) });
     }
 
-    const isAll =
-      name === MENTION_LABEL_HUMANS ||
-      name.toLowerCase() === "all" ||
-      name.toLowerCase() === "everyone";
-    const member = members.find((m) => m.name.toLowerCase() === name.toLowerCase());
+    const lower = name.toLowerCase();
+    const isHumans = name === MENTION_LABEL_HUMANS || lower === "all" || lower === "everyone";
+    const isAis = name === MENTION_LABEL_AIS || lower === "all ais";
+    const member = members.find((m) => m.name.toLowerCase() === lower);
 
-    if (isAll) {
+    if (isHumans) {
       result.push({
         type: "mention",
-        attrs: { id: MENTION_UID_LEGACY_ALL, label: MENTION_LABEL_HUMANS },
+        attrs: { id: MENTION_UID_HUMANS, label: MENTION_LABEL_HUMANS },
+      });
+      result.push({ type: "text", text: " " });
+    } else if (isAis) {
+      result.push({
+        type: "mention",
+        attrs: { id: MENTION_UID_AIS, label: MENTION_LABEL_AIS },
       });
       result.push({ type: "text", text: " " });
     } else if (member) {
@@ -86,7 +99,7 @@ export function parseVoiceMentions(text: string, members: VoiceMentionMember[]):
     }
 
     lastIndex = match.index + match[0].length;
-    if ((isAll || member) && lastIndex < text.length && /\s/.test(text[lastIndex])) {
+    if ((isHumans || isAis || member) && lastIndex < text.length && /\s/.test(text[lastIndex])) {
       lastIndex++;
     }
   }

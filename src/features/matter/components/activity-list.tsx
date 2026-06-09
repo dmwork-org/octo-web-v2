@@ -1,18 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import {
-  AlignLeft,
-  CalendarClock,
-  CirclePlus,
-  Link2,
-  PencilLine,
-  RefreshCw,
-  Type,
-  Unlink,
-  UserMinus,
-  UserPlus,
-} from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
@@ -23,19 +11,7 @@ interface ActivityListProps {
   matterId: string;
 }
 
-type ActivityFilter = "all" | MatterAction;
-
-const ACTIONS: MatterAction[] = [
-  "created",
-  "title_changed",
-  "description_changed",
-  "status_changed",
-  "deadline_changed",
-  "assignee_added",
-  "assignee_removed",
-  "channel_linked",
-  "channel_unlinked",
-];
+type FilterId = "all" | "channel_changed" | MatterAction;
 
 /** action label key 映射(对齐后端 model.MatterActivity.action)。 */
 const ACTION_LABEL_KEYS: Record<MatterAction, string> = {
@@ -50,24 +26,36 @@ const ACTION_LABEL_KEYS: Record<MatterAction, string> = {
   channel_unlinked: "matter.activityAction.channelUnlinked",
 };
 
+const FILTER_OPTIONS: { id: FilterId; labelKey: string }[] = [
+  { id: "all", labelKey: "matter.activity.filter.all" },
+  { id: "created", labelKey: "matter.activityAction.created" },
+  { id: "description_changed", labelKey: "matter.activityAction.descriptionChanged" },
+  { id: "deadline_changed", labelKey: "matter.activityAction.deadlineChanged" },
+  { id: "status_changed", labelKey: "matter.activityAction.statusChanged" },
+  { id: "channel_changed", labelKey: "matter.activityAction.channelChanged" },
+];
+
+function applyFilter(activities: ActivityEntry[], filter: FilterId): ActivityEntry[] {
+  if (filter === "all") return activities;
+  if (filter === "channel_changed") {
+    return activities.filter(
+      (a) => a.action === "channel_linked" || a.action === "channel_unlinked",
+    );
+  }
+  return activities.filter((a) => a.action === filter);
+}
+
+/** 时间格式化: 月/日 时:分(对齐原始 i18n.format.dateTime)。 */
 function formatActivityTime(iso: string): string {
   const d = new Date(iso);
+  const mm = String(d.getMonth() + 1);
+  const dd = String(d.getDate());
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mi}`;
+  return `${mm}/${dd} ${hh}:${mi}`;
 }
 
-function dayLabel(iso: string, t: (key: string) => string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = Math.round((today.getTime() - target.getTime()) / 86400000);
-  if (diff === 0) return t("matter.day.today");
-  if (diff === 1) return t("matter.day.yesterday");
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
+/** IntersectionObserver 无限滚动 sentinel hook。 */
 function useFetchNextOnInView(
   ref: React.RefObject<HTMLDivElement | null>,
   enabled: boolean,
@@ -85,112 +73,219 @@ function useFetchNextOnInView(
   }, [ref, enabled, fetchNextPage]);
 }
 
-function actionIcon(action: MatterAction) {
-  const className = "h-3.5 w-3.5";
-  if (action === "created") return <CirclePlus className={className} />;
-  if (action === "title_changed") return <Type className={className} />;
-  if (action === "description_changed") return <AlignLeft className={className} />;
-  if (action === "deadline_changed") return <CalendarClock className={className} />;
-  if (action === "status_changed") return <RefreshCw className={className} />;
-  if (action === "assignee_added") return <UserPlus className={className} />;
-  if (action === "assignee_removed") return <UserMinus className={className} />;
-  if (action === "channel_linked") return <Link2 className={className} />;
-  if (action === "channel_unlinked") return <Unlink className={className} />;
-  return <PencilLine className={className} />;
+/** click-outside 关闭 dropdown hook。 */
+function useClickOutside(
+  ref: React.RefObject<HTMLSpanElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open, ref, onClose]);
 }
 
-function actionTone(action: MatterAction): string {
-  if (action === "created") return "bg-online/10 text-online";
-  if (action === "status_changed") return "bg-brand-tint text-brand";
-  if (action === "channel_linked" || action === "channel_unlinked") {
-    return "bg-purple-50 text-purple-700";
-  }
-  if (action === "assignee_added" || action === "assignee_removed") {
-    return "bg-blue-50 text-blue-700";
-  }
-  return "bg-bg-elevated text-text-tertiary";
-}
+// ─── Activity 行内 SVG 图标 ──
 
-function readText(detail: Record<string, unknown>, key: string): string | null {
-  const value = detail[key];
-  if (typeof value === "string" && value.trim()) return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return null;
-}
-
-function DetailValue({ value }: { value: string | null }) {
+function PlusIcon() {
   return (
-    <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-[11px] text-text-secondary">
-      {value ?? "—"}
-    </span>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0 text-[#22c55e]"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8 14.667A6.667 6.667 0 108 1.333a6.667 6.667 0 000 13.334zm.667-9.334a.667.667 0 10-1.334 0v2H5.333a.667.667 0 100 1.334h2v2a.667.667 0 101.334 0v-2h2a.667.667 0 100-1.334h-2v-2z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
 
-function ActivityDetail({ activity }: { activity: ActivityEntry }) {
+function MinusIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0 text-[#ef4444]"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8 14.667A6.667 6.667 0 108 1.333a6.667 6.667 0 000 13.334zM5.333 7.333a.667.667 0 100 1.334h5.334a.667.667 0 100-1.334H5.333z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0 text-text-tertiary"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h10M9 4l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.33"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ─── ActivityContent: diff 渲染(对齐原始) ──
+
+function ActivityContent({ activity }: { activity: ActivityEntry }) {
+  const t = useT();
   const detail = activity.detail ?? {};
-  const summary = readText(detail, "summary");
-  const from = readText(detail, "from");
-  const to = readText(detail, "to");
-  const uid = readText(detail, "uid") ?? readText(detail, "user_id");
-  const channelName = readText(detail, "channel_name") ?? readText(detail, "channel_id");
 
-  if (summary) return <span className="text-text-secondary">{summary}</span>;
-  if (from || to) {
-    return (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <DetailValue value={from} />
-        <span className="text-text-tertiary">→</span>
-        <DetailValue value={to} />
-      </span>
-    );
+  switch (activity.action) {
+    case "created":
+      return <span>{(detail.summary as string) || t("matter.activity.createdMatter")}</span>;
+
+    case "title_changed":
+      return (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-text-tertiary line-through">{(detail.from as string) || ""}</span>
+          <ArrowIcon />
+          <span className="text-text-primary font-medium">{(detail.to as string) || ""}</span>
+        </span>
+      );
+
+    case "description_changed": {
+      const added = (detail.added as string[]) || [];
+      const removed = (detail.removed as string[]) || [];
+      if (added.length === 0 && removed.length === 0) {
+        return <span>{(detail.summary as string) || t("matter.activity.updatedDescription")}</span>;
+      }
+      return (
+        <div className="flex flex-col gap-0.5">
+          {added.map((line, i) => (
+            <div key={`add-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
+              <PlusIcon />
+              <span className="text-text-primary font-medium">"{line}"</span>
+            </div>
+          ))}
+          {removed.map((line, i) => (
+            <div key={`rm-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
+              <MinusIcon />
+              <span className="text-text-tertiary line-through">"{line}"</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "deadline_changed": {
+      const from = detail.from
+        ? formatActivityTime(new Date((detail.from as number) * 1000).toISOString())
+        : t("matter.common.none");
+      const to = detail.to
+        ? formatActivityTime(new Date((detail.to as number) * 1000).toISOString())
+        : t("matter.common.none");
+      return (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-text-tertiary line-through">{from}</span>
+          <ArrowIcon />
+          <span className="text-text-primary font-medium">{to}</span>
+        </span>
+      );
+    }
+
+    case "status_changed":
+      return (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-text-tertiary line-through">{(detail.from as string) || ""}</span>
+          <ArrowIcon />
+          <span className="text-text-primary font-medium">{(detail.to as string) || ""}</span>
+        </span>
+      );
+
+    case "assignee_added":
+      return (
+        <span>
+          <UserName uid={(detail.user_id as string) || ""} />
+        </span>
+      );
+
+    case "assignee_removed":
+      return (
+        <span>
+          <UserName uid={(detail.user_id as string) || ""} />
+        </span>
+      );
+
+    case "channel_linked":
+      return <span>#{(detail.channel_name as string) || (detail.channel_id as string) || ""}</span>;
+
+    case "channel_unlinked":
+      return <span>#{(detail.channel_id as string) || ""}</span>;
+
+    default:
+      return <span>{activity.action}</span>;
   }
-  if (uid) return <UserName uid={uid} className="text-text-secondary" />;
-  if (channelName) return <span className="text-text-secondary">#{channelName}</span>;
-  return null;
 }
 
-interface ActivityGroup {
-  key: string;
-  label: string;
-  items: ActivityEntry[];
-}
-
-function groupActivities(entries: ActivityEntry[], t: (key: string) => string): ActivityGroup[] {
-  const groups = new Map<string, ActivityGroup>();
-  for (const entry of entries) {
-    const d = new Date(entry.created_at);
-    const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-    const current = groups.get(key) ?? { key, label: dayLabel(entry.created_at, t), items: [] };
-    current.items.push(entry);
-    groups.set(key, current);
-  }
-  return Array.from(groups.values());
-}
+// ─── 主组件 ──
 
 /**
  * 变更记录 / Activity 列表。
  *
- * 增强点：类型过滤、日期分组、按 action 的图标/色彩、from/to diff chip。
+ * 对齐原始 octo-web ActivityPanel:
+ * - 5 列表格(时间 / 类型 / 内容 / 操作人 / 来源)
+ * - dropdown 筛选(全部 / 创建 / 描述变更 / DDL 变更 / 状态变更 / 群聊变更)
+ * - 时间排序按钮
+ * - diff 渲染(旧值删除线 → 新值、描述 +/- 行)
+ * - 操作人列:头像 20×20 + UserName
+ * - 无限滚动(保留)
  */
 export function ActivityList({ matterId }: ActivityListProps) {
   const t = useT();
-  const [filter, setFilter] = useState<ActivityFilter>("all");
+  const [filter, setFilter] = useState<FilterId>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortNewest, setSortNewest] = useState(true);
+  const filterRef = useRef<HTMLSpanElement>(null);
+
   const query = useInfiniteQuery(activitiesInfiniteQueryOptions(matterId));
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
 
   const all = useMemo<ActivityEntry[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
-  const filtered = useMemo(
-    () => (filter === "all" ? all : all.filter((a) => a.action === filter)),
-    [all, filter],
+  const filtered = useMemo(() => applyFilter(all, filter), [all, filter]);
+  const sorted = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const ta = new Date(a.created_at).getTime();
+        const tb = new Date(b.created_at).getTime();
+        return sortNewest ? tb - ta : ta - tb;
+      }),
+    [filtered, sortNewest],
   );
-  const grouped = useMemo(() => groupActivities(filtered, t), [filtered, t]);
-  const counts = useMemo(() => {
-    const next = new Map<ActivityFilter, number>();
-    next.set("all", all.length);
-    for (const action of ACTIONS) next.set(action, 0);
-    for (const item of all) next.set(item.action, (next.get(item.action) ?? 0) + 1);
-    return next;
-  }, [all]);
+
+  // click-outside 关闭 dropdown
+  useClickOutside(filterRef, filterOpen, () => setFilterOpen(false));
+
+  const currentFilter = FILTER_OPTIONS.find((o) => o.id === filter) || FILTER_OPTIONS[0];
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
@@ -206,66 +301,147 @@ export function ActivityList({ matterId }: ActivityListProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <FilterButton
-          active={filter === "all"}
-          label={t("matter.activity.filter.all")}
-          count={counts.get("all") ?? 0}
-          onClick={() => setFilter("all")}
-        />
-        {ACTIONS.filter((action) => (counts.get(action) ?? 0) > 0).map((action) => (
-          <FilterButton
-            key={action}
-            active={filter === action}
-            label={t(ACTION_LABEL_KEYS[action])}
-            count={counts.get(action) ?? 0}
-            onClick={() => setFilter(action)}
-          />
-        ))}
+    <div className="flex flex-col gap-4">
+      {/* Toolbar: 类型筛选 + 时间排序 */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="relative inline-flex" ref={filterRef}>
+          <button
+            type="button"
+            className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium leading-5 text-text-primary transition-opacity hover:opacity-80"
+            onClick={() => setFilterOpen((o) => !o)}
+          >
+            <span>
+              {t("matter.activity.filter.label", { values: { type: t(currentFilter.labelKey) } })}
+            </span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M4.29 6.27L8 9.71l3.71-3.42"
+                stroke="currentColor"
+                strokeOpacity="0.4"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          {filterOpen && (
+            <div className="absolute top-[calc(100%+4px)] left-0 z-20 w-46 rounded-sm border border-border-subtle bg-bg-surface py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+              {FILTER_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  className={`flex w-full cursor-pointer items-center gap-2 px-2 text-left text-sm leading-5 transition-colors h-8 ${
+                    o.id === filter
+                      ? "font-semibold text-text-primary"
+                      : "font-normal text-text-primary hover:bg-bg-item-hover"
+                  }`}
+                  onClick={() => {
+                    setFilter(o.id);
+                    setFilterOpen(false);
+                  }}
+                >
+                  <span className="inline-flex h-5 w-3 items-center justify-center shrink-0 text-icon-default">
+                    {o.id === filter && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path
+                          d="M2 6l3 3 5-5"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  {t(o.labelKey)}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+
+        <button
+          type="button"
+          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium leading-5 text-text-primary transition-opacity hover:opacity-80"
+          onClick={() => setSortNewest((v) => !v)}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M7.33333 10.667L4.66667 13.3337L2 10.667M4.66667 13.3337V2.66699"
+              stroke="currentColor"
+              strokeOpacity={sortNewest ? 1 : 0.4}
+              strokeWidth="1.33"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M8.66602 5.33366L11.3327 2.66699L13.9993 5.33366M11.3327 2.66699V13.3337"
+              stroke="currentColor"
+              strokeOpacity={sortNewest ? 0.4 : 1}
+              strokeWidth="1.33"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {t("matter.action.timeSort")}
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="px-1 py-2 text-xs text-text-tertiary">{t("matter.activity.filterEmpty")}</p>
+      {sorted.length === 0 ? (
+        <p className="py-2 text-center text-xs text-text-tertiary">
+          {t("matter.activity.filterEmpty")}
+        </p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {grouped.map((group) => (
-            <section key={group.key} className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
-                <span className="font-medium text-text-secondary">{group.label}</span>
-                <span className="h-px flex-1 bg-border-subtle" />
-              </div>
-              <ul className="flex flex-col gap-1">
-                {group.items.map((a) => (
-                  <li
-                    key={a.id}
-                    className="group flex items-start gap-2 rounded-md px-2 py-2 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-                  >
-                    <ChannelAvatar
-                      channel={new Channel(a.actor_id, ChannelTypePerson)}
-                      size={22}
-                      title={a.actor_id}
-                    />
-                    <span
-                      className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${actionTone(a.action)}`}
-                    >
-                      {actionIcon(a.action)}
+        <div className="w-full overflow-x-auto">
+          <table className="w-full border-collapse table-fixed">
+            <thead>
+              <tr>
+                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
+                  {t("matter.activity.table.time")}
+                </th>
+                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
+                  {t("matter.activity.table.type")}
+                </th>
+                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle">
+                  {t("matter.activity.table.content")}
+                </th>
+                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-36">
+                  {t("matter.activity.table.actor")}
+                </th>
+                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-40">
+                  {t("matter.activity.table.source")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((a) => (
+                <tr key={a.id} className="bg-bg-surface">
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle font-mono tabular-nums">
+                    {formatActivityTime(a.created_at)}
+                  </td>
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
+                    {t(ACTION_LABEL_KEYS[a.action])}
+                  </td>
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
+                    <ActivityContent activity={a} />
+                  </td>
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
+                    <span className="inline-flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap max-w-full text-sm text-text-primary">
+                      <ChannelAvatar
+                        channel={new Channel(a.actor_id, ChannelTypePerson)}
+                        size={20}
+                        title={a.actor_id}
+                      />
+                      <UserName uid={a.actor_id} />
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-                        <UserName uid={a.actor_id} className="font-medium text-text-primary" />
-                        <span className="text-text-tertiary">{t(ACTION_LABEL_KEYS[a.action])}</span>
-                        <ActivityDetail activity={a} />
-                      </div>
-                    </div>
-                    <span className="shrink-0 pt-0.5 text-[11px] text-text-tertiary tabular-nums">
-                      {formatActivityTime(a.created_at)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+                  </td>
+                  <td className="p-3 align-top border-b border-border-subtle">
+                    <span className="text-icon-muted text-sm">-</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -276,29 +452,5 @@ export function ActivityList({ matterId }: ActivityListProps) {
         </p>
       ) : null}
     </div>
-  );
-}
-
-interface FilterButtonProps {
-  active: boolean;
-  label: string;
-  count: number;
-  onClick: () => void;
-}
-
-function FilterButton({ active, label, count, onClick }: FilterButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] transition-colors ${
-        active
-          ? "bg-text-primary text-white"
-          : "bg-bg-elevated text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
-      }`}
-    >
-      <span>{label}</span>
-      <span className={active ? "text-white/80" : "text-text-tertiary"}>{count}</span>
-    </button>
   );
 }

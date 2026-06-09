@@ -1293,6 +1293,7 @@
   "matter.activity.empty": "暂无变更记录",
   "matter.activity.filter.all": "全部",
   "matter.activity.filter.label": "类型：{{type}}",
+  "matter.activity.filterEmpty": "无匹配记录",
   "matter.activity.initial": "初始内容：",
   "matter.activity.loadFailed": "加载失败",
   "matter.activity.loading": "加载中…",

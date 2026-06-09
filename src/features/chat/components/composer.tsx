@@ -350,16 +350,36 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       isFirst = false;
     };
 
-    const sendImageFile = async (file: File) => {
+    const sendImageFile = async (file: File): Promise<boolean> => {
+      const { precheckUploadCredentials } = await import(
+        "@/features/chat/services/upload-preflight"
+      );
+      try {
+        await precheckUploadCredentials(file, channel, extOf(file.name));
+      } catch (err) {
+        toast.error(`图片「${file.name}」${(err as Error).message}`);
+        return false;
+      }
       const { width, height } = await readImageSize(file);
       const image = new MessageImage(file, width, height);
       attachReplyOnce(image);
       await WKSDK.shared().chatManager.send(wrapInject(image), channel);
+      return true;
     };
-    const sendRegularFile = async (file: File) => {
+    const sendRegularFile = async (file: File): Promise<boolean> => {
+      const { precheckUploadCredentials } = await import(
+        "@/features/chat/services/upload-preflight"
+      );
+      try {
+        await precheckUploadCredentials(file, channel, extOf(file.name));
+      } catch (err) {
+        toast.error(`文件「${file.name}」${(err as Error).message}`);
+        return false;
+      }
       const content = new FileContent(file, file.name, extOf(file.name), file.size);
       attachReplyOnce(content);
       await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+      return true;
     };
 
     try {

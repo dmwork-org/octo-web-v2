@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, Star, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -19,6 +19,9 @@ import {
   updateThread,
   type ThreadRaw,
 } from "@/features/base/api/endpoints/group.api";
+import { followThread, unfollowThread } from "@/features/base/api/endpoints/follow.api";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
@@ -501,6 +504,7 @@ function ThreadGroup({
                   thread={th}
                   selected={selectedChannelId === channelId}
                   onClick={() => onSelect(th)}
+                  groupNo={groupNo}
                 />
               );
             })}
@@ -515,12 +519,43 @@ function ThreadItem({
   thread,
   selected,
   onClick,
+  groupNo,
 }: {
   thread: ThreadRaw;
   selected: boolean;
   onClick: () => void;
+  groupNo: string;
 }) {
   const tt = useT();
+  const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const [optimisticFollowed, setOptimisticFollowed] = useState<boolean | null>(null);
+  const followMu = useMutation({
+    mutationFn: async ({ followed }: { followed: boolean }) => {
+      const channelId = buildThreadChannelId(groupNo, thread.short_id);
+      if (followed) await followThread(channelId);
+      else await unfollowThread(channelId);
+    },
+    onMutate: ({ followed }) => setOptimisticFollowed(followed),
+    onSuccess: (_void, { followed }) => {
+      toast.success(
+        followed ? t("threadPanelLocal.toast.followed") : t("threadPanelLocal.toast.unfollowed"),
+      );
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+    },
+    onError: (err, { followed }) => {
+      setOptimisticFollowed(null);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : followed
+            ? t("threadPanelLocal.toast.followFailed")
+            : t("threadPanelLocal.toast.unfollowFailed"),
+      );
+    },
+  });
+  const isFollowed = optimisticFollowed ?? !!thread.is_followed;
   const hasUnread = (thread.unread_count ?? 0) > 0;
   const creatorName = getCreatorName(thread);
   const lastSender = thread.last_message_sender_name ?? "";
@@ -529,7 +564,7 @@ function ThreadItem({
   return (
     <div
       onClick={onClick}
-      className={`mx-0 mb-1 cursor-pointer rounded-md p-3 transition-colors ${
+      className={`group/thread-item mx-0 mb-1 cursor-pointer rounded-md p-3 transition-colors ${
         selected ? "bg-bg-elevated" : "hover:bg-bg-hover"
       }`}
     >
@@ -540,9 +575,33 @@ function ThreadItem({
             {thread.name}
           </span>
         </div>
-        <span className="shrink-0 text-[12px] text-text-tertiary">
-          {formatRelativeTime(thread.updated_at)}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (followMu.isPending) return;
+              followMu.mutate({ followed: !isFollowed });
+            }}
+            aria-label={
+              isFollowed ? tt("threadPanelLocal.unfollowAria") : tt("threadPanelLocal.followAria")
+            }
+            className={`flex h-5 w-5 items-center justify-center rounded transition-opacity ${
+              isFollowed
+                ? "opacity-100 text-yellow-500"
+                : "opacity-0 text-text-tertiary group-hover/thread-item:opacity-100 hover:text-text-secondary"
+            }`}
+          >
+            <Star
+              size={14}
+              fill={isFollowed ? "currentColor" : "none"}
+              strokeWidth={isFollowed ? 0 : 1.5}
+            />
+          </button>
+          <span className="text-[12px] text-text-tertiary">
+            {formatRelativeTime(thread.updated_at)}
+          </span>
+        </div>
       </div>
       <div className="mb-1 text-[12px] text-text-tertiary">
         {tt("threadPanelLocal.itemMeta", {

@@ -154,6 +154,8 @@ export interface ThreadRaw {
   group_name?: string;
   last_message_at?: string;
   mute?: number | null; // tri-state
+  /** 当前用户是否关注此子区(对齐上游 35b35757,follow_sort 入侧边栏标志) */
+  is_followed?: boolean;
 }
 
 export async function getThread(

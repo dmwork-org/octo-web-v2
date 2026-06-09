@@ -123,3 +123,19 @@ PreToolUse hook 真触发验证通过:
   - 顺手补:`image-renderer.tsx` Fail overlay 可点 → 复用 `chatManager.send` resend(对齐 `MessageStatusBadge.tsx:113` 同款行为)
 - baseline SHA 暂不推进(仅搬了 batch 1.4 涉及 SHA,未做整段 audit)
 
+## 2026-06-09 — Batch 1.5 chat 会话窗口 / scroll / typing
+
+- 搬了 4 个上游 SHA + 3 个等效已修 + 1 个不搬(共 8 个):
+  - `c2f9e18e` screenshot 作为 message-continuity 边界(message-list.tsx isContinue 加 screenshot 检查)
+  - `d8213ec1` 上传 preflight credentials(新增 services/upload-preflight.ts;composer.tsx sendImageFile / sendRegularFile gate preflight,失败 toast + return false 不入气泡;upload.api.ts 加 silent 选项)
+  - `30185565` 草稿 mention placeholder 渲染(新增 lib/draft-preview.ts;conversation-typing-digest 用之;dropDraft + reactive store 部分本仓已有)
+  - `7a42c23a` typing 卡死 + 重连补刷:TypingManager.resetAll + IMProvider 挂 Connected/visibilitychange listener;use-messages-sync 加 connectStatusListener 5s 去抖 invalidate 当前 channel(staleTime=Infinity 不自动 refetch)
+  - **(等效已修)** `c1c17307` send ordering — 本仓 React Query 单一 cache(无 messagesOfOrigin / pendingMessages / sendQueue 多副本),按 timestamp 主键排序(message-list.tsx:227-232),无 NaN 风险,无业务 sendQueue 跟 SDK sendingQueues 对齐问题
+  - **(等效已修)** `2ce66f09` typing as continuity boundary — 本仓 typing 消息在 use-messages-sync messageListener 直接 skip,根本不进 message list,无需 boundary 判定;fold session 不重复部分本仓简化版无此问题
+  - **(等效已修 batch 1.3 已搬)** `23b59a41` thread archive state refresh
+  - **(不搬 / feature deferred)** `1bfc1b4e` scroll anchor + offset 恢复 — 本仓 `useInitialScrollToBottom` 设计永远回底部,不做"切换会话恢复中间位置";已知 design simplification
+- 本仓 commits(分支 feat/upstream-batch-1-5):e0ee9c7 / fd97c35 / b4eb95f / 535fdfa / d613e71(5 个 commit + 收尾 docs)
+- 关键决策:`7a42c23a` 拆 2 个 commit(typing reset 一个、重连补刷一个),`d8213ec1` 因 pre-tool-use hook 死锁用 `await import()` inline 动态加载,合法 vite chunk lazy-load 模式
+- baseline SHA 暂不推进
+
+

@@ -89,14 +89,14 @@
 
 ### Batch 1.5 — Chat 会话窗口 / scroll / typing(8 commits)
 
-- [ ] `30185565` 2026-06-02 fix(conversation): clear draft after sending
-- [ ] `1bfc1b4e` 2026-06-04 fix: restore conversation scroll anchors
-- [ ] `7a42c23a` 2026-06-01 fix(typing): reset typing on foreground/reconnect
-- [ ] `c1c17307` 2026-06-03 fix: stabilize local message send ordering
-- [ ] `2ce66f09` 2026-05-29 fix: stabilize AI streaming message layout
-- [ ] `c2f9e18e` 2026-06-06 fix(#308): treat screenshot as boundary message in messageContinuity
-- [ ] `23b59a41` 2026-05-27 Fix thread archive state refresh
-- [ ] `d8213ec1` 2026-05-27 fix(upload): preflight credentials so rejected files surface error
+- [x] `30185565` 2026-06-02 fix(conversation): clear draft after sending(本仓 dropDraft 已对齐,新补 formatDraftPreview 渲染 @mention placeholder)
+- [x] `1bfc1b4e` 2026-06-04 fix: restore conversation scroll anchors(**不搬 / 本仓 design 永远回底部不做中间位置恢复**)
+- [x] `7a42c23a` 2026-06-01 fix(typing): reset typing on foreground/reconnect
+- [x] `c1c17307` 2026-06-03 fix: stabilize local message send ordering(本仓 React Query 单一 cache + timestamp 主键,无 c1c17307 的多副本 bug 模型)
+- [x] `2ce66f09` 2026-05-29 fix: stabilize AI streaming message layout(本仓 typing 不进 message list + fold session 简化版,等效已修)
+- [x] `c2f9e18e` 2026-06-06 fix(#308): treat screenshot as boundary message in messageContinuity
+- [x] `23b59a41` 2026-05-27 Fix thread archive state refresh
+- [x] `d8213ec1` 2026-05-27 fix(upload): preflight credentials so rejected files surface error
 
 **手测**:发送后草稿清;翻历史不抖;AI 流式不抖;tab 失焦回来 typing 清零;消息顺序稳;上传被拒能看到原因。
 

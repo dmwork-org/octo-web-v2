@@ -586,7 +586,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       <GroupManagementModal
         open={subpage === "manage"}
         channel={channel}
+        channelInfo={channelInfo ?? undefined}
         isOwner={iAmOwner}
+        canManage={iAmOwnerOrManager}
         onClose={() => setSubpage(null)}
       />
 

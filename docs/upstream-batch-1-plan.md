@@ -106,11 +106,11 @@
 
 跨模块归这里(包括 contact 的两个 P0)。
 
-- [ ] `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch — **chat+contact 跨模块**
-- [ ] `b04a0618` 2026-06-03 fix(wkmodal): guard against Semi modal overrides — **跨多模块**
-- [ ] `7bc98795` 2026-06-02 fix(contextmenu): 群聊右键菜单撤回按钮根据角色权限隐藏 — **chat 右键菜单**
-- [ ] `bbac882b` 2026-06-04 fix(group): move allow-no-mention toggle into Group Management screen
-- [ ] `ceffa569` 2026-06-04 feat(octo-web): group-level allow no-mention toggle (owner/admin)
+- [x] `8712d79e` 2026-05-22 fix(follow,mergeforward): keep follow tab on create group + restore SDK conv cache after space switch(8 sub-feature 中 7 等效 / 1 适用搬:右键"新建分组"会话归类)
+- [x] `b04a0618` 2026-06-03 fix(wkmodal): guard against Semi modal overrides(**不适用 / 本仓无 Semi UI**)
+- [x] `7bc98795` 2026-06-02 fix(contextmenu): 群聊右键菜单撤回按钮根据角色权限隐藏(已在另 MR `fix/revoke-align-old-repo` 搬完,本 batch 不重复)
+- [x] `bbac882b` 2026-06-04 fix(group): move allow-no-mention toggle into Group Management screen(合并到 ceffa569 同 commit,本仓一步到位放 group-management)
+- [x] `ceffa569` 2026-06-04 feat(octo-web): group-level allow no-mention toggle (owner/admin)
 
 **手测**:切 space 后 SDK 缓存还在;切 contact tab 不卡;群设置里有"允许无@消息"开关;右键撤回按角色隐藏。
 

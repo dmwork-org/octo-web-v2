@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypePerson, type Subscriber } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  type ChannelInfo,
+  ChannelTypePerson,
+  type Subscriber,
+} from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -16,14 +21,21 @@ import {
   removeGroupManagers,
   setGroupBotAdmin,
 } from "@/features/base/api/endpoints/group.api";
+import { setChannelAllowNoMention } from "@/features/base/api/endpoints/channel-setting.api";
+import { SectionGroup } from "@/features/base/components/section-form/section-group";
+import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
 interface GroupManagementModalProps {
   open: boolean;
   channel: Channel;
+  /** 群 channelInfo,用于读 orgData.allow_no_mention 等设置态(可选,缺省时 toggle 走默认值)。 */
+  channelInfo?: ChannelInfo;
   /** owner=1 / manager=2 / 其他=只读。本组件需要 isOwner 才能加/删管理员;manager 只能看。 */
   isOwner: boolean;
+  /** owner 或 manager 都可控制群级 toggle(allow-no-mention 等);只读用户不显示 toggle section。 */
+  canManage: boolean;
   onClose: () => void;
 }
 
@@ -34,11 +46,16 @@ type Mode = "view" | "addManager" | "addBotAdmin";
 
 /**
  * 群管理二级抽屉(对应旧 dmworkbase GroupManagement)。
+ *
+ * **群级 toggle**(对齐上游 bbac882b — 从频道设置挪到群管理):
+ *   - allow_no_mention(允许群内 Bot 免@回答)— owner / manager 可控
  */
 export function GroupManagementModal({
   open,
   channel,
+  channelInfo,
   isOwner,
+  canManage,
   onClose,
 }: GroupManagementModalProps) {
   const tt = useT();
@@ -99,6 +116,10 @@ export function GroupManagementModal({
     void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
   };
 
+  const refreshChannelInfo = () => {
+    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+  };
+
   const exitAddMode = () => {
     setMode("view");
     setPickedUids([]);
@@ -147,6 +168,16 @@ export function GroupManagementModal({
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
+  });
+
+  // 群级「允许群内 Bot 免@回答」开关(对齐上游 ceffa569):缺省 1(允许),零回归
+  const allowNoMention =
+    (channelInfo?.orgData as { allow_no_mention?: number } | undefined)?.allow_no_mention !== 0;
+  const allowNoMentionMu = useMutation({
+    mutationFn: (allow: boolean) => setChannelAllowNoMention(channel, allow),
+    onSuccess: refreshChannelInfo,
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.opFailed")),
   });
 
   const togglePick = (uid: string) => {
@@ -293,6 +324,18 @@ export function GroupManagementModal({
               addLabel={tt("groupMgmt.addBotAdmin")}
               emptyText={tt("groupMgmt.noBotAdmins")}
             />
+            {canManage ? (
+              <div className="mx-4 mb-3">
+                <SectionGroup>
+                  <ToggleRow
+                    title={tt("groupMgmt.allowNoMention")}
+                    checked={allowNoMention}
+                    loading={allowNoMentionMu.isPending}
+                    onChange={(v) => allowNoMentionMu.mutate(v)}
+                  />
+                </SectionGroup>
+              </div>
+            ) : null}
           </div>
         )}
       </BaseDrawer>

@@ -863,6 +863,9 @@ export function FollowList({
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [createInCategory, setCreateInCategory] = useState<string | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  // 右键"新建分组"时把当前 conv 记下,新分类建出后立即归入(对齐上游 8712d79e sub-5);
+  // 顶部 "+ 新建分组"入口仍是 null(只建空分类)
+  const [pendingFollowAction, setPendingFollowAction] = useState<Conversation | null>(null);
 
   const invalidateAll = () => {
     void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
@@ -963,13 +966,33 @@ export function FollowList({
       if (!spaceId) return Promise.reject(new Error(t("followList.error.noSpaceId")));
       return createCategory(spaceId, name.trim());
     },
-    onSuccess: () => {
+    onSuccess: (category) => {
+      // 如果是右键 conv 触发的"新建分组",新分类建出后立即归入(对齐上游 8712d79e sub-5):
+      // group → moveGroupToCategory,DM → moveDmToCategory,thread 暂不支持(上游也只覆盖 group/DM)
+      const pendingConv = pendingFollowAction;
+      if (pendingConv && category.category_id) {
+        const tp = pendingConv.channel.channelType;
+        if (tp === ChannelTypeGroup) {
+          moveGroupMu.mutate({
+            groupNo: pendingConv.channel.channelID,
+            categoryId: category.category_id,
+          });
+        } else if (tp === ChannelTypePerson) {
+          moveDmMu.mutate({
+            peerUid: pendingConv.channel.channelID,
+            categoryId: category.category_id,
+          });
+        }
+      }
+      setPendingFollowAction(null);
       invalidateAll();
       setCreateCategoryOpen(false);
       toast.success(t("followList.toast.categoryCreated"));
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.createCategoryFailed")),
+    onError: (err) => {
+      setPendingFollowAction(null);
+      toast.error(err instanceof Error ? err.message : t("followList.toast.createCategoryFailed"));
+    },
   });
 
   const onCategoryContextMenu = (cat: CategoryItem) => (e: MouseEvent) => {
@@ -1092,7 +1115,11 @@ export function FollowList({
       children.push({ separator: true });
       children.push({
         label: t("followList.menu.newCategory"),
-        onClick: () => setCreateCategoryOpen(true),
+        onClick: () => {
+          // 把右键 conv 带到 createCategoryMu.onSuccess,新分类建出后立即归入
+          setPendingFollowAction(conv);
+          setCreateCategoryOpen(true);
+        },
       });
       items.push({
         label: t("followList.menu.moveToCategory"),
@@ -1431,7 +1458,10 @@ export function FollowList({
             validate={(v) => v.trim().length > 0}
             okLoading={createCategoryMu.isPending}
             onOk={(v) => createCategoryMu.mutate(v)}
-            onCancel={() => setCreateCategoryOpen(false)}
+            onCancel={() => {
+              setPendingFollowAction(null);
+              setCreateCategoryOpen(false);
+            }}
           />
         ) : null}
       </div>

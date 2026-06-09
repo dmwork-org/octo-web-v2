@@ -340,7 +340,8 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               matterId={matterId}
               channels={data.channels ?? []}
               linkModalOpen={linkModalOpen}
-              onLinkModalClose={() => setLinkModalOpen(false)}
+              onOpenLinkModal={() => setLinkModalOpen(true)}
+              onCloseLinkModal={() => setLinkModalOpen(false)}
             />
           ) : (
             <ActivityList matterId={matterId} />
@@ -420,12 +421,14 @@ function ChannelsTab({
   matterId,
   channels,
   linkModalOpen,
-  onLinkModalClose,
+  onOpenLinkModal,
+  onCloseLinkModal,
 }: {
   matterId: string;
   channels: MatterChannel[];
   linkModalOpen: boolean;
-  onLinkModalClose: () => void;
+  onOpenLinkModal: () => void;
+  onCloseLinkModal: () => void;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
@@ -478,10 +481,22 @@ function ChannelsTab({
   const { timelineMap, timelineLoading } = useChannelTimelineOnExpand(matterId, expandedTimelines);
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col">
+      {/* Toolbar */}
+      <div className="mb-3 flex items-center">
+        <button
+          type="button"
+          onClick={() => onOpenLinkModal()}
+          className="inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
+        >
+          <Plus size={12} />
+          关联新群
+        </button>
+      </div>
+
       {/* 已关联群聊列表 */}
       {channels.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border-default px-4 py-8 text-center text-xs text-text-tertiary">
+        <div className="rounded-md border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
           {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
@@ -495,51 +510,33 @@ function ChannelsTab({
             return (
               <li
                 key={mc.id}
-                className={index < channels.length - 1 ? "border-b border-border-subtle" : ""}
+                className="py-4"
+                style={
+                  index < channels.length - 1
+                    ? { borderBottom: "1px solid var(--wk-border-subtle, #f4f4f5)" }
+                    : undefined
+                }
               >
-                {/* 群行主体 */}
-                <div className="flex items-center py-2.5">
-                  {/* 群头像 */}
-                  <ChannelAvatar
-                    channel={new Channel(mc.channel_id, mc.channel_type)}
-                    size={26}
-                    title={mc.channel_name ?? mc.channel_id}
-                  />
-                  {/* 群名 + 关联时间 + 最新进展 */}
-                  <div className="ml-2 flex min-w-0 flex-col">
-                    <div className="flex items-center gap-1">
-                      <span className="truncate text-sm text-text-primary">
-                        #
-                        <ChannelNameLabel
-                          channelId={mc.channel_id}
-                          channelType={mc.channel_type}
-                          fallback={mc.channel_name}
-                          blur={!isMember && !myGroupsLoading}
-                          loading={myGroupsLoading}
-                        />
-                      </span>
-                      {!myGroupsLoading && !isMember && <NotMemberBadge />}
-                      <span className="ml-3 text-[11px] text-text-tertiary whitespace-nowrap">
-                        {new Date(mc.created_at).toLocaleDateString("zh-CN", {
-                          month: "numeric",
-                          day: "numeric",
-                        })}{" "}
-                        关联
-                      </span>
-                    </div>
-                    {/* 最新进展：仅成员可见，有内容才显示 */}
-                    {isMember && latestEntry !== undefined && latestEntry !== null && (
-                      <div className="mt-1 rounded-r-md border-l-2 border-l-purple-500 bg-purple-50/60 px-3 py-2">
-                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-purple-700">
-                          最新进展
-                        </div>
-                        <div className="text-[13px] leading-relaxed text-text-primary">
-                          {latestEntry.content || "（无文本内容）"}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {/* ⋮ 菜单：仅成员可见 */}
+                {/* Card head */}
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-text-primary">
+                    #
+                    <ChannelNameLabel
+                      channelId={mc.channel_id}
+                      channelType={mc.channel_type}
+                      fallback={mc.channel_name}
+                      blur={!isMember && !myGroupsLoading}
+                      loading={myGroupsLoading}
+                    />
+                  </span>
+                  {!myGroupsLoading && !isMember && <NotMemberBadge />}
+                  <span className="ml-3 text-[11px] text-text-tertiary whitespace-nowrap">
+                    {new Date(mc.created_at).toLocaleDateString("zh-CN", {
+                      month: "numeric",
+                      day: "numeric",
+                    })}{" "}
+                    关联
+                  </span>
                   {isMember && (
                     <ChannelMoreMenu
                       channelId={mc.channel_id}
@@ -549,9 +546,21 @@ function ChannelsTab({
                   )}
                 </div>
 
-                {/* 展开/折叠时间线按钮：仅成员可见 */}
+                {/* 最新进展：仅成员可见 */}
+                {isMember && latestEntry !== undefined && latestEntry !== null && (
+                  <div className="mt-1 rounded-r-md border-l-2 border-l-purple-500 bg-purple-50/60 py-2 px-3">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-purple-700">
+                      最新进展
+                    </div>
+                    <div className="text-[13px] leading-[1.625] text-text-primary">
+                      {latestEntry.content || "（无文本内容）"}
+                    </div>
+                  </div>
+                )}
+
+                {/* 展开/折叠时间线按钮 */}
                 {isMember && (
-                  <div className="flex justify-start border-t border-border-subtle px-3 py-1.5">
+                  <div className="mt-2 flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => toggleTimeline(mc.channel_id)}
@@ -559,11 +568,12 @@ function ChannelsTab({
                     >
                       <ChevronDown
                         size={10}
-                        className={
-                          expandedTimelines.has(mc.channel_id)
-                            ? "rotate-180 transition-transform"
-                            : "transition-transform"
-                        }
+                        style={{
+                          transform: expandedTimelines.has(mc.channel_id)
+                            ? "rotate(180deg)"
+                            : "none",
+                          transition: "transform 0.15s",
+                        }}
                       />
                       {expandedTimelines.has(mc.channel_id) ? "收起时间线" : "展开时间线"}
                     </button>
@@ -572,12 +582,14 @@ function ChannelsTab({
 
                 {/* 展开的 timeline */}
                 {expandedTimelines.has(mc.channel_id) && (
-                  <div className="border-t border-border-subtle px-3 pb-3 pt-2">
+                  <div className="mt-2">
                     {timelineLoading && !timelineMap.has(mc.channel_id) ? (
-                      <p className="py-2 text-xs text-text-tertiary">{t("base.common.loading")}</p>
+                      <p className="py-10 text-center text-xs text-text-tertiary">
+                        正在加载时间线...
+                      </p>
                     ) : (timelineMap.get(mc.channel_id) ?? []).length === 0 ? (
-                      <p className="py-2 text-xs text-text-tertiary">
-                        {t("matter.detail.channelNoProgress")}
+                      <p className="py-10 text-center text-xs text-text-tertiary">
+                        本群暂无时间线记录
                       </p>
                     ) : (
                       <TimelinePanel
@@ -606,7 +618,7 @@ function ChannelsTab({
         open={linkModalOpen}
         matterId={matterId}
         linkedChannels={channels}
-        onClose={onLinkModalClose}
+        onClose={onCloseLinkModal}
       />
 
       {/* 解除关联确认弹窗 */}

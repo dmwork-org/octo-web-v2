@@ -74,7 +74,7 @@ function SubscribersGrid({
 }) {
   const tt = useT();
   return (
-    <section className="mx-4 mb-2 rounded-md border border-border-subtle bg-bg-base px-2 py-3">
+    <section className="mx-4 mb-2 shrink-0 rounded-md border border-border-subtle bg-bg-base px-2 py-3">
       <div className="grid grid-cols-5 gap-y-3">
         {subscribers.map((m) => (
           <SubscriberCell key={m.uid} subscriber={m} />

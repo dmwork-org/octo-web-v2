@@ -392,7 +392,7 @@ function ManagerSection({
 }) {
   const tt = useT();
   return (
-    <section className="mx-4 mb-3 flex flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
+    <section className="mx-4 mb-3 flex shrink-0 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
         <span className="text-[12px] font-semibold text-text-secondary">{title}</span>
         {isOwner ? (

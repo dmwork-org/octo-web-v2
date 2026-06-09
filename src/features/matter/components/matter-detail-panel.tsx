@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { ChevronDown, MoreHorizontal, Plus, Tag } from "lucide-react";
+import { MoreHorizontal, Plus, Tag } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -59,6 +59,18 @@ function formatDateTime(iso: string): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${mm}/${dd} ${hh}:${mi}`;
+}
+
+function formatRelativeTime(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  const diffMs = now - then;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "今天";
+  if (diffDays === 1) return "昨天";
+  if (diffDays < 30) return `${diffDays} 天前`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} 个月前`;
+  return `${Math.floor(diffDays / 365)} 年前`;
 }
 
 function nextStatusForToggle(s: MatterStatus): MatterStatus {
@@ -179,7 +191,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   };
 
   return (
-    <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-base">
+    <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL + ⋯ ── */}
       <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-8 py-3">
         <StatusPill status={data.status} seqNo={data.seq_no} />
@@ -500,26 +512,18 @@ function ChannelsTab({
           {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
-        <ul className="flex flex-col">
-          {channels.map((mc, index) => {
+        <ul className="flex flex-col gap-3">
+          {channels.map((mc) => {
             // 判断成员权限
             const parentGroupNo = toParentGroupNo(mc.channel_id, mc.channel_type);
             const isMember = !myGroupsFailed && myGroupNos.has(parentGroupNo);
             const latestEntry = latestByChannel.get(mc.channel_id);
 
             return (
-              <li
-                key={mc.id}
-                className="py-4"
-                style={
-                  index < channels.length - 1
-                    ? { borderBottom: "1px solid var(--wk-border-subtle, #f4f4f5)" }
-                    : undefined
-                }
-              >
+              <li key={mc.id} className="flex flex-col gap-4 rounded-lg bg-black/[0.04] p-3">
                 {/* Card head */}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-text-primary">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[16px] font-medium leading-[20px] text-text-primary">
                     #
                     <ChannelNameLabel
                       channelId={mc.channel_id}
@@ -530,12 +534,11 @@ function ChannelsTab({
                     />
                   </span>
                   {!myGroupsLoading && !isMember && <NotMemberBadge />}
-                  <span className="ml-3 text-[11px] text-text-tertiary whitespace-nowrap">
-                    {new Date(mc.created_at).toLocaleDateString("zh-CN", {
-                      month: "numeric",
-                      day: "numeric",
-                    })}{" "}
-                    关联
+                  <span
+                    className="ml-3 text-[14px] leading-[20px] whitespace-nowrap"
+                    style={{ color: "rgba(28,28,35,0.4)" }}
+                  >
+                    {formatRelativeTime(mc.created_at)}同步
                   </span>
                   {isMember && (
                     <ChannelMoreMenu
@@ -548,11 +551,20 @@ function ChannelsTab({
 
                 {/* 最新进展：仅成员可见 */}
                 {isMember && latestEntry !== undefined && latestEntry !== null && (
-                  <div className="mt-1 rounded-r-md border-l-2 border-l-purple-500 bg-purple-50/60 py-2 px-3">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-purple-700">
-                      最新进展
+                  <div className="flex flex-col gap-2">
+                    <div
+                      className="flex items-center gap-1 text-[14px] leading-[20px]"
+                      style={{ color: "rgba(28,28,35,0.8)" }}
+                    >
+                      <ChannelAvatar
+                        channel={new Channel(latestEntry.user_id, ChannelTypePerson)}
+                        size={16}
+                        title={latestEntry.user_id}
+                      />
+                      <UserName uid={latestEntry.user_id} className="font-medium" />
+                      <span>{formatDateTime(latestEntry.created_at)}</span>
                     </div>
-                    <div className="text-[13px] leading-[1.625] text-text-primary">
+                    <div className="text-[14px] leading-[20px] text-text-primary">
                       {latestEntry.content || "（无文本内容）"}
                     </div>
                   </div>
@@ -560,22 +572,13 @@ function ChannelsTab({
 
                 {/* 展开/折叠时间线按钮 */}
                 {isMember && (
-                  <div className="mt-2 flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => toggleTimeline(mc.channel_id)}
-                      className="inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
+                      className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[12px] font-semibold leading-[20px] text-purple-600 transition-opacity hover:opacity-80"
                     >
-                      <ChevronDown
-                        size={10}
-                        style={{
-                          transform: expandedTimelines.has(mc.channel_id)
-                            ? "rotate(180deg)"
-                            : "none",
-                          transition: "transform 0.15s",
-                        }}
-                      />
-                      {expandedTimelines.has(mc.channel_id) ? "收起时间线" : "展开时间线"}
+                      {expandedTimelines.has(mc.channel_id) ? "收起群内时间线" : "展开群内时间线"}
                     </button>
                   </div>
                 )}

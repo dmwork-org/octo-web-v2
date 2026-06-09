@@ -6,11 +6,15 @@ import { mattersListInfiniteQueryOptions } from "@/features/matter/queries/matte
 import { MatterView } from "@/features/matter/views/matter.view";
 
 /**
- * URL search:?id={matterId} 选中事项,刷新保留。
- * id 缺省 → 右侧空状态。
+ * URL search:
+ * - id: 选中事项 ID，刷新保留。id 缺省 → 右侧空状态。
+ * - tab: 列表 tab（mine/created/all），刷新保留。
+ * - q: 搜索关键词，刷新保留。
  */
 const matterSearchSchema = z.object({
   id: z.string().optional(),
+  tab: z.enum(["mine", "created", "all"]).optional(),
+  q: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_auth/matter")({

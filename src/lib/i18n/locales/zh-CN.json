@@ -1412,6 +1412,8 @@
   "matter.list.loadFailed": "事项加载失败",
   "matter.list.loading": "加载事项…",
   "matter.list.loadingMore": "加载更多…",
+  "matter.list.searchPlaceholder": "搜索事项…",
+  "matter.list.searchEmpty": "未找到匹配的事项",
   "matter.member.empty": "暂无成员",
   "matter.member.noMatches": "未找到匹配成员",
   "matter.member.searchPlaceholder": "搜索成员",

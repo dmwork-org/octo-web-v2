@@ -21,7 +21,7 @@ const TAB_KEYS: { id: MatterTab; key: string }[] = [
 interface MatterListProps {
   selectedId: string | null;
   onSelect: (matterId: string) => void;
-  /** 切 tab 时通知 view 层清掉 selectedId / URL state。 */
+  /** 切 tab 时通知 view 层更新 URL。 */
   onTabChange?: (tab: MatterTab) => void;
   /**
    * 群聊 chat header matter panel 触发时传入:
@@ -32,6 +32,12 @@ interface MatterListProps {
    * 不传时 — matter.view + 按钮场景:每个 tab 各自 API 拉,默认 "mine"。
    */
   channel?: Channel;
+  /** 初始 tab（从 URL 读取） */
+  initialTab?: MatterTab;
+  /** 初始搜索关键词（从 URL 读取） */
+  initialQ?: string;
+  /** 搜索关键词变化时通知 view 层更新 URL */
+  onQChange?: (q: string | null) => void;
 }
 
 /** IntersectionObserver 监听 sentinel 触底加载(命名 hook 包 useEffect)。 */
@@ -79,12 +85,21 @@ function filterByTab(all: Matter[], tab: MatterTab, myUid: string): Matter[] {
  * - chat panel 模式(channel 传入):一次按 channel_id 拉全 + 默认 tab=all,
  *   切 tab 走本地 filter(对齐旧 ChatMatterPanel.displayMatters)
  */
-export function MatterList({ selectedId, onSelect, onTabChange, channel }: MatterListProps) {
+export function MatterList({
+  selectedId,
+  onSelect,
+  onTabChange,
+  channel,
+  initialTab,
+  initialQ,
+  onQChange,
+}: MatterListProps) {
   const t = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const isChannelMode = !!channel;
-  const [tab, setTab] = useState<MatterTab>(isChannelMode ? "all" : "mine");
+  const [tab, setTab] = useState<MatterTab>(initialTab ?? (isChannelMode ? "all" : "mine"));
+  const [q, setQ] = useState(initialQ ?? "");
   const [archivedOpen, setArchivedOpen] = useState(false);
 
   // params:channel 模式 → 一次性按 channel_id 拉;非 channel 模式 → 跟 tab 切换
@@ -105,8 +120,19 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
     () => (isChannelMode ? filterByTab(all, tab, myUid) : all),
     [isChannelMode, all, tab, myUid],
   );
-  const active = filtered.filter((m) => m.status !== "archived");
-  const archived = filtered.filter((m) => m.status === "archived");
+
+  // 搜索过滤（本地过滤，不重新请求 API）
+  const searched = useMemo<Matter[]>(() => {
+    if (!q.trim()) return filtered;
+    const keyword = q.trim().toLowerCase();
+    return filtered.filter(
+      (m) =>
+        m.title.toLowerCase().includes(keyword) || m.description?.toLowerCase().includes(keyword),
+    );
+  }, [filtered, q]);
+
+  const active = searched.filter((m) => m.status !== "archived");
+  const archived = searched.filter((m) => m.status === "archived");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
@@ -116,6 +142,11 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
     setTab(tb);
     setArchivedOpen(false);
     onTabChange?.(tb);
+  };
+
+  const handleQChange = (newQ: string) => {
+    setQ(newQ);
+    onQChange?.(newQ || null);
   };
 
   return (
@@ -145,6 +176,17 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
         })}
       </nav>
 
+      {/* 搜索框 */}
+      <div className="mx-3 mb-3">
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => handleQChange(e.target.value)}
+          placeholder={t("matter.list.searchPlaceholder")}
+          className="w-full rounded-md border border-border-subtle bg-bg-elevated px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+        />
+      </div>
+
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
         {isLoading ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
@@ -154,9 +196,9 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
           <p className="flex flex-1 items-center justify-center text-sm text-error">
             {t("matter.list.loadFailed")}
           </p>
-        ) : filtered.length === 0 ? (
+        ) : searched.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            {t("matter.state.empty")}
+            {q.trim() ? t("matter.list.searchEmpty") : t("matter.state.empty")}
           </p>
         ) : (
           <>

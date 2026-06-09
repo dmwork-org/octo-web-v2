@@ -1412,6 +1412,8 @@
   "matter.list.loadFailed": "Failed to load tasks",
   "matter.list.loading": "Loading tasks…",
   "matter.list.loadingMore": "Loading more…",
+  "matter.list.searchPlaceholder": "Search tasks…",
+  "matter.list.searchEmpty": "No matching tasks found",
   "matter.member.empty": "No members",
   "matter.member.noMatches": "No matching members",
   "matter.member.searchPlaceholder": "Search members",

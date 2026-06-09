@@ -6,6 +6,7 @@ import { Search, Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
+import { chatSidebarTabStore, chatSidebarTabActions } from "@/features/chat/stores/chat-sidebar-tab";
 import { ConnectionStatusBadge } from "@/features/chat/components/connection-status-badge";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
@@ -54,7 +55,7 @@ const TABS: TabDef[] = [
 export function ConversationSidebar({ selectedChannelId, onSelect }: ConversationSidebarProps) {
   const tt = useT();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<ConvTab>("follow");
+  const activeTab = useStore(chatSidebarTabStore, (s) => s.activeTab);
 
   // sidebar 宽度拖拽(右边缘 splitter,对齐老仓 WKLayout)
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
@@ -123,7 +124,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: categoriesQueryKey(currentSpaceId) });
       setCreateCategoryOpen(false);
-      setActiveTab("follow");
+      chatSidebarTabActions.setTab("follow");
       toast.success(t("convSidebar.toast.categoryCreated"));
     },
     onError: (err) =>
@@ -199,7 +200,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
                     chatRecentJumpActions.trigger();
                     return;
                   }
-                  setActiveTab(tabDef.id);
+                  chatSidebarTabActions.setTab(tabDef.id);
                 }}
                 className={`relative inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
                   isActive

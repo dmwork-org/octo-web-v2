@@ -356,198 +356,197 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         }}
         side="right"
         size="md"
+        contentClassName="py-2"
         title={
           typeof headerCount === "number"
             ? tt("channelSetting.titleWithCount", { values: { count: headerCount } })
             : tt("channelSetting.title")
         }
       >
-        <div className="flex flex-1 flex-col overflow-y-auto py-2">
-          {isGroup ? (
-            <SubscribersGrid
-              subscribers={subscribers}
-              canAdd
-              canManage={iAmOwnerOrManager}
-              onAdd={() => setAddOpen(true)}
-              onKickMode={() => setKickListOpen(true)}
-            />
-          ) : null}
+        {isGroup ? (
+          <SubscribersGrid
+            subscribers={subscribers}
+            canAdd
+            canManage={iAmOwnerOrManager}
+            onAdd={() => setAddOpen(true)}
+            onKickMode={() => setKickListOpen(true)}
+          />
+        ) : null}
 
-          {isPerson ? (
-            <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-3">
-              <ChannelAvatar channel={channel} size={56} title={title} />
-              <h3 className="text-base font-semibold text-text-primary">{title}</h3>
-            </div>
-          ) : null}
+        {isPerson ? (
+          <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-3">
+            <ChannelAvatar channel={channel} size={56} title={title} />
+            <h3 className="text-base font-semibold text-text-primary">{title}</h3>
+          </div>
+        ) : null}
 
-          {isGroup ? (
-            <SectionGroup>
-              <InlineEditRow
-                title={tt("channelSetting.groupName")}
-                value={title}
-                placeholder={tt("channelSetting.notSet")}
-                canEdit={iAmOwnerOrManager}
-                cantEditMessage={tt("channelSetting.cantEditGroupName")}
-                maxLength={20}
-                pending={renameMu.isPending}
-                editing={editing === "name"}
-                onEnterEdit={() => setEditing("name")}
-                onCancel={() => setEditing(null)}
-                onSave={(v) => renameMu.mutate(v)}
-              />
-              <NavRow
-                title={tt("channelSetting.groupAvatar")}
-                right={<ChannelAvatar channel={channel} size={24} title={title} />}
-                onClick={() => setSubpage("avatar")}
-              />
-              <NavRow
-                title={tt("channelSetting.groupQrcode")}
-                right={<QrCode size={16} className="text-text-tertiary" />}
-                onClick={() => setSubpage("qrcode")}
-              />
-              <InlineEditRow
-                title={tt("channelSetting.groupNotice")}
-                value={notice}
-                placeholder={tt("channelSetting.notSet")}
-                canEdit={iAmOwnerOrManager}
-                cantEditMessage={tt("channelSetting.cantEditGroupNotice")}
-                multiline
-                maxLength={400}
-                pending={noticeMu.isPending}
-                editing={editing === "notice"}
-                onEnterEdit={() => setEditing("notice")}
-                onCancel={() => setEditing(null)}
-                onSave={(v) => noticeMu.mutate(v)}
-              />
-              <NavRow
-                title="GROUP.md"
-                subTitle={
-                  hasGroupMd
-                    ? tt("channelSetting.configuredV", { values: { v: groupMdVersion } })
-                    : tt("channelSetting.notConfigured")
-                }
-                onClick={() => setSubpage("md")}
-              />
-              {iAmOwnerOrManager ? (
-                <NavRow
-                  title={tt("channelSetting.groupManagement")}
-                  onClick={() => setSubpage("manage")}
-                />
-              ) : null}
-              <InlineEditRow
-                title={tt("channelSetting.remark")}
-                value={remark}
-                placeholder={tt("channelSetting.remarkPlaceholder")}
-                canEdit
-                maxLength={15}
-                pending={remarkMu.isPending}
-                editing={editing === "remark"}
-                onEnterEdit={() => setEditing("remark")}
-                onCancel={() => setEditing(null)}
-                onSave={(v) => remarkMu.mutate(v)}
-              />
-            </SectionGroup>
-          ) : null}
-
-          {isThread ? (
-            <SectionGroup>
-              <InlineEditRow
-                title={tt("channelSetting.threadName")}
-                value={title}
-                placeholder={tt("channelSetting.notSet")}
-                canEdit={canEditThreadName}
-                cantEditMessage={tt("channelSetting.cantEditThreadName")}
-                maxLength={50}
-                pending={renameMu.isPending}
-                editing={editing === "name"}
-                onEnterEdit={() => setEditing("name")}
-                onCancel={() => setEditing(null)}
-                onSave={(v) => renameMu.mutate(v)}
-              />
-              <NavRow
-                title={tt("channelSetting.backToParent", { values: { name: threadParentName } })}
-                center
-                onClick={() => {
-                  if (!threadParentChannel) return;
-                  chatSelectedActions.select(threadParentChannel);
-                  onClose();
-                }}
-              />
-            </SectionGroup>
-          ) : null}
-
-          {isThread ? (
-            <SectionGroup>
-              <NavRow
-                title="GROUP.md"
-                subTitle={
-                  hasThreadMd
-                    ? tt("channelSetting.configuredV", { values: { v: threadMdVersion } })
-                    : tt("channelSetting.notConfigured")
-                }
-                onClick={() => setSubpage("md")}
-              />
-            </SectionGroup>
-          ) : null}
-
-          {!isThread ? (
-            <SectionGroup>
-              <ToggleRow
-                title={tt("channelSetting.mute")}
-                checked={isMuted}
-                loading={muteMu.isPending}
-                onChange={(v) => muteMu.mutate(v)}
-              />
-              <ToggleRow
-                title={tt("channelSetting.pin")}
-                checked={isTop}
-                loading={topMu.isPending}
-                onChange={(v) => topMu.mutate(v)}
-              />
-              {isGroup ? (
-                <ToggleRow
-                  title={tt("channelSetting.saveToContacts")}
-                  checked={isSaved}
-                  loading={saveMu.isPending}
-                  onChange={(v) => saveMu.mutate(v)}
-                />
-              ) : null}
-            </SectionGroup>
-          ) : null}
-
-          {isGroup ? (
-            <SectionGroup>
-              <InlineEditRow
-                title={tt("channelSetting.myNickname")}
-                value={myNickname}
-                placeholder={tt("channelSetting.notSet")}
-                canEdit
-                maxLength={20}
-                pending={myNickMu.isPending}
-                editing={editing === "myNickname"}
-                onEnterEdit={() => setEditing("myNickname")}
-                onCancel={() => setEditing(null)}
-                onSave={(v) => myNickMu.mutate(v)}
-              />
-            </SectionGroup>
-          ) : null}
-
+        {isGroup ? (
           <SectionGroup>
-            {!isThread ? (
+            <InlineEditRow
+              title={tt("channelSetting.groupName")}
+              value={title}
+              placeholder={tt("channelSetting.notSet")}
+              canEdit={iAmOwnerOrManager}
+              cantEditMessage={tt("channelSetting.cantEditGroupName")}
+              maxLength={20}
+              pending={renameMu.isPending}
+              editing={editing === "name"}
+              onEnterEdit={() => setEditing("name")}
+              onCancel={() => setEditing(null)}
+              onSave={(v) => renameMu.mutate(v)}
+            />
+            <NavRow
+              title={tt("channelSetting.groupAvatar")}
+              right={<ChannelAvatar channel={channel} size={24} title={title} />}
+              onClick={() => setSubpage("avatar")}
+            />
+            <NavRow
+              title={tt("channelSetting.groupQrcode")}
+              right={<QrCode size={16} className="text-text-tertiary" />}
+              onClick={() => setSubpage("qrcode")}
+            />
+            <InlineEditRow
+              title={tt("channelSetting.groupNotice")}
+              value={notice}
+              placeholder={tt("channelSetting.notSet")}
+              canEdit={iAmOwnerOrManager}
+              cantEditMessage={tt("channelSetting.cantEditGroupNotice")}
+              multiline
+              maxLength={400}
+              pending={noticeMu.isPending}
+              editing={editing === "notice"}
+              onEnterEdit={() => setEditing("notice")}
+              onCancel={() => setEditing(null)}
+              onSave={(v) => noticeMu.mutate(v)}
+            />
+            <NavRow
+              title="GROUP.md"
+              subTitle={
+                hasGroupMd
+                  ? tt("channelSetting.configuredV", { values: { v: groupMdVersion } })
+                  : tt("channelSetting.notConfigured")
+              }
+              onClick={() => setSubpage("md")}
+            />
+            {iAmOwnerOrManager ? (
               <NavRow
-                title={tt("channelSetting.clearMessages")}
-                danger
-                onClick={() => setConfirmClear(true)}
+                title={tt("channelSetting.groupManagement")}
+                onClick={() => setSubpage("manage")}
               />
             ) : null}
-            <NavRow
-              title={dangerCloseTitle}
-              danger
-              center={isThread}
-              onClick={() => setConfirmClose(true)}
+            <InlineEditRow
+              title={tt("channelSetting.remark")}
+              value={remark}
+              placeholder={tt("channelSetting.remarkPlaceholder")}
+              canEdit
+              maxLength={15}
+              pending={remarkMu.isPending}
+              editing={editing === "remark"}
+              onEnterEdit={() => setEditing("remark")}
+              onCancel={() => setEditing(null)}
+              onSave={(v) => remarkMu.mutate(v)}
             />
           </SectionGroup>
-        </div>
+        ) : null}
+
+        {isThread ? (
+          <SectionGroup>
+            <InlineEditRow
+              title={tt("channelSetting.threadName")}
+              value={title}
+              placeholder={tt("channelSetting.notSet")}
+              canEdit={canEditThreadName}
+              cantEditMessage={tt("channelSetting.cantEditThreadName")}
+              maxLength={50}
+              pending={renameMu.isPending}
+              editing={editing === "name"}
+              onEnterEdit={() => setEditing("name")}
+              onCancel={() => setEditing(null)}
+              onSave={(v) => renameMu.mutate(v)}
+            />
+            <NavRow
+              title={tt("channelSetting.backToParent", { values: { name: threadParentName } })}
+              center
+              onClick={() => {
+                if (!threadParentChannel) return;
+                chatSelectedActions.select(threadParentChannel);
+                onClose();
+              }}
+            />
+          </SectionGroup>
+        ) : null}
+
+        {isThread ? (
+          <SectionGroup>
+            <NavRow
+              title="GROUP.md"
+              subTitle={
+                hasThreadMd
+                  ? tt("channelSetting.configuredV", { values: { v: threadMdVersion } })
+                  : tt("channelSetting.notConfigured")
+              }
+              onClick={() => setSubpage("md")}
+            />
+          </SectionGroup>
+        ) : null}
+
+        {!isThread ? (
+          <SectionGroup>
+            <ToggleRow
+              title={tt("channelSetting.mute")}
+              checked={isMuted}
+              loading={muteMu.isPending}
+              onChange={(v) => muteMu.mutate(v)}
+            />
+            <ToggleRow
+              title={tt("channelSetting.pin")}
+              checked={isTop}
+              loading={topMu.isPending}
+              onChange={(v) => topMu.mutate(v)}
+            />
+            {isGroup ? (
+              <ToggleRow
+                title={tt("channelSetting.saveToContacts")}
+                checked={isSaved}
+                loading={saveMu.isPending}
+                onChange={(v) => saveMu.mutate(v)}
+              />
+            ) : null}
+          </SectionGroup>
+        ) : null}
+
+        {isGroup ? (
+          <SectionGroup>
+            <InlineEditRow
+              title={tt("channelSetting.myNickname")}
+              value={myNickname}
+              placeholder={tt("channelSetting.notSet")}
+              canEdit
+              maxLength={20}
+              pending={myNickMu.isPending}
+              editing={editing === "myNickname"}
+              onEnterEdit={() => setEditing("myNickname")}
+              onCancel={() => setEditing(null)}
+              onSave={(v) => myNickMu.mutate(v)}
+            />
+          </SectionGroup>
+        ) : null}
+
+        <SectionGroup>
+          {!isThread ? (
+            <NavRow
+              title={tt("channelSetting.clearMessages")}
+              danger
+              onClick={() => setConfirmClear(true)}
+            />
+          ) : null}
+          <NavRow
+            title={dangerCloseTitle}
+            danger
+            center={isThread}
+            onClick={() => setConfirmClose(true)}
+          />
+        </SectionGroup>
       </BaseDrawer>
 
       <ChannelMembersModal

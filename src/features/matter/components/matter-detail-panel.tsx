@@ -696,15 +696,7 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
       }`}
     >
       {label}
-      {count != null ? (
-        <span
-          className={`rounded px-1.5 text-[11px] font-mono ${
-            active ? "bg-text-primary text-white" : "bg-bg-elevated text-text-tertiary"
-          }`}
-        >
-          {count}
-        </span>
-      ) : null}
+      {count != null ? <span className="text-[14px]">{count}</span> : null}
     </button>
   );
 }

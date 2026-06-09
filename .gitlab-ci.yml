@@ -43,6 +43,7 @@ variables:
       paths:
         - .pnpm-store/
         - .tsbuildinfo/
+        - node_modules/
   artifacts:
     name: "build_${ENV}_dist"
     expire_in: 30 mins

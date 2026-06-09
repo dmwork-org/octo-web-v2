@@ -47,6 +47,7 @@ type View = "list" | "detail";
 export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps) {
   const tt = useT();
   const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
   const [view, setView] = useState<View>("list");
@@ -72,6 +73,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
       invalidate();
       setCreateOpen(false);
       toast.success(t("threadPanelLocal.toast.created"));
+      // 对齐上游 2c5eccbb:子区创建成功 → 立即 invalidate followed sidebar query,
+      // 让关注 tab 列表里(如果父群已被关注 / 子区被默认加入)即时刷新。
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.createFailed")),

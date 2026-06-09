@@ -51,6 +51,10 @@ import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { copyImageToClipboard } from "@/features/base/lib/copy-image";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import {
+  formatMessageTimeShort as formatTime,
+  formatMessageTimestamp as formatSenderTime,
+} from "@/features/chat/lib/format-message-time";
 
 interface MessageRowProps {
   message: Message;
@@ -102,34 +106,7 @@ function useSenderInfoLive(fromUID: string): void {
   }, [fromUID]);
 }
 
-function formatTime(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-US", { weekday: "short" });
-
-function formatSenderTime(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  const now = new Date();
-  const hhmm = formatTime(ts);
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-  if (sameDay(d, now)) return hhmm;
-  const y = new Date(now);
-  y.setDate(y.getDate() - 1);
-  if (sameDay(d, y)) return t("messageRow.yesterdayTime", { values: { time: hhmm } });
-  const deltaDays = Math.abs(now.getTime() - d.getTime()) / 86_400_000;
-  if (deltaDays < 7) return `${WEEKDAY_FORMATTER.format(d)} ${hhmm}`;
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hhmm}`;
-  return `${d.getFullYear()}-${mm}-${dd} ${hhmm}`;
-}
+// 时间格式化已抽到 lib/format-message-time.ts(对齐上游 c1eaadca)
 
 function isBotSender(fromUID: string): boolean {
   if (!fromUID) return false;

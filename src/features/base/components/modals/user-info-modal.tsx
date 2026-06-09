@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -66,6 +66,13 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     mutationFn: (remark: string) => setUserRemark(uid!, remark),
     onSuccess: () => {
       invalidate();
+      // 对齐上游 2b1c78c3(#326):备注改完后立即刷新 SDK channelInfo cache,
+      // 让群消息的 senderDisplay(读 personChannelInfo.title)即时反映新备注。
+      // useSenderInfoLive 已挂 channelInfoListener,fetch 拿到新 cache 后会
+      // 触发 force re-render。
+      if (uid) {
+        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      }
       toast.success(t("base.userInfo.saved"));
       setRemarkEditing(false);
     },

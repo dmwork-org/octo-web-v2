@@ -9,9 +9,10 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { ArrowLeft } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
+import { getExtension } from "@/features/chat/file-preview/types";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { api } from "@/features/base/api/client";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   MergeforwardContent,
@@ -214,7 +215,7 @@ function MergeforwardModal({
       contentClassName="px-4 py-2.5"
     >
       <div key={`stack-${stack.length}`}>
-        <MergeforwardList content={current} onOpenNested={pushNested} />
+        <MergeforwardList content={current} onOpenNested={pushNested} onClose={onClose} />
       </div>
     </BaseDialog>
   );
@@ -223,9 +224,11 @@ function MergeforwardModal({
 function MergeforwardList({
   content,
   onOpenNested,
+  onClose,
 }: {
   content: MergeforwardContent;
   onOpenNested: (c: MergeforwardContent) => void;
+  onClose: () => void;
 }) {
   const t = useT();
   const users = content.users ?? [];
@@ -261,7 +264,7 @@ function MergeforwardList({
                 </header>
               ) : null}
               <div className="text-[14px] leading-[1.5] break-words text-[rgba(28,28,35,0.8)]">
-                <InnerContent msg={m} onOpenNested={onOpenNested} />
+                <InnerContent msg={m} onOpenNested={onOpenNested} onClose={onClose} />
               </div>
             </div>
           </li>
@@ -274,9 +277,11 @@ function MergeforwardList({
 function InnerContent({
   msg,
   onOpenNested,
+  onClose,
 }: {
   msg: Message;
   onOpenNested: (c: MergeforwardContent) => void;
+  onClose: () => void;
 }) {
   const t = useT();
   if (msg.contentType === MessageContentType.text) {
@@ -315,48 +320,22 @@ function InnerContent({
     return (
       <FileCard
         content={msg.content as { name?: string; ext?: string; size?: number; url?: string }}
+        msg={msg}
+        onClose={onClose}
       />
     );
   }
   return <span>{msg.content?.conversationDigest ?? t("mergeForward.messageFallback")}</span>;
 }
 
-async function triggerDownload(url: string, filename: string): Promise<void> {
-  if (!url) return;
-  let parsed: URL;
-  try {
-    parsed = new URL(url, window.location.href);
-  } catch {
-    return;
-  }
-  let downloadUrl = parsed.href;
-  const isCrossOrigin = parsed.origin !== window.location.origin;
-  if (isCrossOrigin && filename) {
-    try {
-      const resp = await api<{ url?: string }>(
-        `file/download/url?path=${encodeURIComponent(parsed.href)}&filename=${encodeURIComponent(filename)}`,
-      );
-      if (resp?.url) downloadUrl = resp.url;
-    } catch {
-      // 拿预签名失败,fallback 用 raw url
-    }
-  }
-  const a = document.createElement("a");
-  a.href = downloadUrl;
-  a.download = filename;
-  if (isCrossOrigin) {
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-  }
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
 function FileCard({
   content,
+  msg,
+  onClose,
 }: {
   content: { name?: string; ext?: string; size?: number; url?: string };
+  msg: Message;
+  onClose: () => void;
 }) {
   const name = content.name || tInst("mergeForward.unknownFile");
   const ext = (content.ext || "").toUpperCase();
@@ -381,7 +360,20 @@ function FileCard({
   })();
   const onClick = () => {
     if (!clickable) return;
-    void triggerDownload(url, name);
+    // 对齐上游 e41a1d7b (#125):合并转发文件卡片点击 → 预览而非下载。
+    // 先关闭合并转发 modal(否则 modal mask 挡住预览面板),再打开 file-preview。
+    onClose();
+    chatSidePanelActions.openFilePreview({
+      url,
+      name,
+      ext: getExtension(content.ext, content.name),
+      size,
+      messageId: msg.messageID,
+      fromUID: msg.fromUID,
+      conversationDigest: name,
+      // 合并转发内层 message 无 channel/messageSeq 上下文,
+      // sourceChannelId/sourceChannelType/messageSeq 不传(预览面板内"回复"按钮不显)
+    });
   };
   return (
     <div

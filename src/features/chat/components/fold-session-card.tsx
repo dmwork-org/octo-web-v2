@@ -1,6 +1,7 @@
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { type FoldSession } from "@/features/chat/lib/fold-session";
+import { formatMessageTimestamp as formatTime } from "@/features/chat/lib/format-message-time";
 
 interface FoldSessionCardProps {
   session: FoldSession;
@@ -106,12 +107,7 @@ function FoldSessionExpanded({ messages }: { messages: Message[] }) {
   );
 }
 
-/** HH:mm 格式化(对齐旧 timeOnly)。 */
-function formatTime(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+// 时间格式化已抽到 lib/format-message-time.ts(对齐上游 c1eaadca)
 
 /** uid → Person channelInfo title fallback uid(对齐 message-row.senderDisplay 简化版)。 */
 function senderTitleOf(fromUID: string): string {

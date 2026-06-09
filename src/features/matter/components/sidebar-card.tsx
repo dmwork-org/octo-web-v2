@@ -18,14 +18,14 @@ const STATUS_KEY: Record<MatterStatus, string> = {
 
 /**
  * 状态 pill 颜色,对齐原 dmworktodo:
- * - open:brand 浅蓝
- * - done:online 浅绿
+ * - open:浅蓝 bg #ebf9ff + text #005694
+ * - done:浅绿 bg #ecf9ec + text #176221
  * - archived:灰
  */
 const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-brand-tint text-brand",
-  done: "bg-online/10 text-online",
-  archived: "bg-bg-elevated text-text-tertiary",
+  open: "bg-[#ebf9ff] text-[#005694]",
+  done: "bg-[#ecf9ec] text-[#176221]",
+  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
 };
 
 function formatDeadline(deadline: string): string {

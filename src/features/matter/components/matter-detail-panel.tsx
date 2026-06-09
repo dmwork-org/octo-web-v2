@@ -54,9 +54,9 @@ const STATUS_KEY: Record<MatterStatus, string> = {
 };
 
 const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-brand-tint text-brand",
-  done: "bg-online/10 text-online",
-  archived: "bg-bg-elevated text-text-tertiary",
+  open: "bg-[#ebf9ff] text-[#005694]",
+  done: "bg-[#ecf9ec] text-[#176221]",
+  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
 };
 
 function formatDateTime(iso: string): string {
@@ -682,9 +682,7 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
       type="button"
       onClick={onClick}
       className={`relative inline-flex h-12 items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors cursor-pointer ${
-        active
-          ? "font-semibold text-text-primary"
-          : "text-text-secondary hover:text-text-primary"
+        active ? "font-semibold text-text-primary" : "text-text-secondary hover:text-text-primary"
       }`}
     >
       {label}

@@ -14,7 +14,8 @@ stages:
 
 workflow:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "test"'
+    # main 分支 push 触发,但部署的 k8s 资源仍沿用 test 命名(ingress 已映射到 octo-web-test-svc)
+    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: never
 
 variables:

@@ -316,6 +316,64 @@ function InnerContent({
       />
     );
   }
+  if (msg.contentType === MessageContentTypeConst.richText) {
+    // 合并转发详情内 RichText(对齐上游 fff36eb1):mergeforward modal 已在 z-index 顶,
+    // 不嵌主 RichTextRenderer 的全屏 lightbox(double modal 体验差),只简单平铺 blocks
+    const rtc = msg.content as {
+      content?: Array<{ type?: string; text?: string; url?: string; name?: string }>;
+    };
+    const blocks = rtc.content || [];
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        {blocks.map((blk, i) => {
+          if (blk.type === "image" && blk.url) {
+            try {
+              const u = new URL(blk.url, window.location.href);
+              if (u.protocol !== "http:" && u.protocol !== "https:") {
+                return (
+                  <span key={i} className="text-[12px] text-text-tertiary">
+                    {t("message.digest.image")}
+                  </span>
+                );
+              }
+            } catch {
+              return (
+                <span key={i} className="text-[12px] text-text-tertiary">
+                  {t("message.digest.image")}
+                </span>
+              );
+            }
+            return (
+              <img
+                key={i}
+                src={blk.url}
+                alt={blk.name || ""}
+                className="block max-h-[200px] max-w-[320px] rounded-md object-contain"
+              />
+            );
+          }
+          if (blk.type === "file") {
+            return (
+              <span key={i} className="text-[13px] text-text-secondary">
+                📎 {blk.name || t("message.digest.file")}
+              </span>
+            );
+          }
+          if (blk.text) {
+            return (
+              <span
+                key={i}
+                className="text-[14px] leading-[1.5] whitespace-pre-wrap text-text-primary"
+              >
+                {blk.text}
+              </span>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
+  }
   if (msg.contentType === MessageContentTypeConst.file) {
     return (
       <FileCard

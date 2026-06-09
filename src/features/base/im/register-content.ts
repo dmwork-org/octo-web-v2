@@ -3,6 +3,7 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { FileContent } from "@/features/base/im/file-content";
 import { GifContent } from "@/features/base/im/gif-content";
 import { MergeforwardContent } from "@/features/base/im/mergeforward-content";
+import { RichTextContent } from "@/features/base/im/richtext-content";
 import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
 import { VideoContent } from "@/features/base/im/video-content";
 import { VoiceContent } from "@/features/base/im/voice-content";
@@ -21,6 +22,7 @@ import { TypingContent } from "@/features/base/im/typing-content";
  *   - P2-B*: voice / gif / smallVideo / mergeForward / threadCreated
  *   - P3+: card / lottieSticker / location / screenshot / summaryCard / ...
  *   - typing(contentType=-2,bot "正在回复中" 提示)
+ *   - richText(=14, 图文混排接收, 对齐上游 b1bb31df)
  *
  * 幂等:SDK register 直接覆盖 contentMap[contentType]。
  */
@@ -30,6 +32,7 @@ export function registerContentTypes(): void {
   WKSDK.shared().register(MessageContentTypeConst.gif, () => new GifContent());
   WKSDK.shared().register(MessageContentTypeConst.smallVideo, () => new VideoContent());
   WKSDK.shared().register(MessageContentTypeConst.mergeForward, () => new MergeforwardContent());
+  WKSDK.shared().register(MessageContentTypeConst.richText, () => new RichTextContent());
   WKSDK.shared().register(MessageContentTypeConst.threadCreated, () => new ThreadCreatedContent());
   WKSDK.shared().register(MessageContentTypeConst.card, () => new CardContent());
   WKSDK.shared().register(MessageContentTypeConst.location, () => new LocationContent());

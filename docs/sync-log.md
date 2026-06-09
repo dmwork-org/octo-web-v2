@@ -175,4 +175,28 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:**docs-only batch**(0 代码变更)— 记录 4 个 SHA 的等效 / deferred 理由,避免下次扫到时重复判断
 - baseline SHA 暂不推进
 
+## 2026-06-09 — Batch 1.8 chat 大特性 1:RichText 14 图文混合
+
+- 搬了 3 个上游 SHA + 1 个 deferred(共 4 个):
+  - `b1bb31df` 接收渲染 RichText=14:
+    - content-types.ts 加 `richText: 14`
+    - 新增 base/im/richtext-content.ts(RichTextContent / decodeJSON / buildRichTextPlain / conversationDigest 3 级 fallback)
+    - register-content.ts 注册 SDK content
+    - 新增 chat/message-renderers/richtext-renderer.tsx(text 纯文本 + image isSafeUrl 校验 + 全屏 lightbox)
+    - dispatch.tsx 加 case
+    - i18n message.digest.richText zh-CN / en-US
+  - `b5a3b68e` 发送侧聚合 type=14:
+    - richtext-content.ts 加 makeTextBlock / makeImageBlock / createRichTextContent factory
+    - 新增 chat/services/upload-chat-media.ts(完整 credentials → PUT pipeline + isSafeUrl;SDK upload-task 内部上传时机不能用于聚合路径)
+    - composer.tsx 加 sendRichTextMixed 路径:editor 同时有 text+image 且无 file → 聚合一条 type=14;mention all/humans/ais/uids 合并到单消息
+    - 跳过 snapshot-aware cleanup(上游 b5a3b68e round-2 bug 修,本仓未发现该 race,留 backlog)
+  - `fff36eb1` UI 迁移 + mergeforward + file 前向兼容:
+    - 上游主体是 Cell → MessageRow + bridge + ui/message MixedContent 架构迁移,**本仓本来就是新架构,无需迁移**
+    - 只搬 file block 前向兼容:richtext-content RichTextBlockType.file + RichTextFilePlaceholder,buildRichTextPlain 加 file 分支,richtext-renderer 新增 RichTextFile 卡片
+    - mergeforward-renderer 加 RichText case(inline 实现,不复用 RichTextRenderer 因为 mergeforward modal 内不嵌全屏 lightbox 避免 double modal)
+  - **(deferred / P3)** `39284abf` clipboard round trip:核心收发已闭合,clipboard round trip 是 UX 增量(复制 RichText 消息粘贴到别处);完整搬要 richTextClipboard.ts ~301 行 + composer paste 集成 + copy handler 改造 + credentials omit safety,工作量重,单独立项
+- 本仓 commits(分支 feat/upstream-batch-1-8):2e6fdd3 / 6d63957 / b1f0bc6(3 个 code commits + 收尾 docs)
+- 关键决策:b5a3b68e 跳过 snapshot-aware cleanup(本仓未发现该 race,留 backlog);fff36eb1 上游 UI 迁移本仓不需要;39284abf 完整搬工作量重,defer
+- baseline SHA 暂不推进
+
 

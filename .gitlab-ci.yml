@@ -60,6 +60,9 @@ variables:
     - pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm-store"
     - echo "[diag] pnpm store path => $(pnpm store path 2>&1)"
     - echo "[diag] .pnpm-store before install => $(du -sh .pnpm-store 2>/dev/null || echo 'EMPTY (cache miss)')"
+    # 探一下 runner cache 挂载点 — SRE 配 PVC 后看是否真挂到这里
+    - echo "[diag] /cache mount => $(ls -la /cache 2>&1 | head -5 || echo 'NOT MOUNTED')"
+    - echo "[diag] cache-related mounts => $(mount | grep -iE 'cache|pvc' || echo 'none')"
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:pnpm_install[collapsed=true]\r\e[0Kpnpm install"

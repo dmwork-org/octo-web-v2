@@ -48,12 +48,20 @@ variables:
   before_script:
     # image 自带 pnpm 10.12.1,但 packageManager 锁定 11.2.2,全局装一份匹配
     - npm config set prefix "$CI_PROJECT_DIR/.npm-global"
-    - npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:install_pnpm[collapsed=true]\r\e[0Knpm install -g pnpm"
+      time npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
+      echo -e "\e[0Ksection_end:`date +%s`:install_pnpm\r\e[0K"
     - export PATH="$CI_PROJECT_DIR/.npm-global/bin:$PATH"
-    - pnpm config set store-dir .pnpm-store
   script:
-    - pnpm install --frozen-lockfile --prefer-offline
-    - pnpm build
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pnpm_install[collapsed=true]\r\e[0Kpnpm install"
+      time pnpm install --frozen-lockfile --prefer-offline
+      echo -e "\e[0Ksection_end:`date +%s`:pnpm_install\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pnpm_build[collapsed=true]\r\e[0Kpnpm build"
+      time pnpm build
+      echo -e "\e[0Ksection_end:`date +%s`:pnpm_build\r\e[0K"
 
 .package: &package
   stage: package

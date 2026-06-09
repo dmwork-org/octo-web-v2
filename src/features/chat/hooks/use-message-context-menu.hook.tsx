@@ -25,7 +25,7 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
-import { chatReplyActions } from "@/features/chat/stores/chat-reply";
+import { replyToMessage } from "@/features/chat/lib/reply-to-message";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import {
@@ -211,7 +211,7 @@ export function useMessageContextMenu(message: Message): {
     items.push({
       label: t("messageRow.menu.reply"),
       icon: <CornerUpLeft size={13} />,
-      onClick: () => chatReplyActions.set(message.channel, message),
+      onClick: () => replyToMessage(message.channel, message, me),
     });
   }
   if (forwardAllowed) {

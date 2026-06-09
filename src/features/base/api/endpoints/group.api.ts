@@ -447,6 +447,14 @@ export async function archiveThread(groupNo: string, shortId: string): Promise<v
   );
 }
 
+/** 取消归档子区(旧 threadUnarchive)— POST /v1/groups/{groupNo}/threads/{shortId}/unarchive。 */
+export async function unarchiveThread(groupNo: string, shortId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/unarchive`,
+    { method: "POST" },
+  );
+}
+
 /**
  * 创建子区(无 sourceMessage 时,顶部 + 按钮入口)。旧 dmworkdatasource
  * threadCreate(groupNo, name, sourceMessageId?)— sourceMessageId 可选。

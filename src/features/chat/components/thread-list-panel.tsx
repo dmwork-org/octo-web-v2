@@ -2,7 +2,16 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, Star, X } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  ChevronDown,
+  MoreHorizontal,
+  Plus,
+  Star,
+  X,
+} from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -20,6 +29,14 @@ import {
   type ThreadRaw,
 } from "@/features/base/api/endpoints/group.api";
 import { followThread, unfollowThread } from "@/features/base/api/endpoints/follow.api";
+import { authStore } from "@/features/base/stores/auth";
+import { archiveThread, unarchiveThread } from "@/features/base/api/endpoints/group.api";
+import { canManageThread } from "@/features/chat/lib/thread-permission";
+import {
+  deriveArchiveAction,
+  shouldShowArchiveButton,
+} from "@/features/chat/lib/thread-archive-actions";
+import { toast as sonnerToast } from "sonner";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
@@ -533,7 +550,12 @@ function ThreadItem({
   const tt = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const canEdit = canManageThread(thread, groupNo, myUid);
+  const archiveAction = deriveArchiveAction(thread);
+  const showArchiveBtn = shouldShowArchiveButton(thread, canEdit);
   const [optimisticFollowed, setOptimisticFollowed] = useState<boolean | null>(null);
+  const [archivingPending, setArchivingPending] = useState(false);
   const followMu = useMutation({
     mutationFn: async ({ followed }: { followed: boolean }) => {
       const channelId = buildThreadChannelId(groupNo, thread.short_id);
@@ -559,6 +581,51 @@ function ThreadItem({
       );
     },
   });
+  /**
+   * 行内归档/取消归档(对齐上游 c13e7e27):
+   * - optimistic: 立刻乐观 invalidate query 让 UI 看起来已切组
+   * - 成功后 toast 带 5 秒撤销 action,点撤销会反向调对方接口
+   * - 失败 toast 错误,query refetch 拿回真实状态
+   */
+  const performArchive = async (action: "archive" | "unarchive") => {
+    if (archivingPending) return;
+    setArchivingPending(true);
+    try {
+      if (action === "archive") {
+        await archiveThread(groupNo, thread.short_id);
+      } else {
+        await unarchiveThread(groupNo, thread.short_id);
+      }
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      sonnerToast.success(
+        action === "archive"
+          ? t("threadPanelLocal.toast.archived")
+          : t("threadPanelLocal.toast.unarchived"),
+        {
+          action: {
+            label: t("threadPanelLocal.undo"),
+            onClick: () => {
+              void performArchive(action === "archive" ? "unarchive" : "archive");
+            },
+          },
+          duration: 5000,
+        },
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : action === "archive"
+            ? t("threadPanelLocal.toast.archiveFailed")
+            : t("threadPanelLocal.toast.unarchiveFailed"),
+      );
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+    } finally {
+      setArchivingPending(false);
+    }
+  };
+
   const isFollowed = optimisticFollowed ?? !!thread.is_followed;
   const hasUnread = (thread.unread_count ?? 0) > 0;
   const creatorName = getCreatorName(thread);
@@ -602,6 +669,29 @@ function ThreadItem({
               strokeWidth={isFollowed ? 0 : 1.5}
             />
           </button>
+          {showArchiveBtn && archiveAction ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void performArchive(archiveAction);
+              }}
+              disabled={archivingPending}
+              aria-label={
+                archiveAction === "archive"
+                  ? tt("threadPanelLocal.archiveAria")
+                  : tt("threadPanelLocal.unarchiveAria")
+              }
+              className="inline-flex h-6 shrink-0 items-center gap-1 rounded-sm border border-border-default bg-bg-surface px-2 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {archiveAction === "archive" ? <Archive size={11} /> : <ArchiveRestore size={11} />}
+              <span>
+                {archiveAction === "archive"
+                  ? tt("threadPanelLocal.archive")
+                  : tt("threadPanelLocal.unarchive")}
+              </span>
+            </button>
+          ) : null}
           <span className="text-[12px] text-text-tertiary">
             {formatRelativeTime(thread.updated_at)}
           </span>

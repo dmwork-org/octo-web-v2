@@ -32,6 +32,7 @@ import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button"
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
 import { collectRevokeRoleContext } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
+import { getRevokeSecondFromCache } from "@/features/chat/lib/get-revoke-second";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -179,8 +180,6 @@ function extractText(message: Message): string {
   return digest ?? "";
 }
 
-const REVOKE_SECONDS = 120;
-
 function isBotOwnerOf(message: Message, myUid: string): boolean {
   const fromChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
     new Channel(message.fromUID, ChannelTypePerson),
@@ -323,7 +322,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           channelType: message.channel.channelType,
           messageSend: message.send,
           messageTimestamp: message.timestamp,
-          revokeSecond: REVOKE_SECONDS,
+          revokeSecond: getRevokeSecondFromCache(qc),
           isBotOwner: isBotOwnerOf(message, me),
           myRole,
           targetRole,

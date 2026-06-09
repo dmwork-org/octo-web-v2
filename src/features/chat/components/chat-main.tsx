@@ -14,6 +14,7 @@ import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel"
 import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { useEnsureRoleSubscribersForRevoke } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
+import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-config-loaded.hook";
 
 /**
  * Channel 切换时关掉所有右侧 panel(对齐旧 ChatContentPage 用 key={channel.getChannelKey()}
@@ -78,6 +79,8 @@ export function ChatMain() {
   useResetSidePanelOnChannelChange(channel ? `${channel.channelID}_${channel.channelType}` : "_");
   // 进入群/子区时预热 subscribers,供 message-row 撤回菜单同步读 myRole/targetRole
   useEnsureRoleSubscribersForRevoke(channel);
+  // 预热 appConfig → message-row 同步读 revoke_second
+  useEnsureAppConfigLoaded();
 
   if (!channel) {
     return <ChatEmptyHologram />;

@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
   type CMDContent,
+  ConnectStatus,
   type Message,
   MessageStatus,
   ReasonCode,
@@ -23,6 +24,10 @@ import { TypingManager } from "@/features/chat/services/typing-manager";
  *    `taskListener + ackListener` 双源 done 协议:task fail 仅影响该 send 操作的 retry 决策,
  *    不写 message.status;UI 层 image/file/video renderer 自行 subscribe task 显示进度 overlay)
  * - CMD messageRevoke / typing(chatManager.addCMDListener)
+ * - WebSocket 重连(connectStatusListener)— Connected 时 invalidate 当前 channel
+ *   的 messages query 补刷首屏(对齐上游 7a42c23a / #187):staleTime=Infinity 不会
+ *   自动 refetch,断连期间 bot 回复经 HTTP sync 落库但当前会话拿不到,5s 去抖避免
+ *   短间隔重连多次 invalidate
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
  *
@@ -140,13 +145,28 @@ export function useMessagesSync(channel: Channel | null) {
       );
     };
 
+    // 重连补刷当前会话首屏(对齐上游 7a42c23a / #187 第二层):
+    // queryOptions staleTime=Infinity 不会自动 refetch,断连期间 bot 回复经
+    // HTTP sync 落库但当前 InfiniteQuery 拿不到。5s 去抖避免短间隔重连多次刷。
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const connectStatusListener = (status: ConnectStatus) => {
+      if (status !== ConnectStatus.Connected) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: key, refetchType: "active" });
+      }, 5000);
+    };
+
     WKSDK.shared().chatManager.addMessageListener(messageListener);
     WKSDK.shared().chatManager.addMessageStatusListener(statusListener);
     WKSDK.shared().chatManager.addCMDListener(cmdListener);
+    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener);
     return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       WKSDK.shared().chatManager.removeMessageListener(messageListener);
       WKSDK.shared().chatManager.removeMessageStatusListener(statusListener);
       WKSDK.shared().chatManager.removeCMDListener(cmdListener);
+      WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener);
     };
   }, [channel, qc, spaceId]);
 }

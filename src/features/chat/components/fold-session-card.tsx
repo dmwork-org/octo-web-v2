@@ -1,7 +1,9 @@
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
+import type { MouseEvent } from "react";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { type FoldSession } from "@/features/chat/lib/fold-session";
 import { formatMessageTimestamp as formatTime } from "@/features/chat/lib/format-message-time";
+import { useMessageContextMenu } from "@/features/chat/hooks/use-message-context-menu.hook";
 
 interface FoldSessionCardProps {
   session: FoldSession;
@@ -36,6 +38,10 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
   const participantLabel = participants.map((p) => p.name).join(" × ") || "AI";
   const time = formatTime(lastMessage.timestamp);
 
+  // 折叠态右键 → 菜单作用于 lastMessage(对齐老仓 FoldSessionCard onSummaryContextMenu);
+  // 展开态由内层 ExpandedItemWithMenu 各自维护 hook(React 规则)。
+  const summaryMenu = useMessageContextMenu(lastMessage);
+
   return (
     <div className="mt-6 flex items-start gap-2 px-4">
       <FoldSessionAvatar />
@@ -60,10 +66,11 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
           {expanded ? (
             <FoldSessionExpanded messages={messages} />
           ) : (
-            <FoldSessionItem message={lastMessage} />
+            <FoldSessionItem message={lastMessage} onContextMenu={summaryMenu.onContextMenu} />
           )}
         </div>
       </div>
+      {summaryMenu.render()}
     </div>
   );
 }
@@ -77,11 +84,17 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
  * 对齐旧 `.wk-fold-msg-head` + `.wk-fold-msg-name` + `.wk-fold-msg-time` 样式,
  * **不**渲染 avatar(对齐 `.wk-fold-msg-ava { display: none }`)。
  */
-function FoldSessionItem({ message }: { message: Message }) {
+function FoldSessionItem({
+  message,
+  onContextMenu,
+}: {
+  message: Message;
+  onContextMenu?: (e: MouseEvent) => void;
+}) {
   const senderName = senderTitleOf(message.fromUID);
   const time = formatTime(message.timestamp);
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" onContextMenu={onContextMenu}>
       <div className="flex items-center gap-2">
         <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
           {senderName}
@@ -94,16 +107,28 @@ function FoldSessionItem({ message }: { message: Message }) {
 }
 
 /**
- * 展开态:渲染所有 messages,每条用 FoldSessionItem(无头像,简版 head + body)。
+ * 展开态:渲染所有 messages,每条用 ExpandedItemWithMenu(各自 hook 一个右键菜单,
+ * 对齐老仓 FoldSessionExpandedList:53 `onMessageContextMenu(message.message, event)`)。
  * 消息间距由 gap-3 给出。
  */
 function FoldSessionExpanded({ messages }: { messages: Message[] }) {
   return (
     <div className="flex flex-col gap-3">
       {messages.map((m) => (
-        <FoldSessionItem key={m.clientMsgNo || m.messageID} message={m} />
+        <ExpandedItemWithMenu key={m.clientMsgNo || m.messageID} message={m} />
       ))}
     </div>
+  );
+}
+
+/** 展开态单条 + 自己的菜单(每条独立 hook 实例,保证 React 规则)。 */
+function ExpandedItemWithMenu({ message }: { message: Message }) {
+  const { onContextMenu, render } = useMessageContextMenu(message);
+  return (
+    <>
+      <FoldSessionItem message={message} onContextMenu={onContextMenu} />
+      {render()}
+    </>
   );
 }
 

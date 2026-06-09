@@ -47,13 +47,19 @@ const NEAR_BOTTOM_THRESHOLD = 200;
 
 /**
  * 同发送者 = 连续(对齐旧 dmworkbase useMessageRow.ts:86 isContinue):
- *   pre 存在 + 非系统(bare)消息 + 同 sender
- * **不**做时间窗口判断 — 即使跨多小时,同一发送者连发的消息全聚合一个 header。
+ *   pre 存在 + 非系统(bare)消息 + 同 sender + **10 分钟内**(对齐上游 195625e8 / #113)
+ * 同一发送者跨长间隔(>10min)不聚合,避免"早上一条 + 下午一条"挤成一个 header。
  */
 function isContinue(curr: Message, prev: Message | undefined): boolean {
   if (!prev) return false;
   if (shouldRenderBare(prev) || shouldRenderBare(curr)) return false;
-  return prev.fromUID === curr.fromUID;
+  if (!prev.fromUID || prev.fromUID !== curr.fromUID) return false;
+  // 10 分钟阈值(秒级 timestamp);对齐上游 MESSAGE_CONTINUATION_MAX_GAP_SEC
+  const prevTs = prev.timestamp;
+  const currTs = curr.timestamp;
+  if (typeof prevTs !== "number" || typeof currTs !== "number") return true;
+  if (!Number.isFinite(prevTs) || !Number.isFinite(currTs)) return true;
+  return Math.abs(currTs - prevTs) < 10 * 60;
 }
 
 /**

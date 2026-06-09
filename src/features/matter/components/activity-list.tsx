@@ -140,7 +140,7 @@ function ArrowIcon() {
       height="16"
       viewBox="0 0 16 16"
       fill="none"
-      className="shrink-0 text-text-tertiary"
+      className="shrink-0 text-icon-muted"
       aria-hidden="true"
     >
       <path
@@ -162,12 +162,19 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
   switch (activity.action) {
     case "created":
-      return <span>{(detail.summary as string) || t("matter.activity.createdMatter")}</span>;
+      return (
+        <span>
+          {t("matter.activity.initial")}{" "}
+          {(detail.summary as string) || t("matter.activity.createdMatter")}
+        </span>
+      );
 
     case "title_changed":
       return (
         <span className="inline-flex items-center gap-1">
-          <span className="text-text-tertiary line-through">{(detail.from as string) || ""}</span>
+          <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
+            {(detail.from as string) || ""}
+          </span>
           <ArrowIcon />
           <span className="text-text-primary font-medium">{(detail.to as string) || ""}</span>
         </span>
@@ -190,7 +197,9 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
           {removed.map((line, i) => (
             <div key={`rm-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
               <MinusIcon />
-              <span className="text-text-tertiary line-through">"{line}"</span>
+              <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
+                "{line}"
+              </span>
             </div>
           ))}
         </div>
@@ -206,7 +215,9 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
         : t("matter.common.none");
       return (
         <span className="inline-flex items-center gap-1">
-          <span className="text-text-tertiary line-through">{from}</span>
+          <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
+            {from}
+          </span>
           <ArrowIcon />
           <span className="text-text-primary font-medium">{to}</span>
         </span>
@@ -216,7 +227,9 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
     case "status_changed":
       return (
         <span className="inline-flex items-center gap-1">
-          <span className="text-text-tertiary line-through">{(detail.from as string) || ""}</span>
+          <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
+            {(detail.from as string) || ""}
+          </span>
           <ArrowIcon />
           <span className="text-text-primary font-medium">{(detail.to as string) || ""}</span>
         </span>
@@ -325,7 +338,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
             </svg>
           </button>
           {filterOpen && (
-            <div className="absolute top-[calc(100%+4px)] left-0 z-20 w-46 rounded-sm border border-border-subtle bg-bg-surface py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+            <div className="absolute top-[calc(100%+4px)] left-0 z-20 w-46 rounded-md border border-border-subtle bg-bg-surface py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.06)]">
               {FILTER_OPTIONS.map((o) => (
                 <button
                   key={o.id}
@@ -393,22 +406,22 @@ export function ActivityList({ matterId }: ActivityListProps) {
         </p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full border-collapse table-fixed">
+          <table className="w-full border-collapse table-fixed [&>tbody>tr:last-child>td]:border-b-0">
             <thead>
               <tr>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
                   {t("matter.activity.table.time")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
                   {t("matter.activity.table.type")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle">
                   {t("matter.activity.table.content")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-36">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-36">
                   {t("matter.activity.table.actor")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-sm font-medium leading-4 text-icon-default border-b border-border-subtle w-40">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-40">
                   {t("matter.activity.table.source")}
                 </th>
               </tr>
@@ -416,7 +429,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
             <tbody>
               {sorted.map((a) => (
                 <tr key={a.id} className="bg-bg-surface">
-                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle font-mono tabular-nums">
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle tabular-nums">
                     {formatActivityTime(a.created_at)}
                   </td>
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">

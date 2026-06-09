@@ -29,6 +29,7 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
+import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -549,9 +550,16 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       </AvatarMenuButton>
       <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
-          <span className="truncate text-[15px] font-semibold text-text-primary">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openChatProfile(senderUid);
+            }}
+            className="cursor-pointer truncate text-[15px] font-semibold text-text-primary hover:underline"
+          >
             {senderTitle}
-          </span>
+          </button>
           {isVerified ? <RealnameBadge /> : null}
           {isBot ? <AiBadge size="small" /> : null}
           <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">

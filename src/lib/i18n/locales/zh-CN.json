@@ -1629,6 +1629,8 @@
   "messageRow.menu.reply": "回复",
   "messageRow.menu.revoke": "撤回",
   "messageRow.replyNotVisible": "原消息不在当前可见范围",
+  "messageRow.replyLoading": "正在加载原消息...",
+  "messageRow.replyNotFound": "原消息已删除或不在范围内",
   "messageRow.threadModalPlaceholder": "输入讨论话题...",
   "messageRow.threadModalTitle": "创建子区",
   "messageRow.toast.copied": "已复制",

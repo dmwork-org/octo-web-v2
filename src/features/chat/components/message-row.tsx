@@ -7,6 +7,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
@@ -16,6 +17,7 @@ import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useMessageContextMenu } from "@/features/chat/hooks/use-message-context-menu.hook";
+import { locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -142,6 +144,7 @@ function RealnameBadge() {
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
   useSenderInfoLive(effectiveFromUID(message));
+  const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
@@ -187,13 +190,23 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     </div>
   ) : null;
 
-  const onReplyClick = () => {
+  const onReplyClick = async () => {
     const reply = (message.content as { reply?: Reply }).reply;
     const seq = reply?.messageSeq;
     if (!seq) return;
-    const el = document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
+    // 快速路径:已渲染在 DOM 内,直接定位
+    let el = document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
     if (!el) {
-      toast.warning(t("messageRow.replyNotVisible"));
+      // 不在当前页 → 循环拉历史
+      const loadingId = toast.loading(t("messageRow.replyLoading"));
+      try {
+        el = await locateReplyMessage(qc, message.channel, seq);
+      } finally {
+        toast.dismiss(loadingId);
+      }
+    }
+    if (!el) {
+      toast.warning(t("messageRow.replyNotFound"));
       return;
     }
     el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -209,7 +222,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     );
     anim.onfinish = () => {
       anim.cancel();
-      el.style.borderRadius = prevRadius;
+      if (el) el.style.borderRadius = prevRadius;
     };
   };
 

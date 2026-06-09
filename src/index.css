@@ -115,6 +115,18 @@
   z-index: var(--z-debug);
 }
 
+/* ── Card fade-in animation ── */
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Body default — apply font / bg / text */
 html,
 body {

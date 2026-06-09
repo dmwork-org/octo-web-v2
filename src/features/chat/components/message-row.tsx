@@ -31,6 +31,7 @@ import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
+import { collectRevokeRoleContext } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -315,14 +316,19 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const isImage = message.contentType === MessageContentType.image;
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
   const revokeAllowed = me
-    ? canShowRevokeMenu({
-        messageID: message.messageID,
-        channelType: message.channel.channelType,
-        messageSend: message.send,
-        messageTimestamp: message.timestamp,
-        revokeSecond: REVOKE_SECONDS,
-        isBotOwner: isBotOwnerOf(message, me),
-      })
+    ? (() => {
+        const { myRole, targetRole } = collectRevokeRoleContext(message, me);
+        return canShowRevokeMenu({
+          messageID: message.messageID,
+          channelType: message.channel.channelType,
+          messageSend: message.send,
+          messageTimestamp: message.timestamp,
+          revokeSecond: REVOKE_SECONDS,
+          isBotOwner: isBotOwnerOf(message, me),
+          myRole,
+          targetRole,
+        });
+      })()
     : false;
   const forwardAllowed = canForward(message);
   const replyAllowed = canForward(message);

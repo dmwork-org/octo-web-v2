@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { MoreHorizontal, Plus, Tag } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
+import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { authStore } from "@/features/base/stores/auth";
@@ -31,7 +32,13 @@ import {
   useChannelTimelineOnExpand,
 } from "@/features/matter/hooks/use-channel-timeline";
 import { toParentGroupNo } from "@/features/matter/utils/channel-id";
-import type { MatterChannel, MatterStatus } from "@/features/matter/types/matter.types";
+import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
+import type {
+  MatterChannel,
+  MatterStatus,
+  TimelineAttachment,
+  TimelineEntry,
+} from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
   matterId: string;
@@ -189,6 +196,20 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       },
     });
   };
+
+  // 下载附件
+  const handleDownloadAttachment = useCallback(
+    async (att: TimelineAttachment, _entry: TimelineEntry) => {
+      const url = resolveFileUrl(att.file_url);
+      if (!url) return;
+      try {
+        await downloadFile(url, att.file_name || "file");
+      } catch {
+        toast.error("下载失败");
+      }
+    },
+    [],
+  );
 
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
@@ -354,6 +375,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               linkModalOpen={linkModalOpen}
               onOpenLinkModal={() => setLinkModalOpen(true)}
               onCloseLinkModal={() => setLinkModalOpen(false)}
+              onDownloadAttachment={handleDownloadAttachment}
             />
           ) : (
             <ActivityList matterId={matterId} />
@@ -435,12 +457,14 @@ function ChannelsTab({
   linkModalOpen,
   onOpenLinkModal,
   onCloseLinkModal,
+  onDownloadAttachment,
 }: {
   matterId: string;
   channels: MatterChannel[];
   linkModalOpen: boolean;
   onOpenLinkModal: () => void;
   onCloseLinkModal: () => void;
+  onDownloadAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
@@ -606,6 +630,7 @@ function ChannelsTab({
                             messageIds: entry.source_msgs || [],
                           });
                         }}
+                        onDownloadAttachment={onDownloadAttachment}
                       />
                     )}
                   </div>

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Download } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserName } from "@/features/matter/components/user-name";
-import type { TimelineEntry } from "@/features/matter/types/matter.types";
+import type { TimelineAttachment, TimelineEntry } from "@/features/matter/types/matter.types";
+import { getFileIcon, formatFileSize } from "@/features/matter/utils/file-utils";
 
 interface TimelinePanelProps {
   entries: TimelineEntry[];
@@ -10,6 +12,8 @@ interface TimelinePanelProps {
   canShowAnchor: boolean;
   /** 点击 "↗ 原消息" 时触发，传入 entry 和 event（定位弹框用） */
   onShowAnchor?: (entry: TimelineEntry, event: React.MouseEvent) => void;
+  /** 下载附件回调 */
+  onDownloadAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }
 
 /** 按日期分组 timeline entries */
@@ -48,7 +52,12 @@ function dayLabel(key: string): { label: string; raw: string } {
  * 群内事件时间线面板 — 按日期分组、带头像 + 用户名 + 内容 + 附件数 + 原消息按钮。
  * 对齐原版 wk-mp-tl 样式。
  */
-export function TimelinePanel({ entries, canShowAnchor, onShowAnchor }: TimelinePanelProps) {
+export function TimelinePanel({
+  entries,
+  canShowAnchor,
+  onShowAnchor,
+  onDownloadAttachment,
+}: TimelinePanelProps) {
   const [sortNewest, setSortNewest] = useState(true);
 
   const sorted = [...entries].sort((a, b) => {
@@ -150,22 +159,54 @@ export function TimelinePanel({ entries, canShowAnchor, onShowAnchor }: Timeline
                           </span>
                           {/* 附件列表 */}
                           {entry.attachments && entry.attachments.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {entry.attachments.map((att) => (
-                                <div
-                                  key={att.id}
-                                  className="inline-flex items-center gap-1.5 rounded-sm border border-border-subtle bg-bg-surface px-2 py-1"
-                                >
-                                  <span className="text-[12px] leading-[18px] text-text-primary">
-                                    {att.file_name || "未命名文件"}
-                                  </span>
-                                  {att.file_size != null && (
-                                    <span className="text-[11px] text-text-tertiary">
-                                      {(att.file_size / 1024).toFixed(1)}KB
+                            <div
+                              className="flex flex-wrap gap-1.5"
+                              role="list"
+                              aria-label="附件列表"
+                            >
+                              {entry.attachments.map((att) => {
+                                const name = att.file_name || "未命名文件";
+                                const sizeText =
+                                  att.file_size != null ? formatFileSize(att.file_size) : null;
+                                const Icon = getFileIcon(name, att.mime_type || "");
+                                return (
+                                  <div
+                                    key={att.id}
+                                    className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border-subtle bg-bg-surface px-2 py-1 transition-colors hover:border-border-default hover:bg-bg-item-hover"
+                                    role="listitem"
+                                    title={name}
+                                  >
+                                    <Icon
+                                      size={20}
+                                      className="shrink-0 text-icon-default"
+                                      aria-hidden="true"
+                                    />
+                                    <span className="inline-flex min-w-0 max-w-[220px] items-baseline gap-1">
+                                      <span className="truncate text-[12px] leading-[18px] text-text-primary">
+                                        {name}
+                                      </span>
+                                      {sizeText && (
+                                        <span className="shrink-0 text-[11px] text-text-tertiary">
+                                          {sizeText}
+                                        </span>
+                                      )}
                                     </span>
-                                  )}
-                                </div>
-                              ))}
+                                    {onDownloadAttachment && (
+                                      <span className="inline-flex shrink-0 items-center">
+                                        <button
+                                          type="button"
+                                          className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-xs border-0 bg-transparent text-icon-default transition-colors hover:bg-bg-item-hover hover:text-text-primary"
+                                          title={`下载 ${name}`}
+                                          aria-label={`下载 ${name}`}
+                                          onClick={() => onDownloadAttachment(att, entry)}
+                                        >
+                                          <Download size={14} aria-hidden="true" />
+                                        </button>
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { MoreHorizontal, Plus, Tag } from "lucide-react";
+import { MoreHorizontal, Tag } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -217,16 +217,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-8 py-3">
         <StatusPill status={data.status} seqNo={data.seq_no} />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
-        {isOwner && (
-          <button
-            type="button"
-            onClick={() => setLinkModalOpen(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <Plus size={12} />
-            关联新群
-          </button>
-        )}
         <div
           ref={menuRef}
           className={`relative flex shrink-0 items-center ${!isOwner ? "ml-auto" : ""}`}
@@ -518,10 +508,17 @@ function ChannelsTab({
         <button
           type="button"
           onClick={() => onOpenLinkModal()}
-          className="inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
+          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] font-semibold leading-[20px] text-accent transition-opacity hover:opacity-80"
         >
-          <Plus size={12} />
-          关联新群
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M8.00033 15.3332C12.0504 15.3332 15.3337 12.0499 15.3337 7.99984C15.3337 3.94975 12.0504 0.666504 8.00033 0.666504C3.95024 0.666504 0.666992 3.94975 0.666992 7.99984C0.666992 12.0499 3.95024 15.3332 8.00033 15.3332ZM12.6662 7.9184C12.6758 8.4706 12.236 8.92606 11.6838 8.9357L9.01751 8.98224L9.06405 11.6485C9.07369 12.2007 8.63386 12.6562 8.08166 12.6658C7.52945 12.6754 7.07399 12.2356 7.06435 11.6834L7.01781 9.01714L4.35155 9.06368C3.79935 9.07332 3.34389 8.63349 3.33425 8.08129C3.32462 7.52909 3.76445 7.07363 4.31665 7.06399L6.98291 7.01745L6.93637 4.35119C6.92673 3.79899 7.36657 3.34353 7.91877 3.33389C8.47097 3.32425 8.92643 3.76408 8.93607 4.31628L8.98261 6.98254L11.6489 6.936C12.2011 6.92637 12.6565 7.3662 12.6662 7.9184Z"
+              fill="currentColor"
+            />
+          </svg>
+          {t("matter.action.linkNewGroup")}
         </button>
       </div>
 

@@ -535,6 +535,7 @@ function CategorySection({
         onContextMenu={onContextMenu}
       >
         <span
+          ref={sortable.setActivatorNodeRef}
           {...sortable.attributes}
           {...sortable.listeners}
           onClick={(e) => e.stopPropagation()}

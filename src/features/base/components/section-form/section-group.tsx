@@ -15,7 +15,7 @@
  */
 export function SectionGroup({ children }: { children: React.ReactNode }) {
   return (
-    <section className="mx-4 mb-2 flex flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
+    <section className="mx-4 mb-2 flex shrink-0 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
       {children}
     </section>
   );

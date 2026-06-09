@@ -77,13 +77,21 @@ export interface RendererRegistryItem {
   needsFetch: boolean;
 }
 
-/** 从 ext 字段或 filename 后缀提取小写扩展名(对齐旧 getExtension)。 */
+/**
+ * 从 filename 后缀或 ext 字段提取小写扩展名(1:1 对齐上游 4b2e89c0 / #143)。
+ *
+ * **优先级**:filename 后缀 > content.ext。原因:服务端 content.extension 不可靠
+ * (实测 .md 文件该字段为空或返 "file" 占位),让"暂不支持预览"错误命中。
+ * 文件名后缀(.md)是真值源,优先用。content.ext 仅作 fallback(filename 无后缀
+ * 如 Makefile / Dockerfile)。
+ */
 export function getExtension(ext: string | undefined, name?: string): string {
-  const e = (ext || "").toLowerCase();
-  if (e) return e;
   if (name) {
     const dot = name.lastIndexOf(".");
-    if (dot >= 0) return name.substring(dot + 1).toLowerCase();
+    if (dot >= 0) {
+      const suffix = name.substring(dot + 1).toLowerCase();
+      if (suffix) return suffix;
+    }
   }
-  return "";
+  return (ext || "").toLowerCase();
 }

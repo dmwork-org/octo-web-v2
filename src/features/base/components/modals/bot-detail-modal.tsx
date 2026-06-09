@@ -11,7 +11,7 @@ import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
-import { applyFriend } from "@/features/contacts/api/friends.api";
+import { applyFriend, setUserRemark } from "@/features/contacts/api/friends.api";
 import {
   getAgentReportStatus,
   setBotDescription,
@@ -19,6 +19,8 @@ import {
 } from "@/features/base/api/endpoints/robot.api";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { SectionGroup } from "@/features/base/components/section-form/section-group";
+import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BotDetailModalProps {
@@ -32,6 +34,9 @@ interface BotDetailModalProps {
  * - 头部:头像(Owner hover 显 camera overlay,click 上传) + name + AiBadge +
  *   @username + **OctoPush 上报状态 chip**(Owner 才显示)
  * - 简介:Owner hover 显 ✏️ inline 编辑
+ * - **备注名**(对齐上游 ee4275b4 / #220):已加好友(isFriend)时显示备注名 inline 编辑,
+ *   走 setUserRemark API + invalidate userDetailQuery + 刷 SDK channelInfo cache(让群消息
+ *   senderDisplay 即时反映新备注,跟 user-info-modal 同款模式)
  * - 创建者 / 命令(若有)
  * - 底部:已加好友 → 已添加 + 发消息;未加好友 → "添加"按钮 + inline applyRemark Input
  */
@@ -48,6 +53,7 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
   const [descDraft, setDescDraft] = useState("");
   const [showApplyInput, setShowApplyInput] = useState(false);
   const [applyRemark, setApplyRemark] = useState("");
+  const [remarkEditing, setRemarkEditing] = useState(false);
 
   const invalidate = () => {
     if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
@@ -100,6 +106,22 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("base.botDetail.applyFailed")),
+  });
+
+  // remark 编辑(对齐上游 ee4275b4):save 后 invalidate user query + 刷 SDK channelInfo
+  // cache,让群消息 senderDisplay 即时反映新备注(跟 user-info-modal 同款模式)
+  const remarkMu = useMutation({
+    mutationFn: (remark: string) => setUserRemark(uid!, remark),
+    onSuccess: () => {
+      invalidate();
+      if (uid) {
+        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      }
+      toast.success(t("base.botDetail.remarkUpdated"));
+      setRemarkEditing(false);
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("base.botDetail.remarkUpdateFailed")),
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
@@ -298,6 +320,25 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
               </p>
             )}
           </div>
+
+          {isFriend ? (
+            <div className="px-4 py-3">
+              <SectionGroup>
+                <InlineEditRow
+                  title={t("base.botDetail.remark")}
+                  value={data?.remark ?? ""}
+                  placeholder={t("base.botDetail.remarkPlaceholder")}
+                  canEdit
+                  maxLength={20}
+                  pending={remarkMu.isPending}
+                  editing={remarkEditing}
+                  onEnterEdit={() => setRemarkEditing(true)}
+                  onCancel={() => setRemarkEditing(false)}
+                  onSave={(v) => remarkMu.mutate(v)}
+                />
+              </SectionGroup>
+            </div>
+          ) : null}
 
           {data?.bot_creator_name || data?.bot_commands ? (
             <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 border-t border-border-subtle px-6 py-4 text-xs">

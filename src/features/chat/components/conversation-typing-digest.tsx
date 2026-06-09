@@ -1,4 +1,4 @@
-import { Channel, ChannelTypePerson, type Reminder } from "wukongimjssdk";
+import { Channel, ChannelTypePerson, ReminderType, type Reminder } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channel.hook";
 import { chatDraftStore, selectDraftForChannel } from "@/features/chat/stores/chat-draft";
@@ -83,7 +83,11 @@ export function ConversationTypingDigest({
     );
   }
 
-  const undoneReminders = reminders?.filter((r) => !r.done) ?? [];
+  // ReminderTypeMentionMe 已在右侧 mention badge 单独显示(对齐上游 de16d69f),
+  // 这里过滤掉避免「@我」reminder 文本和右侧 @我 badge 双显。
+  const undoneReminders =
+    reminders?.filter((r) => !r.done && r.reminderType !== ReminderType.ReminderTypeMentionMe) ??
+    [];
   const hasDraft = !!draft && draft.trim() !== "";
   const showCountHint = countHint != null && countHint > 0;
 

@@ -46,6 +46,7 @@ import { InputModal } from "@/features/base/components/modals/input-modal";
 import { FollowEmptyState } from "@/features/chat/components/follow-empty-state";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { filterArchivedThreads, isArchivedThread } from "@/features/chat/lib/thread-status";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
@@ -435,6 +436,8 @@ function isThreadEffectivelyMuted(
 
 function aggregateThreadUnread(threads: Conversation[], parentGroupNo: string): number {
   return threads.reduce((sum, t) => {
+    // 跳过已归档子区,保持"角标数 = 列表可见未读"一致(对齐上游 645fa295)
+    if (isArchivedThread(t)) return sum;
     if (isThreadEffectivelyMuted(t, parentGroupNo)) return sum;
     return sum + (t.unread || 0);
   }, 0);
@@ -649,10 +652,14 @@ function CategorySection({
                               />
                               {expanded
                                 ? (() => {
+                                    // 默认隐藏已归档子区(对齐上游 645fa295),活跃子区列表给 UI
+                                    const activeThreads = filterArchivedThreads(threads);
                                     const showAll = expandedThreadsSet.has(groupNo);
                                     const MAX = 5;
-                                    const visible = showAll ? threads : threads.slice(0, MAX);
-                                    const hidden = threads.length - visible.length;
+                                    const visible = showAll
+                                      ? activeThreads
+                                      : activeThreads.slice(0, MAX);
+                                    const hidden = activeThreads.length - visible.length;
                                     return (
                                       <>
                                         {visible.map((th) => {

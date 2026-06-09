@@ -138,4 +138,29 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:`7a42c23a` 拆 2 个 commit(typing reset 一个、重连补刷一个),`d8213ec1` 因 pre-tool-use hook 死锁用 `await import()` inline 动态加载,合法 vite chunk lazy-load 模式
 - baseline SHA 暂不推进
 
+## 2026-06-09 — Batch 1.6 chat / contact 跨模块 + 群管理
+
+- 搬了 2 个上游 SHA + 1 个不适用 + 1 个已在其他 MR 搬 + 1 个大半等效(共 5 个):
+  - `ceffa569` + `bbac882b` 合并一个 commit:group-level allow-no-mention toggle 直接放 group-management-modal(本仓避免"放进 channel-setting 再挪走"的 churn,等效合并上游两个 PR)
+    - api/channel.api.ts: ChannelInfoRaw 加 `allow_no_mention?`
+    - api/channel-setting.api.ts: body type 加 + `setChannelAllowNoMention` helper
+    - im-callbacks: orgData 默认 `allow_no_mention ?? 1`(零回归)
+    - group-management-modal: 新 props `channelInfo` + `canManage`,owner/manager 可见 ToggleRow
+    - channel-setting-modal: 透传新 props
+    - i18n: zh-CN / en-US 各 2 keys(allowNoMention + toast.opFailed)
+  - `8712d79e` 8 sub-feature 中 7 等效 / 1 适用搬:
+    - **(等效已修)** mergeforward 切 Space 缺数据 — 本仓 forward-modal 走 React Query,不读 SDK 全局缓存
+    - **(等效已修)** ConversationSelect 跨 Space 缓存残留 — 本仓 React state + useResetOnClose
+    - **(等效已修)** friends dedup — forward-modal.tsx:262 已用 Set 去重
+    - **(等效已修)** handleSpaceSelected race — spaceStore.setState 同步
+    - **(等效已修)** "新建群聊"后 sidebar 跳 tab — 本仓 modal close 不动 activeTab + invalidate categories/sidebar
+    - **(等效已修)** createCategory 返回 CategoryItem — follow.api.ts:56 已是
+    - **(等效已修)** CreateCategoryModal 重名校验闪烁 — 本仓 InputModal validate 是 length-only,无重名检查
+    - **(适用,已搬)** 右键"新建分组"会话归类:follow-list.tsx 加 pendingFollowAction state,onSuccess 拿 new CategoryItem 调 moveGroupMu/moveDmMu
+  - **(不适用)** `b04a0618` Semi modal overrides — 本仓不用 Semi UI,无相关 CSS 冲突
+  - **(已在其他 MR 搬)** `7bc98795` 右键撤回按角色权限隐藏 — 见 `fix/revoke-align-old-repo` MR(commit 77a55f6 / 8983b43);本 batch 不重复
+- 本仓 commits(分支 feat/upstream-batch-1-6):50331a7 / 1f13959(2 个 commit + 收尾 docs)
+- 关键决策:ceffa569 + bbac882b 合一 commit(本仓一步到位放 group-management,跳过"先放 channel-setting 再挪"中间态);8712d79e 拆 8 sub-feature 逐项判定,只搬 sub-5
+- baseline SHA 暂不推进
+
 

@@ -243,25 +243,30 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         {/* ── Title（点击可编辑）── */}
         {editingTitle ? (
           <div className="px-8 pt-5">
-            <input
-              ref={titleInputRef}
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveTitle();
-                if (e.key === "Escape") cancelEditing();
-              }}
-              onBlur={saveTitle}
-              className="w-full rounded-md border-2 border-brand bg-bg-surface px-2 py-0.5 text-[20px] leading-[26px] font-semibold text-text-primary outline-none"
-            />
+            <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
+              <input
+                ref={titleInputRef}
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTitle();
+                  if (e.key === "Escape") cancelEditing();
+                }}
+                onBlur={saveTitle}
+                className="w-full bg-transparent px-1 py-0.5 text-[24px] leading-[1.25] font-semibold text-text-primary outline-none"
+              />
+            </div>
           </div>
         ) : (
-          <h1
-            onClick={startEditing}
-            className="cursor-pointer rounded-md px-8 pt-5 text-[20px] leading-[26px] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
-            title="点击编辑标题"
-          >
-            {data.title}
+          <h1 className="px-8 pt-5">
+            <button
+              type="button"
+              onClick={startEditing}
+              className="w-full rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
+              title={t("matter.detail.clickToEdit")}
+            >
+              {data.title}
+            </button>
           </h1>
         )}
 

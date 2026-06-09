@@ -1381,6 +1381,7 @@
   "matter.detail.linkedGroups": "Linked groups",
   "matter.detail.linkedGroupsWithCount": "Linked groups {{count}}",
   "matter.detail.menuMore": "More actions",
+  "matter.detail.clickToEdit": "Click to edit title",
   "matter.detail.noLinkedGroups": "No linked groups or threads",
   "matter.field.assignee": "Assignee",
   "matter.field.goal": "Main goal",

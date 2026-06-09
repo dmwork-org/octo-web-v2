@@ -1381,6 +1381,7 @@
   "matter.detail.linkedGroups": "关联群聊",
   "matter.detail.linkedGroupsWithCount": "关联群聊 {{count}}",
   "matter.detail.menuMore": "更多操作",
+  "matter.detail.clickToEdit": "点击编辑标题",
   "matter.detail.noLinkedGroups": "暂无关联群聊或子区",
   "matter.field.assignee": "负责人",
   "matter.field.goal": "主要目标",

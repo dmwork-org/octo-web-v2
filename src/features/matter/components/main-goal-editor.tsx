@@ -61,12 +61,14 @@ export function MainGoalEditor({ matterId, description }: MainGoalEditorProps) {
           </span>
         ) : null}
       </div>
-      <RichEditor
-        value={draft}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        placeholder={t("matter.create.goalPlaceholder")}
-      />
+      <div className="rounded-md border border-transparent px-1 py-0.5 transition-colors focus-within:border-[#6366f1] focus-within:bg-bg-primary focus-within:shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
+        <RichEditor
+          value={draft}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder={t("matter.create.goalPlaceholder")}
+        />
+      </div>
     </div>
   );
 }

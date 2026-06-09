@@ -1372,7 +1372,6 @@
   "matter.deadline.updateFailed": "Failed to update deadline",
   "matter.detail.changeLog": "Change log",
   "matter.detail.changelogTab": "Change log",
-  "matter.detail.footer": "✦ Matter is the hierarchical task card for IM work · AI distills from chats · users only confirm",
   "matter.detail.fromChannelLine": "From #{{source}} · {{creator}} · {{time}}",
   "matter.detail.jumpArrow": "Open ›",
   "matter.detail.linkChannelTab": "Linked groups",

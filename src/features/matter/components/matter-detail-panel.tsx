@@ -381,11 +381,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             <ActivityList matterId={matterId} />
           )}
         </div>
-
-        {/* ── Footer 说明文案 ── */}
-        <p className="mt-8 mb-4 text-center text-xs text-text-tertiary">
-          {t("matter.detail.footer")}
-        </p>
       </div>
 
       <AssigneePicker

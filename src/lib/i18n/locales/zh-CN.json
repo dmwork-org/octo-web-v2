@@ -1373,7 +1373,6 @@
   "matter.deadline.updateFailed": "截止日期修改失败",
   "matter.detail.changeLog": "变更记录",
   "matter.detail.changelogTab": "变更记录",
-  "matter.detail.footer": "✦ Matter 是 IM 工作的 hierarchy 任务卡 · AI 从群聊持续蒸馏 · 用户只确认, 不维护",
   "matter.detail.fromChannelLine": "来自 #{{source}} · {{creator}} · {{time}}",
   "matter.detail.jumpArrow": "跳转 ›",
   "matter.detail.linkChannelTab": "关联群聊",

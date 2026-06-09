@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageStatus, type Message, type MessageImage } from "wukongimjssdk";
+import WKSDK, { MessageStatus, type Message, type MessageImage } from "wukongimjssdk";
 import { Loader2, RotateCw, X } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -38,11 +38,10 @@ function useMessageStatusTick(message: Message): void {
  * **发送状态 overlay**(对齐上游 817f87a6 / #156):
  * - message.status === Wait → 半透明遮罩 + 加载 spinner("发送中")
  * - message.status === Fail → 半透明遮罩 + 红色 ! + "发送失败"提示
- *   (本期不接 WKSDK taskManager 的精细 progress / retry callback,仅做状态展示;
- *    上游有 onUploadRetry / onMessageRetry,需要监听 task store,留下个 batch 做)
+ *   (点击 overlay 触发 resend,跟 MessageStatusBadge 同款行为)
  * - 已发送(Normal)→ 无 overlay
  *
- * 点击 overlay 全屏预览(P5 接 lightbox 完整工具栏)。
+ * 点击缩略图(非 sending/failed 态)全屏预览(P5 接 lightbox 完整工具栏)。
  */
 export function ImageRenderer({ message }: ImageRendererProps) {
   const t = useT();
@@ -65,7 +64,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
       <div className="relative w-fit">
         <button
           type="button"
-          onClick={() => src && !sending && setPreview(true)}
+          onClick={() => src && !sending && !failed && setPreview(true)}
           className="block w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
           aria-label={t("imageRenderer.viewLargeImage")}
         >
@@ -93,12 +92,19 @@ export function ImageRenderer({ message }: ImageRendererProps) {
         ) : null}
 
         {failed ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/40 text-white">
+          <button
+            type="button"
+            aria-label={t("messageStatus.resend")}
+            onClick={() => {
+              void WKSDK.shared().chatManager.send(message.content, message.channel);
+            }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/40 text-white hover:bg-black/50"
+          >
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-error text-white">
               <RotateCw size={14} />
             </div>
             <span className="text-[11px]">{t("imageRenderer.failed")}</span>
-          </div>
+          </button>
         ) : null}
       </div>
 

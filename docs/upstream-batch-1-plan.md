@@ -46,21 +46,29 @@
 
 ---
 
-### Batch 1.3 — Chat 会话列表 / 排序 / 折叠(11 commits)
+### Batch 1.3 — Chat 会话列表 / 排序 / 折叠(11 commits + 3 补)
 
-- [ ] `f85ba4d0` 2026-06-06 fix(chat): trust backend recent conversations
-- [ ] `1f8c40a2` 2026-06-05 feat: navigate recent tab to unread conversation
-- [ ] `de16d69f` 2026-06-06 fix(chat): move mention badge to preview area
-- [ ] `275762d7` 2026-06-06 fix: preserve compact thread collapse with disabled pin split
-- [ ] `5dbc0c40` 2026-06-06 fix: use setActivatorNodeRef to isolate drag activation on handle
-- [ ] `645fa295` 2026-06-08 fix: hide archived threads in follow list when expanding group
-- [ ] `35b35757` 2026-06-02 Fix/issue 193 thread list follow
-- [ ] `72a8adc3` 2026-06-04 fix(#203): sync sidebar snapshot on conversation unread change
-- [ ] `2c5eccbb` 2026-06-02 fix: refresh followed sidebar after thread creation
-- [ ] `ff7f39f1` 2026-05-27 fix(chat): refresh recent ordering on live updates
-- [ ] `1286d289` 2026-06-06 fix(datasource): pass recent filter for recent conversations
+- [x] `f85ba4d0` 2026-06-06 fix(chat): trust backend recent conversations
+- [x] `1f8c40a2` 2026-06-05 feat: navigate recent tab to unread conversation
+- [x] `de16d69f` 2026-06-06 fix(chat): move mention badge to preview area
+- [~] `275762d7` 2026-06-06 fix: preserve compact thread collapse with disabled pin split — 新仓 follow-list 是独立 hook 体系,跟上游 ConversationList class component 的 disablePinSplit 不同语义,**跳过**
+- [x] `5dbc0c40` 2026-06-06 fix: use setActivatorNodeRef to isolate drag activation on handle
+- [x] `645fa295` 2026-06-08 fix: hide archived threads in follow list when expanding group
+- [x] `35b35757` 2026-06-02 Fix/issue 193 thread list follow
+- [x] `72a8adc3` 2026-06-04 fix(#203): sync sidebar snapshot on conversation unread change
+- [x] `2c5eccbb` 2026-06-02 fix: refresh followed sidebar after thread creation
+- [~] `ff7f39f1` 2026-05-27 fix(chat): refresh recent ordering on live updates — 新仓 sortConversations 已返新数组(`[...list].sort()`)+ useQuery 自动 refetch,无 ChatVM class 原地 sort 问题,**跳过**
+- [x] `1286d289` 2026-06-06 fix(datasource): pass recent filter for recent conversations
 
-**手测**:最近 tab 点击跳到第一条未读;sidebar unread 数实时变;创建子区后 follow tab 立即出现;归档子区在 follow tab 展开父群时隐藏。
+**补搬 3 个 baseline 之后新增 SHA(陈超 2026-06-09 验证发现缺失 → A 方案全补)**:
+
+- [x] `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries — 提取 canManageThread 父群口径,两处归档入口共享权限判定
+- [x] `c13e7e27` 2026-06-08 feat: add inline archive quick action to active thread list — 每行 inline 归档按钮 + 5s 撤销 toast
+- [x] `23b59a41` 2026-05-27 Fix thread archive state refresh — 归档子区发消息后自动 reactivate + composer 上方 archivedInputNotice
+
+**完成于 2026-06-09(MR #13 已合并)**:11 本仓 commit / 14 上游 SHA(2 跳过 + 3 baseline 后补)。手测全过,数据双源融合(sidebar 推 is_followed)+ status:"all" 列表口径修复。
+
+**手测**:最近 tab 点击跳到第一条未读;sidebar unread 数实时变;创建子区后 follow tab 立即出现;归档子区在 follow tab 展开父群时隐藏;thread panel 每行 inline 归档按钮 + 5s 撤销;detail view 三点菜单含归档/取消归档项;已归档子区 composer 上方提示 banner,发消息后 reactivate。
 
 ---
 

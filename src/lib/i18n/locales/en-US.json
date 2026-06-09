@@ -1305,6 +1305,7 @@
   "matter.activity.updatedDescription": "Updated the main goal",
   "matter.activityAction.assigneeAdded": "added an assignee",
   "matter.activityAction.assigneeRemoved": "removed an assignee",
+  "matter.activityAction.channelChanged": "changed the group",
   "matter.activityAction.channelLinked": "linked a group",
   "matter.activityAction.channelUnlinked": "unlinked the group",
   "matter.activityAction.created": "created the task",

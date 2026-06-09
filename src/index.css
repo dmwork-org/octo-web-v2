@@ -13,6 +13,7 @@
   --color-bg-surface: #ffffff; /* 内容卡 */
   --color-bg-elevated: #f2f3f4; /* Tag/系统消息 */
   --color-bg-hover: rgb(46 50 56 / 0.09);
+  --color-bg-item-hover: rgb(28 28 35 / 0.04); /* 列表项/dropdown hover */
   --color-bg-selected: rgb(127 59 245 / 0.06);
   --color-bg-navrail: #f5f6f7;
 
@@ -23,6 +24,10 @@
   --color-text-disabled: #d9d9d9;
   --color-text-accent: #7f3bf5;
   --color-text-inverse: #ffffff;
+
+  /* ── Icon ── */
+  --color-icon-default: #6b7075;
+  --color-icon-muted: #a0a4a8;
 
   /* ── Border ── */
   --color-border-subtle: rgb(0 0 0 / 0.05);

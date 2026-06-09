@@ -1306,6 +1306,7 @@
   "matter.activity.updatedDescription": "更新了主要目标",
   "matter.activityAction.assigneeAdded": "添加了负责人",
   "matter.activityAction.assigneeRemoved": "移除了负责人",
+  "matter.activityAction.channelChanged": "群聊变更",
   "matter.activityAction.channelLinked": "关联了群聊",
   "matter.activityAction.channelUnlinked": "取消了群聊关联",
   "matter.activityAction.created": "创建了事项",

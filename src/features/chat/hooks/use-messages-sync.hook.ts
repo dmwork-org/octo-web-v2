@@ -6,9 +6,8 @@ import WKSDK, {
   type CMDContent,
   type Message,
   MessageStatus,
+  ReasonCode,
   type SendackPacket,
-  type Task,
-  TaskStatus,
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
@@ -16,14 +15,13 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 
-/** Task 实例可能是 MessageTask 子类(.message 字段);用类型 intersection 让 cast 通过。 */
-type TaskWithMessage = Task & { message?: Message };
-
 /**
  * 订阅当前会话的:
  * - 新消息推送(messageListener)— append 到 InfiniteData.pages[0]
  * - 发送 ack(messageStatusListener)— 找 clientSeq 对应消息,更新 messageID/messageSeq/status
- * - 上传任务失败(taskManager.addListener)— 把 sendingQueue 内对应消息标 Fail
+ *   (sendack 是 message.status 的唯一权威 — 对齐旧 dmworkbase/Components/Conversation/index.tsx
+ *    `taskListener + ackListener` 双源 done 协议:task fail 仅影响该 send 操作的 retry 决策,
+ *    不写 message.status;UI 层 image/file/video renderer 自行 subscribe task 显示进度 overlay)
  * - CMD messageRevoke / typing(chatManager.addCMDListener)
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
@@ -93,30 +91,18 @@ export function useMessagesSync(channel: Channel | null) {
     };
 
     const statusListener = (ack: SendackPacket) => {
-      // ack.clientSeq 对应发送时分配的 clientSeq;reasonCode 0 成功,非 0 失败
+      // ack.clientSeq 对应发送时分配的 clientSeq
+      // ReasonCode.success = 1(SDK ReasonCode 枚举);0 = unknown,其他 = 各种失败
       updateInPlace(
         (m) => m.clientSeq === ack.clientSeq,
         (m) => {
-          if (ack.reasonCode === 0) {
+          if (ack.reasonCode === ReasonCode.success) {
             m.messageID = ack.messageID.toString();
             m.messageSeq = ack.messageSeq;
             m.status = MessageStatus.Normal;
           } else {
             m.status = MessageStatus.Fail;
           }
-        },
-      );
-    };
-
-    const taskListener = (task: Task) => {
-      if (task.status !== TaskStatus.fail && task.status !== TaskStatus.cancel) return;
-      const taskMsg = (task as TaskWithMessage).message;
-      if (!taskMsg) return;
-      if (!taskMsg.channel.isEqual(channel)) return;
-      updateInPlace(
-        (m) => m.clientMsgNo === taskMsg.clientMsgNo,
-        (m) => {
-          m.status = MessageStatus.Fail;
         },
       );
     };
@@ -157,12 +143,10 @@ export function useMessagesSync(channel: Channel | null) {
     WKSDK.shared().chatManager.addMessageListener(messageListener);
     WKSDK.shared().chatManager.addMessageStatusListener(statusListener);
     WKSDK.shared().chatManager.addCMDListener(cmdListener);
-    WKSDK.shared().taskManager.addListener(taskListener);
     return () => {
       WKSDK.shared().chatManager.removeMessageListener(messageListener);
       WKSDK.shared().chatManager.removeMessageStatusListener(statusListener);
       WKSDK.shared().chatManager.removeCMDListener(cmdListener);
-      WKSDK.shared().taskManager.removeListener(taskListener);
     };
   }, [channel, qc, spaceId]);
 }

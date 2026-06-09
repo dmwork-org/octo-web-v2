@@ -58,7 +58,7 @@ interface MetaRowProps {
 
 function MetaRow({ label, children }: MetaRowProps) {
   return (
-    <div className="flex items-center gap-1 text-[13px] leading-4 text-text-tertiary">
+    <div className="flex items-center gap-1 text-xs leading-4 text-icon-default">
       <span className="shrink-0">{label}</span>
       <span className="inline-flex items-center gap-1">{children}</span>
     </div>
@@ -103,13 +103,13 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
       {/* 第一行:状态 pill + DDL */}
       <div className="flex items-center justify-between">
         <span
-          className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${statusClass}`}
+          className={`inline-flex h-5 items-center rounded-full px-2 text-xs leading-5 ${statusClass}`}
         >
           <span className="font-semibold">{statusLabel}</span>
           {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}
         </span>
         {matter.deadline ? (
-          <span className="flex items-center gap-0.5 text-[13px] leading-[18px] text-text-tertiary">
+          <span className="flex items-center gap-0.5 text-xs leading-[18px] text-icon-default">
             <CalendarIcon />
             {formatDeadline(matter.deadline)}
           </span>

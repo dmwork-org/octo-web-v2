@@ -161,15 +161,15 @@ export function MatterList({
               key={tk.id}
               type="button"
               onClick={() => handleTabChange(tk.id)}
-              className={`flex-1 rounded-full py-1.5 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
+              className={`flex-1 rounded-full py-1.5 text-sm font-semibold transition-all duration-150 ease-(--ease-emphasized) ${
                 isActive
-                  ? "bg-bg-surface text-text-primary shadow-sm"
-                  : "text-text-tertiary hover:text-text-secondary"
+                  ? "bg-bg-surface text-text-primary shadow-[0_1px_3px_rgba(28,28,35,0.06)]"
+                  : "text-icon-muted hover:text-text-secondary"
               }`}
             >
               {t(tk.key)}
               {count !== null && count > 0 ? (
-                <span className="ml-1 font-semibold">{count}</span>
+                <span className="ml-0.5">{count}</span>
               ) : null}
             </button>
           );
@@ -187,7 +187,7 @@ export function MatterList({
         />
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
+      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2 py-1 pb-3">
         {isLoading ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
             {t("matter.list.loading")}
@@ -215,7 +215,7 @@ export function MatterList({
             <button
               type="button"
               onClick={() => setArchivedOpen((v) => !v)}
-              className="mt-2 flex items-center justify-between rounded-md px-1 py-1.5 text-left transition-colors hover:bg-bg-hover"
+              className="mt-2 flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span]:text-text-primary"
             >
               <SegmentLabel
                 text={t("matter.sidebar.archivedWithCount", { values: { count: archived.length } })}
@@ -252,7 +252,7 @@ export function MatterList({
 /** 列表分段标题:左侧 brand 色短竖条 + 文字。 */
 function SegmentLabel({ text }: { text: string }) {
   return (
-    <span className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+    <span className="flex items-center gap-2 text-xs font-medium text-text-primary">
       <span className="h-3 w-0.5 rounded-full bg-brand" />
       {text}
     </span>

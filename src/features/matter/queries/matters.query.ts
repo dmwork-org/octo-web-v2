@@ -5,6 +5,8 @@ import {
   listMatters,
   listTimeline,
 } from "@/features/matter/api/matter.api";
+import { getMyGroups } from "@/features/base/api/endpoints/group.api";
+import { getMessages } from "@/features/matter/api/message-bridge.api";
 import type {
   ActivityEntry,
   Matter,
@@ -106,4 +108,69 @@ export const activitiesInfiniteQueryOptions = (matterId: string) =>
     getNextPageParam: (lastPage) =>
       lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
     staleTime: 30 * 1000,
+  });
+
+/**
+ * 我的群列表 query。modal 打开时按需拉取(enabled: open)。
+ * staleTime 5min — 群列表不常变。
+ */
+export const myGroupsQueryKey = (spaceId: string | null) =>
+  ["groups", "my", spaceId ?? "_"] as const;
+
+export const myGroupsQueryOptions = (spaceId: string | null, enabled: boolean) =>
+  queryOptions({
+    queryKey: myGroupsQueryKey(spaceId),
+    queryFn: () => getMyGroups(spaceId!),
+    enabled: enabled && !!spaceId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+// ─── 关联群聊逐群 timeline ──────────────────────────────────
+
+/** 某群的最新 1 条 timeline 摘要（折叠态展示用）。 */
+export const channelLatestTimelineQueryKey = (matterId: string, channelId: string) =>
+  ["matter", "channel-latest-timeline", matterId, channelId] as const;
+
+export const channelLatestTimelineQueryOptions = (matterId: string, channelId: string) =>
+  queryOptions({
+    queryKey: channelLatestTimelineQueryKey(matterId, channelId),
+    queryFn: () => listTimeline(matterId, { source_channel_id: channelId, limit: 1 }),
+    staleTime: 30 * 1000,
+  });
+
+/** 展开某群时拉取完整 timeline。enabled 控制按需加载。 */
+export const channelTimelineQueryKey = (matterId: string, channelId: string) =>
+  ["matter", "channel-timeline", matterId, channelId] as const;
+
+export const channelTimelineQueryOptions = (
+  matterId: string,
+  channelId: string,
+  enabled: boolean,
+) =>
+  queryOptions({
+    queryKey: channelTimelineQueryKey(matterId, channelId),
+    queryFn: () => listTimeline(matterId, { source_channel_id: channelId }),
+    enabled,
+    staleTime: 15 * 1000,
+  });
+
+// ─── 原消息上下文 ────────────────────────────────────────────
+
+export const anchorMessagesQueryKey = (
+  channelId: string,
+  channelType: number,
+  messageIds: string[],
+) => ["matter", "anchor-messages", channelId, channelType, ...messageIds] as const;
+
+export const anchorMessagesQueryOptions = (
+  channelId: string,
+  channelType: number,
+  messageIds: string[],
+  enabled: boolean,
+) =>
+  queryOptions({
+    queryKey: anchorMessagesQueryKey(channelId, channelType, messageIds),
+    queryFn: () => getMessages(channelId, channelType, messageIds),
+    enabled: enabled && messageIds.length > 0,
+    staleTime: 10 * 60 * 1000,
   });

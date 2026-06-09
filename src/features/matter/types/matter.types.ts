@@ -9,6 +9,26 @@
 
 export type MatterStatus = "open" | "done" | "archived";
 
+// ─── 频道类型常量 ─────────────────────────────────────────
+
+/** 普通群 */
+export const CHANNEL_TYPE_GROUP = 2 as const;
+/** 子区(thread) */
+export const CHANNEL_TYPE_THREAD = 5 as const;
+
+// ─── 活动动作类型 ─────────────────────────────────────────
+
+export type MatterAction =
+  | "created"
+  | "title_changed"
+  | "description_changed"
+  | "status_changed"
+  | "assignee_added"
+  | "assignee_removed"
+  | "deadline_changed"
+  | "channel_linked"
+  | "channel_unlinked";
+
 // ─── 核心模型 ─────────────────────────────────────────────
 
 export interface MatterAssignee {
@@ -159,7 +179,7 @@ export interface ActivityEntry {
   id: string;
   matter_id: string;
   actor_id: string;
-  action: string;
+  action: MatterAction;
   detail: Record<string, unknown> | null;
   created_at: string;
 }
@@ -194,7 +214,8 @@ export interface ExtractResult {
   title: string;
   description: string;
   source_msgs: string[];
+  /** 时间戳(ms),与 Matter.deadline(RFC3339 string)格式不同 — 后端 extract 接口返回的是 unix 毫秒 */
   deadline?: number | null;
-  status: string;
+  status: MatterStatus;
   created_at: string;
 }

@@ -23,7 +23,7 @@ export async function listMatters(params?: MatterListParams): Promise<PaginatedL
 }
 
 export async function getMatter(matterId: string, sourceChannelId?: string): Promise<MatterDetail> {
-  return matterApi<MatterDetail>(`/matters/${matterId}`, {
+  return matterApi<MatterDetail>(`/matters/${encodeURIComponent(matterId)}`, {
     query: sourceChannelId ? { source_channel_id: sourceChannelId } : undefined,
   });
 }
@@ -33,28 +33,31 @@ export async function createMatter(req: CreateMatterReq): Promise<MatterDetail> 
 }
 
 export async function updateMatter(matterId: string, req: UpdateMatterReq): Promise<MatterDetail> {
-  return matterApi<MatterDetail>(`/matters/${matterId}`, { method: "PUT", body: req });
+  return matterApi<MatterDetail>(`/matters/${encodeURIComponent(matterId)}`, {
+    method: "PUT",
+    body: req,
+  });
 }
 
 export async function transitionMatter(
   matterId: string,
   status: MatterStatus,
 ): Promise<MatterDetail> {
-  return matterApi<MatterDetail>(`/matters/${matterId}/status`, {
+  return matterApi<MatterDetail>(`/matters/${encodeURIComponent(matterId)}/status`, {
     method: "PUT",
     body: { status },
   });
 }
 
 export async function deleteMatter(matterId: string): Promise<void> {
-  await matterApi(`/matters/${matterId}`, { method: "DELETE" });
+  await matterApi(`/matters/${encodeURIComponent(matterId)}`, { method: "DELETE" });
 }
 
 // ─── Assignees ────────────────────────────────────────────
 
 /** 添加受理人:POST /matters/{id}/assignees { user_id } */
 export async function addAssignee(matterId: string, userId: string): Promise<void> {
-  await matterApi(`/matters/${matterId}/assignees`, {
+  await matterApi(`/matters/${encodeURIComponent(matterId)}/assignees`, {
     method: "POST",
     body: { user_id: userId },
   });
@@ -62,9 +65,12 @@ export async function addAssignee(matterId: string, userId: string): Promise<voi
 
 /** 移除受理人:DELETE /matters/{id}/assignees/{user_id} */
 export async function removeAssignee(matterId: string, userId: string): Promise<void> {
-  await matterApi(`/matters/${matterId}/assignees/${encodeURIComponent(userId)}`, {
-    method: "DELETE",
-  });
+  await matterApi(
+    `/matters/${encodeURIComponent(matterId)}/assignees/${encodeURIComponent(userId)}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 // ─── Timeline(评论 / 时间线)─────────────────────────────
@@ -74,9 +80,12 @@ export async function listTimeline(
   matterId: string,
   params?: { source_channel_id?: string; limit?: number; cursor?: string },
 ): Promise<PaginatedList<TimelineEntry>> {
-  return matterApi<PaginatedList<TimelineEntry>>(`/matters/${matterId}/timeline`, {
-    query: params,
-  });
+  return matterApi<PaginatedList<TimelineEntry>>(
+    `/matters/${encodeURIComponent(matterId)}/timeline`,
+    {
+      query: params,
+    },
+  );
 }
 
 /** POST /matters/{id}/timeline { content, channel_id?, channel_type?, channel_name? } */
@@ -84,7 +93,7 @@ export async function addTimelineEntry(
   matterId: string,
   req: AddTimelineReq,
 ): Promise<TimelineEntry> {
-  return matterApi<TimelineEntry>(`/matters/${matterId}/timeline`, {
+  return matterApi<TimelineEntry>(`/matters/${encodeURIComponent(matterId)}/timeline`, {
     method: "POST",
     body: req,
   });
@@ -92,9 +101,12 @@ export async function addTimelineEntry(
 
 /** DELETE /matters/{id}/timeline/{entry_id} */
 export async function deleteTimelineEntry(matterId: string, entryId: string): Promise<void> {
-  await matterApi(`/matters/${matterId}/timeline/${encodeURIComponent(entryId)}`, {
-    method: "DELETE",
-  });
+  await matterApi(
+    `/matters/${encodeURIComponent(matterId)}/timeline/${encodeURIComponent(entryId)}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 // ─── Activities(变更记录,只读)──────────────────────────
@@ -104,9 +116,12 @@ export async function listActivities(
   matterId: string,
   params?: { limit?: number; cursor?: string },
 ): Promise<PaginatedList<ActivityEntry>> {
-  return matterApi<PaginatedList<ActivityEntry>>(`/matters/${matterId}/activities`, {
-    query: params,
-  });
+  return matterApi<PaginatedList<ActivityEntry>>(
+    `/matters/${encodeURIComponent(matterId)}/activities`,
+    {
+      query: params,
+    },
+  );
 }
 
 // ─── Extract(AI 智能创建,对应旧 dmworktodo extractMatter)──────
@@ -127,12 +142,18 @@ export async function extractMatter(req: ExtractMatterReq): Promise<ExtractResul
 
 /** POST /matters/{id}/channels { channel_id, channel_type, channel_name? } */
 export async function linkChannel(matterId: string, req: LinkChannelReq): Promise<MatterChannel> {
-  return matterApi<MatterChannel>(`/matters/${matterId}/channels`, { method: "POST", body: req });
+  return matterApi<MatterChannel>(`/matters/${encodeURIComponent(matterId)}/channels`, {
+    method: "POST",
+    body: req,
+  });
 }
 
 /** DELETE /matters/{id}/channels/{channel_id} */
 export async function unlinkChannel(matterId: string, channelId: string): Promise<void> {
-  await matterApi(`/matters/${matterId}/channels/${encodeURIComponent(channelId)}`, {
-    method: "DELETE",
-  });
+  await matterApi(
+    `/matters/${encodeURIComponent(matterId)}/channels/${encodeURIComponent(channelId)}`,
+    {
+      method: "DELETE",
+    },
+  );
 }

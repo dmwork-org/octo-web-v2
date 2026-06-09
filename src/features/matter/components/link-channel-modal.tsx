@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@tanstack/react-store";
+import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { spaceStore } from "@/features/base/stores/space";
-import { getMyGroups, type GroupSummary } from "@/features/base/api/endpoints/group.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { useLinkChannel } from "@/features/matter/mutations/matters.mutation";
+import { myGroupsQueryOptions } from "@/features/matter/queries/matters.query";
 import type { LinkChannelReq, MatterChannel } from "@/features/matter/types/matter.types";
 
 interface LinkChannelModalProps {
@@ -16,37 +17,29 @@ interface LinkChannelModalProps {
   /** 已关联的群聊列表，用于过滤重复 */
   linkedChannels: MatterChannel[];
   onClose: () => void;
-  /** 成功关联后回调，通知外层刷新 */
-  onLinked: () => void;
 }
 
-/**
- * 拉取当前用户所在群列表的 on-demand hook。
- * modal 打开时才执行，不是路由 loader，属于合理的按需 fetch。
- */
-function useMyGroupsOnOpen(open: boolean, spaceId: string | null) {
-  const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-
+/** modal 打开时重置 UI 状态 */
+function useResetOnOpen(
+  open: boolean,
+  setKeyword: (v: string) => void,
+  setSelected: (v: Set<string>) => void,
+) {
   useEffect(() => {
-    if (!open || !spaceId) return;
-    setLoading(true);
-    getMyGroups(spaceId)
-      .then((data) => setGroups(data))
-      .catch(() => setGroups([]))
-      .finally(() => setLoading(false));
-  }, [open, spaceId]);
-
-  return { groups, loading };
+    if (open) {
+      setKeyword("");
+      setSelected(new Set());
+    }
+  }, [open, setKeyword, setSelected]);
 }
 
 /**
  * 关联新群聊弹窗。
  *
- * - 打开时拉取当前用户加入的群列表（getMyGroups）
+ * - 打开时通过 useQuery(enabled: open) 拉取当前用户加入的群列表
  * - 过滤掉已关联的群
  * - 支持按名称搜索
- * - 多选后批量关联
+ * - 多选后并行批量关联
  */
 export function LinkChannelModal({
   open,
@@ -54,18 +47,30 @@ export function LinkChannelModal({
   matterTitle,
   linkedChannels,
   onClose,
-  onLinked,
 }: LinkChannelModalProps) {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const linkMu = useLinkChannel();
-  const { groups, loading } = useMyGroupsOnOpen(open, spaceId);
+
+  const { data: groups = [], isLoading: loading } = useQuery(myGroupsQueryOptions(spaceId, open));
 
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
 
+  useResetOnOpen(open, setKeyword, setSelected);
+
   // 已关联的 channel_id 集合，用于过滤
-  const linkedIds = new Set(linkedChannels.map((c) => c.channel_id));
+  const linkedIds = useMemo(
+    () => new Set(linkedChannels.map((c) => c.channel_id)),
+    [linkedChannels],
+  );
+
+  // Channel 实例缓存：group_no → Channel
+  const channelMap = useMemo(
+    () =>
+      new Map(groups.map((g) => [g.group_no, new Channel(g.group_no, ChannelTypeGroup)] as const)),
+    [groups],
+  );
 
   // 过滤：排除已关联 + 关键词搜索
   const filtered = groups.filter((g) => {
@@ -92,7 +97,8 @@ export function LinkChannelModal({
     if (selected.size === 0) return;
     setSubmitting(true);
     try {
-      const reqs: LinkChannelReq[] = filtered
+      // 从完整 groups（而非 filtered）过滤选中项，避免搜索导致选中项丢失
+      const reqs: LinkChannelReq[] = groups
         .filter((g) => selected.has(g.group_no))
         .map((g) => ({
           channel_id: g.group_no,
@@ -100,15 +106,20 @@ export function LinkChannelModal({
           channel_name: g.name,
         }));
 
-      // 逐条关联
-      for (const req of reqs) {
-        await linkMu.mutateAsync({ matterId, req });
+      // 并行提交，useLinkChannel 的 onSuccess 会 invalidate detail + list
+      const results = await Promise.allSettled(
+        reqs.map((req) => linkMu.mutateAsync({ matterId, req })),
+      );
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        // 部分失败时仍关闭弹窗（成功的已生效），错误 toast 由全局拦截器处理
+        console.warn(`关联群聊：${failed}/${results.length} 个请求失败`);
       }
-      onLinked();
-      onClose();
     } finally {
       setSubmitting(false);
     }
+    onClose();
   };
 
   const footer = (
@@ -116,8 +127,7 @@ export function LinkChannelModal({
       <button
         type="button"
         onClick={onClose}
-        disabled={submitting}
-        className="h-8 rounded-md px-4 text-sm text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-50"
+        className="h-8 rounded-md px-4 text-sm text-text-secondary transition-colors hover:bg-bg-hover"
       >
         取消
       </button>
@@ -152,6 +162,7 @@ export function LinkChannelModal({
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="搜索群聊名称…"
+          aria-label="搜索群聊名称"
           className="h-8 w-full rounded-md border border-border-subtle bg-bg-elevated pl-8 pr-3 text-sm text-text-primary placeholder:text-text-placeholder focus:border-brand focus:outline-none"
         />
       </div>
@@ -168,11 +179,13 @@ export function LinkChannelModal({
           <ul className="flex flex-col gap-0.5">
             {filtered.map((g) => {
               const isChecked = selected.has(g.group_no);
-              const ch = new Channel(g.group_no, ChannelTypeGroup);
+              const ch = channelMap.get(g.group_no)!;
               return (
                 <li key={g.group_no}>
                   <button
                     type="button"
+                    role="checkbox"
+                    aria-checked={isChecked}
                     onClick={() => toggleSelect(g.group_no)}
                     className={`flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-hover ${
                       isChecked ? "bg-brand/5" : ""

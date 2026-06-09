@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
-import { ChevronDown, ChevronRight, Hash, MoreHorizontal, Plus, Tag, Trash2 } from "lucide-react";
+import { useStore } from "@tanstack/react-store";
+import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { ChevronDown, MoreHorizontal, Plus, Tag } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
-import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
+import { authStore } from "@/features/base/stores/auth";
 import { matterDetailQueryOptions } from "@/features/matter/queries/matters.query";
 import {
   useDeleteMatter,
@@ -21,12 +21,17 @@ import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
 import { LinkChannelModal } from "@/features/matter/components/link-channel-modal";
 import { AnchorPopover } from "@/features/matter/components/anchor-popover";
-import type {
-  MatterChannel,
-  MatterStatus,
-  TimelineEntry,
-} from "@/features/matter/types/matter.types";
-import { listTimeline } from "@/features/matter/api/matter.api";
+import { ChannelNameLabel } from "@/features/matter/components/channel-name-label";
+import { NotMemberBadge } from "@/features/matter/components/not-member-badge";
+import { ChannelMoreMenu } from "@/features/matter/components/channel-more-menu";
+import { TimelinePanel } from "@/features/matter/components/timeline-panel";
+import { useMyGroups } from "@/features/matter/hooks/use-my-groups";
+import {
+  useLatestTimelinePerChannel,
+  useChannelTimelineOnExpand,
+} from "@/features/matter/hooks/use-channel-timeline";
+import { toParentGroupNo } from "@/features/matter/utils/channel-id";
+import type { MatterChannel, MatterStatus } from "@/features/matter/types/matter.types";
 
 interface MatterDetailPanelProps {
   matterId: string;
@@ -60,6 +65,34 @@ function nextStatusForToggle(s: MatterStatus): MatterStatus {
   return s === "open" ? "done" : "open";
 }
 
+/** 点击外部关闭下拉菜单 */
+function useClickOutside(
+  ref: React.RefObject<HTMLDivElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, ref, onClose]);
+}
+
+/** 编辑态自动 focus + select */
+function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, shouldFocus: boolean) {
+  useEffect(() => {
+    if (shouldFocus) {
+      ref.current?.focus();
+      ref.current?.select();
+    }
+  }, [shouldFocus, ref]);
+}
+
 /**
  * Matter 详情面板(1:1 对齐 P3-matter 设计稿 + 原 dmworktodo MatterDetailPanel
  * 独立模式样式)。
@@ -71,24 +104,28 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   const deleteMu = useDeleteMatter();
   const updateMu = useUpdateMatter();
 
+  const currentUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const isOwner = currentUid
+    ? data.creator_id === currentUid || data.assignees.some((a) => a.user_id === currentUid)
+    : false;
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("channels");
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // click-outside 关闭下拉菜单
+  useClickOutside(menuRef, menuOpen, () => setMenuOpen(false));
 
   // ── 标题 inline 编辑态 ──
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(data.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  // 进入编辑态后自动 focus
-  useEffect(() => {
-    if (editingTitle) {
-      titleInputRef.current?.focus();
-      titleInputRef.current?.select();
-    }
-  }, [editingTitle]);
+  // 进入编辑态后自动 focus + select
+  useAutoFocusInput(titleInputRef, editingTitle);
 
   const startEditing = useCallback(() => {
     setTitleDraft(data.title);
@@ -147,7 +184,20 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-8 py-3">
         <StatusPill status={data.status} seqNo={data.seq_no} />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
-        <div ref={menuRef} className="relative ml-auto flex shrink-0 items-center">
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setLinkModalOpen(true)}
+            className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <Plus size={12} />
+            关联新群
+          </button>
+        )}
+        <div
+          ref={menuRef}
+          className={`relative flex shrink-0 items-center ${!isOwner ? "ml-auto" : ""}`}
+        >
           <button
             type="button"
             aria-label={t("matter.detail.menuMore")}
@@ -268,18 +318,25 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               active={secondaryTab === "channels"}
               onClick={() => setSecondaryTab("channels")}
               label={t("matter.detail.linkChannelTab")}
+              count={data.channels?.length ?? 0}
             />
             <SecondaryTabBtn
               active={secondaryTab === "changelog"}
               onClick={() => setSecondaryTab("changelog")}
               label={t("matter.detail.changelogTab")}
+              count={0}
             />
           </div>
         </div>
 
         <div className="px-8 pt-4">
           {secondaryTab === "channels" ? (
-            <ChannelsTab matterId={matterId} channels={data.channels ?? []} />
+            <ChannelsTab
+              matterId={matterId}
+              channels={data.channels ?? []}
+              linkModalOpen={linkModalOpen}
+              onLinkModalClose={() => setLinkModalOpen(false)}
+            />
           ) : (
             <ActivityList matterId={matterId} />
           )}
@@ -345,25 +402,28 @@ function FieldChip({ label, children }: { label: string; children: React.ReactNo
 }
 
 /**
- * 关联群聊 tab — 完整功能版（Wave 1）。
+ * 关联群聊 tab — 完整功能版。
  *
  * - 列表展示 matter.channels（已包含 source_channel）
- * - 关联新群：弹出 LinkChannelModal
- * - 解除关联：右侧悬浮删除按钮 + confirm
- * - 点击群行跳转聊天
+ * - 关联新群：由父组件传入 linkModalOpen 控制
+ * - 解除关联：⋮ 菜单中的"取消关联"项 + confirm
+ * - 点击 ⋮ 菜单跳转聊天
  * - 展开/折叠该群的 timeline 条目
+ * - isMember 判断：通过 useMyGroups 获取当前用户所在群集合
  */
-function ChannelsTab({ matterId, channels }: { matterId: string; channels: MatterChannel[] }) {
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
+function ChannelsTab({
+  matterId,
+  channels,
+  linkModalOpen,
+  onLinkModalClose,
+}: {
+  matterId: string;
+  channels: MatterChannel[];
+  linkModalOpen: boolean;
+  onLinkModalClose: () => void;
+}) {
+  const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  // 每个 channelId → timeline 条目
-  const [timelineMap, setTimelineMap] = useState<Record<string, TimelineEntry[]>>({});
-  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  /** 每个群的最新 1 条 timeline 摘要（折叠态展示用） */
-  const [latestTimelineMap, setLatestTimelineMap] = useState<Record<string, TimelineEntry | null>>(
-    {},
-  );
   /** AnchorPopover 状态 */
   const [anchor, setAnchor] = useState<{
     channelId: string;
@@ -374,51 +434,32 @@ function ChannelsTab({ matterId, channels }: { matterId: string; channels: Matte
 
   const unlinkMu = useUnlinkChannel();
 
-  // 初始渲染 / matterId 或 channels 变化时，拉取每个群的最新一条 timeline 摘要
-  useEffect(() => {
-    channels.forEach((mc) => {
-      listTimeline(matterId, { source_channel_id: mc.channel_id, limit: 1 })
-        .then((resp) => {
-          setLatestTimelineMap((prev) => ({ ...prev, [mc.channel_id]: resp.data?.[0] ?? null }));
-        })
-        .catch(() => {
-          setLatestTimelineMap((prev) => ({ ...prev, [mc.channel_id]: null }));
-        });
-    });
-  }, [matterId, channels]);
+  // 我的群列表
+  const myGroupsQ = useMyGroups();
+  const myGroupNos = useMemo(
+    () => new Set((myGroupsQ.data ?? []).map((g) => g.group_no)),
+    [myGroupsQ.data],
+  );
+  const myGroupsFailed = myGroupsQ.isError;
+  const myGroupsLoading = myGroupsQ.isLoading;
 
-  const toggleExpand = (channelId: string) => {
-    setExpandedIds((prev) => {
+  // 展开状态
+  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
+
+  // 拉取每个 channel 的最新 1 条 timeline
+  const { latestByChannel } = useLatestTimelinePerChannel(matterId, channels);
+
+  const toggleTimeline = useCallback((chId: string) => {
+    setExpandedTimelines((prev) => {
       const next = new Set(prev);
-      if (next.has(channelId)) {
-        next.delete(channelId);
+      if (next.has(chId)) {
+        next.delete(chId);
       } else {
-        next.add(channelId);
-        // 展开时拉 timeline（若还没拉过）
-        if (!timelineMap[channelId]) {
-          setLoadingIds((ids) => new Set([...ids, channelId]));
-          void listTimeline(matterId, { source_channel_id: channelId, limit: 10 })
-            .then((resp) => {
-              setTimelineMap((m) => ({ ...m, [channelId]: resp.data }));
-            })
-            .finally(() => {
-              setLoadingIds((ids) => {
-                const s = new Set(ids);
-                s.delete(channelId);
-                return s;
-              });
-            });
-        }
+        next.add(chId);
       }
       return next;
     });
-  };
-
-  const handleJump = (channelId: string, channelType: number) => {
-    const ch = new Channel(channelId, channelType);
-    chatSelectedActions.select(ch);
-    chatSidePanelActions.close();
-  };
+  }, []);
 
   const handleUnlink = () => {
     if (!unlinkTarget) return;
@@ -428,155 +469,127 @@ function ChannelsTab({ matterId, channels }: { matterId: string; channels: Matte
     );
   };
 
-  return (
-    <div className="flex flex-col gap-3">
-      {/* 关联新群按钮 */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setLinkModalOpen(true)}
-          className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-brand transition-opacity hover:opacity-80"
-        >
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-bg-surface">
-            <Plus size={12} strokeWidth={3} />
-          </span>
-          关联新群聊
-        </button>
-      </div>
+  // 展开某个 channel 时拉取全量 timeline
+  const { timelineMap, timelineLoading } = useChannelTimelineOnExpand(matterId, expandedTimelines);
 
+  return (
+    <div className="flex flex-col gap-0">
       {/* 已关联群聊列表 */}
       {channels.length === 0 ? (
         <div className="rounded-md border border-dashed border-border-default px-4 py-8 text-center text-xs text-text-tertiary">
-          暂无关联群聊
+          {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
-        <ul className="flex flex-col gap-1">
-          {channels.map((mc) => {
-            const ch = new Channel(mc.channel_id, mc.channel_type);
-            const info = WKSDK.shared().channelManager.getChannelInfo(ch);
-            if (!info) void WKSDK.shared().channelManager.fetchChannelInfo(ch);
-            const title = mc.channel_name ?? info?.title ?? mc.channel_id;
-            const isGroup = mc.channel_type === ChannelTypeGroup;
-            const isExpanded = expandedIds.has(mc.channel_id);
-            const isLoadingTimeline = loadingIds.has(mc.channel_id);
-            const entries = timelineMap[mc.channel_id] ?? [];
+        <ul className="flex flex-col">
+          {channels.map((mc, index) => {
+            // 判断成员权限
+            const parentGroupNo = toParentGroupNo(mc.channel_id, mc.channel_type);
+            const isMember = !myGroupsFailed && myGroupNos.has(parentGroupNo);
+            const latestEntry = latestByChannel.get(mc.channel_id);
 
             return (
-              <li key={mc.id} className="rounded-md border border-border-subtle bg-bg-elevated">
+              <li
+                key={mc.id}
+                className={index < channels.length - 1 ? "border-b border-border-subtle" : ""}
+              >
                 {/* 群行主体 */}
-                <div className="group relative flex items-center">
-                  {/* 展开/折叠箭头 */}
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(mc.channel_id)}
-                    className="flex h-10 w-8 shrink-0 items-center justify-center text-text-tertiary transition-colors hover:text-text-secondary"
-                  >
-                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-
-                  {/* 点击跳转聊天 */}
-                  <button
-                    type="button"
-                    onClick={() => handleJump(mc.channel_id, mc.channel_type)}
-                    className="flex flex-1 items-center gap-2 py-2 pr-2 text-left"
-                  >
-                    <ChannelAvatar channel={ch} size={26} title={title} />
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <div className="flex items-center gap-1">
-                        {isGroup ? null : (
-                          <Hash size={12} className="shrink-0 text-text-tertiary" />
-                        )}
-                        <span className="truncate text-sm text-text-primary">{title}</span>
-                      </div>
-                      {/* 折叠态：展示最新一条进展摘要 */}
-                      {!isExpanded
-                        ? (() => {
-                            const latest = latestTimelineMap[mc.channel_id];
-                            // 仍在加载中则不显示
-                            if (latest === undefined) return null;
-                            if (latest === null) {
-                              return (
-                                <span className="text-[11px] text-text-tertiary">暂无进展</span>
-                              );
-                            }
-                            const rawContent = latest.content ?? "";
-                            const truncated =
-                              rawContent.length > 60 ? rawContent.slice(0, 60) + "…" : rawContent;
-                            return (
-                              <span className="truncate text-[11px] text-text-tertiary">
-                                <UserName
-                                  uid={latest.user_id}
-                                  className="text-[11px] font-medium"
-                                />
-                                <span>: </span>
-                                <span>{truncated}</span>
-                              </span>
-                            );
-                          })()
-                        : null}
+                <div className="flex items-center py-2.5">
+                  {/* 群头像 */}
+                  <ChannelAvatar
+                    channel={new Channel(mc.channel_id, mc.channel_type)}
+                    size={26}
+                    title={mc.channel_name ?? mc.channel_id}
+                  />
+                  {/* 群名 + 关联时间 + 最新进展 */}
+                  <div className="ml-2 flex min-w-0 flex-col">
+                    <div className="flex items-center gap-1">
+                      <span className="truncate text-sm text-text-primary">
+                        #
+                        <ChannelNameLabel
+                          channelId={mc.channel_id}
+                          channelType={mc.channel_type}
+                          fallback={mc.channel_name}
+                          blur={!isMember && !myGroupsLoading}
+                          loading={myGroupsLoading}
+                        />
+                      </span>
+                      {!myGroupsLoading && !isMember && <NotMemberBadge />}
+                      <span className="ml-3 text-[11px] text-text-tertiary whitespace-nowrap">
+                        {new Date(mc.created_at).toLocaleDateString("zh-CN", {
+                          month: "numeric",
+                          day: "numeric",
+                        })}{" "}
+                        关联
+                      </span>
                     </div>
-                    <span className="shrink-0 text-[11px] text-text-tertiary">→</span>
-                  </button>
-
-                  {/* 解除关联按钮（悬浮显现） */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setUnlinkTarget(mc.channel_id);
-                    }}
-                    className="absolute top-1/2 right-2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-text-tertiary opacity-0 transition-opacity hover:bg-error/10 hover:text-error group-hover:opacity-100"
-                    title="解除关联"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-
-                {/* 展开的 timeline 列表 */}
-                {isExpanded ? (
-                  <div className="border-t border-border-subtle px-3 pb-2 pt-1.5">
-                    {isLoadingTimeline ? (
-                      <p className="py-2 text-xs text-text-tertiary">加载中…</p>
-                    ) : entries.length === 0 ? (
-                      <p className="py-2 text-xs text-text-tertiary">该群暂无进展</p>
-                    ) : (
-                      <ul className="flex flex-col gap-1.5">
-                        {entries.map((entry) => (
-                          <li key={entry.id} className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <UserName
-                                uid={entry.user_id}
-                                className="shrink-0 text-[11px] font-medium text-text-secondary"
-                              />
-                              <span className="text-[11px] text-text-tertiary">
-                                {formatDateTime(entry.created_at)}
-                              </span>
-                            </div>
-                            {entry.content ? (
-                              <p className="text-xs text-text-primary">{entry.content}</p>
-                            ) : null}
-                            {entry.source_msgs && entry.source_msgs.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setAnchor({
-                                    channelId: mc.channel_id,
-                                    channelType: mc.channel_type,
-                                    channelName: mc.channel_name ?? info?.title ?? mc.channel_id,
-                                    messageIds: entry.source_msgs!,
-                                  })
-                                }
-                                className="self-start mt-0.5 text-[11px] text-brand underline-offset-2 transition-colors hover:underline"
-                              >
-                                查看原消息
-                              </button>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
+                    {/* 最新进展：仅成员可见，有内容才显示 */}
+                    {isMember && latestEntry !== undefined && latestEntry !== null && (
+                      <div className="mt-1 rounded-r-md border-l-2 border-l-purple-500 bg-purple-50/60 px-3 py-2">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-purple-700">
+                          最新进展
+                        </div>
+                        <div className="text-[13px] leading-relaxed text-text-primary">
+                          {latestEntry.content || "（无文本内容）"}
+                        </div>
+                      </div>
                     )}
                   </div>
-                ) : null}
+                  {/* ⋮ 菜单：仅成员可见 */}
+                  {isMember && (
+                    <ChannelMoreMenu
+                      channelId={mc.channel_id}
+                      channelType={mc.channel_type}
+                      onUnlink={() => setUnlinkTarget(mc.channel_id)}
+                    />
+                  )}
+                </div>
+
+                {/* 展开/折叠时间线按钮：仅成员可见 */}
+                {isMember && (
+                  <div className="flex justify-start border-t border-border-subtle px-3 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleTimeline(mc.channel_id)}
+                      className="inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
+                    >
+                      <ChevronDown
+                        size={10}
+                        className={
+                          expandedTimelines.has(mc.channel_id)
+                            ? "rotate-180 transition-transform"
+                            : "transition-transform"
+                        }
+                      />
+                      {expandedTimelines.has(mc.channel_id) ? "收起时间线" : "展开时间线"}
+                    </button>
+                  </div>
+                )}
+
+                {/* 展开的 timeline */}
+                {expandedTimelines.has(mc.channel_id) && (
+                  <div className="border-t border-border-subtle px-3 pb-3 pt-2">
+                    {timelineLoading && !timelineMap.has(mc.channel_id) ? (
+                      <p className="py-2 text-xs text-text-tertiary">{t("base.common.loading")}</p>
+                    ) : (timelineMap.get(mc.channel_id) ?? []).length === 0 ? (
+                      <p className="py-2 text-xs text-text-tertiary">
+                        {t("matter.detail.channelNoProgress")}
+                      </p>
+                    ) : (
+                      <TimelinePanel
+                        entries={timelineMap.get(mc.channel_id) ?? []}
+                        canShowAnchor={isMember}
+                        onShowAnchor={(entry, _ev) => {
+                          setAnchor({
+                            channelId: mc.channel_id,
+                            channelType: mc.channel_type,
+                            channelName: mc.channel_name ?? mc.channel_id.slice(0, 8),
+                            messageIds: entry.source_msgs || [],
+                          });
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
@@ -588,16 +601,15 @@ function ChannelsTab({ matterId, channels }: { matterId: string; channels: Matte
         open={linkModalOpen}
         matterId={matterId}
         linkedChannels={channels}
-        onClose={() => setLinkModalOpen(false)}
-        onLinked={() => setLinkModalOpen(false)}
+        onClose={onLinkModalClose}
       />
 
       {/* 解除关联确认弹窗 */}
       <ConfirmModal
         open={!!unlinkTarget}
-        title="解除群聊关联"
-        content="确定要解除该群聊与此事项的关联吗？"
-        okText="解除关联"
+        title={t("matter.detail.unlinkChannelTitle")}
+        content={t("matter.detail.unlinkChannelContent")}
+        okText={t("matter.action.unlink")}
         okDanger
         okLoading={unlinkMu.isPending}
         onOk={handleUnlink}
@@ -623,21 +635,31 @@ interface SecondaryTabBtnProps {
   active: boolean;
   onClick: () => void;
   label: string;
+  count?: number;
 }
 
 /** 二级 tab 按钮:label + (count){可选},激活态 2px 黑色下划线。 */
-function SecondaryTabBtn({ active, onClick, label }: SecondaryTabBtnProps) {
+function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex h-12 items-center text-sm transition-colors ${
+      className={`relative flex h-12 items-center gap-1.5 text-sm transition-colors ${
         active
           ? "font-semibold text-text-primary after:absolute after:right-0 after:bottom-[-1px] after:left-0 after:h-0.5 after:rounded-sm after:bg-text-primary"
           : "text-text-secondary hover:text-text-primary"
       }`}
     >
       {label}
+      {count != null ? (
+        <span
+          className={`rounded px-1.5 text-[11px] font-mono ${
+            active ? "bg-text-primary text-white" : "bg-bg-elevated text-text-tertiary"
+          }`}
+        >
+          {count}
+        </span>
+      ) : null}
     </button>
   );
 }

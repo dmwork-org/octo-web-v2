@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { UserName } from "@/features/matter/components/user-name";
-import { getMessages, type IMMessageResp } from "@/features/matter/api/message-bridge.api";
+import { anchorMessagesQueryOptions } from "@/features/matter/queries/matters.query";
+import type { IMMessageResp } from "@/features/matter/api/message-bridge.api";
 
 interface AnchorPopoverProps {
   open: boolean;
@@ -32,41 +34,34 @@ function extractMsgText(payload: Record<string, unknown>): string {
 }
 
 /**
- * 异步拉取原消息 hook — 将 useEffect 从组件本体抽离。
- * open 变化时自动触发；关闭时复位状态。
+ * 独立渲染函数，负责将消息列表渲染为 JSX。
+ * 避免在 JSX 中使用 IIFE，提高可读性。
  */
-function useAnchorMessages(
-  open: boolean,
-  channelId: string,
-  channelType: number,
-  messageIds: string[],
-) {
-  const [messages, setMessages] = useState<IMMessageResp[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      setMessages(null);
-      setError(null);
-      return;
-    }
-    let cancelled = false;
-    setMessages(null);
-    setError(null);
-    void getMessages(channelId, channelType, messageIds).then((msgs) => {
-      if (cancelled) return;
-      if (msgs.length === 0) {
-        setError("无法查看原消息");
-      } else {
-        setMessages(msgs);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, channelId, channelType, messageIds]);
-
-  return { messages, error };
+function renderMessageList(messages: IMMessageResp[], channelMap: Map<string, Channel>) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {messages.map((msg) => {
+        const ch = channelMap.get(msg.from_uid) ?? new Channel(msg.from_uid, ChannelTypePerson);
+        const content = extractMsgText(msg.payload);
+        return (
+          <li key={msg.message_idstr} className="flex gap-2.5 rounded-md bg-bg-elevated p-3">
+            <ChannelAvatar channel={ch} size={28} title={msg.from_uid} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <UserName uid={msg.from_uid} className="text-xs font-medium text-text-secondary" />
+                <span className="text-[11px] text-text-tertiary">{formatTime(msg.timestamp)}</span>
+              </div>
+              {content ? (
+                <p className="mt-0.5 whitespace-pre-wrap text-xs text-text-primary break-words">
+                  {content}
+                </p>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 /**
@@ -83,7 +78,23 @@ export function AnchorPopover({
   messageIds,
   onClose,
 }: AnchorPopoverProps) {
-  const { messages, error } = useAnchorMessages(open, channelId, channelType, messageIds);
+  const {
+    data: messages,
+    isLoading,
+    isError,
+  } = useQuery(anchorMessagesQueryOptions(channelId, channelType, messageIds, open));
+
+  // 预缓存 Channel 实例，避免在 map 中重复 new
+  const channelMap = useMemo(() => {
+    const map = new Map<string, Channel>();
+    if (!messages) return map;
+    for (const msg of messages) {
+      if (!map.has(msg.from_uid)) {
+        map.set(msg.from_uid, new Channel(msg.from_uid, ChannelTypePerson));
+      }
+    }
+    return map;
+  }, [messages]);
 
   return (
     <BaseDialog
@@ -94,43 +105,13 @@ export function AnchorPopover({
       size="md"
       title={`${channelName} · 原消息上下文`}
     >
-      {(() => {
-        if (error) {
-          return <p className="py-8 text-center text-sm text-text-tertiary">{error}</p>;
-        }
-        if (!messages) {
-          return <p className="py-8 text-center text-sm text-text-tertiary">加载中…</p>;
-        }
-        return (
-          <ul className="flex flex-col gap-3">
-            {messages.map((msg) => {
-              const ch = new Channel(msg.from_uid, ChannelTypePerson);
-              const content = extractMsgText(msg.payload);
-              return (
-                <li key={msg.message_idstr} className="flex gap-2.5 rounded-md bg-bg-elevated p-3">
-                  <ChannelAvatar channel={ch} size={28} title={msg.from_uid} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <UserName
-                        uid={msg.from_uid}
-                        className="text-xs font-medium text-text-secondary"
-                      />
-                      <span className="text-[11px] text-text-tertiary">
-                        {formatTime(msg.timestamp)}
-                      </span>
-                    </div>
-                    {content ? (
-                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-text-primary break-words">
-                        {content}
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        );
-      })()}
+      {isError ? (
+        <p className="py-8 text-center text-sm text-text-tertiary">无法查看原消息</p>
+      ) : isLoading || !messages ? (
+        <p className="py-8 text-center text-sm text-text-tertiary">加载中…</p>
+      ) : (
+        renderMessageList(messages, channelMap)
+      )}
     </BaseDialog>
   );
 }

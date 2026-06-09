@@ -115,6 +115,7 @@ export function useAddTimelineEntry(matterId: string) {
     mutationFn: (req: AddTimelineReq) => addTimelineEntry(matterId, req),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
     },
   });
 }
@@ -125,13 +126,14 @@ export function useDeleteTimelineEntry(matterId: string) {
     mutationFn: (entryId: string) => deleteTimelineEntry(matterId, entryId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
     },
   });
 }
 
 // ─── Channel 关联 mutations ────────────────────────────
 
-/** 关联新群聊:POST /matters/{id}/channels,成功后失效 detail query。 */
+/** 关联新群聊:POST /matters/{id}/channels,成功后失效 detail + list query。 */
 export function useLinkChannel() {
   const qc = useQueryClient();
   return useMutation({
@@ -139,11 +141,12 @@ export function useLinkChannel() {
       linkChannel(args.matterId, args.req),
     onSuccess: (_data, args) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
+      void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
     },
   });
 }
 
-/** 解除关联群聊:DELETE /matters/{id}/channels/{channel_id},成功后失效 detail query。 */
+/** 解除关联群聊:DELETE /matters/{id}/channels/{channel_id},成功后失效 detail + list query。 */
 export function useUnlinkChannel() {
   const qc = useQueryClient();
   return useMutation({
@@ -151,6 +154,7 @@ export function useUnlinkChannel() {
       unlinkChannel(args.matterId, args.channelId),
     onSuccess: (_data, args) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
+      void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
     },
   });
 }

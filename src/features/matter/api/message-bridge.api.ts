@@ -1,4 +1,5 @@
 import { api } from "@/features/base/api/client";
+import { CHANNEL_TYPE_GROUP, CHANNEL_TYPE_THREAD } from "@/features/matter/types/matter.types";
 
 /** 单条 IM 消息响应 */
 export interface IMMessageResp {
@@ -11,14 +12,10 @@ export interface IMMessageResp {
   payload: Record<string, unknown>;
 }
 
-// channel_type=2 是普通群, channel_type=5 是子区(thread)
-const CHANNEL_TYPE_GROUP = 2;
-const CHANNEL_TYPE_THREAD = 5;
-
 /**
  * 从 channel_id 解析父群 groupNo 和子区 threadId。
- * - 普通群(channelType=2):channel_id 即 groupNo。
- * - 子区(channelType=5):channel_id 格式为 "parentGroupNo__threadId"。
+ * - 普通群(channelType= CHANNEL_TYPE_GROUP):channel_id 即 groupNo。
+ * - 子区(channelType=CHANNEL_TYPE_THREAD):channel_id 格式为 "parentGroupNo__threadId"。
  * - 非群/非子区返回 null（不支持查看上下文）。
  */
 function parseChannelForMessage(
@@ -45,7 +42,7 @@ export async function getMessage(
 ): Promise<IMMessageResp> {
   const parsed = parseChannelForMessage(channelId, channelType);
   if (!parsed) {
-    throw new Error("不支持的消息类型");
+    throw new Error(`不支持的消息类型: channelType=${channelType}`);
   }
   const { groupNo, threadId } = parsed;
   const segGroup = encodeURIComponent(groupNo);

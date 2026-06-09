@@ -5,7 +5,9 @@ import type {
   ActivityEntry,
   AddTimelineReq,
   CreateMatterReq,
+  LinkChannelReq,
   Matter,
+  MatterChannel,
   MatterDetail,
   MatterListParams,
   MatterStatus,
@@ -119,4 +121,18 @@ export async function listActivities(
  */
 export async function extractMatter(req: ExtractMatterReq): Promise<ExtractResult> {
   return matterApi<ExtractResult>("/matters/extract", { method: "POST", body: req });
+}
+
+// ─── Channels(关联群聊)────────────────────────────────
+
+/** POST /matters/{id}/channels { channel_id, channel_type, channel_name? } */
+export async function linkChannel(matterId: string, req: LinkChannelReq): Promise<MatterChannel> {
+  return matterApi<MatterChannel>(`/matters/${matterId}/channels`, { method: "POST", body: req });
+}
+
+/** DELETE /matters/{id}/channels/{channel_id} */
+export async function unlinkChannel(matterId: string, channelId: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/channels/${encodeURIComponent(channelId)}`, {
+    method: "DELETE",
+  });
 }

@@ -18,6 +18,24 @@ export interface MatterAssignee {
   created_at: string;
 }
 
+/** Matter 关联群聊条目(来自 GET /matters/:id 返回的 channels 字段)。 */
+export interface MatterChannel {
+  id: string;
+  matter_id: string;
+  channel_id: string;
+  channel_type: number;
+  channel_name?: string;
+  linked_by: string;
+  created_at: string;
+}
+
+/** 关联群聊请求体(POST /matters/:id/channels)。 */
+export interface LinkChannelReq {
+  channel_id: string;
+  channel_type: number;
+  channel_name?: string;
+}
+
 export interface Matter {
   id: string;
   seq_no: number;
@@ -40,6 +58,8 @@ export interface Matter {
 export interface MatterDetail extends Matter {
   assignees: MatterAssignee[];
   participants?: string[];
+  /** 关联群聊列表,包含 source_channel 在内(后端统一返回)。 */
+  channels?: MatterChannel[];
 }
 
 // ─── 分页 ─────────────────────────────────────────────────
@@ -107,6 +127,8 @@ export interface TimelineEntry {
   channel_type?: number;
   source_channel_id?: string;
   related_uids?: string[];
+  /** 原消息 ID 列表，用于"查看原消息上下文"。 */
+  source_msgs?: string[];
   created_at: string;
   attachments?: TimelineAttachment[];
 }

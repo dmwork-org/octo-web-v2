@@ -31,14 +31,16 @@
 
 ### Batch 1.2 — Chat 输入框 / mention(8 commits)
 
-- [ ] `e33d3887` 2026-06-05 fix: resolve mention nodes returning 'undefined' in textBetween leafText
-- [ ] `006b2411` 2026-05-22 fix(message-input): preserve multiline content when pasting lists
-- [ ] `2e89e772` 2026-05-31 fix(voice-mention): 语音 @所有AI 识别 + @所有人 走 humans
-- [ ] `405bbe98` 2026-05-23 fix(mention): expand bot UIDs into mention.uids on @所有AI + skip broadcast token
-- [ ] `90556da2` 2026-06-05 fix(mention): protect all-ai routing uids
-- [ ] `76189c1d` 2026-06-03 fix(message): highlight broadcast mentions
-- [ ] `ff46fa58` 2026-06-02 fix(message-input): hide broadcast mentions in direct chats
-- [ ] `bbac229d` 2026-05-27 fix(conversation): block folder drop to prevent ghost file messages
+- [~] `e33d3887` 2026-06-05 fix: resolve mention nodes returning 'undefined' in textBetween leafText — 新仓 voice 简化为"录音→文件",无 voice-to-text 编辑模式,无对应 `textBetween()` / `getCurrentText` code path,**跳过**
+- [x] `006b2411` 2026-05-22 fix(message-input): preserve multiline content when pasting lists
+- [x] `2e89e772` 2026-05-31 fix(voice-mention): 语音 @所有AI 识别 + @所有人 走 humans
+- [x] `405bbe98` 2026-05-23 fix(mention): expand bot UIDs into mention.uids on @所有AI + skip broadcast token
+- [x] `90556da2` 2026-06-05 fix(mention): protect all-ai routing uids(合并到 receiver 侧 commit,本仓改 text-renderer fail-closed guard;跳上游 sender entities)
+- [x] `76189c1d` 2026-06-03 fix(message): highlight broadcast mentions(合并到 receiver 侧 commit,text-renderer 加 humans/ais broadcast token)
+- [x] `ff46fa58` 2026-06-02 fix(message-input): hide broadcast mentions in direct chats
+- [x] `bbac229d` 2026-05-27 fix(conversation): block folder drop to prevent ghost file messages
+
+**完成于 2026-06-09(MR #10 已合并)**:6 本仓 commit / 8 上游 SHA(2 合并 + 1 跳过)。手测全过。
 
 **手测**:输入框 @全员/@所有AI/@某人 各场景;粘贴 list 不丢行;拖文件夹被拦截。
 

@@ -301,6 +301,9 @@ export function registerImCallbacks(): void {
         orgData.can_manage_bot_admin = !!(
           raw.can_manage_bot_admin ?? extraGroup.can_manage_bot_admin
         );
+        // 群级「允许 Bot 免@回答」总开关(对齐上游 ceffa569):老数据无字段时回退 1(允许),零回归
+        orgData.allow_no_mention =
+          raw.allow_no_mention ?? (extraGroup.allow_no_mention as number | undefined) ?? 1;
       }
 
       // category=system/customerService/visitor 加 identity icon(对齐旧版静态 path)

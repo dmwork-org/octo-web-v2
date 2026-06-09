@@ -37,7 +37,10 @@ import {
   shouldShowArchiveButton,
 } from "@/features/chat/lib/thread-archive-actions";
 import { toast as sonnerToast } from "sonner";
-import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import {
+  sidebarFollowQueryKey,
+  sidebarFollowQueryOptions,
+} from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
@@ -77,10 +80,16 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   const queryKey = ["chat", "thread-list", groupNo];
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => listThreads(groupNo, { page_index: 1, page_size: 100 }),
+    // status:"all" 必传 — 默认后端只返活跃子区,thread panel 需要活跃 + 已归档两组
+    // (对齐上游 23b59a41 / ThreadPanel.loadThreads)
+    queryFn: () => listThreads(groupNo, { page_index: 1, page_size: 100, status: "all" }),
     enabled: open,
     staleTime: 30 * 1000,
   });
+  // sidebar follow 推 is_followed(双源融合,对齐老仓 ThreadPanel.loadThreads):
+  // ThreadRaw.is_followed 字段后端可能不填,必须叠加 sidebar/sync 推的 followedKeys
+  // 才能保证 Star 状态正确。
+  const sidebarFollowQ = useQuery(sidebarFollowQueryOptions(spaceId));
 
   const invalidate = () => void qc.invalidateQueries({ queryKey });
 
@@ -100,9 +109,27 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
 
   if (!open) return null;
 
-  const threads = (data ?? [])
-    .slice()
-    .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  // 双源融合 is_followed:sidebar.followedKeys 推关注子区集合,合并到 thread
+  const followedThreadChannels = new Set<string>();
+  if (sidebarFollowQ.data?.followedKeys) {
+    // followedKeys 格式:`${target_type}::${target_id}`,target_id 对子区 = channel_id
+    for (const key of sidebarFollowQ.data.followedKeys) {
+      const [tt, cid] = key.split("::");
+      // SidebarTargetType.THREAD = 5,跟 ChannelTypeCommunityTopic 同
+      if (tt === "5" && cid) followedThreadChannels.add(cid);
+    }
+  }
+  const threadsWithFollow = (data ?? []).map((th) => ({
+    ...th,
+    is_followed:
+      followedThreadChannels.has(buildThreadChannelId(groupNo, th.short_id)) || !!th.is_followed,
+  }));
+  // 排序口径:last_message_at(有消息时)→ updated_at → created_at(对齐老仓 threadSortTime)
+  const threadSortTime = (th: ThreadRaw): number => {
+    const raw = th.last_message_at || th.updated_at || th.created_at;
+    return raw ? new Date(raw).getTime() : 0;
+  };
+  const threads = threadsWithFollow.slice().sort((a, b) => threadSortTime(b) - threadSortTime(a));
   const activeThreads = threads.filter((th) => !th.status || th.status === THREAD_STATUS_ACTIVE);
   const archivedThreads = threads.filter((th) => th.status === THREAD_STATUS_ARCHIVED);
 

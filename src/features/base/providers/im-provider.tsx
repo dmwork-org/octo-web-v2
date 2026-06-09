@@ -7,6 +7,7 @@ import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
 import { registerContentTypes } from "@/features/base/im/register-content";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
+import { TypingManager } from "@/features/chat/services/typing-manager";
 import { t } from "@/lib/i18n/instance";
 import { router } from "@/lib/router";
 
@@ -50,7 +51,9 @@ function handleAuthLost(reason: "kicked" | "auth-failed") {
  * - 注册 SDK provider callbacks(sync conversation / channelInfo / sync messages / upload task 等)
  * - 注册自定义 MessageContent(file/voice/video 等,SDK 内置只覆盖 text/image)
  * - 设 SDK config.uid / token / connectAddrCallback
- * - 注册 status listener,把 SDK 状态映射进 imConnectionStore
+ * - 注册 status listener,把 SDK 状态映射进 imConnectionStore;**重连成功时清空残留 typing**
+ *   (对齐上游 7a42c23a / #187)
+ * - 注册 visibilitychange,**回前台时清空残留 typing**(同上,双层防御)
  * - 立即 connect();unmount 时 disconnect + remove listener
  *
  * 不在 component 本体放裸 useEffect — 抽出到命名 hook(no-useeffect-in-component 规则)。
@@ -91,13 +94,26 @@ function useImConnection(uid: string | null, token: string | null) {
         return;
       }
       imConnectionActions.setStatus(mapStatus(status), reasonCode ?? null);
+      // 重连成功后清空所有残留 typing(对齐上游 7a42c23a / #187):SDK 重连只
+      // reSubscribe,断连期间 bot 回复经 HTTP sync 落库不触发 WS messageListener,
+      // typing 唯一清除路径失效 → 永不清。这里和 visibilitychange 双层防御。
+      if (status === ConnectStatus.Connected) {
+        TypingManager.resetAll();
+      }
     };
     sdk.connectManager.addConnectStatusListener(listener);
+
+    // 回前台清除残留 typing(第一层防御,对齐上游 App.tsx visibilitychange)。
+    const onVisibilityChange = () => {
+      if (!document.hidden) TypingManager.resetAll();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     imConnectionActions.setStatus("connecting");
     sdk.connect();
 
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       sdk.connectManager.removeConnectStatusListener(listener);
       sdk.disconnect();
       imConnectionActions.reset();

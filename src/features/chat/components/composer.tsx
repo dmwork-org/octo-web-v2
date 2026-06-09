@@ -87,6 +87,17 @@ const STICKY_MENTIONS: MentionItem[] = [
 
 interface ComposerProps {
   channel: Channel;
+  /**
+   * 顶部 banner 文案(如已归档子区的"发送后会恢复活跃"提示)。
+   * 对齐上游 23b59a41 archivedInputNotice — 在 input 上方展示一行提示。
+   */
+  inputNotice?: string;
+  /**
+   * 消息发送成功后回调(每条消息发送完都调一次)。
+   * DetailView 用它在 archived 子区发消息后 invalidate thread query,
+   * 让后端把 status 从 Archived 自动 reactivate 回 Active 后 UI 同步。
+   */
+  onMessageSent?: () => void;
 }
 
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
@@ -159,7 +170,7 @@ function createSubmitOnEnter(onSubmit: () => void) {
   });
 }
 
-export function Composer({ channel }: ComposerProps) {
+export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps) {
   const tt = useT();
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -397,6 +408,7 @@ export function Composer({ channel }: ComposerProps) {
       attachments.clearAll();
       chatReplyActions.clear(channel);
       dropDraft();
+      onMessageSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
@@ -609,6 +621,11 @@ export function Composer({ channel }: ComposerProps) {
 
   return (
     <div className="shrink-0 px-4 pb-2">
+      {inputNotice ? (
+        <div className="mb-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-text-secondary">
+          {inputNotice}
+        </div>
+      ) : null}
       <form
         ref={formRef}
         onSubmit={onSubmit}

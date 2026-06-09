@@ -45,6 +45,8 @@ import {
   revokeMessage,
 } from "@/features/base/api/endpoints/message.api";
 import { createThread } from "@/features/base/api/endpoints/group.api";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { spaceStore } from "@/features/base/stores/space";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { copyImageToClipboard } from "@/features/base/lib/copy-image";
 import { useT } from "@/lib/i18n/use-t";
@@ -238,6 +240,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const tt = useT();
   useSenderInfoLive(effectiveFromUID(message));
   const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
@@ -326,6 +329,8 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     onSuccess: (resp) => {
       toast.success(t("messageRow.toast.threadCreated"));
       setThreadOpen(false);
+      // 对齐上游 2c5eccbb:消息上下文菜单创建子区成功 → invalidate followed sidebar
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       if (resp?.channel_id) {
         chatSelectedActions.select(new Channel(resp.channel_id, CHANNEL_TYPE_THREAD));
       }

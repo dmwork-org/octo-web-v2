@@ -1,12 +1,18 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import WKSDK, { type Channel, type Conversation, ConversationAction } from "wukongimjssdk";
 import { clearConversationUnread } from "@/features/base/api/endpoints/conversation.api";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { spaceStore } from "@/features/base/stores/space";
 
 /**
  * 进入会话视图时清空未读(对应旧 Conversation/vm.ts 进入会话时 markConversationUnread)。
  *
  * - 调 PUT /v1/conversation/clearUnread
  * - 本地立即把 SDK Conversation.unread 置 0 并 notify(会话列表 badge 即时消失)
+ * - 服务端确认后 invalidate sidebarFollow query → 关注 tab sidebar-only 条目角标也归零
+ *   (对齐上游 72a8adc3 / #203 — sidebar 快照 stale 导致关注 tab 角标永不消失)
  * - channel 切换时重新调
  *
  * **持续监听 listener 模式**(对齐老仓 Conversation/vm.ts conversationListener):
@@ -18,6 +24,8 @@ import { clearConversationUnread } from "@/features/base/api/endpoints/conversat
  * 失败静默(已读上报不阻塞用户操作)。
  */
 export function useClearUnreadOnEnter(channel: Channel | null) {
+  const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   useEffect(() => {
     if (!channel) return;
 
@@ -36,14 +44,20 @@ export function useClearUnreadOnEnter(channel: Channel | null) {
         channelId: channel.channelID,
         channelType: channel.channelType,
         unread: 0,
-      }).catch(() => {
-        // 失败回滚 unread(下次 syncConversations 会自我修正,无需手动)
-        conv.unread = prevUnread;
-        WKSDK.shared().conversationManager.notifyConversationListeners(
-          conv,
-          ConversationAction.update,
-        );
-      });
+      })
+        .then(() => {
+          // 服务端确认未读已清 → 触发 sidebar 重新 fetch,让关注 tab sidebar-only
+          // 条目的角标快照也归零(对齐上游 72a8adc3 / #203)。
+          void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+        })
+        .catch(() => {
+          // 失败回滚 unread(下次 syncConversations 会自我修正,无需手动)
+          conv.unread = prevUnread;
+          WKSDK.shared().conversationManager.notifyConversationListeners(
+            conv,
+            ConversationAction.update,
+          );
+        });
     };
 
     // mount 时立即试一次(已存在 conv 走这条)
@@ -56,5 +70,5 @@ export function useClearUnreadOnEnter(channel: Channel | null) {
     };
     cm.addConversationListener(listener);
     return () => cm.removeConversationListener(listener);
-  }, [channel]);
+  }, [channel, qc, spaceId]);
 }

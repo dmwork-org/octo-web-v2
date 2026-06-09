@@ -75,3 +75,32 @@ PreToolUse hook 真触发验证通过:
   - 90556da2 上游 sender 侧 entities sentinel — 新仓 send-content-proxy 不解析 entities,靠 receiver 兜底
 - 本仓 commits:ddb9d91 / b8d6fee / bcff516 / 9c8d7b3 / 25d4f56 / 3c303b7(6 个 commit)
 - 关键决策:90556da2 + 76189c1d 合并 commit,避免拆细影响 review 连贯性
+
+## 2026-06-09 — Batch 1.3 chat 会话列表 / 排序 / 折叠
+
+- MR: <https://codex.mlamp.cn/frontend/octo-web-2/-/merge_requests/13>(已合并)
+- 搬了 12 个上游 SHA(plan 内 9 + baseline 后补 3):
+  - `f85ba4d0` trust backend recent(删 3 天前端硬过滤)
+  - `1f8c40a2` 最近 tab 重复点击跳第一条未读(chat-recent-jump store + reactive hook)
+  - `de16d69f` mention reminder 过滤防 @我 双显
+  - `5dbc0c40` setActivatorNodeRef 隔离 drag activator
+  - `645fa295` 隐藏归档子区 + 新建 lib/thread-status.ts;后续补 hasThreads / aggregateThreadUnread 用 visibleThreads(漏改修复)
+  - `35b35757` thread panel item Star follow + sidebar invalidate
+  - `72a8adc3` clearUnread 后 invalidate sidebarFollow query(替代 mittBus)
+  - `2c5eccbb` 创建子区后 invalidate sidebarFollow(两路:thread-list-panel + message-row)
+  - `1286d289` conversation/sync body 加 recent_filter:true
+  - **(baseline 后补)** `1906c874` canManageThread 父群口径(两处归档入口共享权限)
+  - **(baseline 后补)** `c13e7e27` inline 归档按钮 + 5s 撤销 toast(每行 Archive/ArchiveRestore button)
+  - **(baseline 后补)** `23b59a41` 归档发消息 reactivate + composer archivedInputNotice
+- 跳过 2 个:
+  - `275762d7` compact thread collapse — 新仓 follow-list 独立 hook 体系,跟 ConversationList class 的 disablePinSplit 不同语义
+  - `ff7f39f1` recent ordering on live updates — 新仓 sortConversations 已返新数组,useQuery 自动 refetch,无 ChatVM class 原地 sort 问题
+- 验证发现并修复的数据/逻辑 bug:
+  - listThreads 默认只返活跃 → 必传 `status:"all"` 才有"已归档"分组
+  - is_followed 后端 ThreadRaw 字段可能不填 → 双源融合(sidebarFollow.followedKeys 推 `5::{channel_id}` 集合)
+  - 排序口径 `last_message_at || updated_at || created_at`(对齐老仓 threadSortTime)
+  - follow-list 父群 hasThreads / aggregateThreadUnread 漏过滤 archived(commit `4434597`)
+- 本仓 commits:10a083b / c58ba56 / 47edeea / 208f8cb / 11de3ee / 327e935 / 2e7a803 / fef7d1c / 238f952 / 4434597 / b815d80 / 36716cd / 7b21fa0(13 commit)
+- 关键决策:
+  - 流程上首次实践"用户验证发现缺失功能 → 在同 MR 续 commit 全补"(对应陈超的 A 方案),不开补救 PR
+  - baseline 后新增 SHA(c13e7e27/23b59a41/1906c874)纳入当前 batch,plan 文档显式标注"baseline 后补",避免下次拉远程时被当作未搬

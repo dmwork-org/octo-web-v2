@@ -46,6 +46,7 @@ import { InputModal } from "@/features/base/components/modals/input-modal";
 import { FollowEmptyState } from "@/features/chat/components/follow-empty-state";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { filterArchivedThreads, isArchivedThread } from "@/features/chat/lib/thread-status";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
@@ -435,6 +436,8 @@ function isThreadEffectivelyMuted(
 
 function aggregateThreadUnread(threads: Conversation[], parentGroupNo: string): number {
   return threads.reduce((sum, t) => {
+    // 跳过已归档子区,保持"角标数 = 列表可见未读"一致(对齐上游 645fa295)
+    if (isArchivedThread(t)) return sum;
     if (isThreadEffectivelyMuted(t, parentGroupNo)) return sum;
     return sum + (t.unread || 0);
   }, 0);
@@ -535,6 +538,7 @@ function CategorySection({
         onContextMenu={onContextMenu}
       >
         <span
+          ref={sortable.setActivatorNodeRef}
           {...sortable.attributes}
           {...sortable.listeners}
           onClick={(e) => e.stopPropagation()}
@@ -611,11 +615,15 @@ function CategorySection({
                       const titleLoading = live.loading;
                       const muted = !!conv?.channelInfo?.mute;
                       const threads = followedThreadsByParent.get(groupNo) ?? [];
+                      // 父群 UI 看可见(非归档)子区:hasThreads 决定是否显"子区"按钮,
+                      // 角标也只算活跃子区(对齐上游 645fa295)。拖拽 payload 仍用全量
+                      // threads,归档隐藏不影响后端 follow_sort。
+                      const visibleThreads = filterArchivedThreads(threads);
                       const expanded = isExpanded(groupNo);
                       const groupUnread = conv?.unread ?? it.unread;
                       const aggThreadUnread = expanded
                         ? 0
-                        : aggregateThreadUnread(threads, groupNo);
+                        : aggregateThreadUnread(visibleThreads, groupNo);
                       return (
                         <SortableRow
                           key={`group-${groupNo}`}
@@ -638,7 +646,7 @@ function CategorySection({
                                   )?.is_external_group === 1
                                 }
                                 isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                                hasThreads={threads.length > 0}
+                                hasThreads={visibleThreads.length > 0}
                                 threadsExpanded={expanded}
                                 onToggleThreads={() => onToggleExpand(groupNo)}
                                 selected={groupNo === selectedChannelId}
@@ -648,10 +656,13 @@ function CategorySection({
                               />
                               {expanded
                                 ? (() => {
+                                    // 复用上面 visibleThreads(已 filterArchivedThreads)
                                     const showAll = expandedThreadsSet.has(groupNo);
                                     const MAX = 5;
-                                    const visible = showAll ? threads : threads.slice(0, MAX);
-                                    const hidden = threads.length - visible.length;
+                                    const visible = showAll
+                                      ? visibleThreads
+                                      : visibleThreads.slice(0, MAX);
+                                    const hidden = visibleThreads.length - visible.length;
                                     return (
                                       <>
                                         {visible.map((th) => {
@@ -1098,7 +1109,9 @@ export function FollowList({
 
     if (isGroup) {
       const groupNo = conv.channel.channelID;
-      const hasThreads = (followedThreadsByParent.get(groupNo) ?? []).length > 0;
+      // 右键"展开/收起子区"也按可见子区(非归档)算
+      const hasThreads =
+        filterArchivedThreads(followedThreadsByParent.get(groupNo) ?? []).length > 0;
       if (hasThreads) {
         const expanded = isExpanded(groupNo);
         items.push({

@@ -2,7 +2,16 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, X } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  ChevronDown,
+  MoreHorizontal,
+  Plus,
+  Star,
+  X,
+} from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -19,6 +28,20 @@ import {
   updateThread,
   type ThreadRaw,
 } from "@/features/base/api/endpoints/group.api";
+import { followThread, unfollowThread } from "@/features/base/api/endpoints/follow.api";
+import { authStore } from "@/features/base/stores/auth";
+import { archiveThread, unarchiveThread } from "@/features/base/api/endpoints/group.api";
+import { canManageThread } from "@/features/chat/lib/thread-permission";
+import {
+  deriveArchiveAction,
+  shouldShowArchiveButton,
+} from "@/features/chat/lib/thread-archive-actions";
+import { toast as sonnerToast } from "sonner";
+import {
+  sidebarFollowQueryKey,
+  sidebarFollowQueryOptions,
+} from "@/features/chat/queries/sidebar.query";
+import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
@@ -44,6 +67,7 @@ type View = "list" | "detail";
 export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps) {
   const tt = useT();
   const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
   const [view, setView] = useState<View>("list");
@@ -56,10 +80,16 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   const queryKey = ["chat", "thread-list", groupNo];
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => listThreads(groupNo, { page_index: 1, page_size: 100 }),
+    // status:"all" 必传 — 默认后端只返活跃子区,thread panel 需要活跃 + 已归档两组
+    // (对齐上游 23b59a41 / ThreadPanel.loadThreads)
+    queryFn: () => listThreads(groupNo, { page_index: 1, page_size: 100, status: "all" }),
     enabled: open,
     staleTime: 30 * 1000,
   });
+  // sidebar follow 推 is_followed(双源融合,对齐老仓 ThreadPanel.loadThreads):
+  // ThreadRaw.is_followed 字段后端可能不填,必须叠加 sidebar/sync 推的 followedKeys
+  // 才能保证 Star 状态正确。
+  const sidebarFollowQ = useQuery(sidebarFollowQueryOptions(spaceId));
 
   const invalidate = () => void qc.invalidateQueries({ queryKey });
 
@@ -69,6 +99,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
       invalidate();
       setCreateOpen(false);
       toast.success(t("threadPanelLocal.toast.created"));
+      // 对齐上游 2c5eccbb:子区创建成功 → 立即 invalidate followed sidebar query,
+      // 让关注 tab 列表里(如果父群已被关注 / 子区被默认加入)即时刷新。
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.createFailed")),
@@ -76,9 +109,27 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
 
   if (!open) return null;
 
-  const threads = (data ?? [])
-    .slice()
-    .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  // 双源融合 is_followed:sidebar.followedKeys 推关注子区集合,合并到 thread
+  const followedThreadChannels = new Set<string>();
+  if (sidebarFollowQ.data?.followedKeys) {
+    // followedKeys 格式:`${target_type}::${target_id}`,target_id 对子区 = channel_id
+    for (const key of sidebarFollowQ.data.followedKeys) {
+      const [tt, cid] = key.split("::");
+      // SidebarTargetType.THREAD = 5,跟 ChannelTypeCommunityTopic 同
+      if (tt === "5" && cid) followedThreadChannels.add(cid);
+    }
+  }
+  const threadsWithFollow = (data ?? []).map((th) => ({
+    ...th,
+    is_followed:
+      followedThreadChannels.has(buildThreadChannelId(groupNo, th.short_id)) || !!th.is_followed,
+  }));
+  // 排序口径:last_message_at(有消息时)→ updated_at → created_at(对齐老仓 threadSortTime)
+  const threadSortTime = (th: ThreadRaw): number => {
+    const raw = th.last_message_at || th.updated_at || th.created_at;
+    return raw ? new Date(raw).getTime() : 0;
+  };
+  const threads = threadsWithFollow.slice().sort((a, b) => threadSortTime(b) - threadSortTime(a));
   const activeThreads = threads.filter((th) => !th.status || th.status === THREAD_STATUS_ACTIVE);
   const archivedThreads = threads.filter((th) => th.status === THREAD_STATUS_ARCHIVED);
 
@@ -287,9 +338,16 @@ function DetailView({
   onAfterDelete: () => void;
 }) {
   const tt = useT();
+  const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [moreOpen, setMoreOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const canEdit = canManageThread(thread, groupNo, myUid);
+  const archiveAction = deriveArchiveAction(thread);
+  const isArchived = thread.status === THREAD_STATUS_ARCHIVED;
 
   const threadChannel = new Channel(
     buildThreadChannelId(groupNo, thread.short_id),
@@ -319,6 +377,50 @@ function DetailView({
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.deleteFailed")),
   });
+
+  const archiveMu = useMutation({
+    mutationFn: () => {
+      if (!archiveAction) return Promise.reject(new Error("invalid action"));
+      return archiveAction === "archive"
+        ? archiveThread(groupNo, thread.short_id)
+        : unarchiveThread(groupNo, thread.short_id);
+    },
+    onSuccess: () => {
+      setArchiveConfirmOpen(false);
+      onInvalidate();
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      const nextStatus =
+        archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
+      onThreadUpdated?.({ status: nextStatus });
+      toast.success(
+        archiveAction === "archive"
+          ? t("threadPanelLocal.toast.archived")
+          : t("threadPanelLocal.toast.unarchived"),
+      );
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : archiveAction === "archive"
+            ? t("threadPanelLocal.toast.archiveFailed")
+            : t("threadPanelLocal.toast.unarchiveFailed"),
+      ),
+  });
+
+  /**
+   * 已归档子区发消息后,后端会自动 reactivate 为 Active(对齐上游 23b59a41)。
+   * Composer onMessageSent → 短 delay 后 invalidate thread query 拿权威状态。
+   * 延迟是为了等后端事务落盘,避免立即 GET 仍返 Archived。
+   */
+  const handleMessageSent = isArchived
+    ? () => {
+        setTimeout(() => {
+          onInvalidate();
+          onThreadUpdated?.({ status: THREAD_STATUS_ACTIVE });
+        }, 600);
+      }
+    : undefined;
 
   return (
     <>
@@ -376,6 +478,20 @@ function DetailView({
               >
                 {tt("threadPanelLocal.editName")}
               </button>
+              {canEdit && archiveAction ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setArchiveConfirmOpen(true);
+                  }}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {archiveAction === "archive"
+                    ? tt("threadPanelLocal.archive")
+                    : tt("threadPanelLocal.unarchive")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {
@@ -401,7 +517,12 @@ function DetailView({
 
       <div className="flex min-h-0 flex-1 flex-col">
         <MessageList key={threadChannel.channelID} channel={threadChannel} />
-        <Composer key={`${threadChannel.channelID}_composer`} channel={threadChannel} />
+        <Composer
+          key={`${threadChannel.channelID}_composer`}
+          channel={threadChannel}
+          inputNotice={isArchived ? tt("threadPanelLocal.archivedInputNotice") : undefined}
+          onMessageSent={handleMessageSent}
+        />
       </div>
 
       <InputModal
@@ -419,6 +540,28 @@ function DetailView({
           renameMu.mutate(trimmed);
         }}
         onCancel={() => setRenameOpen(false)}
+      />
+
+      <ConfirmModal
+        open={archiveConfirmOpen}
+        title={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archiveConfirmTitle", { values: { name: thread.name } })
+            : tt("threadPanelLocal.unarchiveConfirmTitle", { values: { name: thread.name } })
+        }
+        content={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archiveConfirmContent")
+            : tt("threadPanelLocal.unarchiveConfirmContent")
+        }
+        okText={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archive")
+            : tt("threadPanelLocal.unarchive")
+        }
+        okLoading={archiveMu.isPending}
+        onOk={() => archiveMu.mutate()}
+        onCancel={() => setArchiveConfirmOpen(false)}
       />
 
       <ConfirmModal
@@ -501,6 +644,7 @@ function ThreadGroup({
                   thread={th}
                   selected={selectedChannelId === channelId}
                   onClick={() => onSelect(th)}
+                  groupNo={groupNo}
                 />
               );
             })}
@@ -515,12 +659,93 @@ function ThreadItem({
   thread,
   selected,
   onClick,
+  groupNo,
 }: {
   thread: ThreadRaw;
   selected: boolean;
   onClick: () => void;
+  groupNo: string;
 }) {
   const tt = useT();
+  const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const canEdit = canManageThread(thread, groupNo, myUid);
+  const archiveAction = deriveArchiveAction(thread);
+  const showArchiveBtn = shouldShowArchiveButton(thread, canEdit);
+  const [optimisticFollowed, setOptimisticFollowed] = useState<boolean | null>(null);
+  const [archivingPending, setArchivingPending] = useState(false);
+  const followMu = useMutation({
+    mutationFn: async ({ followed }: { followed: boolean }) => {
+      const channelId = buildThreadChannelId(groupNo, thread.short_id);
+      if (followed) await followThread(channelId);
+      else await unfollowThread(channelId);
+    },
+    onMutate: ({ followed }) => setOptimisticFollowed(followed),
+    onSuccess: (_void, { followed }) => {
+      toast.success(
+        followed ? t("threadPanelLocal.toast.followed") : t("threadPanelLocal.toast.unfollowed"),
+      );
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+    },
+    onError: (err, { followed }) => {
+      setOptimisticFollowed(null);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : followed
+            ? t("threadPanelLocal.toast.followFailed")
+            : t("threadPanelLocal.toast.unfollowFailed"),
+      );
+    },
+  });
+  /**
+   * 行内归档/取消归档(对齐上游 c13e7e27):
+   * - optimistic: 立刻乐观 invalidate query 让 UI 看起来已切组
+   * - 成功后 toast 带 5 秒撤销 action,点撤销会反向调对方接口
+   * - 失败 toast 错误,query refetch 拿回真实状态
+   */
+  const performArchive = async (action: "archive" | "unarchive") => {
+    if (archivingPending) return;
+    setArchivingPending(true);
+    try {
+      if (action === "archive") {
+        await archiveThread(groupNo, thread.short_id);
+      } else {
+        await unarchiveThread(groupNo, thread.short_id);
+      }
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      sonnerToast.success(
+        action === "archive"
+          ? t("threadPanelLocal.toast.archived")
+          : t("threadPanelLocal.toast.unarchived"),
+        {
+          action: {
+            label: t("threadPanelLocal.undo"),
+            onClick: () => {
+              void performArchive(action === "archive" ? "unarchive" : "archive");
+            },
+          },
+          duration: 5000,
+        },
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : action === "archive"
+            ? t("threadPanelLocal.toast.archiveFailed")
+            : t("threadPanelLocal.toast.unarchiveFailed"),
+      );
+      void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
+    } finally {
+      setArchivingPending(false);
+    }
+  };
+
+  const isFollowed = optimisticFollowed ?? !!thread.is_followed;
   const hasUnread = (thread.unread_count ?? 0) > 0;
   const creatorName = getCreatorName(thread);
   const lastSender = thread.last_message_sender_name ?? "";
@@ -529,7 +754,7 @@ function ThreadItem({
   return (
     <div
       onClick={onClick}
-      className={`mx-0 mb-1 cursor-pointer rounded-md p-3 transition-colors ${
+      className={`group/thread-item mx-0 mb-1 cursor-pointer rounded-md p-3 transition-colors ${
         selected ? "bg-bg-elevated" : "hover:bg-bg-hover"
       }`}
     >
@@ -540,9 +765,56 @@ function ThreadItem({
             {thread.name}
           </span>
         </div>
-        <span className="shrink-0 text-[12px] text-text-tertiary">
-          {formatRelativeTime(thread.updated_at)}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (followMu.isPending) return;
+              followMu.mutate({ followed: !isFollowed });
+            }}
+            aria-label={
+              isFollowed ? tt("threadPanelLocal.unfollowAria") : tt("threadPanelLocal.followAria")
+            }
+            className={`flex h-5 w-5 items-center justify-center rounded transition-opacity ${
+              isFollowed
+                ? "opacity-100 text-yellow-500"
+                : "opacity-0 text-text-tertiary group-hover/thread-item:opacity-100 hover:text-text-secondary"
+            }`}
+          >
+            <Star
+              size={14}
+              fill={isFollowed ? "currentColor" : "none"}
+              strokeWidth={isFollowed ? 0 : 1.5}
+            />
+          </button>
+          {showArchiveBtn && archiveAction ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void performArchive(archiveAction);
+              }}
+              disabled={archivingPending}
+              aria-label={
+                archiveAction === "archive"
+                  ? tt("threadPanelLocal.archiveAria")
+                  : tt("threadPanelLocal.unarchiveAria")
+              }
+              className="inline-flex h-6 shrink-0 items-center gap-1 rounded-sm border border-border-default bg-bg-surface px-2 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {archiveAction === "archive" ? <Archive size={11} /> : <ArchiveRestore size={11} />}
+              <span>
+                {archiveAction === "archive"
+                  ? tt("threadPanelLocal.archive")
+                  : tt("threadPanelLocal.unarchive")}
+              </span>
+            </button>
+          ) : null}
+          <span className="text-[12px] text-text-tertiary">
+            {formatRelativeTime(thread.updated_at)}
+          </span>
+        </div>
       </div>
       <div className="mb-1 text-[12px] text-text-tertiary">
         {tt("threadPanelLocal.itemMeta", {

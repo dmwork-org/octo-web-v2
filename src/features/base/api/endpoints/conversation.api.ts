@@ -74,7 +74,12 @@ export async function syncConversations(spaceId?: string): Promise<SyncConversat
   const url = spaceId
     ? `conversation/sync?space_id=${encodeURIComponent(spaceId)}`
     : "conversation/sync";
-  return api<SyncConversationsResp>(url, { method: "POST", body: { msg_count: 1 } });
+  // recent_filter: true(对齐上游 1286d289 / #303)— 让后端按"最近"语义返
+  // 会话列表(过滤 N 天不活跃群等),前端不再做 3 天硬编码过滤(配合 f85ba4d0)。
+  return api<SyncConversationsResp>(url, {
+    method: "POST",
+    body: { msg_count: 1, recent_filter: true },
+  });
 }
 
 /**

@@ -26,15 +26,15 @@ function isSafeUrl(url: string): boolean {
 }
 
 /**
- * RichText(=14)图文混排消息(对齐上游 b1bb31df / Phase 1 接收渲染)。
+ * RichText(=14)图文混排消息(对齐上游 b1bb31df 接收 + fff36eb1 UI 迁移 / file 前向兼容)。
  *
- * 按 content blocks 数组顺序穿插渲染 text / image 块:
+ * 按 content blocks 数组顺序穿插渲染 text / image / file 块:
  *   - text  block:纯文本(MVP 锁纯文本,跟上游 enableMarkdown=false 一致,避免
  *     web 渲 markdown 而移动端不渲的跨端不一致)
  *   - image block:url 经 isSafeUrl 校验(仅 http/https);不安全降级为文本占位,
  *     绝不渲染。点击全屏 lightbox 预览
- *
- * 未来 Phase 2:发送侧由 b5a3b68e 补,本 renderer 接收侧 + 转发场景已闭合。
+ *   - file  block:前向兼容(fff36eb1)接收渲染,发送侧暂不构造 file block;
+ *     只显示 📎 + 文件名,不接预览/下载入口
  */
 export function RichTextRenderer({ message }: RichTextRendererProps) {
   const content = message.content as RichTextContent;
@@ -45,6 +45,9 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
       {blocks.map((blk, i) => {
         if (blk.type === RichTextBlockType.image) {
           return <RichTextImage key={`${message.clientMsgNo}-img-${i}`} block={blk} />;
+        }
+        if (blk.type === RichTextBlockType.file) {
+          return <RichTextFile key={`${message.clientMsgNo}-file-${i}`} block={blk} />;
         }
         const text = blk.text || "";
         if (text === "") return null;
@@ -63,7 +66,6 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
 
 /**
  * RichText image block — url 安全校验 + 缩略图 + 全屏 lightbox 预览。
- *
  * url 不安全(非 http/https)走文本占位 `[图片]`,绝不渲染 img 元素(对齐上游 MarkdownImage)。
  */
 function RichTextImage({ block }: { block: RichTextBlock }) {
@@ -121,5 +123,21 @@ function RichTextImage({ block }: { block: RichTextBlock }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * RichText file block — 前向兼容简单卡片(对齐上游 fff36eb1)。
+ * 发送侧暂不构造 file block;接收侧只渲染文件名 + 📎,不接预览/下载入口
+ * (待 octo-lib/backend 契约支持后再补完整 file 卡片)。
+ */
+function RichTextFile({ block }: { block: RichTextBlock }) {
+  const t = useT();
+  const name = block.name || t("message.digest.file");
+  return (
+    <div className="inline-flex items-center gap-2 rounded-md bg-bg-elevated px-3 py-2 text-[13px] text-text-secondary">
+      <span className="text-text-tertiary">📎</span>
+      <span className="truncate">{name}</span>
+    </div>
   );
 }

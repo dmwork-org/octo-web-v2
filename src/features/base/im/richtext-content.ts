@@ -13,14 +13,19 @@ import { t } from "@/lib/i18n/instance";
  * 向后兼容:老 payload content 可能是纯字符串,归一为单个 text block。
  */
 
-/** RichText 图文混排 block 类型(对齐 octo-lib RichTextBlockType)。 */
+/** RichText 图文混排 block 类型(对齐 octo-lib RichTextBlockType + fff36eb1 新增 file)。 */
 export const RichTextBlockType = {
   text: "text",
   image: "image",
+  /** file block:对齐上游 fff36eb1 — 前端前向兼容接收渲染,发送侧暂不构造 file block。 */
+  file: "file",
 } as const;
 
 /** plain 生成时 image block 注入的占位符(必须与 octo-lib RichTextImagePlaceholder 字节对齐)。 */
 export const RichTextImagePlaceholder = "[图片]";
+
+/** plain 生成时 file block 注入的占位符(对齐上游 fff36eb1 RichTextFilePlaceholder)。 */
+export const RichTextFilePlaceholder = "[文件]";
 
 export interface RichTextBlock {
   type: string;
@@ -41,13 +46,16 @@ interface RichTextJSON {
 
 /**
  * 遍历 blocks 生成纯文本(对齐 octo-lib BuildRichTextPlain):
- *   text  → text;image → RichTextImagePlaceholder;未知 type 取 text 兜底。
+ *   text  → text;image → RichTextImagePlaceholder;file → RichTextFilePlaceholder [+name];
+ *   未知 type 取 text 兜底。
  */
 export function buildRichTextPlain(content: RichTextBlock[]): string {
   let out = "";
   for (const blk of content) {
     if (blk.type === RichTextBlockType.image) {
       out += RichTextImagePlaceholder;
+    } else if (blk.type === RichTextBlockType.file) {
+      out += blk.name ? `${RichTextFilePlaceholder} ${blk.name}` : RichTextFilePlaceholder;
     } else if (blk.type === RichTextBlockType.text) {
       out += blk.text || "";
     } else if (blk.text) {

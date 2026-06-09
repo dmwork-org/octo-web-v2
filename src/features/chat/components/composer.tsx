@@ -382,37 +382,111 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       return true;
     };
 
-    try {
-      for (const b of blocks) {
+    /**
+     * RichText=14 聚合发送(对齐上游 b5a3b68e):editor 内同时有 text + image
+     * 且无 file blocks 时,合并成单个 type=14 payload(blocks 顺序保持图文穿插)。
+     * 顶部附件区(top)不参与聚合,继续走独立发送路径。
+     *
+     * 每张图先 uploadChatMedia 拿 downloadUrl → isSafeUrl 校验(防止 javascript:/data:
+     * 等不安全 scheme 注入到 wire payload)→ 不安全或上传失败的图 skip + toast。
+     * mention 合并:所有 text blocks 的 all/humans/ais/uids 取并集挂在单个消息上,
+     * 保证 @所有AI / @所有人 / @某人 不丢。
+     */
+    const sendRichTextMixed = async (
+      ords: ReturnType<typeof attachments.extractOrderedBlocks>,
+    ): Promise<boolean> => {
+      const { uploadChatMedia, isSafeUrl } = await import(
+        "@/features/chat/services/upload-chat-media"
+      );
+      const { makeTextBlock, makeImageBlock, createRichTextContent } = await import(
+        "@/features/base/im/richtext-content"
+      );
+      const rtBlocks: import("@/features/base/im/richtext-content").RichTextBlock[] = [];
+      const merged = { all: false, humans: 0, ais: 0, uids: new Set<string>() };
+      for (const b of ords) {
         if (b.type === "text") {
-          const content = new MessageText(b.text);
-          const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
-          if (hasMention) {
-            const m = new ImMention() as ImMention & { humans?: number; ais?: number };
-            if (b.all) m.all = true;
-            const uids = [...b.uids];
-            if (b.humans) m.humans = 1;
-            if (b.ais) {
-              m.ais = 1;
-              // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
-              // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
-              // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
-              // (octo-server PR#145)对客户端发送的消息无效。
-              const botUids = candidatesRef.current
-                .filter((m) => m.isBot)
-                .map((m) => m.id)
-                .filter((uid) => !uids.includes(uid));
-              if (botUids.length > 0) uids.push(...botUids);
-            }
-            if (uids.length > 0) m.uids = uids;
-            content.mention = m;
-          }
-          attachReplyOnce(content);
-          await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+          if (b.text) rtBlocks.push(makeTextBlock(b.text));
+          if (b.all) merged.all = true;
+          if (b.humans) merged.humans = 1;
+          if (b.ais) merged.ais = 1;
+          for (const uid of b.uids) merged.uids.add(uid);
         } else if (b.type === "image") {
-          await sendImageFile(b.file);
-        } else {
-          await sendRegularFile(b.file);
+          try {
+            const { width, height } = await readImageSize(b.file);
+            const url = await uploadChatMedia(b.file, channel, extOf(b.file.name));
+            if (!isSafeUrl(url)) {
+              toast.error(`图片「${b.file.name}」URL 校验失败`);
+              continue;
+            }
+            rtBlocks.push(
+              makeImageBlock({ url, width, height, size: b.file.size, name: b.file.name }),
+            );
+          } catch (err) {
+            toast.error(`图片「${b.file.name}」${(err as Error).message}`);
+          }
+        }
+      }
+      if (rtBlocks.length === 0) return false;
+      const content = createRichTextContent(rtBlocks);
+      // mention 合并(同纯文本路径,@所有AI 时把 bot uid 列进 mention.uids,GH#100)
+      if (isMentionable && (merged.all || merged.humans || merged.ais || merged.uids.size > 0)) {
+        const m = new ImMention() as ImMention & { humans?: number; ais?: number };
+        if (merged.all) m.all = true;
+        if (merged.humans) m.humans = 1;
+        if (merged.ais) {
+          m.ais = 1;
+          for (const uid of candidatesRef.current.filter((c) => c.isBot).map((c) => c.id)) {
+            merged.uids.add(uid);
+          }
+        }
+        if (merged.uids.size > 0) m.uids = [...merged.uids];
+        (content as MessageContent & { mention?: ImMention }).mention = m;
+      }
+      attachReplyOnce(content);
+      await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+      return true;
+    };
+
+    try {
+      const editorHasText = blocks.some((b) => b.type === "text" && b.text);
+      const editorHasImage = blocks.some((b) => b.type === "image");
+      const editorHasFile = blocks.some((b) => b.type === "file");
+      const shouldAggregateRichText = editorHasText && editorHasImage && !editorHasFile;
+
+      if (shouldAggregateRichText) {
+        await sendRichTextMixed(blocks);
+      } else {
+        for (const b of blocks) {
+          if (b.type === "text") {
+            const content = new MessageText(b.text);
+            const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
+            if (hasMention) {
+              const m = new ImMention() as ImMention & { humans?: number; ais?: number };
+              if (b.all) m.all = true;
+              const uids = [...b.uids];
+              if (b.humans) m.humans = 1;
+              if (b.ais) {
+                m.ais = 1;
+                // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
+                // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
+                // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
+                // (octo-server PR#145)对客户端发送的消息无效。
+                const botUids = candidatesRef.current
+                  .filter((m) => m.isBot)
+                  .map((m) => m.id)
+                  .filter((uid) => !uids.includes(uid));
+                if (botUids.length > 0) uids.push(...botUids);
+              }
+              if (uids.length > 0) m.uids = uids;
+              content.mention = m;
+            }
+            attachReplyOnce(content);
+            await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+          } else if (b.type === "image") {
+            await sendImageFile(b.file);
+          } else {
+            await sendRegularFile(b.file);
+          }
         }
       }
       for (const item of top) {

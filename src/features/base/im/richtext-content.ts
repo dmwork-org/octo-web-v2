@@ -102,3 +102,40 @@ export class RichTextContent extends MessageContent {
     return t("message.digest.richText");
   }
 }
+
+/** 构造 text block(对齐上游 b5a3b68e makeTextBlock)。 */
+export function makeTextBlock(text: string): RichTextBlock {
+  return { type: RichTextBlockType.text, text };
+}
+
+/**
+ * 构造 image block(对齐上游 b5a3b68e makeImageBlock)。
+ * 调用方负责 url 安全校验(isSafeUrl),本函数不重校验。
+ */
+export function makeImageBlock(input: {
+  url: string;
+  width?: number;
+  height?: number;
+  size?: number;
+  name?: string;
+}): RichTextBlock {
+  return {
+    type: RichTextBlockType.image,
+    url: input.url,
+    width: input.width,
+    height: input.height,
+    size: input.size,
+    name: input.name,
+  };
+}
+
+/**
+ * 从 blocks 构造 RichTextContent(对齐上游 createRichTextContent)。
+ * plain 用本地 buildRichTextPlain 占位;server 端 #232 Finalize 会重新生成并 overwrite。
+ */
+export function createRichTextContent(blocks: RichTextBlock[]): RichTextContent {
+  const c = new RichTextContent();
+  c.content = blocks;
+  c.plain = buildRichTextPlain(blocks);
+  return c;
+}

@@ -307,6 +307,7 @@
   "channelSetting.saveToContacts": "保存到通讯录",
   "channelSetting.threadName": "子区名称",
   "channelSetting.title": "聊天信息",
+  "channelSetting.viewMoreMembers": "查看全部 {{count}} 名成员",
   "channelSetting.titleWithCount": "聊天信息({{count}})",
   "channelSetting.toast.clearFailed": "清空失败",
   "channelSetting.toast.cleared": "已清空聊天记录",

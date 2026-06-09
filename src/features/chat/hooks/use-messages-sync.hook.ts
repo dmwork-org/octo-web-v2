@@ -14,6 +14,7 @@ import { spaceStore } from "@/features/base/stores/space";
 import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 
 /**
@@ -143,6 +144,10 @@ export function useMessagesSync(channel: Channel | null) {
           m.remoteExtra.revoker = cmdMessage.fromUID;
         },
       );
+      // 侧栏 conversation 预览的 lastMessage 摘要由 sidebar query 派生,撤回最后一条
+      // 后 digest 应跟随刷新(对齐老仓 Conversation/vm.ts:630-632);refetch 频次极低
+      // (撤回事件本身就少),全量 invalidate 同 spaceId 下 follow 列表即可。
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     };
 
     // 重连补刷当前会话首屏(对齐上游 7a42c23a / #187 第二层):

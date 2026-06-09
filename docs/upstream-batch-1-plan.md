@@ -74,14 +74,14 @@
 
 ### Batch 1.4 — Chat 消息渲染 / 文件预览(8 commits)
 
-- [ ] `c1eaadca` 2026-06-08 fix: align AI assistant history timestamps
-- [ ] `97dbec4d` 2026-05-31 fix(conversation): show last message of fold session when expanded
-- [ ] `ed5cfbcd` 2026-05-30 fix(ai-chat): preview files in folded sessions instead of downloading
-- [ ] `4b2e89c0` 2026-05-28 fix(file): prefer filename suffix over content.extension for preview detection
-- [ ] `e41a1d7b` 2026-05-28 fix(#125): 合并转发中文件卡片点击应弹出预览而非下载
-- [ ] `817f87a6` 2026-05-27 fix: show pending state for image sends
-- [ ] `2b1c78c3` 2026-06-08 修复群聊 AI 备注名不立即生效
-- [ ] `195625e8` 2026-05-27 Fix message grouping for same-sender messages after long gaps
+- [x] `c1eaadca` 2026-06-08 fix: align AI assistant history timestamps
+- [x] `97dbec4d` 2026-05-31 fix(conversation): show last message of fold session when expanded(本仓 fold-session 简化版无 slice,等效已修)
+- [x] `ed5cfbcd` 2026-05-30 fix(ai-chat): preview files in folded sessions instead of downloading(本仓 file-renderer 整卡 click 走 openFilePreview,fold session 复用 MessageDispatch,等效已修)
+- [x] `4b2e89c0` 2026-05-28 fix(file): prefer filename suffix over content.extension for preview detection
+- [x] `e41a1d7b` 2026-05-28 fix(#125): 合并转发中文件卡片点击应弹出预览而非下载
+- [x] `817f87a6` 2026-05-27 fix: show pending state for image sends
+- [x] `2b1c78c3` 2026-06-08 修复群聊 AI 备注名不立即生效
+- [x] `195625e8` 2026-05-27 Fix message grouping for same-sender messages after long gaps
 
 **手测**:AI 折叠 session 展开后能预览文件 / 看时间;mergeforward 内文件点了弹预览;图片发送中 pending 态;群里 AI 改备注立即生效。
 

@@ -104,3 +104,22 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:
   - 流程上首次实践"用户验证发现缺失功能 → 在同 MR 续 commit 全补"(对应陈超的 A 方案),不开补救 PR
   - baseline 后新增 SHA(c13e7e27/23b59a41/1906c874)纳入当前 batch,plan 文档显式标注"baseline 后补",避免下次拉远程时被当作未搬
+
+## 2026-06-09 — Batch 1.4 chat 消息渲染 / 文件预览
+
+- 搬了 6 个上游 SHA + 2 个等效已修(本仓简化设计天然无 bug):
+  - `c1eaadca` align AI assistant history / fold session timestamps with message row
+  - `4b2e89c0` prefer filename suffix over content.extension
+  - `e41a1d7b` 合并转发文件卡片点击改预览
+  - `817f87a6` image 发送 sending/failed overlay
+  - `2b1c78c3` 群聊 AI/好友 备注名改完立即生效(不用退出会话)
+  - `195625e8` 同 sender 长间隔(>10min)消息不聚合
+  - **(等效已修)** `97dbec4d` fold session expanded 漏最后一条 — 本仓 `fold-session.ts` 简化版无 `slice(0, -1)`,`FoldSessionExpanded` 直接 `messages.map(...)` 全量渲染
+  - **(等效已修)** `ed5cfbcd` AI fold session 内文件预览 — 本仓 `file-renderer.tsx` 整卡 click 走 `chatSidePanelActions.openFilePreview`(行 47-61),下载按钮 stopPropagation;fold session 内消息复用 MessageDispatch → FileRenderer,行为一致
+- 本仓 commits:db2c66b / 78a497b / 2f0b75a / 2931e54 / 2edaa02 / 4b5d355(6 个 commit)
+- 用户验证发现并修复的 P0 bug:**自己发送的图片成功后仍显示"发送失败"**
+  - root cause:`use-messages-sync.hook.ts` statusListener 把 `reasonCode === 0` 当成功 — 但 SDK `ReasonCode.success = 1`,`0 = unknown`。每条 sendack 成功都被错判 Fail
+  - 副 fix:删 `taskListener` 整段(原把 task fail/cancel 改 message.status,跟 sendack 双重写 status 引入 race;对齐上游 `dmworkbase/Components/Conversation/index.tsx:587-601` 设计,sendack 是 status 唯一权威,task 状态由 UI 层 renderer 自己 subscribe 显示)
+  - 顺手补:`image-renderer.tsx` Fail overlay 可点 → 复用 `chatManager.send` resend(对齐 `MessageStatusBadge.tsx:113` 同款行为)
+- baseline SHA 暂不推进(仅搬了 batch 1.4 涉及 SHA,未做整段 audit)
+

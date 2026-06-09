@@ -311,9 +311,16 @@ function DetailView({
   onAfterDelete: () => void;
 }) {
   const tt = useT();
+  const qc = useQueryClient();
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [moreOpen, setMoreOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const canEdit = canManageThread(thread, groupNo, myUid);
+  const archiveAction = deriveArchiveAction(thread);
+  const isArchived = thread.status === THREAD_STATUS_ARCHIVED;
 
   const threadChannel = new Channel(
     buildThreadChannelId(groupNo, thread.short_id),
@@ -343,6 +350,50 @@ function DetailView({
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.deleteFailed")),
   });
+
+  const archiveMu = useMutation({
+    mutationFn: () => {
+      if (!archiveAction) return Promise.reject(new Error("invalid action"));
+      return archiveAction === "archive"
+        ? archiveThread(groupNo, thread.short_id)
+        : unarchiveThread(groupNo, thread.short_id);
+    },
+    onSuccess: () => {
+      setArchiveConfirmOpen(false);
+      onInvalidate();
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      const nextStatus =
+        archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
+      onThreadUpdated?.({ status: nextStatus });
+      toast.success(
+        archiveAction === "archive"
+          ? t("threadPanelLocal.toast.archived")
+          : t("threadPanelLocal.toast.unarchived"),
+      );
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : archiveAction === "archive"
+            ? t("threadPanelLocal.toast.archiveFailed")
+            : t("threadPanelLocal.toast.unarchiveFailed"),
+      ),
+  });
+
+  /**
+   * 已归档子区发消息后,后端会自动 reactivate 为 Active(对齐上游 23b59a41)。
+   * Composer onMessageSent → 短 delay 后 invalidate thread query 拿权威状态。
+   * 延迟是为了等后端事务落盘,避免立即 GET 仍返 Archived。
+   */
+  const handleMessageSent = isArchived
+    ? () => {
+        setTimeout(() => {
+          onInvalidate();
+          onThreadUpdated?.({ status: THREAD_STATUS_ACTIVE });
+        }, 600);
+      }
+    : undefined;
 
   return (
     <>
@@ -400,6 +451,20 @@ function DetailView({
               >
                 {tt("threadPanelLocal.editName")}
               </button>
+              {canEdit && archiveAction ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setArchiveConfirmOpen(true);
+                  }}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {archiveAction === "archive"
+                    ? tt("threadPanelLocal.archive")
+                    : tt("threadPanelLocal.unarchive")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {
@@ -425,7 +490,12 @@ function DetailView({
 
       <div className="flex min-h-0 flex-1 flex-col">
         <MessageList key={threadChannel.channelID} channel={threadChannel} />
-        <Composer key={`${threadChannel.channelID}_composer`} channel={threadChannel} />
+        <Composer
+          key={`${threadChannel.channelID}_composer`}
+          channel={threadChannel}
+          inputNotice={isArchived ? tt("threadPanelLocal.archivedInputNotice") : undefined}
+          onMessageSent={handleMessageSent}
+        />
       </div>
 
       <InputModal
@@ -443,6 +513,28 @@ function DetailView({
           renameMu.mutate(trimmed);
         }}
         onCancel={() => setRenameOpen(false)}
+      />
+
+      <ConfirmModal
+        open={archiveConfirmOpen}
+        title={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archiveConfirmTitle", { values: { name: thread.name } })
+            : tt("threadPanelLocal.unarchiveConfirmTitle", { values: { name: thread.name } })
+        }
+        content={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archiveConfirmContent")
+            : tt("threadPanelLocal.unarchiveConfirmContent")
+        }
+        okText={
+          archiveAction === "archive"
+            ? tt("threadPanelLocal.archive")
+            : tt("threadPanelLocal.unarchive")
+        }
+        okLoading={archiveMu.isPending}
+        onOk={() => archiveMu.mutate()}
+        onCancel={() => setArchiveConfirmOpen(false)}
       />
 
       <ConfirmModal

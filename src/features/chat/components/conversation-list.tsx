@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -47,6 +47,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
+import { chatRecentJumpStore } from "@/features/chat/stores/chat-recent-jump";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import {
@@ -321,6 +322,26 @@ const LIST_SKELETON_STYLE = `
   100% { background-position: -200% 0; }
 }
 `;
+/**
+ * 监听 recent tab 重复点击 token,变化时找第一条 unread+visible+unmuted 会话调 onSelect。
+ * 对齐上游 1f8c40a2:角标 N 时点 recent tab 直接定位到第一条未读。
+ */
+function useRecentUnreadJump(
+  filter: ConvTab,
+  list: Conversation[],
+  onSelect: ((c: Conversation) => void) | undefined,
+) {
+  const token = useStore(chatRecentJumpStore, (s) => s.token);
+  const lastTokenRef = useRef(token);
+  useEffect(() => {
+    if (token === lastTokenRef.current) return;
+    lastTokenRef.current = token;
+    if (filter === "follow") return;
+    const target = list.find((c) => c.unread > 0 && !effectiveMute(c));
+    if (target && onSelect) onSelect(target);
+  }, [token, filter, list, onSelect]);
+}
+
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
     const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
@@ -360,6 +381,8 @@ export function ConversationList({
     // 避免 backend 返了 N 条未读但前端 hide 出现"角标 N 列表看不到"幽灵。
     return sortConversations(all);
   }, [data, filter]);
+
+  useRecentUnreadJump(filter, filtered, onSelect);
 
   const refreshChannelInfo = (conv: Conversation) => {
     void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);

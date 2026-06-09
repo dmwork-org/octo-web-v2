@@ -57,3 +57,21 @@ PreToolUse hook 真触发验证通过:
 - 156 业务 file 改 t() 调用,locale 287 → 2738 keys
 - 架构关键点:`useT()` reactive hook(useSyncExternalStore 订阅 i18n.subscribe);非 React 上下文用 `import { t } from "@/lib/i18n/instance"`
 - 切语言入口:NavRail 底部齿轮上方 Languages 图标
+
+## 2026-06-09 — Batch 1.2 chat 输入框 / mention
+
+- MR: <https://codex.mlamp.cn/frontend/octo-web-2/-/merge_requests/10>(已合并)
+- 搬了 7 个上游 SHA(2 合并到 1 commit):
+  - `006b2411` 粘贴列表保留多行(extractOrderedBlocks 平铺→递归)
+  - `2e89e772` 语音 @所有AI/@所有人 三态拆分
+  - `405bbe98` @所有AI sender 侧展开 bot uids(GH#100)
+  - `90556da2` + `76189c1d` receiver 侧合并:text-renderer 加 broadcast 高亮 + ais routing uid fail-closed guard
+  - `ff46fa58` 私聊隐 broadcast sticky + file-reply 不 @ 私聊对方
+  - `bbac229d` 拒绝文件夹拖入(webkitGetAsEntry + size==0 兜底)
+- 跳过 1 个:
+  - `e33d3887` mention textBetween leafText — 新仓 voice 简化为"录音→文件",无 voice-to-text 编辑模式,无对应 code path
+- 跳过子改动:
+  - 405bbe98 / 90556da2 上游 receiver 侧 `Service/Model.tsx` MessageWrap legacy parser 改动 — 新仓 text-renderer 直接看 mention 字段,不走旧解析路径,加 fail-closed guard 等效防护
+  - 90556da2 上游 sender 侧 entities sentinel — 新仓 send-content-proxy 不解析 entities,靠 receiver 兜底
+- 本仓 commits:ddb9d91 / b8d6fee / bcff516 / 9c8d7b3 / 25d4f56 / 3c303b7(6 个 commit)
+- 关键决策:90556da2 + 76189c1d 合并 commit,避免拆细影响 review 连贯性

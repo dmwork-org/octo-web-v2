@@ -241,7 +241,10 @@ export function Composer({ channel }: ComposerProps) {
               suggestion: createMentionSuggestion((query) => {
                 const kw = query.toLowerCase();
                 const list = candidatesRef.current;
-                if (!kw) return [...STICKY_MENTIONS, ...list.slice(0, 8)];
+                // 私聊不显 sticky 广播项(对齐上游 ff46fa58:私聊里 @所有人/@所有AI 无意义)
+                const stickyForChannel =
+                  channel.channelType === ChannelTypePerson ? [] : STICKY_MENTIONS;
+                if (!kw) return [...stickyForChannel, ...list.slice(0, 8)];
                 return list
                   .filter(
                     (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
@@ -356,9 +359,21 @@ export function Composer({ channel }: ComposerProps) {
           if (hasMention) {
             const m = new ImMention() as ImMention & { humans?: number; ais?: number };
             if (b.all) m.all = true;
-            if (b.uids.length > 0) m.uids = b.uids;
+            const uids = [...b.uids];
             if (b.humans) m.humans = 1;
-            if (b.ais) m.ais = 1;
+            if (b.ais) {
+              m.ais = 1;
+              // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
+              // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
+              // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
+              // (octo-server PR#145)对客户端发送的消息无效。
+              const botUids = candidatesRef.current
+                .filter((m) => m.isBot)
+                .map((m) => m.id)
+                .filter((uid) => !uids.includes(uid));
+              if (botUids.length > 0) uids.push(...botUids);
+            }
+            if (uids.length > 0) m.uids = uids;
             content.mention = m;
           }
           attachReplyOnce(content);
@@ -531,9 +546,25 @@ export function Composer({ channel }: ComposerProps) {
   };
 
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
+    const items = Array.from(e.dataTransfer?.items ?? []);
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return;
     e.preventDefault();
+    // 对齐上游 bbac229d:浏览器拖文件夹时 dataTransfer.files 会塞 type=""/size=0
+    // 的伪 File,旧路径直接当附件上传会出"幽灵消息"(UI 显已发送但 server 没存)。
+    // 主路径用 webkitGetAsEntry().isDirectory 检测,兜底用 type==""/size===0。
+    const hasDirectory = items.length
+      ? items.some((it) => {
+          const entry = (
+            it as DataTransferItem & { webkitGetAsEntry?: () => FileSystemEntry | null }
+          ).webkitGetAsEntry?.();
+          return entry ? entry.isDirectory : false;
+        })
+      : files.some((f) => f.type === "" && f.size === 0);
+    if (hasDirectory) {
+      toast.error(t("composer.toast.folderUnsupported"));
+      return;
+    }
     void attachments.addAttachments(files, "upload", editor);
   };
 

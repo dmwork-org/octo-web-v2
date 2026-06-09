@@ -451,6 +451,7 @@
   "composer.sendFileAria": "Send file",
   "composer.sendFileTooltip": "Send file / image",
   "composer.slashAria": "Slash command",
+  "composer.toast.folderUnsupported": "Folders are not supported. Please choose specific files.",
   "composer.toast.noVoiceDetected": "No voice detected",
   "composer.toast.recordFailed": "Recording failed",
   "composer.toast.sendFailed": "Send failed",

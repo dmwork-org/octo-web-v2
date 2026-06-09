@@ -22,6 +22,12 @@ export async function precheckUploadCredentials(
   channel: Channel,
   extension: string,
 ): Promise<void> {
+  // size=0 兜底:后端会以 "fileSize 参数必须为正整数(字节)" 拒绝,客户端先拦
+  // 给更友好的提示(老仓无此兜底,UX 改进)。常见触发:用户 `touch xxx` 生成
+  // 的空占位文件、或 paste 异常拿到的 0 字节 blob。
+  if (!file.size || file.size <= 0) {
+    throw new Error("文件为空");
+  }
   const contentType = file.type || "application/octet-stream";
   const filename = file.name || "file";
   const ext = extension ? `.${extension}` : "";

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { type Message } from "wukongimjssdk";
+import { type Mention, type Message } from "wukongimjssdk";
 import { X } from "lucide-react";
 import {
   RichTextBlockType,
   type RichTextBlock,
   type RichTextContent,
 } from "@/features/base/im/richtext-content";
+import { MentionAwareText } from "@/features/chat/lib/mention-aware-text";
 import { useT } from "@/lib/i18n/use-t";
 
 interface RichTextRendererProps {
@@ -29,16 +30,20 @@ function isSafeUrl(url: string): boolean {
  * RichText(=14)图文混排消息(对齐上游 b1bb31df 接收 + fff36eb1 UI 迁移 / file 前向兼容)。
  *
  * 按 content blocks 数组顺序穿插渲染 text / image / file 块:
- *   - text  block:纯文本(MVP 锁纯文本,跟上游 enableMarkdown=false 一致,避免
- *     web 渲 markdown 而移动端不渲的跨端不一致)
+ *   - text  block:plain text + @ 高亮(MentionAwareText 复用 text-renderer 同款逻辑);
+ *     MVP 锁 markdown(跟上游 enableMarkdown=false 一致,避免 web/mobile 差异)
  *   - image block:url 经 isSafeUrl 校验(仅 http/https);不安全降级为文本占位,
  *     绝不渲染。点击全屏 lightbox 预览
  *   - file  block:前向兼容(fff36eb1)接收渲染,发送侧暂不构造 file block;
  *     只显示 📎 + 文件名,不接预览/下载入口
+ *
+ * mention 数据从 message.content.mention 取(send-content-proxy 注入到 RichTextContent),
+ * 所有 text block 共用同一份 mention,按各自 text 内容匹配高亮。
  */
 export function RichTextRenderer({ message }: RichTextRendererProps) {
   const content = message.content as RichTextContent;
   const blocks: RichTextBlock[] = content.content || [];
+  const mention = (content as RichTextContent & { mention?: Mention }).mention;
 
   return (
     <div className="flex flex-col gap-2">
@@ -56,7 +61,7 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
             key={`${message.clientMsgNo}-text-${i}`}
             className="text-[14px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary"
           >
-            {text}
+            <MentionAwareText text={text} mention={mention} />
           </div>
         );
       })}

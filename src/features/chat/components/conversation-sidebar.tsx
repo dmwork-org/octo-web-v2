@@ -47,9 +47,6 @@ const TABS: TabDef[] = [
   { id: "recent", labelKey: "convSidebar.tabRecent" },
 ];
 
-/** 最近 tab 显示阈值:群聊 3 天不活跃隐藏(跟 conversation-list 内部 RECENT_INACTIVE_THRESHOLD_MS 同) */
-const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
-
 /**
  * 会话 sidebar 容器(对应旧 .wk-chat-content-left)。
  */
@@ -90,15 +87,10 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
   })();
 
   const recentUnread = useMemo(() => {
+    // 信任后端最近会话列表(对齐上游 f85ba4d0):删除 3 天不活跃过滤,
+    // tab 角标跟列表渲染共用一套口径,避免角标 N 但列表看不到。
     const list = conversations ?? [];
-    const now = Date.now();
     return list.reduce((sum, c) => {
-      if (
-        c.channel.channelType === 2 &&
-        now - (c.timestamp || 0) * 1000 >= RECENT_INACTIVE_THRESHOLD_MS
-      ) {
-        return sum;
-      }
       if (effectiveMute(c)) return sum;
       return sum + (c.unread || 0);
     }, 0);

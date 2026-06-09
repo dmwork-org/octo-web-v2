@@ -305,12 +305,6 @@ function ConversationRow({
   );
 }
 
-const RECENT_INACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
-function isVisibleInRecentTab(c: Conversation, now: number): boolean {
-  if (c.channel.channelType !== ChannelTypeGroup) return true;
-  return now - (c.timestamp || 0) * 1000 < RECENT_INACTIVE_THRESHOLD_MS;
-}
-
 const TOP_BOOST = 1_000_000_000_000;
 
 const LIST_SKELETON_STYLE = `
@@ -362,8 +356,9 @@ export function ConversationList({
   const filtered = useMemo(() => {
     const all = data ?? [];
     if (filter === "follow") return [];
-    const now = Date.now();
-    return sortConversations(all.filter((c) => isVisibleInRecentTab(c, now)));
+    // 信任后端最近会话列表(对齐上游 f85ba4d0):删除前端 3 天群聊不活跃过滤,
+    // 避免 backend 返了 N 条未读但前端 hide 出现"角标 N 列表看不到"幽灵。
+    return sortConversations(all);
   }, [data, filter]);
 
   const refreshChannelInfo = (conv: Conversation) => {

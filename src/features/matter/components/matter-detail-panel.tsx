@@ -681,14 +681,17 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex h-12 items-center gap-1.5 text-sm transition-colors ${
+      className={`relative inline-flex h-12 items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors cursor-pointer ${
         active
-          ? "font-semibold text-text-primary after:absolute after:right-0 after:bottom-[-1px] after:left-0 after:h-0.5 after:rounded-sm after:bg-text-primary"
+          ? "font-semibold text-text-primary"
           : "text-text-secondary hover:text-text-primary"
       }`}
     >
       {label}
-      {count != null ? <span className="text-[14px]">{count}</span> : null}
+      {count != null ? <span>{count}</span> : null}
+      {active && (
+        <span className="absolute right-0 bottom-[-1px] left-0 h-0.5 rounded-[1px] bg-text-primary" />
+      )}
     </button>
   );
 }

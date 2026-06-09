@@ -14,6 +14,8 @@ import { api } from "@/features/base/api/client";
 export interface AppConfigRaw {
   oidc_providers?: unknown;
   legacy_password_login_off?: number;
+  /** 撤回时间窗口(秒),对齐老仓 dmworkbase WKRemoteConfig.revokeSecond,缺省 120。 */
+  revoke_second?: number;
   /** 其他字段保留 raw,后续按需 parse。 */
   [key: string]: unknown;
 }

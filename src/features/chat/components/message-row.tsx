@@ -30,6 +30,9 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
+import { collectRevokeRoleContext } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
+import { getRevokeSecondFromCache } from "@/features/chat/lib/get-revoke-second";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
@@ -177,22 +180,14 @@ function extractText(message: Message): string {
   return digest ?? "";
 }
 
-const REVOKE_SECONDS = 120;
-
-function canRevoke(message: Message, myUid: string): boolean {
-  if (!message.messageID) return false;
+function isBotOwnerOf(message: Message, myUid: string): boolean {
   const fromChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
     new Channel(message.fromUID, ChannelTypePerson),
   );
   const fromOrgData = fromChannelInfo?.orgData as
     | { robot?: number; bot_creator_uid?: string }
     | undefined;
-  if (fromOrgData?.robot === 1 && fromOrgData.bot_creator_uid === myUid) {
-    return true;
-  }
-  if (!message.send) return false;
-  const elapsed = new Date().getTime() / 1000 - message.timestamp;
-  return elapsed <= REVOKE_SECONDS;
+  return fromOrgData?.robot === 1 && fromOrgData.bot_creator_uid === myUid;
 }
 
 function isSystemMessage(message: Message): boolean {
@@ -319,7 +314,21 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
 
   const isImage = message.contentType === MessageContentType.image;
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
-  const revokeAllowed = me ? canRevoke(message, me) : false;
+  const revokeAllowed = me
+    ? (() => {
+        const { myRole, targetRole } = collectRevokeRoleContext(message, me);
+        return canShowRevokeMenu({
+          messageID: message.messageID,
+          channelType: message.channel.channelType,
+          messageSend: message.send,
+          messageTimestamp: message.timestamp,
+          revokeSecond: getRevokeSecondFromCache(qc),
+          isBotOwner: isBotOwnerOf(message, me),
+          myRole,
+          targetRole,
+        });
+      })()
+    : false;
   const forwardAllowed = canForward(message);
   const replyAllowed = canForward(message);
   const threadAllowed = canCreateThread(message);

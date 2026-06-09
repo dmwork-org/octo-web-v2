@@ -30,18 +30,20 @@ export function replyToMessage(channel: Channel, message: Message, myUid: string
 }
 
 /**
- * uid → 昵称(group subscriber.name 优先;不取 remark)。
+ * uid → 昵称(group subscriber.name 优先;不取 remark)。供 reply 自动 @ 和
+ * reply bar 顶部 sender 名展示共用,确保两处都不被本地备注污染。
  *
  * 查找顺序:
  *   1. 群/thread 父群 subscribers.find(s => s.uid === uid).name
  *   2. Person channelInfo.orgData.name(后端全局昵称)
- *   3. uid 兜底(防止 @ 空字符串)
+ *   3. uid 兜底(防止显示 "@"  空字符串)
  *
  * **故意不取**:
  *   - subscriber.remark / channelInfo.orgData.remark / channelInfo.title
- *     (后两者在 SDK 里通常 = remark || name,会被备注污染)
+ *     (后者在 SDK 里通常 = remark || name,会被本地备注污染 — 例如把
+ *     "李志伟" 备注成 "Will" 后,channelInfo.title 就是 "Will")
  */
-function lookupNicknameLabel(channel: Channel, uid: string): string {
+export function lookupNicknameLabel(channel: Channel, uid: string): string {
   const subscribersChannel = resolveSubscribersChannel(channel);
   if (subscribersChannel) {
     const sub = WKSDK.shared()

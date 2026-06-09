@@ -50,6 +50,7 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import { spaceStore } from "@/features/base/stores/space";
 import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
@@ -119,11 +120,6 @@ function readImageSize(file: File): Promise<{ width: number; height: number }> {
 function extOf(name: string): string {
   const i = name.lastIndexOf(".");
   return i >= 0 ? name.substring(i + 1).toLowerCase() : "";
-}
-
-function fromName(uid: string): string {
-  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  return info?.title ?? uid;
 }
 
 function quotedTypeMeta(content: MessageContent | undefined): {
@@ -309,7 +305,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       r.messageID = replyingTo.messageID;
       r.messageSeq = replyingTo.messageSeq;
       r.fromUID = replyingTo.fromUID;
-      r.fromName = fromName(replyingTo.fromUID);
+      r.fromName = lookupNicknameLabel(channel, replyingTo.fromUID);
       r.content = replyingTo.content;
       return r;
     },
@@ -351,9 +347,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     };
 
     const sendImageFile = async (file: File): Promise<boolean> => {
-      const { precheckUploadCredentials } = await import(
-        "@/features/chat/services/upload-preflight"
-      );
+      const { precheckUploadCredentials } =
+        await import("@/features/chat/services/upload-preflight");
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {
@@ -367,9 +362,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       return true;
     };
     const sendRegularFile = async (file: File): Promise<boolean> => {
-      const { precheckUploadCredentials } = await import(
-        "@/features/chat/services/upload-preflight"
-      );
+      const { precheckUploadCredentials } =
+        await import("@/features/chat/services/upload-preflight");
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {
@@ -616,7 +610,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     ? ((replyingTo.content as { conversationDigest?: string } | undefined)?.conversationDigest ??
       "")
     : "";
-  const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
+  const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
 
   const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing

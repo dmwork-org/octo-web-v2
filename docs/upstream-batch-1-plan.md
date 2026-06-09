@@ -118,10 +118,10 @@
 
 ### Batch 1.7 — Contact P0(4 commits)
 
-- [ ] `f55f0bec` 2026-06-04 fix: create group from private chat add member
-- [ ] `2b974c00` 2026-06-02 fix(contacts): allow search results to scroll
-- [ ] `ce693bd3` 2026-05-29 Improve contacts tab switching
-- [ ] (P1)`5b65f5ce` 2026-05-29 Fix/matter recent files display — **跨 chat+matter+thread panel,因主要改 chat 文件预览,挪 chat batch?这里也可放**
+- [x] `f55f0bec` 2026-06-04 fix: create group from private chat add member(**deferred / 本仓私聊场景无"加成员"入口,无 bug 可修,要先实现 feature**)
+- [x] `2b974c00` 2026-06-02 fix(contacts): allow search results to scroll(**等效已修 / Tailwind flex min-h-0 overflow-y-auto 已对齐**)
+- [x] `ce693bd3` 2026-05-29 Improve contacts tab switching(**等效已修 / 本仓不用虚拟列表,filter chips 切换走 map 数据变,DOM 不 unmount,scroll 自然保持**)
+- [x] (P1)`5b65f5ce` 2026-05-29 Fix/matter recent files display(**deferred / 跨 chat+matter+thread+file-preview+outputs 5 模块,需架构级 store 改造,本仓 React+TanStack 跟老仓 mittBus 完全不同**)
 
 **手测**:私聊里加成员能创群;通讯录搜索结果能滚;通讯录 tab 切换流畅。
 

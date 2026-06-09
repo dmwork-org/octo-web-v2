@@ -163,4 +163,16 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:ceffa569 + bbac882b 合一 commit(本仓一步到位放 group-management,跳过"先放 channel-setting 再挪"中间态);8712d79e 拆 8 sub-feature 逐项判定,只搬 sub-5
 - baseline SHA 暂不推进
 
+## 2026-06-09 — Batch 1.7 contact P0
+
+**0 commit 代码改动 — 2 等效已修 + 2 deferred**
+
+- **(等效已修)** `2b974c00` 搜索结果可滚 — 本仓 contacts-directory.tsx:381 `flex min-h-0 flex-col overflow-y-auto` 已对齐上游 CSS 修复
+- **(等效已修)** `ce693bd3` contacts tab 切换 — 本仓 filter chips 切换走 React `map` 数据变,DOM 不 unmount,scroll 自然保持;且本仓不用虚拟列表,无上游虚拟列表 scroll restore + index cache 复杂度
+- **(deferred)** `f55f0bec` 私聊点加成员创群 — 本仓 channel-setting-modal isPerson 分支(line 376-381)只显示 avatar + title,**没有"加成员"入口**;不是 bug,是 feature 没实现;真要做需先实现私聊 → CreateGroup 入口,挪到 Phase 4 feature 列表
+- **(deferred)** `5b65f5ce` matter recent files display — 跨 chat + matter + thread + file-preview + outputs 5 模块,老仓走 `WKApp.mittBus` event broadcast + state machine;本仓 React+TanStack store 架构完全不同,需要分钟级 store 改造,工作量重,单独立项
+- 本仓 commits(分支 feat/upstream-batch-1-7):仅 docs 收尾(0 code change)
+- 关键决策:**docs-only batch**(0 代码变更)— 记录 4 个 SHA 的等效 / deferred 理由,避免下次扫到时重复判断
+- baseline SHA 暂不推进
+
 

@@ -1,0 +1,13 @@
+.git
+.ai
+.claude
+.specify
+.agents
+.codex
+.cache
+.tanstack
+node_modules
+.pnpm-store
+dist-ssr
+*.local
+*.log

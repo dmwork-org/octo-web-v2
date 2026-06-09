@@ -1,0 +1,11 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: octo-web-test-svc
+spec:
+  selector:
+    app: octo-web-test
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

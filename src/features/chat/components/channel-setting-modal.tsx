@@ -59,24 +59,39 @@ const ROLE_MANAGER = 2;
 
 type Subpage = "avatar" | "qrcode" | "md" | "manage";
 
+/**
+ * 顶部成员头像 grid — 对齐老仓 `Components/Subscribers/vm.ts:13-73`:
+ *   - 最多 20 格(`MAX_GRID`)
+ *   - canAdd 占 1 格 + canManage(remove)占 1 格 → 实际成员位 = 20 - addBtn - removeBtn
+ *   - 超过 showNum 时 grid 截断,下方显示"查看更多"链接进入完整成员列表
+ *
+ * `shrink-0` 防 flex column 父容器空间紧时被压缩(对齐 MR #23 SectionGroup 同源修复)。
+ */
+const MAX_GRID = 20;
+
 function SubscribersGrid({
   subscribers,
   canAdd,
   canManage,
   onAdd,
   onKickMode,
+  onMore,
 }: {
   subscribers: Subscriber[];
   canAdd: boolean;
   canManage: boolean;
   onAdd: () => void;
   onKickMode: () => void;
+  onMore: () => void;
 }) {
   const tt = useT();
+  const showNum = MAX_GRID - (canAdd ? 1 : 0) - (canManage ? 1 : 0);
+  const visible = subscribers.length > showNum ? subscribers.slice(0, showNum) : subscribers;
+  const hasMore = subscribers.length > showNum;
   return (
     <section className="mx-4 mb-2 shrink-0 rounded-md border border-border-subtle bg-bg-base px-2 py-3">
       <div className="grid grid-cols-5 gap-y-3">
-        {subscribers.map((m) => (
+        {visible.map((m) => (
           <SubscriberCell key={m.uid} subscriber={m} />
         ))}
         {canAdd ? (
@@ -106,6 +121,15 @@ function SubscribersGrid({
           </button>
         ) : null}
       </div>
+      {hasMore ? (
+        <button
+          type="button"
+          onClick={onMore}
+          className="mt-3 block w-full cursor-pointer rounded-sm py-1.5 text-center text-[12px] text-brand transition-colors hover:bg-bg-hover"
+        >
+          {tt("channelSetting.viewMoreMembers", { values: { count: subscribers.length } })}
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -370,6 +394,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             canManage={iAmOwnerOrManager}
             onAdd={() => setAddOpen(true)}
             onKickMode={() => setKickListOpen(true)}
+            onMore={() => setKickListOpen(true)}
           />
         ) : null}
 

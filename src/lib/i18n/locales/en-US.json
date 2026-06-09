@@ -307,6 +307,7 @@
   "channelSetting.saveToContacts": "Save to contacts",
   "channelSetting.threadName": "Thread name",
   "channelSetting.title": "Chat info",
+  "channelSetting.viewMoreMembers": "View all {{count}} members",
   "channelSetting.titleWithCount": "Chat info ({{count}})",
   "channelSetting.toast.clearFailed": "Clear failed",
   "channelSetting.toast.cleared": "Chat history cleared",

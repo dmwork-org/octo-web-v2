@@ -6,10 +6,12 @@ import type {
   AddTimelineReq,
   CreateMatterReq,
   LinkChannelReq,
+  ListOutputsParams,
   Matter,
   MatterChannel,
   MatterDetail,
   MatterListParams,
+  MatterOutput,
   MatterStatus,
   PaginatedList,
   TimelineEntry,
@@ -155,5 +157,18 @@ export async function unlinkChannel(matterId: string, channelId: string): Promis
     {
       method: "DELETE",
     },
+  );
+}
+
+// ─── Outputs (产出文件) ─────────────────────────────────
+
+/** GET /matters/{id}/outputs?limit&cursor&q */
+export async function listOutputs(
+  matterId: string,
+  params?: ListOutputsParams,
+): Promise<PaginatedList<MatterOutput>> {
+  return matterApi<PaginatedList<MatterOutput>>(
+    `/matters/${encodeURIComponent(matterId)}/outputs`,
+    { query: params },
   );
 }

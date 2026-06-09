@@ -219,3 +219,35 @@ export interface ExtractResult {
   status: MatterStatus;
   created_at: string;
 }
+
+// ─── Outputs (产出文件) ─────────────────────────────────
+
+/**
+ * MatterOutput — 产出文件条目。
+ * 后端 GET /matters/:id/outputs 返回的去重文件列表。
+ * 按 sent_at DESC, id DESC 排序; 同一 file_url 只保留最早的行。
+ *
+ * source_channel_id 是 IM 的 channel_id (非 matter_channels.id UUID)。
+ * 前端做 channel 反查时按 matter.channels[].channel_id 匹配。
+ */
+export interface MatterOutput {
+  id: string;
+  entry_id: string;
+  matter_id: string;
+  file_url: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  description?: string;
+  sender_uid: string;
+  sender_uname: string;
+  source_channel_id?: string;
+  source_channel_name?: string;
+  sent_at: string;
+}
+
+export interface ListOutputsParams {
+  limit?: number;
+  cursor?: string;
+  q?: string;
+}

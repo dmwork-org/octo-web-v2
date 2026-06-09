@@ -37,6 +37,7 @@ import type {
  */
 
 const MATTER_LIST_KEY_PREFIX = ["matter", "list"] as const;
+const OUTPUTS_KEY_PREFIX = ["matter", "outputs"] as const;
 
 export function useCreateMatter() {
   const qc = useQueryClient();
@@ -142,6 +143,7 @@ export function useLinkChannel() {
     onSuccess: (_data, args) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: [...OUTPUTS_KEY_PREFIX, args.matterId] });
     },
   });
 }
@@ -155,6 +157,7 @@ export function useUnlinkChannel() {
     onSuccess: (_data, args) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: [...OUTPUTS_KEY_PREFIX, args.matterId] });
     },
   });
 }

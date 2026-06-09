@@ -3,6 +3,7 @@ import {
   getMatter,
   listActivities,
   listMatters,
+  listOutputs,
   listTimeline,
 } from "@/features/matter/api/matter.api";
 import { getMyGroups } from "@/features/base/api/endpoints/group.api";
@@ -173,4 +174,18 @@ export const anchorMessagesQueryOptions = (
     queryFn: () => getMessages(channelId, channelType, messageIds),
     enabled: enabled && messageIds.length > 0,
     staleTime: 10 * 60 * 1000,
+  });
+
+// ─── Outputs (产出文件) ─────────────────────────────────
+
+const OUTPUTS_PAGE_LIMIT = 50;
+
+export const matterOutputsQueryKey = (matterId: string, q: string) =>
+  ["matter", "outputs", matterId, q] as const;
+
+export const matterOutputsQueryOptions = (matterId: string, q: string) =>
+  queryOptions({
+    queryKey: matterOutputsQueryKey(matterId, q),
+    queryFn: () => listOutputs(matterId, { limit: OUTPUTS_PAGE_LIMIT, q: q || undefined }),
+    staleTime: 30 * 1000,
   });

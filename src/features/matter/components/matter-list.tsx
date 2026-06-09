@@ -169,9 +169,7 @@ export function MatterList({
               }`}
             >
               {t(tk.key)}
-              {count !== null && count > 0 ? (
-                <span className="ml-0.5">{count}</span>
-              ) : null}
+              {count !== null && count > 0 ? <span className="ml-0.5">{count}</span> : null}
             </button>
           );
         })}

@@ -20,6 +20,7 @@ import { AssigneePicker } from "@/features/matter/components/assignee-picker";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
+import { OutputsPanel } from "@/features/matter/components/outputs-panel";
 import { LinkChannelModal } from "@/features/matter/components/link-channel-modal";
 import { AnchorPopover } from "@/features/matter/components/anchor-popover";
 import { ChannelNameLabel } from "@/features/matter/components/channel-name-label";
@@ -27,6 +28,7 @@ import { NotMemberBadge } from "@/features/matter/components/not-member-badge";
 import { ChannelMoreMenu } from "@/features/matter/components/channel-more-menu";
 import { TimelinePanel } from "@/features/matter/components/timeline-panel";
 import { useMyGroups } from "@/features/matter/hooks/use-my-groups";
+import { useMatterOutputs } from "@/features/matter/hooks/use-matter-outputs";
 import {
   useLatestTimelinePerChannel,
   useChannelTimelineOnExpand,
@@ -35,6 +37,7 @@ import { toParentGroupNo } from "@/features/matter/utils/channel-id";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
 import type {
   MatterChannel,
+  MatterOutput,
   MatterStatus,
   TimelineAttachment,
   TimelineEntry,
@@ -45,7 +48,7 @@ interface MatterDetailPanelProps {
   onClose: () => void;
 }
 
-type SecondaryTab = "channels" | "changelog";
+type SecondaryTab = "channels" | "outputs" | "changelog";
 
 const STATUS_KEY: Record<MatterStatus, string> = {
   open: "matter.status.open",
@@ -211,6 +214,59 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     [],
   );
 
+  // ── Outputs (产出文件) ──
+  const myGroupsQ = useMyGroups();
+  const myGroupNos = useMemo(
+    () => new Set((myGroupsQ.data ?? []).map((g) => g.group_no)),
+    [myGroupsQ.data],
+  );
+
+  const {
+    outputs,
+    loading: outputsLoading,
+    hasMore: outputsHasMore,
+    query: outputsQuery,
+    error: outputsError,
+    handleSearch: handleOutputsSearch,
+    handleLoadMore: handleOutputsLoadMore,
+    handleRetry: handleOutputsRetry,
+  } = useMatterOutputs(matterId);
+
+  const getOutputChannelMembership = useCallback(
+    (sourceChannelId?: string) => {
+      if (!sourceChannelId) return { isMember: true, loading: false };
+      if (myGroupsQ.isLoading) return { isMember: false, loading: true };
+      const ch = (data.channels ?? []).find((c) => c.channel_id === sourceChannelId);
+      if (!ch) return { isMember: true, loading: false };
+      const parentNo = toParentGroupNo(ch.channel_id, ch.channel_type);
+      const isMember = !myGroupsQ.isError && myGroupNos.has(parentNo);
+      return { isMember, loading: false };
+    },
+    [data.channels, myGroupNos, myGroupsQ.isLoading, myGroupsQ.isError],
+  );
+
+  const resolveOutputChannelName = useCallback(
+    (sourceChannelId?: string) => {
+      if (!sourceChannelId) return undefined;
+      const ch = (data.channels ?? []).find((c) => c.channel_id === sourceChannelId);
+      return ch?.channel_name;
+    },
+    [data.channels],
+  );
+
+  const handleOutputDownload = useCallback(
+    async (item: MatterOutput) => {
+      const url = resolveFileUrl(item.file_url);
+      if (!url) return;
+      try {
+        await downloadFile(url, item.file_name || "file");
+      } catch {
+        toast.error(t("matter.outputs.downloadFailed"));
+      }
+    },
+    [t],
+  );
+
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL + ⋯ ── */}
@@ -339,7 +395,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </FieldChip>
         </div>
 
-        {/* ── 二级 tabs(关联群聊 N / 变更记录 N)── */}
+        {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
         <div className="mt-6 border-b border-border-subtle px-8">
           <div className="flex items-stretch gap-6">
             <SecondaryTabBtn
@@ -347,6 +403,12 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               onClick={() => setSecondaryTab("channels")}
               label={t("matter.detail.linkChannelTab")}
               count={data.channels?.length ?? 0}
+            />
+            <SecondaryTabBtn
+              active={secondaryTab === "outputs"}
+              onClick={() => setSecondaryTab("outputs")}
+              label={t("matter.outputs.tabLabel")}
+              count={outputs.length}
             />
             <SecondaryTabBtn
               active={secondaryTab === "changelog"}
@@ -366,6 +428,20 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               onOpenLinkModal={() => setLinkModalOpen(true)}
               onCloseLinkModal={() => setLinkModalOpen(false)}
               onDownloadAttachment={handleDownloadAttachment}
+            />
+          ) : secondaryTab === "outputs" ? (
+            <OutputsPanel
+              outputs={outputs}
+              loading={outputsLoading}
+              hasMore={outputsHasMore}
+              query={outputsQuery}
+              error={outputsError}
+              onSearch={handleOutputsSearch}
+              onLoadMore={handleOutputsLoadMore}
+              onRetry={handleOutputsRetry}
+              onDownload={handleOutputDownload}
+              getChannelMembership={getOutputChannelMembership}
+              resolveChannelName={resolveOutputChannelName}
             />
           ) : (
             <ActivityList matterId={matterId} />

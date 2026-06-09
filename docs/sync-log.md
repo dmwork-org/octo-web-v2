@@ -199,4 +199,17 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:b5a3b68e 跳过 snapshot-aware cleanup(本仓未发现该 race,留 backlog);fff36eb1 上游 UI 迁移本仓不需要;39284abf 完整搬工作量重,defer
 - baseline SHA 暂不推进
 
+## 2026-06-09 — Batch 1.9 chat 大特性 2:BotManage 三级下钻
+
+- 搬了 2 个上游 SHA + 1 个等效已修(共 3 个):
+  - `ee4275b4` bot remark inline 编辑:bot-detail-modal isFriend 时新增 SectionGroup + InlineEditRow,复用 user-info-modal 同款 setUserRemark mutation + 刷 SDK channelInfo cache(让群消息 senderDisplay 即时反映新备注)
+  - `e7c5e0be` BotManage 三级下钻 + 免@回答群列表:**拆 2 commit**
+    - **基础设施** commit:新建 `overlay/drilldown-drawer.tsx`(BaseDrawer + stack + push/back/reset,通用下钻 modal,以后 group-management 也可重构改用)+ `endpoints/robot-mention-pref.api.ts`(对接 octo-server `modules/robot/mention_pref.go`:listGroups cursor 分页 / setMentionPref / deleteMentionPref)
+    - **feature** commit:新建 `chat/components/bot-manage-modal.tsx`(L2 menu + L3 mention-free list,用 DrilldownDrawer<"menu"|"mention-free">);bot-detail 加 owner-only 入口 button;group_allow_no_mention=false 时 toggle 禁用(对齐上游 disabled state);防竞态走 React Query key(robotId+q)自动 invalidate,**不需要**上游手写 generation vm;切 bot 时 resetKey 复位下钻栈
+    - i18n 16 keys(zh-CN + en-US)
+  - **(等效已修)** `d6c20ed4` avatar 上传统一:本仓 `uploadUserAvatar` + `uploadGroupAvatar` 核心 OK;GIF 保活 + 非 GIF 裁剪预览 + WKAvatarUploadPreview 组件是上游 enhancement;未发现 bug 暂不补
+- 本仓 commits(分支 feat/upstream-batch-1-9):c4ef775(remark)/ e615bc3(DrilldownDrawer+API)/ 37af7a4(BotManage feature)+ 收尾 docs
+- 关键决策:**拓展 BaseDrawer → 通用 DrilldownDrawer**(陈超明确"按本仓设计原则替代老仓 RoutePage,顺道拓展 base modal");本批 BotManage 用之,后续可重构 group-management / channel-setting 改用同款;e7c5e0be 拆 2 commit(基础设施 / feature)语义独立
+- baseline SHA 暂不推进
+
 

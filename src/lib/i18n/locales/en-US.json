@@ -1383,6 +1383,7 @@
   "matter.detail.menuMore": "More actions",
   "matter.detail.clickToEdit": "Click to edit title",
   "matter.detail.noLinkedGroups": "No linked groups or threads",
+  "matter.detail.noLinkedChannels": "No linked groups or threads",
   "matter.field.assignee": "Assignee",
   "matter.field.goal": "Main goal",
   "matter.field.goalPlaceholder": "Enter the main goal",

@@ -1384,6 +1384,7 @@
   "matter.detail.menuMore": "更多操作",
   "matter.detail.clickToEdit": "点击编辑标题",
   "matter.detail.noLinkedGroups": "暂无关联群聊或子区",
+  "matter.detail.noLinkedChannels": "暂无关联群聊或子区",
   "matter.field.assignee": "负责人",
   "matter.field.goal": "主要目标",
   "matter.field.goalPlaceholder": "请输入主要目标",

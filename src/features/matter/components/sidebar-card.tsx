@@ -94,10 +94,10 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-all duration-150 ease-(--ease-emphasized) ${
+      className={`flex w-full cursor-pointer flex-col gap-2 rounded-md border border-transparent p-3 text-left transition-all duration-150 ease-(--ease-emphasized) ${
         selected
-          ? "border-brand bg-bg-surface shadow-[0_4px_12px_rgba(28,28,35,0.04),0_0_10px_1px_rgba(28,28,35,0.04)]"
-          : "border-transparent bg-bg-surface/80 hover:bg-bg-surface hover:shadow-[0_2px_8px_rgba(28,28,35,0.04)]"
+          ? "border-accent bg-bg-surface shadow-[0_4px_12px_rgba(28,28,35,0.04),0_0_10px_1px_rgba(28,28,35,0.04)]"
+          : "bg-white/80 hover:bg-bg-surface hover:shadow-[0_2px_8px_rgba(28,28,35,0.04)]"
       }`}
     >
       {/* 第一行:状态 pill + DDL */}

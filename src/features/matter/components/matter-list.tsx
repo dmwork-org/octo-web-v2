@@ -101,6 +101,7 @@ export function MatterList({
   const [tab, setTab] = useState<MatterTab>(initialTab ?? (isChannelMode ? "all" : "mine"));
   const [q, setQ] = useState(initialQ ?? "");
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [activeOpen, setActiveOpen] = useState(true);
 
   // params:channel 模式 → 一次性按 channel_id 拉;非 channel 模式 → 跟 tab 切换
   const params = useMemo<MatterListParams>(() => {
@@ -202,27 +203,38 @@ export function MatterList({
           </p>
         ) : (
           <>
-            <SegmentLabel text={t("matter.sidebar.unarchived")} />
-            {active.map((m) => (
-              <SidebarCard
-                key={m.id}
-                matter={m}
-                selected={m.id === selectedId}
-                onClick={() => onSelect(m.id)}
+            <button
+              type="button"
+              onClick={() => setActiveOpen((v) => !v)}
+              className="flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
+            >
+              <SegmentLabel text={t("matter.sidebar.unarchived")} />
+              <ChevronRight
+                size={14}
+                className={`text-icon-muted transition-transform ${activeOpen ? "rotate-90" : ""}`}
               />
-            ))}
+            </button>
+            {activeOpen &&
+              active.map((m) => (
+                <SidebarCard
+                  key={m.id}
+                  matter={m}
+                  selected={m.id === selectedId}
+                  onClick={() => onSelect(m.id)}
+                />
+              ))}
 
             <button
               type="button"
               onClick={() => setArchivedOpen((v) => !v)}
-              className="mt-2 flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span]:text-text-primary"
+              className="mt-2 flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
             >
               <SegmentLabel
                 text={t("matter.sidebar.archivedWithCount", { values: { count: archived.length } })}
               />
               <ChevronRight
                 size={14}
-                className={`text-text-tertiary transition-transform ${archivedOpen ? "rotate-90" : ""}`}
+                className={`text-icon-muted transition-transform ${archivedOpen ? "rotate-90" : ""}`}
               />
             </button>
             {archivedOpen

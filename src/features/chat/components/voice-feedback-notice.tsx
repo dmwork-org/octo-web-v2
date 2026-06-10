@@ -103,9 +103,13 @@ export function VoiceFeedbackNotice({
         ) : docQ.data?.content ? (
           // doc.content 是 server 自己读 assets/web/asr_service_doc.html 的内容(HTML),
           // 受信任直接 dangerouslySetInnerHTML 渲染;**不要走 Markdown 组件**(rehype-sanitize
-          // 会把 HTML 标签全过滤掉,显示空白)
+          // 会把 HTML 标签全过滤掉,显示空白)。
+          //
+          // 套 `wk-markdown` class:复用本仓 markdown.css 已有的 h1-6 / p / ul / a /
+          // strong 等子选择器样式(否则 Tailwind reset 会把 HTML 默认样式都清掉,
+          // 显示成"普通文本",对齐老仓富文本渲染。markdown.css 全局已加载)。
           <div
-            className="wk-asr-doc"
+            className="wk-markdown wk-markdown-recv"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: docQ.data.content }}
           />

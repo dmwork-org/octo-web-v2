@@ -371,12 +371,12 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         <div className="mt-4 flex flex-col gap-2 px-8">
           <MainGoalEditor matterId={matterId} description={data.description} />
 
-          {data.source_name ? (
+          {(data.source_channel_id || data.source_name) ? (
             <div className="inline-flex items-center gap-1 text-sm leading-[18px] text-text-primary">
               <Tag size={14} className="shrink-0 text-text-tertiary" />
               <span>
                 {t("matter.label.fromChannel", {
-                  values: { name: "" },
+                  values: { name: data.source_name || "" },
                 })}{" "}
                 <span className="text-brand">#{data.source_name}</span> ·{" "}
                 <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}

@@ -424,7 +424,7 @@ function DetailView({
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default bg-bg-surface px-4">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
         <div className="flex min-w-0 items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -583,7 +583,7 @@ function DetailView({
 function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
   const tt = useT();
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border-default bg-bg-surface px-4">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-surface px-4">
       <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
         <ThreadIcon size={18} className="text-text-secondary" />
         {title}

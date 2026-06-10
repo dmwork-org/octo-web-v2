@@ -10,6 +10,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { matterDetailQueryOptions, activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import {
   useDeleteMatter,
+  useTransitionMatter,
   useUnlinkChannel,
   useUpdateMatter,
 } from "@/features/matter/mutations/matters.mutation";
@@ -252,6 +253,18 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     [t],
   );
 
+  // 来源群成员判断
+  const isSourceMember = (() => {
+    if (!data.source_channel_id) return false;
+    if (myGroupsQ.isError) return false;
+    const parentNo = toParentGroupNo(data.source_channel_id, data.source_channel_type ?? 2);
+    return myGroupNos.has(parentNo);
+  })();
+  const hasSourceMsgs = (data.source_msgs ?? []).length > 0;
+
+  // 来源 AnchorPopover 状态
+  const [sourceAnchor, setSourceAnchor] = useState(false);
+
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL ── */}
@@ -295,17 +308,48 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         <div className="mt-4 px-4">
           <MainGoalEditor matterId={matterId} description={data.description}>
             {data.source_channel_id ? (
-              <div className="inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] text-text-primary">
+              <div
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] transition-opacity ${
+                  !myGroupsQ.isLoading && isSourceMember && hasSourceMsgs
+                    ? "cursor-pointer hover:opacity-80"
+                    : ""
+                } text-text-primary`}
+                title={
+                  myGroupsQ.isLoading
+                    ? t("matter.channel.loadingInfo")
+                    : isSourceMember && hasSourceMsgs
+                      ? t("matter.anchor.viewContext")
+                      : !isSourceMember
+                        ? t("matter.channel.notMemberTitle")
+                        : undefined
+                }
+                onClick={() => {
+                  if (!myGroupsQ.isLoading && isSourceMember && hasSourceMsgs) {
+                    setSourceAnchor(true);
+                  }
+                }}
+              >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-icon-muted">
                   <path fillRule="evenodd" clipRule="evenodd" d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z" fill="currentColor" />
                 </svg>
-                <span>
-                  {t("matter.label.fromChannel", {
-                    values: { name: displaySourceName },
-                  })}{" "}
-                  · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                  {formatDateTime(data.created_at)}
-                </span>
+                {myGroupsQ.isLoading ? (
+                  <span
+                    className="inline-block h-4 w-24 animate-pulse rounded bg-bg-elevated"
+                    aria-label={t("matter.state.loading")}
+                  />
+                ) : isSourceMember ? (
+                  <span>
+                    {t("matter.label.fromChannel", {
+                      values: { name: displaySourceName },
+                    })}{" "}
+                    · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
+                    {formatDateTime(data.created_at)}
+                  </span>
+                ) : (
+                  <span className="select-none blur-[2.5px] opacity-35">
+                    {t("matter.label.fromHiddenChannel")}
+                  </span>
+                )}
               </div>
             ) : null}
           </MainGoalEditor>
@@ -391,6 +435,16 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         onOk={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+      {sourceAnchor && (
+        <AnchorPopover
+          open
+          channelId={data.source_channel_id ?? ""}
+          channelType={data.source_channel_type ?? 2}
+          channelName={displaySourceName}
+          messageIds={data.source_msgs ?? []}
+          onClose={() => setSourceAnchor(false)}
+        />
+      )}
     </section>
   );
 }

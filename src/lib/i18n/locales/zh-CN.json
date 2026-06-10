@@ -1423,6 +1423,7 @@
   "matter.label.creator": "创建人",
   "matter.label.fromChannel": "来自 #{{name}}",
   "matter.label.fromHiddenChannel": "来自隐藏群聊",
+  "matter.label.fromHiddenChannel": "来自隐藏群聊",
   "matter.linkChannels.failed": "关联失败",
   "matter.linkChannels.inParentGroup": "在 {{name}}",
   "matter.linkChannels.linked": "已关联 {{count}} 个会话",

@@ -7,22 +7,18 @@ import WKSDK, {
   ChannelTypePerson,
   type Subscriber,
 } from "wukongimjssdk";
-import { MoreVertical, Search } from "lucide-react";
+import { Search, UserMinus } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-import {
-  addGroupManagers,
-  removeGroupManagers,
-  removeGroupMembers,
-} from "@/features/base/api/endpoints/group.api";
+import { removeGroupMembers } from "@/features/base/api/endpoints/group.api";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -53,7 +49,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const subscribers = useGroupSubscribers(channel, open);
   const [keyword, setKeyword] = useState("");
-  const [menuFor, setMenuFor] = useState<{ uid: string; x: number; y: number } | null>(null);
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -85,32 +80,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
     void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
   };
 
-  const promoteMu = useMutation({
-    mutationFn: (uid: string) => {
-      if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
-      return addGroupManagers(groupChannel.channelID, [uid]);
-    },
-    onSuccess: () => {
-      refreshSubs();
-      toast.success(t("channelMembers.toast.promoted"));
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.promoteFailed")),
-  });
-
-  const demoteMu = useMutation({
-    mutationFn: (uid: string) => {
-      if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
-      return removeGroupManagers(groupChannel.channelID, [uid]);
-    },
-    onSuccess: () => {
-      refreshSubs();
-      toast.success(t("channelMembers.toast.demoted"));
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.demoteFailed")),
-  });
-
   const kickMu = useMutation({
     mutationFn: (uid: string) => {
       if (!groupChannel) return Promise.reject(new Error(t("channelMembers.error.invalidChannel")));
@@ -125,38 +94,11 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
       toast.error(err instanceof Error ? err.message : t("channelMembers.toast.kickFailed")),
   });
 
-  const buildMenuItems = (target: Subscriber): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = [];
-    if (target.uid === myUid) return items;
-    if (iAmOwner) {
-      if (target.role === ROLE_NORMAL) {
-        items.push({
-          label: t("channelMembers.action.setManager"),
-          onClick: () => promoteMu.mutate(target.uid),
-        });
-      } else if (target.role === ROLE_MANAGER) {
-        items.push({
-          label: t("channelMembers.action.unsetManager"),
-          onClick: () => demoteMu.mutate(target.uid),
-        });
-      }
-      if (target.role !== ROLE_OWNER) {
-        items.push({
-          label: t("channelMembers.action.kick"),
-          danger: true,
-          onClick: () => setConfirmKickUid(target.uid),
-        });
-      }
-    } else if (iAmManager) {
-      if (target.role === ROLE_NORMAL) {
-        items.push({
-          label: t("channelMembers.action.kick"),
-          danger: true,
-          onClick: () => setConfirmKickUid(target.uid),
-        });
-      }
-    }
-    return items;
+  const canKickMember = (target: Subscriber): boolean => {
+    if (target.uid === myUid) return false;
+    if (iAmOwner) return target.role !== ROLE_OWNER;
+    if (iAmManager) return target.role === ROLE_NORMAL;
+    return false;
   };
 
   const isThreadCh = channel.channelType === CHANNEL_TYPE_THREAD;
@@ -205,7 +147,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
             </li>
           ) : (
             filtered.map((m) => {
-              const menuItems = buildMenuItems(m);
+              const canKick = canKickMember(m);
               const isMe = m.uid === myUid;
               const og = m.orgData as { robot?: number } | undefined;
               const isBot = og?.robot === 1;
@@ -242,15 +184,20 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
                       </span>
                     ) : null}
                   </div>
-                  {menuItems.length > 0 ? (
-                    <button
-                      type="button"
-                      aria-label={tt("channelMembers.actionAria")}
-                      onClick={(e) => setMenuFor({ uid: m.uid, x: e.clientX, y: e.clientY })}
-                      className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-elevated hover:text-text-primary group-hover:flex"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
+                  {canKick ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={tt("channelMembers.action.kick")}
+                          onClick={() => setConfirmKickUid(m.uid)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
+                        >
+                          <UserMinus size={15} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{tt("channelMembers.action.kick")}</TooltipContent>
+                    </Tooltip>
                   ) : null}
                 </li>
               );
@@ -258,19 +205,6 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
           )}
         </ul>
       </BaseDrawer>
-
-      {menuFor ? (
-        <ContextMenu
-          open
-          x={menuFor.x}
-          y={menuFor.y}
-          items={buildMenuItems(
-            subscribers.find((s) => s.uid === menuFor.uid) ??
-              ({ uid: menuFor.uid, role: ROLE_NORMAL } as Subscriber),
-          )}
-          onClose={() => setMenuFor(null)}
-        />
-      ) : null}
 
       {confirmKickUid ? (
         <ConfirmModal

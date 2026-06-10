@@ -13,6 +13,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
@@ -24,6 +25,7 @@ import {
 import { setChannelAllowNoMention } from "@/features/base/api/endpoints/channel-setting.api";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
+import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -67,6 +69,7 @@ export function GroupManagementModal({
     uid: string;
     name: string;
   } | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [pickedUids, setPickedUids] = useState<string[]>([]);
   const [keyword, setKeyword] = useState("");
 
@@ -327,6 +330,13 @@ export function GroupManagementModal({
             {canManage ? (
               <div className="mx-4 mb-3">
                 <SectionGroup>
+                  <NavRow
+                    title={tt("groupMgmt.memberManagement")}
+                    subTitle={tt("groupMgmt.memberManagementHint", {
+                      values: { count: subscribers.length },
+                    })}
+                    onClick={() => setMembersOpen(true)}
+                  />
                   <ToggleRow
                     title={tt("groupMgmt.allowNoMention")}
                     checked={allowNoMention}
@@ -339,6 +349,12 @@ export function GroupManagementModal({
           </div>
         )}
       </BaseDrawer>
+
+      <ChannelMembersModal
+        open={membersOpen}
+        channel={channel}
+        onClose={() => setMembersOpen(false)}
+      />
 
       {confirmRemove ? (
         <ConfirmModal

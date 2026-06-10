@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Virtuoso } from "react-virtuoso";
@@ -7,10 +7,8 @@ import { toast } from "@/components/semi-bridge/toast";
 import { UserName } from "@/features/matter/components/user-name";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
-import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { matterDetailQueryKey, mattersQueryKey } from "@/features/matter/queries/matters.query";
 import { addAssignee, removeAssignee } from "@/features/matter/api/matter.api";
 import type { MatterAssignee } from "@/features/matter/types/matter.types";
@@ -22,6 +20,8 @@ interface OwnerEditorProps {
   canEdit: boolean;
   /** 当前用户是否是 Matter 发起人 (creator 能移除任何人) */
   isCreator: boolean;
+  /** 候选成员列表: Matter 关联的所有 channel 成员的并集 */
+  candidates: Array<{ uid: string; name: string }>;
 }
 
 /** click-outside 关闭下拉 */
@@ -49,7 +49,7 @@ function useClickOutside(open: boolean, onClose: () => void) {
  * 权限:仅创建人或已有负责人可编辑。
  * 移除权限:creator 能移除任何人,非 creator 只能移除自己。
  */
-export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEditorProps) {
+export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidates }: OwnerEditorProps) {
   const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -59,33 +59,27 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
 
   const ref = useClickOutside(open, () => setOpen(false));
 
-  const { data: members } = useQuery({
-    ...spaceMembersQueryOptions(spaceId),
-    enabled: open && !!spaceId,
-  });
-
   const assignedUids = useMemo(
     () => new Set(assignees.map((a) => a.user_id)),
     [assignees],
   );
 
-  const candidates = useMemo(() => {
-    const list: Array<{ uid: string; name: string }> = [];
+  // 合并候选列表：当前负责人 + 外部传入 candidates（去重）
+  const mergedCandidates = useMemo(() => {
     const seen = new Set<string>();
-    // 当前负责人排最前
+    const list: Array<{ uid: string; name: string }> = [];
     for (const a of assignees) {
       if (seen.has(a.user_id)) continue;
       seen.add(a.user_id);
       list.push({ uid: a.user_id, name: a.user_id });
     }
-    // 然后 space 成员
-    for (const m of members ?? []) {
-      if (seen.has(m.uid) || m.robot === 1) continue;
-      seen.add(m.uid);
-      list.push({ uid: m.uid, name: m.name || m.uid });
+    for (const c of candidates) {
+      if (seen.has(c.uid)) continue;
+      seen.add(c.uid);
+      list.push(c);
     }
     return list;
-  }, [members, assignees]);
+  }, [assignees, candidates]);
 
   const mu = useMutation({
     mutationFn: async (uid: string) => {
@@ -178,16 +172,16 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
       {/* 下拉 */}
       {open && (
         <div className="absolute top-full left-0 z-popover mt-2 min-w-64 rounded-md border border-border-subtle bg-bg-surface shadow-lg">
-          {candidates.length === 0 ? (
+          {mergedCandidates.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
               {tr("matter.member.empty")}
             </div>
           ) : (
             <Virtuoso
               style={{ height: 256, width: "100%" }}
-              totalCount={candidates.length}
+              totalCount={mergedCandidates.length}
               itemContent={(index) => {
-                const c = candidates[index];
+                const c = mergedCandidates[index];
                 const picked = assignedUids.has(c.uid);
                 const isLast = picked && assignees.length <= 1;
                 const isLoading = pending.has(c.uid);

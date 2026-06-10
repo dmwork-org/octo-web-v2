@@ -29,6 +29,7 @@ import { ChannelMoreMenu } from "@/features/matter/components/channel-more-menu"
 import { TimelinePanel } from "@/features/matter/components/timeline-panel";
 import { useMyGroups } from "@/features/matter/hooks/use-my-groups";
 import { useMatterOutputs } from "@/features/matter/hooks/use-matter-outputs";
+import { useMembersFromChannels, type ChannelRef } from "@/features/matter/hooks/use-members-from-channels";
 import {
   useLatestTimelinePerChannel,
   useChannelTimelineOnExpand,
@@ -218,6 +219,26 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     [myGroupsQ.data],
   );
 
+  // ── OwnerEditor 候选人: Matter 关联的所有 channel 成员并集 ──
+  const ownerCandidateChannelRefs = useMemo<ChannelRef[]>(() => {
+    const seen = new Set<string>();
+    const list: ChannelRef[] = [];
+    const push = (id: string | undefined | null, type: number | undefined | null) => {
+      if (!id || type === undefined || type === null) return;
+      const key = `${id}:${type}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push({ channelId: id, channelType: type });
+    };
+    for (const ch of data.channels || []) {
+      push(ch.channel_id, ch.channel_type);
+    }
+    push(data.source_channel_id, data.source_channel_type);
+    return list;
+  }, [data.channels, data.source_channel_id, data.source_channel_type]);
+
+  const { members: ownerCandidates } = useMembersFromChannels(ownerCandidateChannelRefs);
+
   const {
     outputs,
     loading: outputsLoading,
@@ -376,6 +397,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               assignees={data.assignees}
               canEdit={isOwner}
               isCreator={currentUid === data.creator_id}
+              candidates={ownerCandidates}
             />
           </FieldChip>
         </div>

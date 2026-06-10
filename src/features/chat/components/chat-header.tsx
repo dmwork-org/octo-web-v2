@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { List, MoreHorizontal, Sparkles } from "lucide-react";
 import { useStore } from "@tanstack/react-store";
@@ -9,6 +9,11 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { listSummaries } from "@/features/summary/api/summary.api";
+import {
+  subscribeChatSummaryCreated,
+  subscribeChatSummaryDeleted,
+} from "@/features/summary/utils/chat-summary-events";
+import { isSupportedChannelType } from "@/features/summary/utils/channel-source";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
@@ -18,6 +23,7 @@ interface ChatHeaderProps {
   showThreadIcon?: boolean;
   threadPanelOpen?: boolean;
   onToggleThreadPanel?: () => void;
+  onOpenSummaryCreate: () => void;
   channel: Channel;
 }
 
@@ -73,6 +79,7 @@ export function ChatHeader({
   showThreadIcon,
   threadPanelOpen,
   onToggleThreadPanel,
+  onOpenSummaryCreate,
 }: ChatHeaderProps) {
   const t = useT();
   const channelInfo = useChannelInfoLive(channel);
@@ -133,7 +140,13 @@ export function ChatHeader({
         </h2>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <SummaryEntryButton channel={channel} active={sidePanelKind === "summary"} />
+        {isSupportedChannelType(channel) ? (
+          <SummaryEntryButton
+            channel={channel}
+            active={sidePanelKind === "summary"}
+            onCreateNew={onOpenSummaryCreate}
+          />
+        ) : null}
         {/* 事项入口仅群聊/子区显示(对齐旧 dmworktodo registerChatHeaderIcon — 私聊不显示) */}
         {channel.channelType === ChannelTypeGroup || isThreadCh ? (
           <Tooltip>
@@ -218,36 +231,76 @@ function useParentGroupTitle(groupNo: string | null): string | undefined {
  * Sparkle 入口(对齐旧 ChatSummaryStarButton):
  * - 当前已打开 summary panel → 再点 toggle 关。
  * - 否则探测一次 `/summaries?origin_channel_id=...&page_size=1`:
- *   - 成功(任意 total) → openSummary(null) 打开 panel,panel 自己拉详细列表
+ *   - total > 0 → openSummary(null) 打开历史面板
+ *   - total = 0 → 直接打开新建总结弹窗
  *   - AbortError(切了 channel / 二次点击)→ 静默
  *   - 其他错误 → toast,**不**开 panel 走创建(老仓 P1 fix:防止把网络错当成
  *     "无总结"误开创建流)
  */
-function SummaryEntryButton({ channel, active }: { channel: Channel; active: boolean }) {
+function SummaryEntryButton({
+  channel,
+  active,
+  onCreateNew,
+}: {
+  channel: Channel;
+  active: boolean;
+  onCreateNew: () => void;
+}) {
   const t = useT();
   const abortRef = useRef<AbortController | null>(null);
-  useAbortOnChannelChange(channel.channelID, abortRef);
+  const [summaryState, setSummaryState] = useState({ hasSummaries: false, loaded: false });
+
+  const fetchSummaryCount = useCallback(async (): Promise<
+    { state: "ok"; hasSummaries: boolean } | { state: "cancelled" } | { state: "failed" }
+  > => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const res = await listSummaries(
+        { origin_channel_id: channel.channelID, page: 1, page_size: 1 },
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return { state: "cancelled" };
+      const hasSummaries = res.total > 0;
+      setSummaryState({ hasSummaries, loaded: true });
+      return { state: "ok", hasSummaries };
+    } catch (err) {
+      if (controller.signal.aborted) return { state: "cancelled" };
+      if (err instanceof Error && err.name === "AbortError") return { state: "cancelled" };
+      return { state: "failed" };
+    }
+  }, [channel.channelID]);
+
+  useResetSummaryEntryOnChannelChange(channel.channelID, abortRef, setSummaryState);
+  useSyncSummaryEntryWithEvents(channel.channelID, fetchSummaryCount, setSummaryState);
+
+  const openForSummaryCount = (hasSummaries: boolean) => {
+    if (hasSummaries) {
+      chatSidePanelActions.openSummary(null);
+    } else {
+      onCreateNew();
+    }
+  };
 
   const handleClick = async () => {
     if (active) {
       chatSidePanelActions.close();
       return;
     }
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await listSummaries(
-        { origin_channel_id: channel.channelID, page: 1, page_size: 1 },
-        { signal: controller.signal },
-      );
-      if (controller.signal.aborted) return;
-      chatSidePanelActions.openSummary(null);
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      if (controller.signal.aborted) return;
-      toast.error(tFn("summary.common.loadingFailed"));
+
+    if (summaryState.loaded) {
+      openForSummaryCount(summaryState.hasSummaries);
+      return;
     }
+
+    const result = await fetchSummaryCount();
+    if (result.state === "cancelled") return;
+    if (result.state === "failed") {
+      toast.error(tFn("summary.common.loadingFailed"));
+      return;
+    }
+    openForSummaryCount(result.hasSummaries);
   };
 
   return (
@@ -275,14 +328,37 @@ function SummaryEntryButton({ channel, active }: { channel: Channel; active: boo
  * channel 切换时 abort 当前未完成的 fetchSummaryCount 请求,
  * 避免 setState 落到错误 channel 的 panel。
  */
-function useAbortOnChannelChange(
+function useResetSummaryEntryOnChannelChange(
   channelId: string,
-  abortRef: React.MutableRefObject<AbortController | null>,
+  abortRef: MutableRefObject<AbortController | null>,
+  setSummaryState: (state: { hasSummaries: boolean; loaded: boolean }) => void,
 ): void {
   useEffect(() => {
+    setSummaryState({ hasSummaries: false, loaded: false });
     return () => {
       abortRef.current?.abort();
       abortRef.current = null;
     };
-  }, [channelId, abortRef]);
+  }, [channelId, abortRef, setSummaryState]);
+}
+
+function useSyncSummaryEntryWithEvents(
+  channelId: string,
+  fetchSummaryCount: () => Promise<
+    { state: "ok"; hasSummaries: boolean } | { state: "cancelled" } | { state: "failed" }
+  >,
+  setSummaryState: (state: { hasSummaries: boolean; loaded: boolean }) => void,
+): void {
+  useEffect(() => {
+    const unsubscribeCreated = subscribeChatSummaryCreated(channelId, () => {
+      setSummaryState({ hasSummaries: true, loaded: true });
+    });
+    const unsubscribeDeleted = subscribeChatSummaryDeleted(channelId, () => {
+      void fetchSummaryCount();
+    });
+    return () => {
+      unsubscribeCreated();
+      unsubscribeDeleted();
+    };
+  }, [channelId, fetchSummaryCount, setSummaryState]);
 }

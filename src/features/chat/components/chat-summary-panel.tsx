@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import { ChevronLeft, X } from "lucide-react";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -7,7 +6,6 @@ import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resiz
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { useT } from "@/lib/i18n/use-t";
 import { ChatSummaryHistory } from "@/features/summary/components/chat-summary-history";
-import { ChatSummaryNewModal } from "@/features/summary/components/chat-summary-new-modal";
 import { SummaryDetail } from "@/features/summary/components/summary-detail";
 
 /**
@@ -18,13 +16,13 @@ import { SummaryDetail } from "@/features/summary/components/summary-detail";
  * - taskId === null:渲染 ChatSummaryHistory(当前会话的总结历史 + 新建入口)
  * - taskId !== null:渲染 SummaryDetail(整页详情复用主模块组件,带返回 ← 按钮)
  *
- * 触发新建总结:state showCreate 控制 ChatSummaryNewModal;成功后跳到详情视图。
+ * 触发新建总结:交给 ChatMain 的聊天级 modal 统一处理;成功后强制打开列表并由
+ * chat-summary-created event 驱动刷新,避免把用户从聊天上下文切出去。
  */
-export function ChatSummaryPanel() {
+export function ChatSummaryPanel({ onCreateNew }: { onCreateNew: () => void }) {
   const t = useT();
   const state = useStore(chatSidePanelStore, (s) => s);
   const channel = useStore(chatSelectedStore, (s) => s.channel);
-  const [showCreate, setShowCreate] = useState(false);
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
 
@@ -73,20 +71,10 @@ export function ChatSummaryPanel() {
           <ChatSummaryHistory
             channel={channel}
             onSelect={(id) => chatSidePanelActions.selectSummary(id)}
-            onCreateNew={() => setShowCreate(true)}
+            onCreateNew={onCreateNew}
           />
         )}
       </div>
-
-      <ChatSummaryNewModal
-        open={showCreate}
-        channel={channel}
-        onClose={() => setShowCreate(false)}
-        onCreated={(taskId) => {
-          setShowCreate(false);
-          chatSidePanelActions.selectSummary(taskId);
-        }}
-      />
 
       <PanelSplitter
         side="left"

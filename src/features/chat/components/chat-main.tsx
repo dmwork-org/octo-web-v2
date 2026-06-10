@@ -14,6 +14,7 @@ import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel"
 import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
 import { ChatSummaryPanel } from "@/features/chat/components/chat-summary-panel";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
+import { ChatSummaryNewModal } from "@/features/summary/components/chat-summary-new-modal";
 import { useEnsureRoleSubscribersForRevoke } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
 import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-config-loaded.hook";
 
@@ -28,6 +29,15 @@ function useResetSidePanelOnChannelChange(channelKey: string): void {
   useEffect(() => {
     chatSidePanelActions.close();
   }, [channelKey]);
+}
+
+function useResetSummaryCreateModalOnChannelChange(
+  channelKey: string,
+  setChannel: (channel: Channel | null) => void,
+): void {
+  useEffect(() => {
+    setChannel(null);
+  }, [channelKey, setChannel]);
 }
 
 /**
@@ -77,9 +87,12 @@ export function ChatMain() {
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
   const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
   const [createMatterChannel, setCreateMatterChannel] = useState<Channel | null>(null);
+  const [summaryCreateChannel, setSummaryCreateChannel] = useState<Channel | null>(null);
   useListenCreateMatterFromComposer(channel ?? null, setCreateMatterChannel);
+  const channelKey = channel ? `${channel.channelID}_${channel.channelType}` : "_";
   // channel 切换 → 关掉所有右侧 panel(对齐旧 ChatContentPage key 重建语义)
-  useResetSidePanelOnChannelChange(channel ? `${channel.channelID}_${channel.channelType}` : "_");
+  useResetSidePanelOnChannelChange(channelKey);
+  useResetSummaryCreateModalOnChannelChange(channelKey, setSummaryCreateChannel);
   // 进入群/子区时预热 subscribers,供 message-row 撤回菜单同步读 myRole/targetRole
   useEnsureRoleSubscribersForRevoke(channel);
   // 预热 appConfig → message-row 同步读 revoke_second
@@ -102,6 +115,7 @@ export function ChatMain() {
           showThreadIcon={showThreadIcon}
           threadPanelOpen={sidePanelKind === "threads"}
           onToggleThreadPanel={() => chatSidePanelActions.toggleThreads()}
+          onOpenSummaryCreate={() => setSummaryCreateChannel(channel)}
         />
         <MessageList channel={channel} />
         {selectionActive ? (
@@ -119,12 +133,25 @@ export function ChatMain() {
       ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
       {sidePanelKind === "matter" ? <MatterListPanel /> : null}
-      {sidePanelKind === "summary" ? <ChatSummaryPanel /> : null}
+      {sidePanelKind === "summary" ? (
+        <ChatSummaryPanel onCreateNew={() => setSummaryCreateChannel(channel)} />
+      ) : null}
       {createMatterChannel ? (
         <CreateMatterModal
           open
           onClose={() => setCreateMatterChannel(null)}
           sourceChannel={{ channel: createMatterChannel, name: createMatterChannelName }}
+        />
+      ) : null}
+      {summaryCreateChannel ? (
+        <ChatSummaryNewModal
+          open
+          channel={summaryCreateChannel}
+          onClose={() => setSummaryCreateChannel(null)}
+          onCreated={() => {
+            setSummaryCreateChannel(null);
+            chatSidePanelActions.openSummary(null);
+          }}
         />
       ) : null}
     </div>

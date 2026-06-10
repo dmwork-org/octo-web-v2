@@ -1,21 +1,21 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
-import type { Plugin } from "unified";
+import type { PluggableList, Plugin } from "unified";
 import type { Node, Parent } from "unist";
 import type { Root, Text } from "mdast";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { router } from "@/lib/router";
+import { authStore } from "@/features/base/stores/auth";
+import { chatLocateMessageActions } from "@/features/chat/stores/chat-locate-message";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { summaryMarkdownClass } from "@/features/summary/components/summary-content";
 import type { CitationContextMessage, CitationItem } from "@/features/summary/types/summary.types";
 
 interface CitationTextProps {
@@ -56,8 +56,16 @@ function formatCitationTime(iso: string): string {
 
 // ─── Remark 插件:把 [N] / [N][M] 文本节点转成 <citationgroup> ───
 
+interface CitationNode extends Node {
+  type: "citation";
+  data: {
+    hName: "citation";
+    hProperties: { index: number; badgekey: string };
+  };
+}
+
 interface CitationGroupNode extends Node {
-  type: "citationGroup";
+  type: "citationgroup";
   data: {
     hName: "citationgroup";
     hProperties: { indices: string; badgekey: string };
@@ -103,23 +111,37 @@ const remarkCitation: Plugin<[CitationItem[]], Root> = (citations) => {
       }
       groups.push(cur);
 
-      const parts: (Text | CitationGroupNode)[] = [];
+      const parts: (Text | CitationNode | CitationGroupNode)[] = [];
       let cursor = 0;
       for (const g of groups) {
         if (g.start > cursor) {
           parts.push({ type: "text", value: node.value.slice(cursor, g.start) });
         }
+        const badgeKey = `${occurrence}-${g.indices.join(",")}`;
         occurrence += 1;
-        parts.push({
-          type: "citationGroup",
-          data: {
-            hName: "citationgroup",
-            hProperties: {
-              indices: g.indices.join(","),
-              badgekey: `${occurrence}-${g.indices.join(",")}`,
+        if (g.indices.length === 1) {
+          parts.push({
+            type: "citation",
+            data: {
+              hName: "citation",
+              hProperties: {
+                index: g.indices[0],
+                badgekey: badgeKey,
+              },
             },
-          },
-        });
+          });
+        } else {
+          parts.push({
+            type: "citationgroup",
+            data: {
+              hName: "citationgroup",
+              hProperties: {
+                indices: g.indices.join(","),
+                badgekey: badgeKey,
+              },
+            },
+          });
+        }
         cursor = g.end;
       }
       if (cursor < node.value.length) {
@@ -135,7 +157,7 @@ const remarkCitation: Plugin<[CitationItem[]], Root> = (citations) => {
 // ─── Badge 视觉 ────────────────────────────────────────────
 
 const badgeClass =
-  "ml-0.5 inline-flex cursor-pointer items-center rounded-sm bg-brand-tint px-1 align-super text-[11px] leading-4 text-brand hover:bg-brand-tint/80";
+  "ml-0.5 inline-flex cursor-pointer items-center rounded-sm border border-border-subtle bg-bg-elevated px-1 align-super text-[11px] font-medium leading-4 text-text-secondary transition-colors hover:border-border-strong hover:bg-bg-hover hover:text-text-primary";
 
 function ContextMessages({ messages }: { messages?: CitationContextMessage[] }) {
   if (!messages?.length) return null;
@@ -144,7 +166,7 @@ function ContextMessages({ messages }: { messages?: CitationContextMessage[] }) 
       {messages.map((msg, i) => (
         <div
           key={`${msg.sent_at}-${i}`}
-          className="px-2 py-1 text-xs leading-snug text-text-tertiary italic"
+          className="rounded-sm px-2 py-1.5 text-xs leading-snug text-text-tertiary italic"
         >
           <div className="mb-0.5 flex items-baseline justify-between gap-2">
             <span className="text-[12px] font-medium">{msg.sender}</span>
@@ -163,16 +185,23 @@ function JumpToOriginal({ citation, onJump }: { citation: CitationItem; onJump: 
   const tr = useT();
   if (!citation.channel_id || !citation.message_seq || citation.channel_type == null) return null;
   return (
-    <div className="mt-2 border-t border-border-subtle pt-1.5 text-right">
+    <div className="border-t border-border-subtle bg-bg-surface px-3 py-2 text-right">
       <button
         type="button"
-        className="text-[12px] text-brand hover:underline"
+        className="inline-flex h-7 items-center rounded-md px-2 text-[12px] font-medium text-text-primary transition-colors hover:bg-bg-hover"
         onClick={(e) => {
           e.stopPropagation();
           onJump();
+          let channelId = citation.channel_id!;
           const ct = resolveChannelType(citation.channel_type);
-          const ch = new Channel(citation.channel_id!, ct);
+          if (ct === ChannelTypePerson && channelId.includes("@")) {
+            const loginUid = authStore.state.user?.uid;
+            channelId = channelId.split("@").find((id) => id !== loginUid) || channelId;
+          }
+          const ch = new Channel(channelId, ct);
+          chatLocateMessageActions.request(ch, citation.message_seq!, { strategy: "window" });
           chatSelectedActions.select(ch);
+          void router.navigate({ href: "/" });
         }}
       >
         {tr("summary.citation.jumpToOriginal")}
@@ -180,15 +209,6 @@ function JumpToOriginal({ citation, onJump }: { citation: CitationItem; onJump: 
     </div>
   );
 }
-
-const popoverStyle: CSSProperties = {
-  position: "absolute",
-  bottom: "calc(100% + 6px)",
-  left: 0,
-  zIndex: 50,
-  width: 340,
-  maxHeight: 360,
-};
 
 interface CitationGroupBadgeProps {
   indices: number[];
@@ -271,36 +291,43 @@ function CitationGroupBadge({ indices, citations, badgeKey }: CitationGroupBadge
   const first = groupCitations[0];
 
   return (
-    <span className="relative inline">
-      <sup
-        role="button"
-        tabIndex={0}
-        className={badgeClass}
-        onClick={(e) => {
-          e.stopPropagation();
-          onBadgeClick(badgeKey);
-        }}
-      >
-        [{label}]
-      </sup>
-      {visible ? (
-        <span
-          style={popoverStyle}
-          className="overflow-y-auto rounded-md border border-border-default bg-bg-surface p-2 text-text-primary shadow-lg"
-          onClick={(e) => e.stopPropagation()}
+    <Popover open={visible} onOpenChange={(open) => !open && closeKey(badgeKey)}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={badgeClass}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBadgeClick(badgeKey);
+          }}
         >
+          [{label}]
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-[380px] max-w-[calc(100vw-32px)] overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="max-h-[360px] overflow-y-auto p-2">
           {messages.map((msg, i) => (
             <div
               key={msg.message_seq ?? `${msg.sent_at}-${i}`}
               className={
                 msg.cited
-                  ? "border-l-2 border-brand px-2 py-1 text-[13px] leading-snug"
-                  : "px-2 py-1 text-xs leading-snug text-text-tertiary italic"
+                  ? "rounded-sm border-l-2 border-text-primary bg-bg-elevated px-2.5 py-2 text-[13px] leading-snug"
+                  : "rounded-sm px-2.5 py-1.5 text-xs leading-snug text-text-tertiary italic"
               }
             >
-              <div className="mb-0.5 flex items-baseline justify-between gap-2">
+              <div className="mb-0.5 flex items-baseline justify-between gap-3">
                 <span
-                  className={msg.cited ? "text-[13px] font-semibold" : "text-[12px] font-medium"}
+                  className={
+                    msg.cited
+                      ? "min-w-0 truncate text-[13px] font-semibold"
+                      : "min-w-0 truncate text-[12px] font-medium"
+                  }
                 >
                   {msg.sender}
                 </span>
@@ -311,10 +338,10 @@ function CitationGroupBadge({ indices, citations, badgeKey }: CitationGroupBadge
               <div className="break-words">{msg.content}</div>
             </div>
           ))}
-          <JumpToOriginal citation={first} onJump={() => closeKey(badgeKey)} />
-        </span>
-      ) : null}
-    </span>
+        </div>
+        <JumpToOriginal citation={first} onJump={() => closeKey(badgeKey)} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -331,28 +358,31 @@ function CitationSingleBadge({ index, citations, badgeKey }: CitationSingleBadge
   const visible = activeKey === badgeKey;
 
   return (
-    <span className="relative inline">
-      <sup
-        role="button"
-        tabIndex={0}
-        className={badgeClass}
-        onClick={(e) => {
-          e.stopPropagation();
-          onBadgeClick(badgeKey);
-        }}
-      >
-        [{index}]
-      </sup>
-      {visible ? (
-        <span
-          style={popoverStyle}
-          className="overflow-y-auto rounded-md border border-border-default bg-bg-surface p-2 text-text-primary shadow-lg"
-          onClick={(e) => e.stopPropagation()}
+    <Popover open={visible} onOpenChange={(open) => !open && closeKey(badgeKey)}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={badgeClass}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBadgeClick(badgeKey);
+          }}
         >
+          [{index}]
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-[380px] max-w-[calc(100vw-32px)] overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="max-h-[360px] overflow-y-auto p-2">
           <ContextMessages messages={citation.context_before} />
-          <div className="border-l-2 border-brand px-2 py-1 text-[13px] leading-snug">
-            <div className="mb-0.5 flex items-baseline justify-between gap-2">
-              <span className="text-[13px] font-semibold">{citation.sender}</span>
+          <div className="rounded-sm border-l-2 border-text-primary bg-bg-elevated px-2.5 py-2 text-[13px] leading-snug">
+            <div className="mb-0.5 flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-[13px] font-semibold">{citation.sender}</span>
               <span className="shrink-0 text-[11px] text-text-tertiary">
                 {formatCitationTime(citation.sent_at)}
               </span>
@@ -365,21 +395,38 @@ function CitationSingleBadge({ index, citations, badgeKey }: CitationSingleBadge
             <div className="break-words">{citation.content}</div>
           </div>
           <ContextMessages messages={citation.context_after} />
-          <JumpToOriginal citation={citation} onJump={() => closeKey(badgeKey)} />
-        </span>
-      ) : null}
-    </span>
+        </div>
+        <JumpToOriginal citation={citation} onJump={() => closeKey(badgeKey)} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
 // ─── 主体 ─────────────────────────────────────────────────
 
-const proseClass =
-  "text-sm leading-relaxed text-text-primary [&_a]:text-brand [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border-default [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary [&_code]:rounded [&_code]:bg-bg-elevated [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12px] [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold [&_hr]:my-3 [&_hr]:border-border-subtle [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-bg-elevated [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-3 [&_table]:border-collapse [&_table]:border [&_table]:border-border-default [&_td]:border [&_td]:border-border-default [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border-default [&_th]:bg-bg-elevated [&_th]:px-2 [&_th]:py-1 [&_th]:font-semibold [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5";
+const citationSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "citation", "citationgroup"],
+  attributes: {
+    ...defaultSchema.attributes,
+    citation: ["index", "badgekey"],
+    citationgroup: ["indices", "badgekey"],
+  },
+};
+
+const baseRemarkPlugins = [remarkGfm, remarkBreaks];
+const rehypePlugins: PluggableList = [[rehypeSanitize, citationSchema]];
+
+interface CitationNodeProps {
+  index?: number | string;
+  badgekey?: string;
+  node?: { properties?: { index?: number | string; badgekey?: string } };
+}
 
 interface CitationGroupNodeProps {
   indices?: string;
   badgekey?: string;
+  node?: { properties?: { indices?: string; badgekey?: string } };
 }
 
 /**
@@ -403,13 +450,22 @@ export function CitationText({ content, citations }: CitationTextProps) {
 
   const components = useMemo(
     () => ({
-      citationgroup: ({ indices, badgekey }: CitationGroupNodeProps) => {
-        if (!indices || !badgekey) return null;
-        const arr = indices.split(",").map((s) => parseInt(s, 10));
-        if (arr.length === 1) {
-          return <CitationSingleBadge index={arr[0]} citations={citations} badgeKey={badgekey} />;
-        }
-        return <CitationGroupBadge indices={arr} citations={citations} badgeKey={badgekey} />;
+      citation: ({ index, badgekey, node }: CitationNodeProps) => {
+        const rawIndex = node?.properties?.index ?? index;
+        const badgeKey = node?.properties?.badgekey ?? badgekey;
+        if (rawIndex == null || !badgeKey) return null;
+        const parsedIndex = Number(rawIndex);
+        if (!Number.isFinite(parsedIndex)) return null;
+        return (
+          <CitationSingleBadge index={parsedIndex} citations={citations} badgeKey={badgeKey} />
+        );
+      },
+      citationgroup: ({ indices, badgekey, node }: CitationGroupNodeProps) => {
+        const indicesText = node?.properties?.indices ?? indices;
+        const badgeKey = node?.properties?.badgekey ?? badgekey;
+        if (!indicesText || !badgeKey) return null;
+        const arr = indicesText.split(",").map((s) => parseInt(s, 10));
+        return <CitationGroupBadge indices={arr} citations={citations} badgeKey={badgeKey} />;
       },
     }),
     [citations],
@@ -417,9 +473,10 @@ export function CitationText({ content, citations }: CitationTextProps) {
 
   return (
     <CitationCtx.Provider value={ctxValue}>
-      <div className={proseClass} onClick={() => setActiveKey(null)}>
+      <div className={summaryMarkdownClass} onClick={() => setActiveKey(null)}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, [remarkCitation, citations]]}
+          remarkPlugins={[...baseRemarkPlugins, [remarkCitation, citations]]}
+          rehypePlugins={rehypePlugins}
           components={components as Record<string, unknown>}
         >
           {content}

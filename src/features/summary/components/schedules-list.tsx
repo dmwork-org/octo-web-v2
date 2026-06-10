@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { deleteSchedule, toggleSchedule } from "@/features/summary/api/summary.api";
 import {
   schedulesQueryKey,
@@ -58,6 +59,7 @@ interface ScheduleRowProps {
 function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
   const tr = useT();
   const qc = useQueryClient();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const invalidate = () => qc.invalidateQueries({ queryKey: schedulesQueryKey });
 
   const toggleMu = useMutation({
@@ -70,6 +72,7 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
   const delMu = useMutation({
     mutationFn: () => deleteSchedule(item.schedule_id),
     onSuccess: () => {
+      setDeleteConfirmOpen(false);
       void invalidate();
       toast.success(t("summary.schedule.deleted"));
     },
@@ -83,79 +86,88 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
       : tr("summary.schedule.modeByPersonShort");
 
   return (
-    <div className="group flex items-start justify-between gap-3 rounded-md border border-border-subtle bg-bg-surface px-3 py-2.5 hover:border-border-default">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-text-primary">
-            {item.title || tr("summary.schedule.unnamed")}
-          </span>
-          <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-            {modeLabel}
-          </span>
-          {!item.is_active ? (
-            <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-              {tr("summary.schedule.paused")}
+    <>
+      <div className="group flex items-start justify-between gap-3 rounded-md border border-border-subtle bg-bg-surface px-3 py-2.5 hover:border-border-default">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-text-primary">
+              {item.title || tr("summary.schedule.unnamed")}
             </span>
-          ) : null}
+            <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+              {modeLabel}
+            </span>
+            {!item.is_active ? (
+              <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
+                {tr("summary.schedule.paused")}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
+            <span>{cronToLabel(item.cron_expr)}</span>
+            <span>·</span>
+            <span>{tr(TIME_RANGE_TYPE_KEY[item.time_range_type])}</span>
+            <span>·</span>
+            <span>
+              {tr("summary.schedule.sourcesCount", { values: { count: item.sources.length } })}
+            </span>
+            <span>·</span>
+            <span>
+              {tr("summary.schedule.nextRun", {
+                values: { time: formatNextRun(item.next_run_at) },
+              })}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
-          <span>{cronToLabel(item.cron_expr)}</span>
-          <span>·</span>
-          <span>{tr(TIME_RANGE_TYPE_KEY[item.time_range_type])}</span>
-          <span>·</span>
-          <span>
-            {tr("summary.schedule.sourcesCount", { values: { count: item.sources.length } })}
-          </span>
-          <span>·</span>
-          <span>
-            {tr("summary.schedule.nextRun", { values: { time: formatNextRun(item.next_run_at) } })}
-          </span>
-        </div>
-      </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <label
-          className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-tertiary hover:bg-bg-hover"
-          title={item.is_active ? tr("summary.schedule.pause") : tr("summary.schedule.enable")}
-        >
-          <input
-            type="checkbox"
-            checked={item.is_active}
-            disabled={toggleMu.isPending}
-            onChange={(e) => toggleMu.mutate(e.target.checked)}
-            className="shrink-0"
-          />
-          {item.is_active ? tr("summary.schedule.enable") : tr("summary.schedule.pause")}
-        </label>
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={tr("summary.schedule.editAria")}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          type="button"
-          aria-label={tr("summary.schedule.deleteAria")}
-          disabled={delMu.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                t("summary.schedule.deleteConfirm", {
-                  values: { title: item.title || t("summary.schedule.unnamed") },
-                }),
-              )
-            ) {
-              delMu.mutate();
-            }
-          }}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-error disabled:opacity-50"
-        >
-          <Trash2 size={13} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <label
+            className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-tertiary hover:bg-bg-hover"
+            title={item.is_active ? tr("summary.schedule.pause") : tr("summary.schedule.enable")}
+          >
+            <input
+              type="checkbox"
+              checked={item.is_active}
+              disabled={toggleMu.isPending}
+              onChange={(e) => toggleMu.mutate(e.target.checked)}
+              className="shrink-0"
+            />
+            {item.is_active ? tr("summary.schedule.enable") : tr("summary.schedule.pause")}
+          </label>
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={tr("summary.schedule.editAria")}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            type="button"
+            aria-label={tr("summary.schedule.deleteAria")}
+            disabled={delMu.isPending}
+            onClick={() => setDeleteConfirmOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-error disabled:opacity-50"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
-    </div>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={tr("summary.schedule.deleteTitle")}
+        content={tr("summary.schedule.deleteConfirm", {
+          values: { title: item.title || tr("summary.schedule.unnamed") },
+        })}
+        okText={tr("summary.common.delete")}
+        cancelText={tr("summary.common.cancel")}
+        okDanger
+        okLoading={delMu.isPending}
+        onOk={() => {
+          if (!delMu.isPending) delMu.mutate();
+        }}
+      />
+    </>
   );
 }
 

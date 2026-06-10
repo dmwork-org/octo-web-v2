@@ -1,9 +1,11 @@
 import type { QueryClient, InfiniteData } from "@tanstack/react-query";
-import type { Channel, Message } from "wukongimjssdk";
+import WKSDK, { PullMode, type Channel, type Message } from "wukongimjssdk";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 
 /** 历史拉取页数封顶(10 × 30 = 300 条),避免引用 500 条前消息时无限拉。 */
 const MAX_PAGES_TO_PULL = 10;
+const LOCATE_WINDOW_BEFORE = 5;
+const LOCATE_WINDOW_LIMIT = 30;
 
 /** fetch 完成到 React 渲染需要等一帧;50ms 涵盖大多数 paint。 */
 const RENDER_WAIT_MS = 50;
@@ -12,9 +14,8 @@ const RENDER_WAIT_MS = 50;
  * 点击 reply 块跳转原消息 — 若不在当前 InfiniteQuery 已加载页,
  * 循环拉历史 + 重试 querySelector,直到找到 / 到顶 / 超过 cap。
  *
- * 对齐老仓 Conversation/vm.ts:1660-1971 `refreshAndLocateMessages` +
- * `pullupMessages` 循环。后端无"按 seq 跳转"API,只能 SDK syncMessages
- * 一页一页拉。
+ * 只保留给聊天内 reply 块使用,尽量不替换当前消息窗口。外部入口跳原文走
+ * locateMessageWindow,避免从最新消息开始逐页翻历史。
  *
  * @returns 找到的 DOM 元素;到顶或超过 cap 仍找不到 → null(caller 弹 toast)
  */
@@ -38,8 +39,53 @@ export async function locateReplyMessage(
   return null;
 }
 
+/**
+ * 按 messageSeq 直接拉一段定位窗口,用于外部入口(智能总结/事项)跳原文。
+ *
+ * 对齐上游 ShowConversationOptions.initLocateMessageSeq:
+ * `startMessageSeq = seq - 5` + `PullMode.Up` 一次拿到原文附近窗口,避免为了
+ * 定位一条旧消息从最新页开始连续 pull 历史,触发 message/channel/sync 429。
+ */
+export async function locateMessageWindow(
+  qc: QueryClient,
+  channel: Channel,
+  messageSeq: number,
+  signal?: AbortSignal,
+): Promise<HTMLElement | null> {
+  let el = findEl(messageSeq);
+  if (el) return el;
+  if (signal?.aborted) return null;
+
+  const page = await fetchLocateWindow(channel, messageSeq);
+  if (signal?.aborted) return null;
+
+  const opts = messagesInfiniteQueryOptions(channel);
+  qc.setQueryData<InfiniteData<Message[], number>>(opts.queryKey, {
+    pages: [page],
+    pageParams: [locateWindowStart(messageSeq)],
+  });
+
+  await sleep(RENDER_WAIT_MS);
+  el = findEl(messageSeq);
+  return el;
+}
+
 function findEl(seq: number): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
+}
+
+function locateWindowStart(messageSeq: number): number {
+  return Math.max(messageSeq - LOCATE_WINDOW_BEFORE, 0);
+}
+
+async function fetchLocateWindow(channel: Channel, messageSeq: number): Promise<Message[]> {
+  const list = await WKSDK.shared().chatManager.syncMessages(channel, {
+    startMessageSeq: locateWindowStart(messageSeq),
+    endMessageSeq: 0,
+    limit: LOCATE_WINDOW_LIMIT,
+    pullMode: PullMode.Up,
+  });
+  return (list ?? []).filter((m) => !m.isDeleted);
 }
 
 /**

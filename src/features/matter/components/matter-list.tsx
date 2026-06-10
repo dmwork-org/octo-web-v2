@@ -155,10 +155,8 @@ export function MatterList({
       <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1" style={{ background: "rgba(28, 28, 35, 0.04)" }}>
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
-          // 始终显示计数
-          const count = isChannelMode
-            ? filtered.length
-            : all.length;
+          // channel 模式一次拉全量 → 每个 tab 计数都准确; page 模式只拉当前 tab → 仅激活态显示
+          const count = isChannelMode || isActive ? (isChannelMode ? filtered.length : all.length) : null;
           return (
             <button
               key={tk.id}
@@ -171,7 +169,7 @@ export function MatterList({
               }`}
             >
               {t(tk.key)}
-              {count > 0 ? <span className="ml-0.5">{count}</span> : null}
+              {count !== null && count > 0 ? <span className="ml-0.5">{count}</span> : null}
             </button>
           );
         })}

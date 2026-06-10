@@ -229,4 +229,36 @@ PreToolUse hook 真触发验证通过:
   - Notice modal 跟 VoiceSettingsModal 互斥显示(`open && !showNotice`),避免视觉叠加
 - baseline SHA 暂不推进
 
+## 2026-06-10 — Batch 1.11 chat-summary chat-window 集成
+
+- 全搬 2 个上游 SHA(本仓拆 7 commits):
+  - `f27fbdd2` chat-window smart summary UI(33+ files 上游,本仓精简实施 6 commits):
+    - **commit 1** API + types:`summary.api.ts` 加 batchStatus / getChatCandidates / getMemberCandidates / getTopicTemplates;listSummaries 接受 signal config;CreateSummaryParams 加 origin_channel_id/type(title 改可选,后端为空回退 topic);ListSummariesParams 加 origin_channel_id;onResponseError guard AbortError 透传(对齐老仓 axios.isCancel)
+    - **commit 2** utils + constants:`channel-source.ts`(getSourceType WK channelType → SourceType 枚举,防呆 thread 5 不能直传后端);`template-resolver.ts`(LocalTopicTemplate i18n key 解析 + parameterized 模板首个 placeholder 选区);`chat-summary-events.ts`(CustomEvent 包装 + subscribe helper);`topic-templates.ts`(4 个前端兜底 + MAX_CHAT_SELECT=30)
+    - **commit 3** `chat-side-panel` store 加 `kind="summary"`(taskId null=列表 / 非空=详情双栈),互斥规则跟 thread/matter/filePreview 一致
+    - **commit 4** 创建 modal:**陈超明确"完美复刻老仓 chat-context 创建流"** — 不动现有 SummaryCreateModal(本期范围外),独立新建:
+      - `template-card.tsx`(本仓 tailwind + tokens,替代老仓 inline style hover hardcoded)
+      - `chat-selector-modal.tsx`(group→thread→direct 层次 + 三 tab + 模糊搜索 + max 30,嵌套 BaseDialog 自动 z-dialog-secondary)
+      - `chat-summary-new-modal.tsx`(lg size,默认 selectedChats=[当前 channel],topic 空时显 4 模板;parameterized 模板点选填 placeholder label + 自动选区 + focus 时清掉;Enter 提交,成功 dispatch chat-summary-created)
+    - **commit 5** chat panel + sparkle entry:
+      - `chat-summary-panel.tsx`(壳子复用 useRightPanelResize + PanelSplitter,内容 list/detail 由 store.taskId 决定;header 内 ← 返回 / × 关闭)
+      - `chat-summary-history.tsx`(按 origin_channel_id 拉列表 + 订阅 CustomEvent 自动 invalidate;轮询走 summariesQueryOptions 自带 refetchInterval;hover 删除 confirm)
+      - `chat-header.tsx` 加 SummaryEntryButton(Sparkles):点击探测 listSummaries(origin_channel_id);成功 openSummary(null) 跳列表;失败 toast 不开 panel(P1 fix);AbortController 跟 channel 切换协同断
+      - `chat-main.tsx` 加 `sidePanelKind === "summary"` → 渲染 ChatSummaryPanel
+  - `123a12c6` NavRail badge + auto refresh(1 commit):
+    - **commit 6** `summary-badge.query.ts` 独立 WAITING_CONFIRM 总数 query(30s stale + 60s refetchInterval);`sidebar.tsx` NavItem 加 badge 渲染(>99 显 99+),用 path 解析避开 module augmentation 冲突;`personal-section.tsx` confirm/decline mutation 顺手 invalidate summaryBadgeQueryKey 让 badge 立刻减
+  - **commit 7** i18n 28 keys(zh-CN + en-US 各):common(loading/delete/deleteConfirm/remove/createFailedRetry)、create(submitting/topicPlaceholderInChat)、chatSummary(back/closeAria/createNew/panelTitle/starTooltip)、chatSelector(tabGroup/tabDirect)、templates 4 套
+- 本仓 commits(分支 feat/upstream-batch-1-11):6600096 / 04f547d / 571168c / ddaa1c1 / 73c14eb / 322f505 / bfb9d70(7 个 code commits + 收尾 docs)
+- 关键决策:
+  - **不动 SummaryCreateModal**(陈超指示):chat-context 独立 ChatSummaryNewModal,主模块的统一调整后续 batch 单立
+  - **panel 壳子用本仓统一**(陈超指示):复用 useRightPanelResize / PanelSplitter,内容逻辑对齐老仓,UI tailwind 化;不搬老仓 layoutWidth.ts splitter(老仓 commit 已知 ~70px 偏差 bug)
+  - **NavRail badge 用 path 解析**:`item.to === "/summary"` 判定避开 staticData module augmentation 冲突;sidebar own summary→query 解析
+  - **不搬 mittBus event 桥接**:React Query refetchInterval + invalidate 等效实现"任务完成自动刷新列表 + badge";路由切换不需要 wk:nav-menu-activated listener
+  - **不搬 templates "getTemplates 已无 caller"分支**:上游 commit description 自己说"remove in follow-up",本仓不引入死代码
+  - **不搬 ChatSummaryNewModal 全量 css**:本仓 tailwind + design tokens 替代,无 hardcoded `#3370FF` 等
+  - **关键防呆 origin_channel_type**:必须用 SourceType 枚举(group=1 / thread=2 / DM=3),不是 WK SDK channelType(thread=5 会被后端 400 拒)
+- **依赖**:后端 smart-summary 服务 `#61` 必须已部署(支持 origin_channel_id / chat-candidates / topic-templates endpoint);chat panel 入口探测请求会按当前 channelID 拉,后端不支持时 toast 友好提示
+- baseline SHA 暂不推进
+
+
 

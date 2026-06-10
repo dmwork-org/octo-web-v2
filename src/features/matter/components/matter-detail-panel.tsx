@@ -378,20 +378,25 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               <ul className="flex flex-wrap items-center gap-1.5">
                 {assigneeUids.map((uid) => (
                   <li key={uid}>
-                    <UserChip uid={uid} />
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen(true)}
+                      className="cursor-pointer border-0 bg-transparent p-0"
+                    >
+                      <UserChip uid={uid} />
+                    </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <span>{t("matter.assignee.empty")}</span>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="cursor-pointer border-0 bg-transparent p-0 text-text-tertiary"
+              >
+                <span>{t("matter.assignee.empty")}</span>
+              </button>
             )}
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              className="ml-1 rounded px-1.5 py-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            >
-              {t("matter.action.edit")}
-            </button>
           </FieldChip>
         </div>
 

@@ -170,14 +170,14 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
 
       {/* 下拉 */}
       {open && (
-        <div className="absolute top-full left-0 z-popover mt-2 min-w-64 max-h-64 overflow-hidden rounded-md border border-border-subtle bg-bg-surface shadow-lg">
+        <div className="absolute top-full left-0 z-popover mt-2 min-w-64 rounded-md border border-border-subtle bg-bg-surface shadow-lg">
           {candidates.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
               {tr("matter.member.empty")}
             </div>
           ) : (
             <Virtuoso
-              style={{ height: "100%" }}
+              style={{ height: 256, width: "100%" }}
               totalCount={candidates.length}
               itemContent={(index) => {
                 const c = candidates[index];

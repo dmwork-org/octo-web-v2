@@ -17,6 +17,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { avatarVersionActions } from "@/features/base/stores/avatar-version";
 import { createGroup } from "@/features/base/api/endpoints/group.api";
 import { clearConversationUnread } from "@/features/base/api/endpoints/conversation.api";
 import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
@@ -92,6 +93,11 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
     onSuccess: async (resp) => {
       const newChannel = new Channel(resp.group_no, ChannelTypeGroup);
       void WKSDK.shared().channelManager.fetchChannelInfo(newChannel);
+      // 头像首屏(issue #64):channelInfo.logo 后端建群时通常为空,channel-avatar
+      // 会走 `${baseURL}/groups/{groupNo}/avatar` fallback URL。主动 bump 一个
+      // 非零 version,让 fallback URL 首次就带 `?v={ts}`,后端 ready 后即使是
+      // 同一 path,version 变化也强制重 GET,绕过潜在的旧 404 cache。
+      avatarVersionActions.bump(resp.group_no);
       if (categoryId) {
         try {
           await moveGroupToCategory(resp.group_no, categoryId);

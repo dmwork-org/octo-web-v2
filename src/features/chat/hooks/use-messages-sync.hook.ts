@@ -8,6 +8,7 @@ import WKSDK, {
   ConnectStatus,
   type Message,
   MessageStatus,
+  PullMode,
   ReasonCode,
   type SendackPacket,
 } from "wukongimjssdk";
@@ -175,6 +176,44 @@ export function useMessagesSync(channel: Channel | null) {
     WKSDK.shared().chatManager.addMessageStatusListener(statusListener);
     WKSDK.shared().chatManager.addCMDListener(cmdListener);
     WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener);
+
+    // 进入 channel 时主动补差(对齐老仓 "打开会话即 syncMessages"):
+    // messagesInfiniteQueryOptions staleTime=Infinity 让 cache 不会自动 refetch。
+    // 若上次离开本会话期间有新消息(bot 回复 / 别人发言),messageListener 只对
+    // **当前** mounted channel 生效,B 没打开时根本没人写它的 cache。点回 B 时
+    // useInfiniteQuery 看到 cache 命中直接用旧数据 → 新消息看不到。
+    //
+    // 修法:进入(且 cache 已有数据)时主动 SDK syncMessages 拉最新一页,
+    // append 到 firstPage 末尾,渲染时按 messageSeq 排序自动排到底部。
+    // 去重靠 clientMsgNo,与 messageListener 同模式。
+    const prevData = qc.getQueryData<InfiniteData<Message[], number>>(key);
+    if (prevData && prevData.pages.length > 0) {
+      void (async () => {
+        try {
+          const latest = await WKSDK.shared().chatManager.syncMessages(channel, {
+            startMessageSeq: 0,
+            endMessageSeq: 0,
+            limit: 30,
+            pullMode: PullMode.Down,
+          });
+          if (!latest || latest.length === 0) return;
+          qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
+            if (!prev || prev.pages.length === 0) return prev;
+            const firstPage = prev.pages[0];
+            const existingClientNos = new Set(prev.pages.flat().map((m) => m.clientMsgNo));
+            const newOnes = latest.filter((m) => !existingClientNos.has(m.clientMsgNo));
+            if (newOnes.length === 0) return prev;
+            return {
+              ...prev,
+              pages: [[...firstPage, ...newOnes], ...prev.pages.slice(1)],
+            };
+          });
+        } catch {
+          // 静默失败 — messageListener 实时推送 + reconnect 5s invalidate 仍是兜底
+        }
+      })();
+    }
+
     return () => {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       WKSDK.shared().chatManager.removeMessageListener(messageListener);

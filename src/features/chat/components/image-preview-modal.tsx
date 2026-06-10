@@ -12,13 +12,14 @@ interface ImagePreviewModalProps {
  *
  * Portal 到 document.body — 否则 inline render 被父级 stacking context 困住,
  * 无法盖兄弟的 composer / scroll-button / chat-side-panel(z-floating=100)。
- * z-dialog(300)已足够压过 floating 层。
+ * 图片预览是全局 lightbox,需要盖住业务 dialog / 嵌套 dialog 里的消息内容,
+ * 所以走 z-system-overlay。
  */
 export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   const t = useT();
   return createPortal(
     <div
-      className="fixed inset-0 z-dialog flex items-center justify-center bg-black"
+      className="fixed inset-0 z-system-overlay flex items-center justify-center bg-black"
       onClick={onClose}
       onContextMenu={(e) => e.preventDefault()}
       role="dialog"

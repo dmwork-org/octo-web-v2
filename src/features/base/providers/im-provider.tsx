@@ -7,6 +7,7 @@ import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
 import { registerContentTypes } from "@/features/base/im/register-content";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
+import { useCmdSync } from "@/features/chat/hooks/use-cmd-sync.hook";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 import { t } from "@/lib/i18n/instance";
 import { router } from "@/lib/router";
@@ -138,5 +139,6 @@ export function IMProvider({ children }: IMProviderProps) {
   const uid = useStore(authStore, (s) => s.user?.uid ?? null);
   useImConnection(uid, token);
   useDesktopNotifications(uid);
+  useCmdSync();
   return children;
 }

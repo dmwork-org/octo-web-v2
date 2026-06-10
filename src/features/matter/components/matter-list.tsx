@@ -103,23 +103,21 @@ export function MatterList({
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [activeOpen, setActiveOpen] = useState(true);
 
-  // params:channel 模式 → 一次性按 channel_id 拉;非 channel 模式 → 跟 tab 切换
+  // params:channel 模式 → 一次性按 channel_id 拉;page 模式 → 一次拉全量，本地按 tab 过滤
   const params = useMemo<MatterListParams>(() => {
     if (isChannelMode) return { channel_id: channel.channelID };
-    if (tab === "mine") return { assignee_id: myUid };
-    if (tab === "created") return { creator_id: myUid };
     return {};
-  }, [isChannelMode, channel, tab, myUid]);
+  }, [isChannelMode, channel]);
 
   const query = useInfiniteQuery(mattersListInfiniteQueryOptions(spaceId, params));
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
 
   const all = useMemo<Matter[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
 
-  // channel 模式:已拿 matters 本地按 tab 二次过滤;非 channel 模式:API 已按 tab 过滤,all 即结果
+  // 所有模式都本地按 tab 过滤（一次拉全量，所有 tab 计数都准确）
   const filtered = useMemo<Matter[]>(
-    () => (isChannelMode ? filterByTab(all, tab, myUid) : all),
-    [isChannelMode, all, tab, myUid],
+    () => filterByTab(all, tab, myUid),
+    [all, tab, myUid],
   );
 
   // 搜索过滤（本地过滤，不重新请求 API）
@@ -155,8 +153,9 @@ export function MatterList({
       <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1" style={{ background: "rgba(28, 28, 35, 0.04)" }}>
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
-          // channel 模式一次拉全量 → 每个 tab 计数都准确; page 模式只拉当前 tab → 仅激活态显示
-          const count = isChannelMode || isActive ? (isChannelMode ? filtered.length : all.length) : null;
+          // 所有模式都一次拉全量 → 每个 tab 计数都准确
+          const tabFiltered = filterByTab(all, tk.id, myUid);
+          const count = tabFiltered.length;
           return (
             <button
               key={tk.id}
@@ -169,7 +168,7 @@ export function MatterList({
               }`}
             >
               {t(tk.key)}
-              {count !== null && count > 0 ? <span className="ml-0.5">{count}</span> : null}
+              {count > 0 ? <span className="ml-0.5">{count}</span> : null}
             </button>
           );
         })}

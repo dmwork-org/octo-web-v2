@@ -337,6 +337,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       });
     };
 
+    // VoiceFeedback uploadFinal(对齐上游 c0a6f1ea submitAll):用户实际发送的文本
+    // 跟之前 ASR modelText 配对上报,server 评估识别准确率。disabled 时 no-op。
+    try {
+      const { VoiceFeedback } = await import("@/features/chat/services/voice-feedback");
+      VoiceFeedback.shared()?.submitAll(editor?.getText() ?? "");
+    } catch {
+      /* feedback 失败不影响 send */
+    }
+
     setSending(true);
     let isFirst = true;
     const attachReplyOnce = (c: MessageContent) => {
@@ -510,11 +519,32 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     setTranscribing(true);
     try {
       const contextText = mode === "edit_only" ? (editor?.getText() ?? "") : undefined;
-      const { text } = await transcribeVoice(file, {
+      const result = await transcribeVoice(file, {
         channelType: channel.channelType,
         contextText,
         mode,
       });
+      const text = result.text;
+
+      // VoiceFeedback uploadLocal(对齐上游 c0a6f1ea onTranscribeResult):
+      // 把这次转写结果记 pending,user 实际发送时 submitAll 会再 uploadFinal 对齐 model/user
+      try {
+        const { VoiceFeedback } = await import("@/features/chat/services/voice-feedback");
+        VoiceFeedback.shared()?.onTranscribeResult({
+          utteranceId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          modelText: text,
+          source: "remote",
+          requestId: result.request_id,
+          asrParams: {
+            mode,
+            channelType: channel.channelType,
+            contextText,
+          },
+        });
+      } catch {
+        /* feedback 失败不影响转写流程 */
+      }
+
       if (!text || !editor) return;
 
       if (mode === "edit_only") {

@@ -307,7 +307,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
         <div className="mt-4 px-4">
           <MainGoalEditor matterId={matterId} description={data.description}>
-            {data.source_channel_id ? (
+            {data.source_channel_id ? (<div className="relative">
               <div
                 className={`inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] transition-opacity ${
                   !myGroupsQ.isLoading && isSourceMember && hasSourceMsgs
@@ -325,7 +325,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                 }
                 onClick={() => {
                   if (!myGroupsQ.isLoading && isSourceMember && hasSourceMsgs) {
-                    setSourceAnchor(true);
+                    setSourceAnchor((v) => !v);
                   }
                 }}
               >
@@ -350,9 +350,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                     {t("matter.label.fromHiddenChannel")}
                   </span>
                 )}
-              </div>
-            ) : null}
-          </MainGoalEditor>
+              </div>{sourceAnchor && (<AnchorPopover open channelId={data.source_channel_id ?? ""} channelType={data.source_channel_type ?? 2} channelName={displaySourceName} messageIds={data.source_msgs ?? []} onClose={() => setSourceAnchor(false)} />)}</div>) : null}</MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
@@ -435,16 +433,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         onOk={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
-      {sourceAnchor && (
-        <AnchorPopover
-          open
-          channelId={data.source_channel_id ?? ""}
-          channelType={data.source_channel_type ?? 2}
-          channelName={displaySourceName}
-          messageIds={data.source_msgs ?? []}
-          onClose={() => setSourceAnchor(false)}
-        />
-      )}
     </section>
   );
 }

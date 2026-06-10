@@ -107,9 +107,9 @@ export async function buildLinkableChannels(
     result.push(g);
     const threads = threadsByGroup.get(g.channelId) || [];
     for (const t of threads) {
-      // 只列 status=Active(1) 且 is_member !== 0
+      // 只列 status=Active(1) 且 is_member 明确为成员(1)，排除 undefined
       if (t.status !== 1 && t.status !== undefined) continue;
-      if (t.is_member === 0) continue;
+      if (t.is_member !== 1) continue;
       // 子区 channelId 必须有效
       if (!t.short_id) continue;
       result.push({

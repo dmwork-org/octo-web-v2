@@ -1021,6 +1021,8 @@
   "groupMgmt.noBotAdmins": "No bot admins",
   "groupMgmt.noCandidates": "No candidates available",
   "groupMgmt.noMatches": "No matching members",
+  "groupMgmt.memberManagement": "Member management",
+  "groupMgmt.memberManagementHint": "{{count}} members, remove members here",
   "groupMgmt.ownerManagers": "Owner & managers",
   "groupMgmt.removeAria": "Remove",
   "groupMgmt.removeBotAdminTitle": "Remove bot admin",

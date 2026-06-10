@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { toast } from "@/components/semi-bridge/toast";
+import { UserName } from "@/features/matter/components/user-name";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
@@ -151,7 +152,7 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
               size={18}
               title={a.user_id}
             />
-            <span>{a.user_id}</span>
+            <UserName uid={a.user_id} className="text-text-primary" />
           </button>
         ))}
         {assignees.length > 2 && (
@@ -211,7 +212,9 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
                     size={20}
                     title={c.name}
                   />
-                  <span className="truncate">{c.name}</span>
+                  <span className="truncate">
+                    <UserName uid={c.uid} />
+                  </span>
                 </button>
               );
             })

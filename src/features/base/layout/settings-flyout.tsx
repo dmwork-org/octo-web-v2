@@ -6,6 +6,7 @@ import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
+import { VoiceSettingsModal } from "@/features/chat/components/voice-settings-modal";
 import {
   isNotificationsOff,
   isNotificationSupported,
@@ -33,37 +34,30 @@ function useCloseOnOutside(open: boolean, onClose: () => void) {
 /**
  * 设置飞出菜单 — 1:1 对齐老仓 NavRail/NavSettingsPanel:
  *
- * 6 个菜单项 + 各自条件渲染(对齐老仓 L116-174):
- *   1. 发现新版本(条件:hasNewVersionLocal)— **本仓暂不接版本检查,条件永远 false 不显示**
- *   2. 账户中心(条件:OIDC + providerId !== 'local' + accountUrl 非空)— 真实跳 window.open
- *   3. 更新日志(始终)— 拉 `getChangelog()` + `<ChangelogModal>`
- *   4. 空间管理(条件:canManageSpace = 任一 space 是 owner/admin)— 占位
- *      老仓走 `window.location.href = "/space"`(独立 admin SPA),新仓没该 SPA
- *      → `console.info + toast "功能开发中"`
- *   5. 打开/关闭桌面通知(始终)— **真实接 Web Notification API**:
- *      打开时申请浏览器权限(`Notification.requestPermission`),拒绝则 toast 提示;
- *      接受 / 已 granted → 写 localStorage flag → `useDesktopNotifications` hook 即时生效
- *   6. 退出登录(始终)— `authActions.signOut()`(内部已整页跳 /login)
+ * 7 个菜单项 + 各自条件渲染(对齐老仓 L116-174):
+ *   1. 账户中心(条件:OIDC + providerId !== 'local' + accountUrl 非空)— 真实跳 window.open
+ *   2. 更新日志(始终)— 拉 `getChangelog()` + `<ChangelogModal>`
+ *   3. **语音设置**(始终)— `<VoiceSettingsModal>` (对齐上游 aec22081 NavVoiceSettingsItem)
+ *   4. 空间管理(条件:canManageSpace = 任一 space 是 owner/admin)
+ *   5. 打开/关闭桌面通知(始终)— 真实接 Web Notification API
+ *   6. 退出登录(始终)— `authActions.signOut()`
  *
  * 语言切换不在这里 — 已挪到 NavRail 底部齿轮上方独立按钮(LanguageToggle)。
- *
- * **形态**:fixed flyout(`left: 56px; bottom: 32px; width: 180px`)+ mask 拦截外部点击。
  */
 export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
   const t = useT();
   const { primaryProvider } = useSsoProviders();
   const { data: spaces } = useQuery(mySpacesQueryOptions());
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const [notiOff, setNotiOff] = useState<boolean>(isNotificationsOff);
   useCloseOnOutside(open, onClose);
 
-  // 任一 space 是 owner(1) 或 admin(2) 才显"空间管理"
   const canManageSpace = useMemo(
     () => (spaces ?? []).some((s) => s.role === 1 || s.role === 2),
     [spaces],
   );
 
-  // OIDC + 非 local provider + accountUrl 才显"账户中心"
   const accountUrl = primaryProvider?.accountUrl;
   const showAccountCenter = !!accountUrl;
 
@@ -78,19 +72,20 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     setChangelogOpen(true);
   };
 
+  const onClickVoiceSettings = () => {
+    onClose();
+    setVoiceSettingsOpen(true);
+  };
+
   const onClickManageSpace = () => {
     onClose();
-    // 空间管理是**独立 admin SPA**(老仓走 `window.location.href = "/space"`,该 SPA 在
-    // 另一个 repo 单独部署,跟主 chat 同源共用 token)。本 repo 不重构这个后台 — 等同事
-    // 把 admin SPA 部署到 `/space` 后,这里改回 `window.location.href = "/space"`。
     console.info("[settings] 空间管理 clicked → /space (独立 admin SPA,另一个 repo,待部署)");
     toast.info(t("base.settings.manageSpaceUnavailable"));
   };
 
-  // 打开桌面通知:先 requestPermission,granted 才真启用
   const onToggleDesktopNoti = async () => {
     onClose();
-    const willEnable = notiOff; // 当前是关,点击是要打开
+    const willEnable = notiOff;
     if (willEnable) {
       if (!isNotificationSupported()) {
         toast.warning(t("base.settings.notiUnsupported"));
@@ -120,9 +115,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     <>
       {open ? (
         <>
-          {/* mask 拦截外部点击关闭(对齐老仓 L109-114) */}
           <div className="fixed inset-0 z-system-overlay" onClick={onClose} aria-hidden />
-          {/* flyout 主体(对齐老仓 .wk-navrail__settings-list:left:56 bottom:32 width:180) */}
           <ul
             className="fixed bottom-8 left-14 z-system-overlay flex w-[180px] list-none flex-col rounded-md border border-border-default bg-bg-elevated py-1 shadow-lg"
             role="menu"
@@ -133,6 +126,9 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
               </FlyoutItem>
             ) : null}
             <FlyoutItem onClick={onClickChangelog}>{t("base.settings.changelog")}</FlyoutItem>
+            <FlyoutItem onClick={onClickVoiceSettings}>
+              {t("navRail.voiceSettings.title")}
+            </FlyoutItem>
             {canManageSpace ? (
               <FlyoutItem onClick={onClickManageSpace}>{t("base.settings.manageSpace")}</FlyoutItem>
             ) : null}
@@ -145,6 +141,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
       ) : null}
 
       <ChangelogModal open={changelogOpen} onClose={() => setChangelogOpen(false)} />
+      <VoiceSettingsModal open={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} />
     </>
   );
 }

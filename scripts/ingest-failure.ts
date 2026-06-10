@@ -108,7 +108,7 @@ paths:
 # (draft) 规则 — ${entry.现象}
 
 > ⚠️ **自动生成草稿**(ingest-failure.ts · ${entry.date} · count=${entry.count})。
-> 陈超需要:
+> 项目负责人需要:
 > 1. 写正/反例
 > 2. 填例外
 > 3. 迁移到 .ai/taste/rules.md 对应 section + rules.ts 注册
@@ -175,7 +175,7 @@ const c: EvalCase = {
   id: 'draft-${entry.date}-${slug}',
   intent: ${JSON.stringify(entry.现象)},
   assertions: [
-    // TODO(陈超): 填断言
+    // TODO(maintainer): 填断言
   ],
 };
 

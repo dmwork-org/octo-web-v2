@@ -1,7 +1,7 @@
 # 上游搬运 Batch 1 — Todo 清单
 
 > **生成依据**:`docs/upstream-audit.md`(baseline `f32a1360` → HEAD `1906c874`,共 109 commits)
-> **优先级原则**(陈超 2026-06-08 决策):
+> **优先级原则**(项目负责人 2026-06-08 决策):
 >
 > - **P0 高优**:chat / contact / i18n + matter/summary/persona 中跟 chat/contact 关联的
 > - **P2 低优(backlog 记录,先不做)**:matter / summary / persona 独立改动 — 这 3 个模块新仓本身没复刻好,先记录待后续
@@ -60,7 +60,7 @@
 - [~] `ff7f39f1` 2026-05-27 fix(chat): refresh recent ordering on live updates — 新仓 sortConversations 已返新数组(`[...list].sort()`)+ useQuery 自动 refetch,无 ChatVM class 原地 sort 问题,**跳过**
 - [x] `1286d289` 2026-06-06 fix(datasource): pass recent filter for recent conversations
 
-**补搬 3 个 baseline 之后新增 SHA(陈超 2026-06-09 验证发现缺失 → A 方案全补)**:
+**补搬 3 个 baseline 之后新增 SHA(项目负责人 2026-06-09 验证发现缺失 → A 方案全补)**:
 
 - [x] `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries — 提取 canManageThread 父群口径,两处归档入口共享权限判定
 - [x] `c13e7e27` 2026-06-08 feat: add inline archive quick action to active thread list — 每行 inline 归档按钮 + 5s 撤销 toast
@@ -173,7 +173,7 @@
 
 ---
 
-### Batch 1.12 — Chat-Matter 关联:多选事项 / 文件 tab(2 commits) — **整批跳过(matter 模块本仓未复刻好,陈超 2026-06-10 决策)**
+### Batch 1.12 — Chat-Matter 关联:多选事项 / 文件 tab(2 commits) — **整批跳过(matter 模块本仓未复刻好,项目负责人 2026-06-10 决策)**
 
 跟 chat 多选 → 事项 / 文件预览交集。
 
@@ -259,10 +259,10 @@
 
 **关键约定:每个 batch 合并后只更新 plan checkbox,不重新跑 audit / 不拉远程。**
 
-理由(陈超 2026-06-08):上游频繁更新,每个 batch 完都 fetch + 调整 plan 太费劲。本 plan 锁定的 109 commits 视为"已审视过",依据是出 plan 时的 audit snapshot
+理由(项目负责人 2026-06-08):上游频繁更新,每个 batch 完都 fetch + 调整 plan 太费劲。本 plan 锁定的 109 commits 视为"已审视过",依据是出 plan 时的 audit snapshot
 (`docs/upstream-audit.md` 文件本身就是那次 snapshot)。Backlog / 跳过的 commits 在本 checkbox 里 tracked,**不依赖 audit md 自动跟踪**。
 
-**只有陈超显式说"拉远程更新"时才做**:
+**只有项目负责人显式说"拉远程更新"时才做**:
 
 - `pnpm scan:upstream --out docs/upstream-audit.md` 覆盖 snapshot
 - 推进 sync-log.md 头部 `baseline SHA` 到当时 upstream HEAD
@@ -273,11 +273,11 @@
 1. 选定 batch 编号(如 1.1)→ 基于 origin/main 新建分支(如 `feat/upstream-i18n`)
 2. 按清单逐 commit 实现 + `pnpm vp check` 0 errors
 3. push + 创 MR,MR 描述带本 batch checkbox 进度
-4. 陈超手测验证 → 提 review 意见 → AI 修(同 branch 续 commit)
+4. 项目负责人手测验证 → 提 review 意见 → AI 修(同 branch 续 commit)
 5. **验证通过后**,AI 把以下 2 个改动 push 到**同一 MR**(无需另开 PR):
    - 本文件对应 batch 行 `[ ]` → `[x]`(跳过/不适用的标 `[~]` + 一行解释)
    - `docs/sync-log.md` 追加一段"Batch X.Y 搬了 N 个 SHA,新仓 commits = ...,跳过 M 个(原因)"
-6. 陈超合并 MR — 一次性把代码 + plan 状态一起进 main。
+6. 项目负责人合并 MR — 一次性把代码 + plan 状态一起进 main。
 7. **不动** `docs/upstream-audit.md`(snapshot 锁定),**不动** sync-log 头部 `baseline SHA`(等显式"拉远程更新"才动)
 
-> **流程变更记录**(2026-06-08):原 step 4 是"合并后只动两个文件"(分两次进 main)。陈超提出 plan checkbox 应跟代码 commit 一起合并到 main,避免合并后还要补单独 PR 更新 plan 状态。新流程减少一次切换 + 让 checkbox 真实反映"已验证+已合并"状态。
+> **流程变更记录**(2026-06-08):原 step 4 是"合并后只动两个文件"(分两次进 main)。项目负责人提出 plan checkbox 应跟代码 commit 一起合并到 main,避免合并后还要补单独 PR 更新 plan 状态。新流程减少一次切换 + 让 checkbox 真实反映"已验证+已合并"状态。

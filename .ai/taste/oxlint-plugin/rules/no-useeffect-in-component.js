@@ -7,7 +7,7 @@
  * 规则定义: .ai/taste/rules.md#no-useeffect-in-component
  * 机器注册: .ai/taste/rules.ts -> 'no-useeffect-in-component'
  *
- * 分类(Option C,陈超拍板):
+ * 分类(Option C,项目负责人拍板):
  *   - hook:         函数名 /^use[A-Z]/   → useEffect 合法
  *   - component:    函数名首字母大写 AND 函数体含 JSX → useEffect 禁止
  *   - other:        都不匹配 → 本规则放过(RoH 会抓)

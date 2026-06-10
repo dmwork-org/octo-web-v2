@@ -1,7 +1,7 @@
 # \_example-list-with-loader
 
 > **示例 eval（不是真实 case）**。命名 `_example/` 下划线前缀 = 非生产 / 仅展示格式。
-> Week 3-4 起由陈超根据 pilot 项目真实场景写真实 eval。
+> Week 3-4 起由项目负责人根据 pilot 项目真实场景写真实 eval。
 
 ## Intent
 

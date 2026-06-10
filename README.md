@@ -2,7 +2,7 @@
 
 > 基于 [`miaoa-fe-harness`](../../../miaoa/miaoa-fe-harness) 约束的前端业务项目。
 
-陈超团队前端栈:**React + TanStack 全家桶 + Vite+ + Tailwind v4 + shadcn/ui + pnpm**。
+本团队前端栈:**React + TanStack 全家桶 + Vite+ + Tailwind v4 + shadcn/ui + pnpm**。
 本仓库的约束语义、哲学、绝对禁止、工作约束见根目录 `CLAUDE.md`(Claude Code 自动加载)。
 
 ## 常用命令

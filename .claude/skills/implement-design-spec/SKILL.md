@@ -118,7 +118,7 @@ shadcn CLI 自动:
 >
 > 必须指向 pilot 真实代码(哲学 6:不造假范本)。
 
-## 与 spec-kit 的边界(陈超已确认)
+## 与 spec-kit 的边界(项目负责人已确认)
 
 - `.specify/specs/<feature>/spec.md` = WHAT/WHY(业务需求,SSOT)
 - `.specify/specs/<feature>/design-url.txt` = HOW 的 UI 部分(可选附件,1 行 URL)

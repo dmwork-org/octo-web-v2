@@ -46,7 +46,7 @@ function OrderList() {
 }
 ```
 
-**例外** 无（零例外，陈超拍板）。哪怕只用一次，也抽到命名 hook。理由：命名 hook 是 AI 检索 / reviewer 定位意图的唯一入口；开例外就会出现"匿名 effect 钻空子"模式。
+**例外** 无（零例外，项目负责人拍板）。哪怕只用一次，也抽到命名 hook。理由：命名 hook 是 AI 检索 / reviewer 定位意图的唯一入口；开例外就会出现"匿名 effect 钻空子"模式。
 
 **分类（Option C）**：component = 函数名首字母大写 AND 函数体含 JSX；hook = 函数名 `/^use[A-Z]/`。`forwardRef` / `memo` 包裹的匿名 fn 沿用外层 `VariableDeclarator` 的名字。
 
@@ -157,7 +157,7 @@ const postsRoute = new Route({ path: '/posts', ... });
 rootRoute.addChildren([postsRoute]);
 ```
 
-**例外** 无。file-based routing 是团队默认，例外需陈超批准加进 canonical。
+**例外** 无。file-based routing 是团队默认，例外需项目负责人批准加进 canonical。
 
 ---
 

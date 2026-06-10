@@ -55,7 +55,10 @@ export function useUpdateMatter() {
     mutationFn: (args: { matterId: string; req: UpdateMatterReq }) =>
       updateMatter(args.matterId, args.req),
     onSuccess: (updated, args) => {
-      qc.setQueryData<MatterDetail>(matterDetailQueryKey(args.matterId), updated);
+      qc.setQueryData<MatterDetail>(
+        matterDetailQueryKey(args.matterId),
+        (old) => (old ? { ...old, ...updated } : updated),
+      );
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
       void qc.invalidateQueries({ queryKey: ["matter", "activities", args.matterId] });
     },
@@ -68,7 +71,10 @@ export function useTransitionMatter() {
     mutationFn: (args: { matterId: string; status: MatterStatus }) =>
       transitionMatter(args.matterId, args.status),
     onSuccess: (updated, args) => {
-      qc.setQueryData<MatterDetail>(matterDetailQueryKey(args.matterId), updated);
+      qc.setQueryData<MatterDetail>(
+        matterDetailQueryKey(args.matterId),
+        (old) => (old ? { ...old, ...updated } : updated),
+      );
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
     },
   });

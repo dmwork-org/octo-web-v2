@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import WKSDK, { MessageStatus, type Message, type MessageImage } from "wukongimjssdk";
-import { Loader2, RotateCw, X } from "lucide-react";
+import { Loader2, RotateCw } from "lucide-react";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import { useT } from "@/lib/i18n/use-t";
 
 interface ImageRendererProps {
@@ -108,27 +109,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
         ) : null}
       </div>
 
-      {preview && src ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onClick={() => setPreview(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <button
-            type="button"
-            aria-label={t("imageRenderer.close")}
-            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreview(false);
-            }}
-          >
-            <X size={20} />
-          </button>
-          <img src={src} alt="" className="max-h-screen max-w-screen" />
-        </div>
-      ) : null}
+      {preview && src ? <ImagePreviewModal src={src} onClose={() => setPreview(false)} /> : null}
     </>
   );
 }

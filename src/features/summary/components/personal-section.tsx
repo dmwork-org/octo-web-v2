@@ -210,40 +210,47 @@ function MyResult({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-surface p-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text-primary">
-          {tr("summary.detail.mySummaryPlain")}
-        </h3>
-        <div className="flex shrink-0 items-center gap-2">
-          {canEdit && baseResultId && data.content && !editing ? (
-            <Button
-              type="tertiary"
-              theme="borderless"
-              size="small"
-              onClick={() => setEditing(true)}
-            >
-              <Edit3 size={13} />
-              {tr("summary.common.edit")}
-            </Button>
-          ) : null}
-        </div>
-      </div>
       {editing && baseResultId ? (
         <SummaryEditor
           taskId={taskId}
           baseResultId={baseResultId}
           initialContent={data.content || ""}
+          title={tr("summary.detail.mySummaryPlain")}
           onSave={handleEditSaved}
           onCancel={() => setEditing(false)}
         />
-      ) : data.content ? (
-        hasCitations ? (
-          <CitationText content={data.content} citations={data.citations!} />
-        ) : (
-          <SummaryContent content={data.content} />
-        )
       ) : (
-        <p className="text-xs italic text-text-tertiary">{tr("summary.personal.emptyContent")}</p>
+        <>
+          <div className="flex min-h-9 items-center justify-between gap-2">
+            <h3 className="min-w-0 truncate text-sm font-semibold text-text-primary">
+              {tr("summary.detail.mySummaryPlain")}
+            </h3>
+            {canEdit && baseResultId && data.content ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  onClick={() => setEditing(true)}
+                >
+                  <Edit3 size={13} />
+                  {tr("summary.common.edit")}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          {data.content ? (
+            hasCitations ? (
+              <CitationText content={data.content} citations={data.citations!} />
+            ) : (
+              <SummaryContent content={data.content} />
+            )
+          ) : (
+            <p className="text-xs italic text-text-tertiary">
+              {tr("summary.personal.emptyContent")}
+            </p>
+          )}
+        </>
       )}
       {data.worker_status === 0 && data.content && !editing ? (
         <div className="flex justify-end">

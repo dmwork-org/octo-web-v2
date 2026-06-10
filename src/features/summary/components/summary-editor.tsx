@@ -9,6 +9,7 @@ interface SummaryEditorProps {
   taskId: number;
   baseResultId: number;
   initialContent: string;
+  title: string;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -34,6 +35,7 @@ export function SummaryEditor({
   taskId,
   baseResultId,
   initialContent,
+  title,
   onSave,
   onCancel,
 }: SummaryEditorProps) {
@@ -74,35 +76,38 @@ export function SummaryEditor({
 
   return (
     <div className="flex w-full flex-col gap-3">
+      <div className="flex min-h-9 items-center justify-between gap-3 border-b border-border-subtle pb-3">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-text-primary">{title}</h3>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="tertiary"
+            theme="borderless"
+            size="small"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            {tr("summary.common.cancel")}
+          </Button>
+          <Button
+            type="primary"
+            theme="solid"
+            size="small"
+            disabled={!dirty || saving}
+            loading={saving}
+            onClick={handleSave}
+          >
+            {tr("summary.common.save")}
+          </Button>
+        </div>
+      </div>
       <textarea
         ref={textareaRef}
         value={content}
         disabled={saving}
         onChange={(event) => setContent(event.target.value)}
         placeholder={tr("summary.editor.placeholder")}
-        className="max-h-[600px] min-h-[200px] w-full resize-none overflow-y-auto rounded-md border border-border-default bg-bg-elevated px-4 py-3 text-sm leading-7 text-text-primary outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
+        className="max-h-[calc(100vh-260px)] min-h-[360px] w-full resize-none overflow-y-auto rounded-md border border-border-default bg-bg-elevated px-4 py-3 text-sm leading-7 text-text-primary outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
       />
-      <div className="flex justify-end gap-2">
-        <Button
-          type="tertiary"
-          theme="borderless"
-          size="small"
-          disabled={saving}
-          onClick={onCancel}
-        >
-          {tr("summary.common.cancel")}
-        </Button>
-        <Button
-          type="primary"
-          theme="solid"
-          size="small"
-          disabled={!dirty || saving}
-          loading={saving}
-          onClick={handleSave}
-        >
-          {tr("summary.common.save")}
-        </Button>
-      </div>
     </div>
   );
 }

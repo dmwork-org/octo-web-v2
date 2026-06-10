@@ -50,6 +50,7 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { useReactiveTiptapPlaceholder } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
 import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import { spaceStore } from "@/features/base/stores/space";
@@ -122,27 +123,35 @@ function extOf(name: string): string {
   return i >= 0 ? name.substring(i + 1).toLowerCase() : "";
 }
 
-function quotedTypeMeta(content: MessageContent | undefined): {
+function quotedTypeMeta(
+  tt: (key: string, opts?: { values?: Record<string, string> }) => string,
+  content: MessageContent | undefined,
+): {
   Icon: typeof ImageIcon | null;
   hint: string;
 } {
   const ct = (content as { contentType?: number } | undefined)?.contentType;
-  if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: t("composer.quoted.image") };
+  if (ct === MessageContentType.image)
+    return { Icon: ImageIcon, hint: tt("composer.quoted.image") };
   if (ct === MessageContentType.text) return { Icon: null, hint: "" };
-  if (ct === 6) return { Icon: FileText, hint: t("composer.quoted.file") };
-  if (ct === 4) return { Icon: Mic, hint: t("composer.quoted.voice") };
+  if (ct === 6) return { Icon: FileText, hint: tt("composer.quoted.file") };
+  if (ct === 4) return { Icon: Mic, hint: tt("composer.quoted.voice") };
   return { Icon: null, hint: "" };
 }
 
-function buildPlaceholder(channel: Channel, name: string): string {
+function buildPlaceholder(
+  tt: (key: string, opts?: { values?: Record<string, string> }) => string,
+  channel: Channel,
+  name: string,
+): string {
   if (channel.channelType === ChannelTypePerson) {
     return name
-      ? t("composer.placeholder.directWithName", { values: { name } })
-      : t("composer.placeholder.direct");
+      ? tt("composer.placeholder.directWithName", { values: { name } })
+      : tt("composer.placeholder.direct");
   }
   return name
-    ? t("composer.placeholder.replyWithName", { values: { name, alt: ALT_KEY } })
-    : t("composer.placeholder.reply", { values: { alt: ALT_KEY } });
+    ? tt("composer.placeholder.replyWithName", { values: { name, alt: ALT_KEY } })
+    : tt("composer.placeholder.reply", { values: { alt: ALT_KEY } });
 }
 
 function createSubmitOnEnter(onSubmit: () => void) {
@@ -190,7 +199,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     const info = WKSDK.shared().channelManager.getChannelInfo(channel);
     return info?.title ?? "";
   })();
-  const placeholder = buildPlaceholder(channel, channelName);
+  const placeholder = buildPlaceholder(tt, channel, channelName);
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
@@ -295,6 +304,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
+  useReactiveTiptapPlaceholder(editor, placeholder);
 
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 
@@ -389,12 +399,10 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     const sendRichTextMixed = async (
       ords: ReturnType<typeof attachments.extractOrderedBlocks>,
     ): Promise<boolean> => {
-      const { uploadChatMedia, isSafeUrl } = await import(
-        "@/features/chat/services/upload-chat-media"
-      );
-      const { makeTextBlock, makeImageBlock, createRichTextContent } = await import(
-        "@/features/base/im/richtext-content"
-      );
+      const { uploadChatMedia, isSafeUrl } =
+        await import("@/features/chat/services/upload-chat-media");
+      const { makeTextBlock, makeImageBlock, createRichTextContent } =
+        await import("@/features/base/im/richtext-content");
       const rtBlocks: import("@/features/base/im/richtext-content").RichTextBlock[] = [];
       const merged = { all: false, humans: 0, ais: 0, uids: new Set<string>() };
       for (const b of ords) {
@@ -685,7 +693,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       "")
     : "";
   const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
-  const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
+  const replyTypeMeta = quotedTypeMeta(tt, replyingTo?.content);
 
   const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing
     ? "transcribing"

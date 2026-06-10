@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/semi-bridge/button";
-import { Markdown } from "@/components/ui/markdown";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { getVoiceDocument } from "@/features/base/api/endpoints/voice.api";
 import { useT } from "@/lib/i18n/use-t";
@@ -21,8 +20,9 @@ interface VoiceFeedbackNoticeProps {
  * "允许 ASR 反馈上报" 可选 checkbox。接受后 acceptVoiceInput(feedbackOn) 一次写
  * voice_input_enabled=1 + voice_feedback_notice_acked=1 + voice_feedback_on=feedbackOn。
  *
- * **简化**:不接 DOMPurify 复刻上游(后端 doc 受信任);用本仓 Markdown 组件渲染
- * doc.content(假设后端返回 markdown 格式),markdown.tsx 已 rehypeSanitize 兜底。
+ * **简化**:不接 DOMPurify 复刻上游(后端 doc 是 server 自己读 assets 里的 HTML
+ * 文件,受信任);直接 dangerouslySetInnerHTML 渲染。后端实现见
+ * `octo-server modules/voice_adapter/adapter.go::getDocument`(读 asr_service_doc.html)。
  */
 export function VoiceFeedbackNotice({
   open,
@@ -101,8 +101,14 @@ export function VoiceFeedbackNotice({
         ) : docQ.isError ? (
           <div className="py-2 text-warning">{tt("navRail.voiceNotice.loadFailed")}</div>
         ) : docQ.data?.content ? (
-          // doc.content 是后端受信任的 markdown,本仓 Markdown 组件 rehypeSanitize 兜底
-          <Markdown content={docQ.data.content} />
+          // doc.content 是 server 自己读 assets/web/asr_service_doc.html 的内容(HTML),
+          // 受信任直接 dangerouslySetInnerHTML 渲染;**不要走 Markdown 组件**(rehype-sanitize
+          // 会把 HTML 标签全过滤掉,显示空白)
+          <div
+            className="wk-asr-doc"
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: docQ.data.content }}
+          />
         ) : null}
 
         {hasLinks ? (

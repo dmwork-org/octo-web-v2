@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
 import { useLoginMutation } from "@/features/login/mutations";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
@@ -8,8 +9,16 @@ import { useResumeOidc } from "@/features/login/hooks/use-resume-oidc.hook";
 import { useInviteInfo } from "@/features/login/hooks/use-invite-info.hook";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { useFinalizeLogin, writePendingInviteCode } from "@/features/login/lib/post-login-flow";
+import {
+  acknowledgeMigrationNotice,
+  hasAcknowledgedMigrationNotice,
+  resolveAegisRegisterUrl,
+} from "@/features/login/lib/login-migration-notice";
 import { LoginShell } from "@/features/login/components/login-shell";
 import { DownloadButtons } from "@/features/login/components/download-buttons";
+import { LoginMigrationModal } from "@/features/login/components/login-migration-modal";
+import { appConfigQueryOptions } from "@/features/base/queries/appconfig.query";
+import { parseRemoteBool } from "@/features/base/lib/parse-remote-bool";
 import { Button } from "@/components/semi-bridge/button";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -27,6 +36,7 @@ interface LoginViewProps {
  *   - 顶部 breadcrumb "登录到 Octo · Web"(紫色圆点 + 文案,业务上下文锚)
  *   - 主 CTA + Shield icon(信任增强)
  *   - meta 行:Shield icon + "身份认证由 {provider} 提供 · 企业级安全"(tooltip)
+ *   - meta 行下方 link "了解登录方式变更"→ Aegis migration modal(对齐上游 7de93ff1)
  *   - 下载按钮前分隔线"也可下载移动版"(主流 vs 备用分层)
  *   - **完全隐藏密码表单 + 底部链接**(SSO 模式下走 IdP,本地账号入口全无)
  *
@@ -41,9 +51,11 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const { providers, primaryProvider, ssoModuleEnabled } = useSsoProviders();
   const { startOidc, loading: oidcStarting, error: oidcStartError } = useStartOidcLogin();
   const { data: inviteInfo } = useInviteInfo(inviteCode);
+  const { data: appConfig } = useQuery(appConfigQueryOptions());
   const finalize = useFinalizeLogin(inviteCode, redirect);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [migrationOpen, setMigrationOpen] = useState(false);
 
   const {
     resuming,
@@ -77,10 +89,26 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
 
-  const onStartOidc = () => {
+  // Aegis migration notice 触发条件:SSO 模式 + appconfig 未 suppress + 本机未确认
+  const suppressMigrationNotice = parseRemoteBool(appConfig?.suppress_login_migration_notice);
+  const shouldShowMigrationNotice =
+    hasSso && !suppressMigrationNotice && !hasAcknowledgedMigrationNotice();
+  const aegisRegisterUrl = resolveAegisRegisterUrl(primaryProvider?.accountUrl);
+
+  const startOidcNow = () => {
     if (!primaryProvider) return;
     writePendingInviteCode(inviteCode);
     void startOidc(primaryProvider);
+  };
+
+  const onStartOidc = () => {
+    if (!primaryProvider) return;
+    // 未确认 migration notice → 先弹,确认后再起 SSO(对齐上游 onPrimaryClick 守门)
+    if (shouldShowMigrationNotice) {
+      setMigrationOpen(true);
+      return;
+    }
+    startOidcNow();
   };
 
   const subSearch: { redirect?: string; invite_code?: string } = {};
@@ -116,47 +144,71 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   // ===================== SSO 模式 =====================
   if (hasSso) {
     return (
-      <LoginShell topBanner={inviteBanner}>
-        {breadcrumb}
-        <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
-          {t("login.login.welcome")}
-        </div>
-        <div className="mb-7 text-left text-sm text-[#8a8fa8]">
-          {t("login.login.ssoSub", { values: { provider: primaryProvider.name, appName: "Octo" } })}
-        </div>
-
-        <div className="flex flex-col">
-          <Button
-            type="primary"
-            theme="solid"
-            loading={oidcStarting}
-            className="!flex h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
-            onClick={onStartOidc}
-          >
-            {!oidcStarting ? <Shield size={18} strokeWidth={2} /> : null}
-            {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.ssoButton")}
-          </Button>
-          <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
-            <Shield size={12} className="shrink-0 text-[#5b5be5]" aria-hidden />
-            <span
-              className="cursor-help underline decoration-dotted underline-offset-2"
-              title={t("login.login.ssoMetaBrandTitle", {
-                values: { provider: primaryProvider.name },
-              })}
-            >
-              {t("login.login.ssoMetaPrefix")} {primaryProvider.name}{" "}
-              {t("login.login.ssoMetaSuffix")}
-            </span>
-            <span className="text-[#b0b4c8]">·</span>
-            <span>{t("login.login.ssoMetaTrust")}</span>
+      <>
+        <LoginShell topBanner={inviteBanner}>
+          {breadcrumb}
+          <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
+            {t("login.login.welcome")}
           </div>
-        </div>
+          <div className="mb-7 text-left text-sm text-[#8a8fa8]">
+            {t("login.login.ssoSub", { values: { provider: primaryProvider.name, appName: "Octo" } })}
+          </div>
 
-        {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
+          <div className="flex flex-col">
+            <Button
+              type="primary"
+              theme="solid"
+              loading={oidcStarting}
+              className="!flex h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
+              onClick={onStartOidc}
+            >
+              {!oidcStarting ? <Shield size={18} strokeWidth={2} /> : null}
+              {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.ssoButton")}
+            </Button>
+            <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
+              <Shield size={12} className="shrink-0 text-[#5b5be5]" aria-hidden />
+              <span
+                className="cursor-help underline decoration-dotted underline-offset-2"
+                title={t("login.login.ssoMetaBrandTitle", {
+                  values: { provider: primaryProvider.name },
+                })}
+              >
+                {t("login.login.ssoMetaPrefix")} {primaryProvider.name}{" "}
+                {t("login.login.ssoMetaSuffix")}
+              </span>
+              <span className="text-[#b0b4c8]">·</span>
+              <span>{t("login.login.ssoMetaTrust")}</span>
+            </div>
+            {/* Aegis migration notice trigger link(suppress 时隐) */}
+            {!suppressMigrationNotice ? (
+              <button
+                type="button"
+                onClick={() => setMigrationOpen(true)}
+                className="mt-1.5 cursor-pointer self-center text-[12px] text-[#5b5be5] underline-offset-2 hover:underline"
+              >
+                {t("login.migration.link")}
+              </button>
+            ) : null}
+          </div>
 
-        <DownloadDivider />
-        <DownloadButtons />
-      </LoginShell>
+          {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
+
+          <DownloadDivider />
+          <DownloadButtons />
+        </LoginShell>
+
+        <LoginMigrationModal
+          open={migrationOpen}
+          registerUrl={aegisRegisterUrl}
+          onContinue={() => {
+            acknowledgeMigrationNotice();
+            setMigrationOpen(false);
+            // 已 acked,直接起 SSO(不再绕回 onStartOidc 守门)
+            startOidcNow();
+          }}
+          onClose={() => setMigrationOpen(false)}
+        />
+      </>
     );
   }
 

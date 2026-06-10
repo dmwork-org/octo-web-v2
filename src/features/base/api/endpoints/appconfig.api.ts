@@ -21,6 +21,12 @@ export interface AppConfigRaw {
   revoke_second?: number;
   /** 普通用户"创建 Space"入口开关:1 / "1" / true / "true" → 隐藏;走 parseRemoteBool。 */
   disable_user_create_space?: number | string | boolean;
+  /**
+   * Aegis 登录方式变更公告开关(对齐上游 `7de93ff1`):1 → 服务端强制隐藏
+   * Aegis migration modal(部署侧已通过其他渠道告知用户,前端不再二次提示);
+   * 0/缺省 → 走前端 localStorage flag(per-browser 一次性)。
+   */
+  suppress_login_migration_notice?: number | string | boolean;
   /** 其他字段保留 raw,后续按需 parse。 */
   [key: string]: unknown;
 }

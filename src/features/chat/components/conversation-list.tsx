@@ -135,6 +135,11 @@ function ConversationRow({
   onContextMenu,
 }: {
   conversation: Conversation;
+  /**
+   * 行高亮:命中"当前选中会话"或"被右键(临时)"任一即点亮(对齐老仓
+   * selectConversationWrap)。caller 传 active = (selectedChannelId match) ||
+   * (ctxMenuRowKey match)。
+   */
   active: boolean;
   myUid: string;
   onClick: () => void;
@@ -369,6 +374,8 @@ export function ConversationList({
     x: 0,
     y: 0,
   });
+  /** 被右键的 row(临时高亮,菜单关闭时清空);对齐老仓 selectConversationWrap。 */
+  const [ctxMenuRowKey, setCtxMenuRowKey] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
   const [confirmCloseAndClear, setConfirmCloseAndClear] = useState<Conversation | null>(null);
@@ -552,7 +559,13 @@ export function ConversationList({
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {
     e.preventDefault();
+    setCtxMenuRowKey(conv.channel.channelID);
     setMenu({ open: true, x: e.clientX, y: e.clientY, conv });
+  };
+
+  const closeContextMenu = () => {
+    setMenu((m) => ({ ...m, open: false }));
+    setCtxMenuRowKey(null);
   };
 
   const isConvFollowed = (conv: Conversation): boolean => {
@@ -728,7 +741,9 @@ export function ConversationList({
         <ConversationRow
           key={`${c.channel.channelType}-${c.channel.channelID}`}
           conversation={c}
-          active={c.channel.channelID === selectedChannelId}
+          active={
+            c.channel.channelID === selectedChannelId || c.channel.channelID === ctxMenuRowKey
+          }
           myUid={myUid}
           onClick={() => onSelect?.(c)}
           onContextMenu={onRowContextMenu(c)}
@@ -740,7 +755,7 @@ export function ConversationList({
         x={menu.x}
         y={menu.y}
         items={menu.conv ? buildMenuItems(menu.conv) : []}
-        onClose={() => setMenu((m) => ({ ...m, open: false }))}
+        onClose={closeContextMenu}
       />
 
       <ConfirmModal

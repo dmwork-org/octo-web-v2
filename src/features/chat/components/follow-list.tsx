@@ -448,9 +448,13 @@ interface CategorySectionProps {
   collapsed: boolean;
   onToggle: () => void;
   onContextMenu: (e: MouseEvent) => void;
+  /** 当前被右键的分组 id(临时高亮,菜单关闭清);命中 → 分组 row 高亮。 */
+  ctxMenuActive?: boolean;
   sidebarItems: SidebarItem[];
   followedThreadsByParent: Map<string, Conversation[]>;
   selectedChannelId?: string;
+  /** 当前被右键的 row key(`${channelType}::${channelID}`),命中 → row 高亮(对齐选中色)。 */
+  ctxMenuRowKey?: string | null;
   myUid: string;
   isExpanded: (groupId: string) => boolean;
   onToggleExpand: (groupId: string) => void;
@@ -485,9 +489,11 @@ function CategorySection({
   collapsed,
   onToggle,
   onContextMenu,
+  ctxMenuActive = false,
   sidebarItems,
   followedThreadsByParent,
   selectedChannelId,
+  ctxMenuRowKey,
   myUid,
   isExpanded,
   onToggleExpand,
@@ -523,6 +529,11 @@ function CategorySection({
   const dropId = `drop::cat::${category.category_id ?? "default"}`;
   const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({ id: dropId });
 
+  // 行高亮判定:命中"当前选中频道"或"被右键临时高亮"任一即点亮(对齐选中色),
+  // ctxMenuRowKey 由 caller(FollowList)在右键时 set,菜单关时 clear。
+  const isRowActive = (ch: Channel) =>
+    ch.channelID === selectedChannelId || ctxMenuRowKey === `${ch.channelType}::${ch.channelID}`;
+
   return (
     <section
       ref={(node) => {
@@ -533,7 +544,7 @@ function CategorySection({
       className={`group/cat flex flex-col rounded-sm transition-colors ${isDropOver ? "bg-brand-tint/30" : ""}`}
     >
       <header
-        className={`flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] transition-colors hover:bg-bg-hover ${isEmpty ? "text-text-tertiary" : "text-text-secondary"}`}
+        className={`flex cursor-pointer items-center gap-1 px-2 py-1.5 text-[12px] transition-colors hover:bg-bg-hover ${ctxMenuActive ? "bg-bg-hover" : ""} ${isEmpty ? "text-text-tertiary" : "text-text-secondary"}`}
         onClick={onToggle}
         onContextMenu={onContextMenu}
       >
@@ -649,7 +660,7 @@ function CategorySection({
                                 hasThreads={visibleThreads.length > 0}
                                 threadsExpanded={expanded}
                                 onToggleThreads={() => onToggleExpand(groupNo)}
-                                selected={groupNo === selectedChannelId}
+                                selected={isRowActive(channel)}
                                 onClick={() => onSelectGroup(groupNo)}
                                 dragProps={dragProps}
                                 onContextMenu={onRowContextMenu?.(channel)}
@@ -677,7 +688,7 @@ function CategorySection({
                                               unread={th.unread || 0}
                                               isMuted={isThreadEffectivelyMuted(th, groupNo)}
                                               isMentionMe={computeMentionMe(th, myUid)}
-                                              selected={th.channel.channelID === selectedChannelId}
+                                              selected={isRowActive(th.channel)}
                                               onClick={() => onSelectThread(th.channel.channelID)}
                                               onContextMenu={onRowContextMenu?.(th.channel)}
                                             />
@@ -732,7 +743,7 @@ function CategorySection({
                               unread={unread}
                               isMuted={muted}
                               isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                              selected={peerUid === selectedChannelId}
+                              selected={isRowActive(channel)}
                               onClick={() => onSelectDM(peerUid)}
                               dragProps={dragProps}
                               onContextMenu={onRowContextMenu?.(channel)}
@@ -765,7 +776,7 @@ function CategorySection({
                           unread={unread}
                           isMuted={muted}
                           isMentionMe={conv ? computeMentionMe(conv, myUid) : false}
-                          selected={tid === selectedChannelId}
+                          selected={isRowActive(channel)}
                           onClick={() => onSelectThread(tid)}
                           onContextMenu={onRowContextMenu?.(channel)}
                         />
@@ -860,6 +871,10 @@ export function FollowList({
     y: number;
     conv?: Conversation;
   }>({ open: false, x: 0, y: 0 });
+  /** 被右键的会话 row / 分组 row 临时高亮 key,菜单关闭时清空(对齐老仓
+   * selectConversationWrap 模式)。 */
+  const [ctxMenuRowKey, setCtxMenuRowKey] = useState<string | null>(null);
+  const [ctxMenuCatId, setCtxMenuCatId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState<Conversation | null>(null);
   const [createInCategory, setCreateInCategory] = useState<string | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
@@ -998,6 +1013,7 @@ export function FollowList({
   const onCategoryContextMenu = (cat: CategoryItem) => (e: MouseEvent) => {
     if (cat.is_default) return;
     e.preventDefault();
+    setCtxMenuCatId(cat.category_id ?? null);
     setMenu({ open: true, x: e.clientX, y: e.clientY, cat });
   };
 
@@ -1007,7 +1023,17 @@ export function FollowList({
       findConv(channel.channelID, channel.channelType) ??
       WKSDK.shared().conversationManager.findConversation(channel);
     if (!conv) return;
+    setCtxMenuRowKey(`${channel.channelType}::${channel.channelID}`);
     setRowMenu({ open: true, x: e.clientX, y: e.clientY, conv });
+  };
+
+  const closeCategoryMenu = () => {
+    setMenu((m) => ({ ...m, open: false }));
+    setCtxMenuCatId(null);
+  };
+  const closeRowMenu = () => {
+    setRowMenu((m) => ({ ...m, open: false }));
+    setCtxMenuRowKey(null);
   };
 
   const handleSelectGroup = (groupNo: string) => {
@@ -1368,9 +1394,11 @@ export function FollowList({
                 collapsed={!!collapsed[cat.category_id ?? "default"]}
                 onToggle={() => toggleCollapse(cat.category_id ?? "default")}
                 onContextMenu={onCategoryContextMenu(cat)}
+                ctxMenuActive={ctxMenuCatId === (cat.category_id ?? null)}
                 sidebarItems={sidebarItems}
                 followedThreadsByParent={followedThreadsByParent}
                 selectedChannelId={selectedChannelId}
+                ctxMenuRowKey={ctxMenuRowKey}
                 myUid={myUid}
                 isExpanded={isExpanded}
                 onToggleExpand={toggleExpand}
@@ -1389,7 +1417,7 @@ export function FollowList({
             x={menu.x}
             y={menu.y}
             items={buildCategoryMenuItems(menu.cat)}
-            onClose={() => setMenu((m) => ({ ...m, open: false }))}
+            onClose={closeCategoryMenu}
           />
         ) : null}
 
@@ -1399,7 +1427,7 @@ export function FollowList({
             x={rowMenu.x}
             y={rowMenu.y}
             items={buildRowMenuItems(rowMenu.conv)}
-            onClose={() => setRowMenu((m) => ({ ...m, open: false }))}
+            onClose={closeRowMenu}
           />
         ) : null}
 

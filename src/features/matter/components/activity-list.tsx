@@ -55,6 +55,13 @@ function formatActivityTime(iso: string): string {
   return `${mm}/${dd} ${hh}:${mi}`;
 }
 
+/** 去除 HTML 标签，用于活动记录文本展示 */
+function stripHtml(html: string): string {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body.textContent || "";
+}
+
 /** IntersectionObserver 无限滚动 sentinel hook。 */
 function useFetchNextOnInView(
   ref: React.RefObject<HTMLDivElement | null>,
@@ -184,21 +191,21 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
       const added = (detail.added as string[]) || [];
       const removed = (detail.removed as string[]) || [];
       if (added.length === 0 && removed.length === 0) {
-        return <span>{(detail.summary as string) || t("matter.activity.updatedDescription")}</span>;
+        return <span>{stripHtml((detail.summary as string) || "") || t("matter.activity.updatedDescription")}</span>;
       }
       return (
         <div className="flex flex-col gap-0.5">
           {added.map((line, i) => (
             <div key={`add-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
               <PlusIcon />
-              <span className="text-text-primary font-medium">"{line}"</span>
+              <span className="text-text-primary font-medium">"{stripHtml(line)}"</span>
             </div>
           ))}
           {removed.map((line, i) => (
             <div key={`rm-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
               <MinusIcon />
               <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
-                "{line}"
+                "{stripHtml(line)}"
               </span>
             </div>
           ))}

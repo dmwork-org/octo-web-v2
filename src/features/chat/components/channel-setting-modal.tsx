@@ -33,6 +33,7 @@ import {
 } from "@/features/base/api/endpoints/channel-setting.api";
 import {
   leaveThread,
+  deleteThread,
   updateGroup,
   updateGroupMember,
   updateThread,
@@ -223,6 +224,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     channelInfo?.orgData as { thread?: { creator_uid?: string } } | undefined
   )?.thread?.creator_uid;
   const canEditThreadName = isThread && (threadCreatorUid === myUid || iAmOwnerOrManager);
+  // 子区 creator 不能"离开"(后端拒绝),只能"解散"— 对齐老仓 UI 分流(creator 看
+  // "解散子区" → DELETE,普通成员看"离开子区" → POST leave)
+  const isThreadCreator = isThread && !!threadCreatorUid && threadCreatorUid === myUid;
   const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
     ?.has_thread_md;
   const threadMdVersion =
@@ -332,7 +336,13 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       if (isThread) {
         const p = parseThreadChannelId(channel.channelID);
         if (!p) throw new Error(t("channelSetting.error.threadParseFailed"));
-        await leaveThread(p.shortId);
+        // creator 走 DELETE /groups/{groupNo}/threads/{shortId}(解散),
+        // 非 creator 走 POST /threads/{shortId}/leave(离开)— 对齐老仓
+        if (isThreadCreator) {
+          await deleteThread(p.groupNo, p.shortId);
+        } else {
+          await leaveThread(p.shortId);
+        }
       } else {
         await deleteConversation({
           channelId: channel.channelID,
@@ -350,7 +360,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         isGroup
           ? t("channelSetting.toast.leftGroup")
           : isThread
-            ? t("channelSetting.toast.leftThread")
+            ? isThreadCreator
+              ? t("channelSetting.toast.dissolvedThread")
+              : t("channelSetting.toast.leftThread")
             : t("channelSetting.toast.closedChat"),
       );
       setConfirmClose(false);
@@ -363,12 +375,16 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const dangerCloseTitle = isGroup
     ? tt("channelSetting.dangerCloseGroup")
     : isThread
-      ? tt("channelSetting.dangerCloseThread")
+      ? isThreadCreator
+        ? tt("channelSetting.dangerDissolveThread")
+        : tt("channelSetting.dangerCloseThread")
       : tt("channelSetting.dangerCloseChat");
   const dangerCloseConfirm = isGroup
     ? tt("channelSetting.confirmLeaveGroup")
     : isThread
-      ? tt("channelSetting.confirmLeaveThread")
+      ? isThreadCreator
+        ? tt("channelSetting.confirmDissolveThread")
+        : tt("channelSetting.confirmLeaveThread")
       : tt("channelSetting.confirmCloseChat");
 
   return (

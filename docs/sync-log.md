@@ -12,7 +12,7 @@
 > 工作流(详见 plan `~/.claude/plans/concurrent-sparking-bengio.md`):
 >
 > 1. `pnpm scan:upstream` → 列 baseline..HEAD 未搬变更(按目录 bucket)
-> 2. 陈超挑要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并
+> 2. 项目负责人挑要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并
 > 3. 合并后更新本字段 baseline SHA + last audited + 本日志追加 batch 记录
 
 ## 2026-05-22
@@ -102,7 +102,7 @@ PreToolUse hook 真触发验证通过:
   - follow-list 父群 hasThreads / aggregateThreadUnread 漏过滤 archived(commit `4434597`)
 - 本仓 commits:10a083b / c58ba56 / 47edeea / 208f8cb / 11de3ee / 327e935 / 2e7a803 / fef7d1c / 238f952 / 4434597 / b815d80 / 36716cd / 7b21fa0(13 commit)
 - 关键决策:
-  - 流程上首次实践"用户验证发现缺失功能 → 在同 MR 续 commit 全补"(对应陈超的 A 方案),不开补救 PR
+  - 流程上首次实践"用户验证发现缺失功能 → 在同 MR 续 commit 全补"(对应项目负责人的 A 方案),不开补救 PR
   - baseline 后新增 SHA(c13e7e27/23b59a41/1906c874)纳入当前 batch,plan 文档显式标注"baseline 后补",避免下次拉远程时被当作未搬
 
 ## 2026-06-09 — Batch 1.4 chat 消息渲染 / 文件预览
@@ -209,7 +209,7 @@ PreToolUse hook 真触发验证通过:
     - i18n 16 keys(zh-CN + en-US)
   - **(等效已修)** `d6c20ed4` avatar 上传统一:本仓 `uploadUserAvatar` + `uploadGroupAvatar` 核心 OK;GIF 保活 + 非 GIF 裁剪预览 + WKAvatarUploadPreview 组件是上游 enhancement;未发现 bug 暂不补
 - 本仓 commits(分支 feat/upstream-batch-1-9):c4ef775(remark)/ e615bc3(DrilldownDrawer+API)/ 37af7a4(BotManage feature)+ 收尾 docs
-- 关键决策:**拓展 BaseDrawer → 通用 DrilldownDrawer**(陈超明确"按本仓设计原则替代老仓 RoutePage,顺道拓展 base modal");本批 BotManage 用之,后续可重构 group-management / channel-setting 改用同款;e7c5e0be 拆 2 commit(基础设施 / feature)语义独立
+- 关键决策:**拓展 BaseDrawer → 通用 DrilldownDrawer**(项目负责人明确"按本仓设计原则替代老仓 RoutePage,顺道拓展 base modal");本批 BotManage 用之,后续可重构 group-management / channel-setting 改用同款;e7c5e0be 拆 2 commit(基础设施 / feature)语义独立
 - baseline SHA 暂不推进
 
 ## 2026-06-10 — Batch 1.10 chat 大特性 3:Voice 设置面板
@@ -236,7 +236,7 @@ PreToolUse hook 真触发验证通过:
     - **commit 1** API + types:`summary.api.ts` 加 batchStatus / getChatCandidates / getMemberCandidates / getTopicTemplates;listSummaries 接受 signal config;CreateSummaryParams 加 origin_channel_id/type(title 改可选,后端为空回退 topic);ListSummariesParams 加 origin_channel_id;onResponseError guard AbortError 透传(对齐老仓 axios.isCancel)
     - **commit 2** utils + constants:`channel-source.ts`(getSourceType WK channelType → SourceType 枚举,防呆 thread 5 不能直传后端);`template-resolver.ts`(LocalTopicTemplate i18n key 解析 + parameterized 模板首个 placeholder 选区);`chat-summary-events.ts`(CustomEvent 包装 + subscribe helper);`topic-templates.ts`(4 个前端兜底 + MAX_CHAT_SELECT=30)
     - **commit 3** `chat-side-panel` store 加 `kind="summary"`(taskId null=列表 / 非空=详情双栈),互斥规则跟 thread/matter/filePreview 一致
-    - **commit 4** 创建 modal:**陈超明确"完美复刻老仓 chat-context 创建流"** — 不动现有 SummaryCreateModal(本期范围外),独立新建:
+    - **commit 4** 创建 modal:**项目负责人明确"完美复刻老仓 chat-context 创建流"** — 不动现有 SummaryCreateModal(本期范围外),独立新建:
       - `template-card.tsx`(本仓 tailwind + tokens,替代老仓 inline style hover hardcoded)
       - `chat-selector-modal.tsx`(group→thread→direct 层次 + 三 tab + 模糊搜索 + max 30,嵌套 BaseDialog 自动 z-dialog-secondary)
       - `chat-summary-new-modal.tsx`(lg size,默认 selectedChats=[当前 channel],topic 空时显 4 模板;parameterized 模板点选填 placeholder label + 自动选区 + focus 时清掉;Enter 提交,成功 dispatch chat-summary-created)
@@ -250,8 +250,8 @@ PreToolUse hook 真触发验证通过:
   - **commit 7** i18n 28 keys(zh-CN + en-US 各):common(loading/delete/deleteConfirm/remove/createFailedRetry)、create(submitting/topicPlaceholderInChat)、chatSummary(back/closeAria/createNew/panelTitle/starTooltip)、chatSelector(tabGroup/tabDirect)、templates 4 套
 - 本仓 commits(分支 feat/upstream-batch-1-11):6600096 / 04f547d / 571168c / ddaa1c1 / 73c14eb / 322f505 / bfb9d70(7 个 code commits + 收尾 docs)
 - 关键决策:
-  - **不动 SummaryCreateModal**(陈超指示):chat-context 独立 ChatSummaryNewModal,主模块的统一调整后续 batch 单立
-  - **panel 壳子用本仓统一**(陈超指示):复用 useRightPanelResize / PanelSplitter,内容逻辑对齐老仓,UI tailwind 化;不搬老仓 layoutWidth.ts splitter(老仓 commit 已知 ~70px 偏差 bug)
+  - **不动 SummaryCreateModal**(项目负责人指示):chat-context 独立 ChatSummaryNewModal,主模块的统一调整后续 batch 单立
+  - **panel 壳子用本仓统一**(项目负责人指示):复用 useRightPanelResize / PanelSplitter,内容逻辑对齐老仓,UI tailwind 化;不搬老仓 layoutWidth.ts splitter(老仓 commit 已知 ~70px 偏差 bug)
   - **NavRail badge 用 path 解析**:`item.to === "/summary"` 判定避开 staticData module augmentation 冲突;sidebar own summary→query 解析
   - **不搬 mittBus event 桥接**:React Query refetchInterval + invalidate 等效实现"任务完成自动刷新列表 + badge";路由切换不需要 wk:nav-menu-activated listener
   - **不搬 templates "getTemplates 已无 caller"分支**:上游 commit description 自己说"remove in follow-up",本仓不引入死代码
@@ -262,7 +262,7 @@ PreToolUse hook 真触发验证通过:
 
 ## 2026-06-10 — Batch 1.12 整批跳过
 
-陈超 2026-06-10 决策:matter 模块本仓未复刻好,跟 matter 强相关的搬运一并 defer。
+项目负责人 2026-06-10 决策:matter 模块本仓未复刻好,跟 matter 强相关的搬运一并 defer。
 
 - [~] `66d474c9` refactor(todo): unify create-task modal — 等本仓 matter 模块完整再回头(本仓现状:两 modal 独立 — composer/matter.view 走 CreateMatterModal,selection-toolbar 走 SmartCreateModal)
 - [~] `60afb75e` feat(matters): add 产出文件 tab — 后端 octo-matter outputs endpoint 状态未确认 + 12 files +1575 行跨模块改动,跟 matter 主模块一并 P3 立项
@@ -301,7 +301,7 @@ PreToolUse hook 真触发验证通过:
 ## 2026-06-10 — P1 Login 模块 batch
 
 - 搬 4 个真改动 SHA + 2 个等效已修 + 1 个微调合并(共 7 个):
-  - `5ef5150f` SSO panel redesign + `1bf42ba2` 非 SSO spacing — **业务对齐 UI 自有**(陈超明确):
+  - `5ef5150f` SSO panel redesign + `1bf42ba2` 非 SSO spacing — **业务对齐 UI 自有**(项目负责人明确):
     - SSO + 非 SSO 共用顶部 breadcrumb(紫色圆点 + "登录到 Octo · Web")
     - SSO 主按钮加 Shield icon(信任增强);meta 行重排 Shield + "身份认证由 X 提供 · 企业级安全"(本仓既有 ssoMetaTrust key 终于上线)
     - 共用 DownloadDivider:两侧细线 + "也可下载移动版"(主 SSO 流程 vs 下载备用的视觉分层)
@@ -328,8 +328,8 @@ PreToolUse hook 真触发验证通过:
   - `89d56e35` no-space logout — **等效已修**:本仓 join-space.view line 97 已有 onLogout = authActions.signOut
 - 本仓 commits(分支 feat/upstream-login):`b0d3f5e`(SSO UI)/ `516f7e0`(OIDC logout)/ `22b3177`(disable space infra)/ `ae2b4e4`(Aegis migration)+ docs
 - 关键决策:
-  - SSO redesign 按陈超指示"业务对齐 UI 自己"— breadcrumb / Shield / 信任锚 / 下载分隔线 4 个业务元素全搬,UI 不复刻上游 --wk-sso-accent CSS 变量方案,本仓 tailwind direct expression
-  - Aegis migration 完整搬(陈超 "本仓后面也要用 aegis"):27 i18n keys + 完整 modal 业务流程 + appconfig suppress + localStorage ack flag;UI 用 BaseDialog 替代 Semi Modal
+  - SSO redesign 按项目负责人指示"业务对齐 UI 自己"— breadcrumb / Shield / 信任锚 / 下载分隔线 4 个业务元素全搬,UI 不复刻上游 --wk-sso-accent CSS 变量方案,本仓 tailwind direct expression
+  - Aegis migration 完整搬(项目负责人 "本仓后面也要用 aegis"):27 i18n keys + 完整 modal 业务流程 + appconfig suppress + localStorage ack flag;UI 用 BaseDialog 替代 Semi Modal
   - OIDC logout 简化版:不搬 dev-only VITE_OIDC_POST_LOGOUT_REDIRECT_URI override(用户没明确需要);clearLocalAuthState 只清本仓存的 3 个 key(octo:auth / currentSpaceId / pending_oidc_login),不按 prefix 扫整个 storage
   - disable_user_create_space 只搬 infra:本仓无创建入口可隐(SpaceSwitcher 只 join 不 create),字段+helper 接好让后续加创建时直接 wire
 - baseline SHA 暂不推进

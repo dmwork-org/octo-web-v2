@@ -64,7 +64,7 @@ PostToolUse hook 顺序（handoff §7.1 + §13.4）:
 
 - PR 触发 CI 跑 `vp check + taste-lint + run-evals`
 - 失败红灯 → branch protection 拒 merge
-- 只有陈超 admin override 能强推
+- 只有项目负责人 admin override 能强推
 
 ## 关于 permissions
 

@@ -11,7 +11,7 @@
  *   pnpm scan:upstream                 # 输出到 stdout
  *   pnpm scan:upstream --out audit.md  # 写文件
  *
- * 落地动作仍由人决策:陈超挑选要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并 →
+ * 落地动作仍由人决策:项目负责人挑选要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并 →
  * 更新 sync-log.md 的 baseline SHA。
  *
  * 详见 plan: ~/.claude/plans/concurrent-sparking-bengio.md

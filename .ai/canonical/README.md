@@ -35,12 +35,12 @@ export default {
 
 - `pinned_sha` 锁到某个 commit，防止指向的代码被改烂了 harness 不知情
 - 未来 `scripts/canonical-freshness.ts`（Week 3-4）定期检查 `pinned_sha` 对应文件 vs 当前文件的 diff
-- 不匹配 → 提示陈超判断：**升级 pin / 换指针 / 废弃该 canonical**
+- 不匹配 → 提示项目负责人判断：**升级 pin / 换指针 / 废弃该 canonical**
 
 ## 何时新增 canonical
 
 - pilot 重构过程中出现"想复用这个模式"的代码 → 立刻 pin 成 canonical
-- 新 feature 开发中 CC 生成了质量过关的代码 → 经陈超判断可升 canonical
+- 新 feature 开发中 CC 生成了质量过关的代码 → 经项目负责人判断可升 canonical
 - 严禁"为了凑数量而列 canonical"
 
 ## 何时删除 canonical

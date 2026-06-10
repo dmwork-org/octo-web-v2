@@ -1,8 +1,8 @@
 # d7-async-errors-boundary
 
-> ⚠️ **未经陈超确认**。本骨架由 CC 自动生成,`intent` 字段为 `rules.md` 意译,`PROMPT.md` 任务和断言组合待陈超从 pilot 真实场景补。目录编号为 CC 提议方案,未定稿。
+> ⚠️ **未经项目负责人确认**。本骨架由 CC 自动生成,`intent` 字段为 `rules.md` 意译,`PROMPT.md` 任务和断言组合待项目负责人从 pilot 真实场景补。目录编号为 CC 提议方案,未定稿。
 
-> **骨架** — Week 3-4 陈超根据 pilot 项目真实场景补全。
+> **骨架** — Week 3-4 项目负责人根据 pilot 项目真实场景补全。
 > **验证规则**: `async-errors-to-boundary`([rules.md](../../taste/rules.md#async-errors-to-boundary))
 
 ## Intent

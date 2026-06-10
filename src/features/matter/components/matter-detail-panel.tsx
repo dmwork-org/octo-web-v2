@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { MoreHorizontal, Tag } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -370,17 +370,17 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
         <div className="mt-4 px-8">
           <MainGoalEditor matterId={matterId} description={data.description}>
-            {(data.source_channel_id || data.source_name) ? (
-              <div className="inline-flex items-center gap-1 px-2 py-1 text-sm leading-[18px] text-text-primary">
-                <Tag size={14} className="shrink-0 text-text-tertiary" />
-                <span>
-                  {t("matter.label.fromChannel", {
-                    values: { name: data.source_name || "" },
-                  })}{" "}
-                  <span className="text-brand">#{data.source_name}</span> ·{" "}
-                  <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                  {formatDateTime(data.created_at)}
-                </span>
+            {data.source_channel_id ? (
+              <div className="inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] text-text-primary">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-icon-muted">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z" fill="currentColor" />
+                </svg>
+                {t("matter.label.fromChannel", {
+                  values: { name: data.source_name || "" },
+                })}{" "}
+                <span className="text-accent">#{data.source_name}</span> ·{" "}
+                <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
+                {formatDateTime(data.created_at)}
               </div>
             ) : null}
           </MainGoalEditor>

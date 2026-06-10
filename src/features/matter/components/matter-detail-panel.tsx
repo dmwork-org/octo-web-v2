@@ -292,7 +292,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL + ⋯ ── */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-8 py-3">
+      <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
         <StatusPill status={data.status} seqNo={data.seq_no} />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
         <div
@@ -343,7 +343,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       <div className="flex flex-1 flex-col overflow-y-auto">
         {/* ── Title（点击可编辑）── */}
         {editingTitle ? (
-          <div className="px-8 pt-5">
+          <div className="px-4 pt-5">
             <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
               <input
                 ref={titleInputRef}
@@ -359,7 +359,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             </div>
           </div>
         ) : (
-          <h1 className="px-8 pt-5">
+          <h1 className="px-4 pt-5">
             <button
               type="button"
               onClick={startEditing}
@@ -372,7 +372,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         )}
 
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
-        <div className="mt-4 px-8">
+        <div className="mt-4 px-4">
           <MainGoalEditor matterId={matterId} description={data.description}>
             {data.source_channel_id ? (
               <div className="inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] text-text-primary">
@@ -391,7 +391,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-8 text-sm text-text-tertiary">
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-sm text-text-tertiary">
           <FieldChip label={t("matter.sidebar.createdByLabel")}>
             <UserChip uid={data.creator_id} />
           </FieldChip>
@@ -407,7 +407,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 border-b border-border-subtle px-8">
+        <div className="mt-6 border-b border-border-subtle px-4">
           <div className="flex items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
@@ -430,7 +430,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </div>
         </div>
 
-        <div className="px-8 pt-4">
+        <div className="px-4 pt-4">
           {secondaryTab === "channels" ? (
             <ChannelsTab
               matterId={matterId}

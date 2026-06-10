@@ -18,14 +18,11 @@ function withVersion(url: string | undefined, version: number): string | undefin
   return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
 }
 
-/**
- * 头像上传(简化版,无裁剪 — 老仓有 WKAvatarEditor 裁剪,本期暂用浏览器原生
- * 文件选择,直接上传整图)。
- *
- * - <input type="file" accept="image/*"> 隐藏
- * - 点击头像 → 打开文件选择 → 上传 → invalidate user detail
- * - 上传中显 loading 蒙层
- */
+function isGif(file: File): boolean {
+  return file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+}
+
+/** 头像上传:普通图片进入裁剪编辑器,GIF 保留原文件直传以避免丢失动画帧。 */
 export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
   const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,11 +36,16 @@ export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
+    if (isGif(file)) {
+      void onUpload(file);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setCropFile(file);
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const onCropConfirm = async (file: File) => {
+  const onUpload = async (file: File) => {
     try {
       await uploadMu.mutateAsync(file);
       setCropFile(null);
@@ -92,7 +94,7 @@ export function AvatarUpload({ uid, currentAvatar, name }: AvatarUploadProps) {
         file={cropFile}
         loading={uploadMu.isPending}
         onCancel={() => setCropFile(null)}
-        onConfirm={(file) => void onCropConfirm(file)}
+        onConfirm={(file) => void onUpload(file)}
       />
     </div>
   );

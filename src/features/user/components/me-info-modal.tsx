@@ -95,6 +95,10 @@ interface RootPanelProps {
   setSubpage: (v: Subpage | null) => void;
 }
 
+function isGif(file: File): boolean {
+  return file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+}
+
 function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
   const t = useT();
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
@@ -119,11 +123,16 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
   const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (isGif(file)) {
+      void onUpload(file);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setCropFile(file);
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const onCropConfirm = async (file: File) => {
+  const onUpload = async (file: File) => {
     try {
       await uploadMu.mutateAsync(file);
       setCropFile(null);
@@ -226,7 +235,7 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
         file={cropFile}
         loading={uploadMu.isPending}
         onCancel={() => setCropFile(null)}
-        onConfirm={(file) => void onCropConfirm(file)}
+        onConfirm={(file) => void onUpload(file)}
       />
     </>
   );

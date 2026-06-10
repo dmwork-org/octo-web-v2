@@ -58,16 +58,18 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
 
   const ref = useClickOutside(open, () => setOpen(false));
 
+  const safeAssignees = assignees ?? [];
+
   const assignedUids = useMemo(
-    () => new Set(assignees.map((a) => a.user_id)),
-    [assignees],
+    () => new Set(safeAssignees.map((a) => a.user_id)),
+    [safeAssignees],
   );
 
   // 合并候选列表：当前负责人 + 外部传入 candidates（去重）
   const mergedCandidates = useMemo(() => {
     const seen = new Set<string>();
     const list: Array<{ uid: string; name: string }> = [];
-    for (const a of assignees) {
+    for (const a of safeAssignees) {
       if (seen.has(a.user_id)) continue;
       seen.add(a.user_id);
       list.push({ uid: a.user_id, name: a.user_id });
@@ -116,7 +118,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
       if (pending.has(uid)) return;
       const picked = assignedUids.has(uid);
       // 至少保留 1 位负责人
-      if (picked && assignees.length <= 1) return;
+      if (picked && safeAssignees.length <= 1) return;
       // 不能移除自己
       if (picked && uid === myUid) return;
       // 移除权限:creator 能移除任何人,非 creator 只能移除自己
@@ -129,7 +131,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
       });
       mu.mutate(uid);
     },
-    [assignedUids, assignees.length, mu, pending, isCreator, myUid],
+    [assignedUids, safeAssignees.length, mu, pending, isCreator, myUid],
   );
 
   const toggleDropdown = () => {
@@ -140,7 +142,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
     <div ref={ref} className="relative inline-flex">
       {/* 触发区:展示当前负责人胶囊 */}
       <span className="inline-flex items-center gap-1.5">
-        {assignees.slice(0, 2).map((a) => (
+        {safeAssignees.slice(0, 2).map((a) => (
           <button
             key={a.user_id}
             type="button"
@@ -156,14 +158,14 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
             <UserName uid={a.user_id} className="text-sm font-normal text-text-primary" />
           </button>
         ))}
-        {assignees.length > 2 && (
+        {safeAssignees.length > 2 && (
           <button
             type="button"
             onClick={toggleDropdown}
             disabled={!canEdit}
             className="flex h-5 cursor-pointer items-center justify-center rounded-full border border-border-default bg-bg-surface px-1 text-xs text-text-tertiary transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-100"
           >
-            +{assignees.length - 2}
+            +{safeAssignees.length - 2}
           </button>
         )}
       </span>
@@ -182,7 +184,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
               itemContent={(index) => {
                 const c = mergedCandidates[index];
                 const picked = assignedUids.has(c.uid);
-                const isLast = picked && assignees.length <= 1;
+                const isLast = picked && safeAssignees.length <= 1;
                 const isLoading = pending.has(c.uid);
                 // 不能移除自己
                 const isSelf = picked && c.uid === myUid;

@@ -153,14 +153,14 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
             type="button"
             onClick={toggleDropdown}
             disabled={!canEdit}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-bg-elevated py-0.5 pr-2 pl-0.5 text-sm text-text-primary transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-100"
+            className="inline-flex h-5 cursor-pointer items-center gap-1.5 rounded-full border border-border-default bg-bg-surface py-0 pr-2 pl-0.5 text-sm text-text-primary transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-100"
           >
             <ChannelAvatar
               channel={new Channel(a.user_id, ChannelTypePerson)}
-              size={18}
+              size={16}
               title={a.user_id}
             />
-            <UserName uid={a.user_id} className="text-text-primary" />
+            <UserName uid={a.user_id} className="text-sm font-normal text-text-primary" />
           </button>
         ))}
         {assignees.length > 2 && (
@@ -168,7 +168,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
             type="button"
             onClick={toggleDropdown}
             disabled={!canEdit}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-bg-elevated text-xs text-text-tertiary transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-100"
+            className="flex h-5 cursor-pointer items-center justify-center rounded-full border border-border-default bg-bg-surface px-1 text-xs text-text-tertiary transition-opacity hover:opacity-80 disabled:cursor-default disabled:opacity-100"
           >
             +{assignees.length - 2}
           </button>

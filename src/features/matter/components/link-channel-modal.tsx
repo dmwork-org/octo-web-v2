@@ -234,6 +234,7 @@ export function LinkChannelModal({
             {!loading && threadLoadErrors.length > 0 && (
               <div className="mx-4 mb-2 flex items-center gap-2 rounded-sm border px-3 py-2 text-[12px] leading-[18px]" style={{ borderColor: "#f5a623", background: "rgba(245,166,35,0.08)" }}>
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: "#f5a623" }}>!</span>
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: "#f5a623" }}>!</span>
                 <span className="min-w-0 flex-1 break-words text-text-primary">
                   {threadLoadErrors.length === 1
                     ? t("matter.linkChannels.threadLoadFailedOne", {
@@ -263,7 +264,7 @@ export function LinkChannelModal({
             )}
 
             {/* 列表 */}
-            <div className="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
+            <div className="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
               {loading ? (
                 <div className="py-8 text-center text-[14px] text-text-tertiary">
                   {t("matter.state.loading")}
@@ -311,7 +312,7 @@ export function LinkChannelModal({
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
                           <span className="truncate text-[14px] leading-[20px] text-text-primary">
                             {isThread && (
-                              <span className="mr-0.5 text-text-tertiary" aria-hidden="true">#</span>
+                              <span className="mr-0.5 font-medium text-text-tertiary" aria-hidden="true">#</span>
                             )}
                             {c.name}
                           </span>
@@ -327,7 +328,7 @@ export function LinkChannelModal({
                     );
                   })}
                   {overflowing && (
-                    <div className="mt-1 border-t border-dashed border-border-default py-2 text-center text-[12px] text-text-tertiary">
+                    <div className="mt-1 border-t border-dashed border-border-default py-2 text-center text-[12px] text-text-tertiary px-2">
                       {t("matter.linkChannels.overflowHint", {
                         values: { limit: VISIBLE_ROW_LIMIT, total: filtered.length },
                       })}
@@ -352,7 +353,7 @@ export function LinkChannelModal({
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate text-[14px] leading-[20px] text-text-primary">
                       {isThread && (
-                        <span className="mr-0.5 text-text-tertiary" aria-hidden="true">#</span>
+                        <span className="mr-0.5 font-medium text-text-tertiary" aria-hidden="true">#</span>
                       )}
                       {c.name}
                     </span>
@@ -381,11 +382,11 @@ export function LinkChannelModal({
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-end gap-2.5 px-4 py-4">
+        <div className="flex items-center justify-end gap-3 px-4 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-7 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold leading-[20px] text-text-primary transition-colors hover:bg-bg-item-hover"
+            className="inline-flex h-7 items-center gap-2 rounded-full border bg-bg-surface px-3 text-[12px] font-semibold leading-[20px] text-text-primary transition-colors hover:bg-bg-item-hover"
             style={{ borderColor: "rgba(28,28,35,0.1)" }}
           >
             {t("matter.common.cancel")}

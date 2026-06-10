@@ -1416,7 +1416,7 @@
   "matter.footer.tagline": "Task collaboration powered by chat context",
   "matter.label.assignee": "Assignee",
   "matter.label.creator": "Creator",
-  "matter.label.fromChannel": "From {{name}}",
+  "matter.label.fromChannel": "From #{{name}}",
   "matter.label.fromHiddenChannel": "From hidden group",
   "matter.linkChannels.failed": "Failed to link",
   "matter.linkChannels.inParentGroup": "in {{name}}",

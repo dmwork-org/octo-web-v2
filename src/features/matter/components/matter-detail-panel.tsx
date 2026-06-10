@@ -384,12 +384,13 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-icon-muted">
                   <path fillRule="evenodd" clipRule="evenodd" d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z" fill="currentColor" />
                 </svg>
-                {t("matter.label.fromChannel", {
-                  values: { name: displaySourceName },
-                })}{" "}
-                <span className="text-accent">#{displaySourceName}</span> ·{" "}
-                <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                {formatDateTime(data.created_at)}
+                <span>
+                  {t("matter.label.fromChannel", {
+                    values: { name: displaySourceName },
+                  })}{" "}
+                  · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
+                  {formatDateTime(data.created_at)}
+                </span>
               </div>
             ) : null}
           </MainGoalEditor>

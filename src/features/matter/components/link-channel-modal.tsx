@@ -399,7 +399,9 @@ export function LinkChannelModal({
           >
             {submitting
               ? t("matter.linkChannels.linking")
-              : t("matter.linkChannels.confirm", { values: { count: selected.length } })}
+              : selected.length > 0
+                ? `${t("matter.linkChannels.confirm")} (${selected.length})`
+                : t("matter.linkChannels.confirm")}
           </button>
         </div>
       </div>

@@ -1439,7 +1439,7 @@
   "matter.linkChannels.description": "Select groups or threads to link to this matter",
   "matter.linkChannels.noSelection": "No conversations selected",
   "matter.linkChannels.linking": "Linking…",
-  "matter.linkChannels.confirm": "Link{{count, plural, =0 {} other { ({{count}})}}}",
+  "matter.linkChannels.confirm": "Link",
   "matter.common.retry": "Retry",
   "matter.common.cancel": "Cancel",
   "matter.state.loading": "Loading…",

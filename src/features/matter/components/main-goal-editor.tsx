@@ -31,7 +31,10 @@ export function MainGoalEditor({ matterId, description, children }: MainGoalEdit
   const initial = description ?? "";
   const [draft, setDraft] = useState(initial);
   const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
   const updateMu = useUpdateMatter();
+
+  const isEmpty = !initial;
 
   const handleChange = (html: string) => {
     setDraft(html);
@@ -39,9 +42,15 @@ export function MainGoalEditor({ matterId, description, children }: MainGoalEdit
   };
 
   const handleBlur = (html: string) => {
-    if (!dirty) return;
+    if (!dirty) {
+      setEditing(false);
+      return;
+    }
     setDirty(false);
-    updateMu.mutate({ matterId, req: { description: html } });
+    updateMu.mutate(
+      { matterId, req: { description: html } },
+      { onSuccess: () => setEditing(false) },
+    );
   };
 
   return (
@@ -64,14 +73,34 @@ export function MainGoalEditor({ matterId, description, children }: MainGoalEdit
         ) : null}
       </div>
       {children}
-      <div className="rounded-md border border-transparent px-1 py-0.5 transition-colors focus-within:border-[#6366f1] focus-within:bg-bg-primary focus-within:shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
-        <RichEditor
-          value={draft}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          placeholder={t("matter.create.goalPlaceholder")}
-        />
-      </div>
+      {!editing && isEmpty ? (
+        <div
+          className="px-2 py-1"
+          style={{ cursor: "pointer" }}
+          title={t("matter.action.editDescription")}
+          onClick={() => {
+            setEditing(true);
+            setDraft(initial);
+          }}
+        >
+          <span
+            className="text-[14px] leading-[20px] text-text-tertiary"
+            style={{ cursor: "inherit" }}
+          >
+            {t("matter.field.goalPlaceholder")}
+          </span>
+        </div>
+      ) : (
+        <div className="rounded-md border border-transparent px-1 py-0.5 transition-colors focus-within:border-[#6366f1] focus-within:bg-bg-primary focus-within:shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
+          <RichEditor
+            value={draft}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            placeholder={t("matter.create.goalPlaceholder")}
+            autoFocus={editing && isEmpty}
+          />
+        </div>
+      )}
     </div>
   );
 }

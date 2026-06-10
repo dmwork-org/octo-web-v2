@@ -1474,6 +1474,7 @@
   "matter.sidebar.assigneeLabel": "负责人:",
   "matter.sidebar.createdByLabel": "创建人:",
   "matter.sidebar.unarchived": "未归档",
+  "matter.sidebar.unarchivedWithCount": "未归档 ({{count}})",
   "matter.state.empty": "暂无事项",
   "matter.state.loadFailed": "加载失败",
   "matter.state.loadFailedRetry": "加载失败，请稍后重试",

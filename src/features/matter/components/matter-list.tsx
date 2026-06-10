@@ -206,7 +206,7 @@ export function MatterList({
               onClick={() => setActiveOpen((v) => !v)}
               className="flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
             >
-              <SegmentLabel text={t("matter.sidebar.unarchived")} />
+              <SegmentLabel text={t("matter.sidebar.unarchivedWithCount", { values: { count: active.length } })} />
               <ChevronRight
                 size={14}
                 className={`text-icon-muted transition-transform ${activeOpen ? "rotate-90" : ""}`}

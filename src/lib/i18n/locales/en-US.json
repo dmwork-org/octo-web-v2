@@ -1473,6 +1473,7 @@
   "matter.sidebar.assigneeLabel": "Assignee:",
   "matter.sidebar.createdByLabel": "Created by:",
   "matter.sidebar.unarchived": "Active",
+  "matter.sidebar.unarchivedWithCount": "Active ({{count}})",
   "matter.state.empty": "No tasks yet",
   "matter.state.loadFailed": "Failed to load",
   "matter.state.loadFailedRetry": "Failed to load. Please try again later.",

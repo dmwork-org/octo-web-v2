@@ -1,14 +1,16 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Languages } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { avatarVersionStore } from "@/features/base/stores/avatar-version";
+import { spaceStore } from "@/features/base/stores/space";
 import { useT } from "@/lib/i18n/use-t";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { userDetailQueryOptions } from "@/features/base/queries/user.query";
+import { summaryBadgeQueryOptions } from "@/features/summary/queries/summary-badge.query";
 import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
 import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
 import { MeInfoModal } from "@/features/user/components/me-info-modal";
@@ -23,15 +25,31 @@ function isActive(item: MenuItem, path: string): boolean {
 }
 
 /**
+ * 模块 → badge count hook 解析。目前只有 summary 注册(WAITING_CONFIRM 任务数);
+ * 其他模块按需扩 case,sidebar 直接 own 解析避免 route-menu 反向依赖各模块 query。
+ *
+ * 用 path 而不是 staticData badgeKey,绕开 module augmentation 冲突 + 让
+ * NavRail 跟 route 解耦(任何路径在 _auth.summary.* 下都自动取到 badge)。
+ */
+function useNavBadgeCount(itemTo: string): number | undefined {
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const { data } = useQuery(summaryBadgeQueryOptions(itemTo === "/summary" && !!spaceId));
+  if (itemTo !== "/summary") return undefined;
+  return typeof data === "number" && data > 0 ? data : undefined;
+}
+
+/**
  * NavItem — 1:1 对齐老仓 `.wk-navrail__item`:
  *  - 容器 56×44,无圆角,无边框
  *  - 未激活:`text-text-primary/30`(对应老仓 `--wk-icon-muted` 30% 透明)
  *  - hover:`bg-brand-tint/40 + text-text-primary/60`(对应老仓 `brand-tint-04 + icon-default`)
  *  - 激活:`text-brand`(无背景)— 老仓"选中态只有颜色变化,无背景,无指示条"
+ *  - badge:右上小红点 + 数字(>99 显 99+);目前仅 summary 模块用
  */
 function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   const t = useT();
   const label = t(item.title);
+  const badge = useNavBadgeCount(item.to);
   return (
     <Link
       to={item.to}
@@ -44,6 +62,11 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
       }`}
     >
       {renderMenuIcon(item.icon, 20)}
+      {badge != null ? (
+        <span className="absolute top-1 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </Link>
   );
 }

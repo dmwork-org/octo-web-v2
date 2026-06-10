@@ -12,6 +12,7 @@ import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
 import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
 import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
+import { ChatSummaryPanel } from "@/features/chat/components/chat-summary-panel";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { useEnsureRoleSubscribersForRevoke } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
 import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-config-loaded.hook";
@@ -20,7 +21,8 @@ import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-c
  * Channel 切换时关掉所有右侧 panel(对齐旧 ChatContentPage 用 key={channel.getChannelKey()}
  * 重建组件让 showThreadPanel / previewFile / showMatterPanel 等 local state 归零的语义)。
  * 新仓 chatSidePanelStore 是全局 store,不绑 channel,必须显式 close,否则切群后还看到
- * 上一个群的 thread / matter / filePreview。命名 hook 满足 no-useeffect-in-component。
+ * 上一个群的 thread / matter / filePreview / summary。命名 hook 满足
+ * no-useeffect-in-component。
  */
 function useResetSidePanelOnChannelChange(channelKey: string): void {
   useEffect(() => {
@@ -61,6 +63,7 @@ function useListenCreateMatterFromComposer(
  * - threads     → 渲染 ThreadListPanel
  * - filePreview → 渲染 FilePreviewPanel
  * - matter      → 渲染 MatterListPanel
+ * - summary     → 渲染 ChatSummaryPanel(chat 上下文智能总结)
  * - none        → 不渲染右侧
  *
  * **创建事项触发路径**:
@@ -116,6 +119,7 @@ export function ChatMain() {
       ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
       {sidePanelKind === "matter" ? <MatterListPanel /> : null}
+      {sidePanelKind === "summary" ? <ChatSummaryPanel /> : null}
       {createMatterChannel ? (
         <CreateMatterModal
           open

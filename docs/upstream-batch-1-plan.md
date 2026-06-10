@@ -166,29 +166,29 @@
 
 跟 chat 主区强关联(WKLayout 等)虽然实际改 summary 模块。
 
-- [ ] `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n — **chat 主区右上 entry,33+ files**
-- [ ] `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge
+- [x] `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n — **chat 主区右上 entry,33+ files**
+- [x] `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge
 
 **手测**:进 chat 窗口右上看到 summary entry;NavRail summary 有未读 badge;session list 实时刷新。
 
 ---
 
-### Batch 1.12 — Chat-Matter 关联:多选事项 / 文件 tab(2 commits)
+### Batch 1.12 — Chat-Matter 关联:多选事项 / 文件 tab(2 commits) — **整批跳过(matter 模块本仓未复刻好,陈超 2026-06-10 决策)**
 
 跟 chat 多选 → 事项 / 文件预览交集。
 
-- [ ] `66d474c9` 2026-06-03 refactor(todo): unify create-task modal — all entries use SmartCreate
-- [ ] `60afb75e` 2026-05-28 feat(matters): add 产出文件 tab to matter detail panel
+- [~] `66d474c9` 2026-06-03 refactor(todo): unify create-task modal — all entries use SmartCreate — 等本仓 matter 模块复刻完整后再回头
+- [~] `60afb75e` 2026-05-28 feat(matters): add 产出文件 tab to matter detail panel — 后端 octo-matter outputs endpoint 未确认 + 跨模块大改造,跟 matter 主模块一并 P3 立项
 
-**手测**:任意入口创建事项都走 SmartCreateModal;matter 详情有"产出文件" tab。
+**手测**:跳过,无代码改动。
 
 ---
 
 ### Batch 1.13 — 杂项小 fix(3 commits)
 
-- [ ] `0f024d2d` 2026-06-04 fix(group-md): render escaped newlines as markdown — GroupMdEditor
-- [ ] `12e579a4` 2026-06-03 fix: restore MeInfo modal content height
-- [ ] `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries
+- [x] `0f024d2d` 2026-06-04 fix(group-md): render escaped newlines as markdown — GroupMdEditor
+- [x] `12e579a4` 2026-06-03 fix: restore MeInfo modal content height(**等效已修 / 本仓 BaseDialog `h-[500px]` 已对齐**)
+- [x] `1906c874` 2026-06-08 fix: unify thread archive action visibility across entries(**已在 batch 1.3 baseline 后补搬过,本 batch 不重复**)
 
 **手测**:GroupMd 里 \\n 渲染换行;MeInfo modal 高度正常;子区归档按钮一致。
 

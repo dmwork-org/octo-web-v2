@@ -1,5 +1,5 @@
 import WKSDK, {
-  type Channel,
+  Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
   type Conversation,
@@ -48,7 +48,7 @@ export function isChannelOfSpace(channel: Channel, spaceId: string | null): bool
   if (channel.channelType === CHANNEL_TYPE_THREAD) {
     const parsed = parseThreadChannelId(channel.channelID);
     if (!parsed) return true;
-    const parentChannel = { channelID: parsed.groupNo, channelType: ChannelTypeGroup } as Channel;
+    const parentChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
     return isChannelOfSpace(parentChannel, spaceId);
   }
 

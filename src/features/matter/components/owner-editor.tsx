@@ -124,6 +124,8 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
       const picked = assignedUids.has(uid);
       // 至少保留 1 位负责人
       if (picked && assignees.length <= 1) return;
+      // 不能移除自己
+      if (picked && uid === myUid) return;
       // 移除权限:creator 能移除任何人,非 creator 只能移除自己
       if (picked && !isCreator && uid !== myUid) return;
 
@@ -189,9 +191,11 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEd
                 const picked = assignedUids.has(c.uid);
                 const isLast = picked && assignees.length <= 1;
                 const isLoading = pending.has(c.uid);
+                // 不能移除自己
+                const isSelf = picked && c.uid === myUid;
                 // 移除权限:creator 能移除任何人,非 creator 只能移除自己
                 const cannotRemove = picked && !isCreator && c.uid !== myUid;
-                const isDisabled = isLast || isLoading || cannotRemove;
+                const isDisabled = isLast || isLoading || isSelf || cannotRemove;
                 return (
                   <button
                     type="button"

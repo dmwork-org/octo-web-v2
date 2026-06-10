@@ -24,6 +24,7 @@ import {
   personalResultQueryOptions,
   summaryDetailQueryKey,
 } from "@/features/summary/queries/summaries.query";
+import { summaryBadgeQueryKey } from "@/features/summary/queries/summary-badge.query";
 import {
   ParticipantStatus,
   SourceType,
@@ -92,6 +93,8 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
       void qc.invalidateQueries({ queryKey: personalResultQueryKey(taskId) });
+      // confirm/decline 让本任务从 WAITING_CONFIRM 退出,NavRail badge 立刻减(无需等 60s)
+      void qc.invalidateQueries({ queryKey: summaryBadgeQueryKey });
       toast.success(t("summary.personal.confirmedToast"));
       onConfirmed();
     },
@@ -103,6 +106,7 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
     mutationFn: () => declineParticipation(taskId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
+      void qc.invalidateQueries({ queryKey: summaryBadgeQueryKey });
       toast.success(t("summary.personal.declinedToast"));
     },
     onError: (err) =>

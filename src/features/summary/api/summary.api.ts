@@ -2,15 +2,20 @@ import { ofetch } from "ofetch";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import type {
+  BatchStatusItem,
+  BatchStatusResponse,
+  ChatCandidate,
   CreateScheduleParams,
   CreateSummaryParams,
   ListSummariesParams,
   ListSummariesResponse,
+  MemberCandidate,
   MemberStatus,
   PersonalResult,
   ScheduleItem,
   SourceItem,
   SummaryDetail,
+  TopicTemplate,
   UpdateScheduleParams,
 } from "@/features/summary/types/summary.types";
 
@@ -24,6 +29,12 @@ import type {
  * onResponse 里把 `_data = _data.data` 透传,对调用层就是直接拿 T。错误时后端用
  * `{ error: { message } }` 或 `{ message }`,ofetch 默认 throw,这里在 onResponseError
  * 里把 message 抽出来,业务层 toast 直接读 err.message。
+ *
+ * **AbortError 透传**:`AbortController.abort()` 抛出的 DOMException
+ * `name === "AbortError"`,上层(chat panel fetchSummaryCount / loadHistory)依赖
+ * `err.name === "AbortError"` 区分"主动取消"vs"真错误",所以这里 throw 不能覆盖
+ * AbortError(对齐老仓 `axios.isCancel(err) → throw err` 行为)。ofetch 在 request
+ * abort 时不会进 onResponseError,但加 guard 兜底防错路径。
  */
 
 const summaryApi = ofetch.create({
@@ -42,7 +53,8 @@ const summaryApi = ofetch.create({
       response._data = body.data;
     }
   },
-  onResponseError: ({ response }) => {
+  onResponseError: ({ response, error }) => {
+    if (error?.name === "AbortError") return;
     const body = response._data as { error?: { message?: string }; message?: string } | undefined;
     const msg = body?.error?.message ?? body?.message;
     if (msg) {
@@ -53,8 +65,11 @@ const summaryApi = ofetch.create({
 
 // ─── Core ─────────────────────────────────────────────────
 
-export async function listSummaries(params: ListSummariesParams): Promise<ListSummariesResponse> {
-  return summaryApi<ListSummariesResponse>("/summaries", { query: params });
+export async function listSummaries(
+  params: ListSummariesParams,
+  config?: { signal?: AbortSignal },
+): Promise<ListSummariesResponse> {
+  return summaryApi<ListSummariesResponse>("/summaries", { query: params, signal: config?.signal });
 }
 
 export async function getSummaryDetail(taskId: number): Promise<SummaryDetail> {
@@ -75,6 +90,18 @@ export async function regenerateSummary(taskId: number): Promise<{ task_id: numb
 
 export async function cancelSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
+}
+
+/**
+ * 批量查询任务状态(chat panel 列表轮询用,避免对每个任务发独立 GET)。
+ * 对齐老仓 `summaryApi.batchStatus`,内部 POST 拿 envelope `{ tasks: [...] }`。
+ */
+export async function batchStatus(taskIds: number[]): Promise<BatchStatusItem[]> {
+  const data = await summaryApi<BatchStatusResponse>("/summaries/batch-status", {
+    method: "POST",
+    body: { task_ids: taskIds },
+  });
+  return data?.tasks ?? [];
 }
 
 // ─── Schedule CRUD(Wave 3b) ─────────────────────────────
@@ -146,4 +173,40 @@ export async function getMembers(taskId: number): Promise<MemberStatus[]> {
     `/summaries/${taskId}/members`,
   );
   return data?.members ?? [];
+}
+
+// ─── Chat-context candidates + templates(Batch 1.11) ────
+
+/**
+ * 拉远端"可作为总结来源的会话候选"列表(chat-selector 多选弹窗用)。
+ * 后端返回当前 space 内所有可访问的 group / thread / direct,跟最近会话不同,
+ * 是"全量授权列表",所以不能用本仓 conversationsQueryOptions 替代。
+ */
+export async function getChatCandidates(params?: {
+  keyword?: string;
+  chat_type?: string;
+}): Promise<ChatCandidate[]> {
+  const data = await summaryApi<ChatCandidate[] | null>("/summary-chat-candidates", {
+    query: params,
+  });
+  return data ?? [];
+}
+
+/** 成员候选(添加 participant 弹窗用,本期 chat panel 未直接用,留接口对齐老仓)。 */
+export async function getMemberCandidates(params?: {
+  keyword?: string;
+}): Promise<MemberCandidate[]> {
+  const data = await summaryApi<MemberCandidate[] | null>("/summary-member-candidates", {
+    query: params,
+  });
+  return data ?? [];
+}
+
+/**
+ * 拉远端 topic 模板列表。后端没配时返回空数组,UI 走前端 TOPIC_TEMPLATES 兜底
+ * (对齐老仓 ChatSummaryNewModal.loadTemplates fallback)。
+ */
+export async function getTopicTemplates(): Promise<TopicTemplate[]> {
+  const data = await summaryApi<{ templates?: TopicTemplate[] } | null>("/summary-templates");
+  return data?.templates ?? [];
 }

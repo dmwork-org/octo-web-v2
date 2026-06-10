@@ -166,8 +166,8 @@
 
 跟 chat 主区强关联(WKLayout 等)虽然实际改 summary 模块。
 
-- [ ] `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n — **chat 主区右上 entry,33+ files**
-- [ ] `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge
+- [x] `f27fbdd2` 2026-06-05 feat: chat-window smart summary UI with i18n — **chat 主区右上 entry,33+ files**
+- [x] `123a12c6` 2026-06-02 fix(#192): smart summary session list auto-refresh + NavRail badge
 
 **手测**:进 chat 窗口右上看到 summary entry;NavRail summary 有未读 badge;session list 实时刷新。
 

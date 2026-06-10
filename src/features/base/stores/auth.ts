@@ -2,7 +2,6 @@ import { Store } from "@tanstack/react-store";
 import { spaceActions } from "@/features/base/stores/space";
 import { i18n } from "@/lib/i18n/instance";
 import { detectLocale, localeStorageKey } from "@/lib/i18n/detect-locale";
-import { logoutUserInitiated } from "@/features/login/oidc/logout";
 
 export interface AuthUser {
   uid: string;
@@ -66,9 +65,10 @@ export const authStore = new Store<AuthState>(readPersisted());
  * - `window.location.replace('/login')` 整页跳,清掉所有 react-query cache + 进行中
  *   refetch,避免 logout 后残留请求拿 401 触发 with401Redirect 给 /login 加 redirect
  *
- * 本函数不直接 export,业务调 `authActions.signOut()`。
+ * **导出供 logout 模块复用**(不让 oidc/logout.ts 反向 import 本文件造成循环依赖
+ * `auth.ts → logout.ts → client.ts → auth.ts` 的 TDZ 错误)。
  */
-function clearLocalAndRedirect(): void {
+export function clearLocalAuthAndRedirect(): void {
   authStore.setState(() => ({ token: null, user: null }));
   spaceActions.setSpace(null);
   if (typeof window !== "undefined") {
@@ -88,12 +88,19 @@ export const authActions = {
    * 登出 — 用户主动触发:
    * - SSO 登录(user.login_provider 非空)→ logoutUserInitiated 走 OIDC end_session_url
    *   (调后端 → 跳 IdP 登出页 → IdP 回源到 /login → main.tsx 兜底再清一次)
-   * - 非 SSO / OIDC 调用失败 → fallback 走 clearLocalAndRedirect(同原行为)
+   * - 非 SSO / OIDC 调用失败 → fallback 走 clearLocalAuthAndRedirect(同原行为)
+   *
+   * **dynamic import** logout 模块:避免 auth.ts → oidc/logout.ts → api/client.ts
+   * → auth.ts 静态循环导入(client.ts 启动时拿不到 authStore 触发 TDZ ReferenceError
+   * "Cannot access 'authStore' before initialization")。
+   * 用户点登出是 user-initiated 异步操作,dynamic import 延迟开销可接受。
    *
    * 调用方不需要再自己 navigate /login。SSR 环境下 fallback 只清 store。
    */
   signOut: () => {
-    void logoutUserInitiated(clearLocalAndRedirect);
+    void import("@/features/login/oidc/logout")
+      .then(({ logoutUserInitiated }) => logoutUserInitiated(clearLocalAuthAndRedirect))
+      .catch(() => clearLocalAuthAndRedirect());
   },
 };
 

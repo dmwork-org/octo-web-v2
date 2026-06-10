@@ -1,24 +1,29 @@
 /**
- * OIDC logout 流程(对齐上游 86c5837b oidcLogout.ts):
+ * OIDC logout 用户主动流程(对齐上游 86c5837b oidcLogout.ts logoutUserInitiated):
  *
  * 完整流程:
  *   1. 用户点登出 → 检查 user.login_provider
- *   2. SSO 登录 → `requestOidcLogout(providerId, token)` 调后端拿
- *      `end_session_url`
+ *   2. SSO 登录 → `requestOidcLogout(providerId)` 调后端拿 `end_session_url`
  *   3. `markOidcPostLogoutCleanup()` 在 sessionStorage 写标志
  *   4. 清本地 auth + space + localStorage 残留
  *   5. `window.location.href = end_session_url` 跳 IdP 登出页
  *   6. IdP 登出后 redirect 回 `/login` → main.tsx 启动时
- *      `consumeOidcPostLogoutCleanup()` 二次清理(兜底,IdP 回源可能带回
- *      旧 cookie/token)
+ *      `runPostLogoutCleanupIfNeeded()` 二次清理(兜底)
  *
  * 失败兜底:任何步骤失败 → fallback 走原本地 signOut(authStore 清 + 跳 /login)。
+ *
+ * **加载时机**:本文件依赖 api/client 和 authStore,**不能** top-level 被 main.tsx 或
+ * auth.ts 静态 import(会造成 `auth → logout → client → auth` 循环加载,client.ts
+ * 拿不到 authStore 触发 TDZ)。改由 auth.signOut 内部 dynamic import 加载。
+ * 启动期需要的 cleanup helpers 已拆到 `./logout-cleanup.ts`(无依赖)。
  */
 
 import { api } from "@/features/base/api/client";
 import { authStore } from "@/features/base/stores/auth";
-
-const OIDC_POST_LOGOUT_CLEANUP_KEY = "octo_oidc_post_logout_cleanup";
+import {
+  clearLocalAuthStorage,
+  markOidcPostLogoutCleanup,
+} from "@/features/login/oidc/logout-cleanup";
 
 /** "local" 不算 SSO,空串也不算;其他非空 string 视为合法 SSO provider id。 */
 export function isOidcLoginProvider(providerId: unknown): providerId is string {
@@ -55,33 +60,10 @@ export function safeEndSessionUrl(value: unknown): string | undefined {
 }
 
 /**
- * 在 sessionStorage 标记"刚从 IdP 登出回来,启动时需再清一次本地状态"。
- * 用 sessionStorage 而非 localStorage:tab 关掉就清,不让标志跨 session 残留。
- */
-export function markOidcPostLogoutCleanup(): void {
-  try {
-    window.sessionStorage.setItem(OIDC_POST_LOGOUT_CLEANUP_KEY, "1");
-  } catch {
-    // sessionStorage 不可用(隐私模式),不致命,跳过
-  }
-}
-
-/** 读 + 清 cleanup 标志;返回是否需要兜底清理。 */
-export function consumeOidcPostLogoutCleanup(): boolean {
-  try {
-    const marked = window.sessionStorage.getItem(OIDC_POST_LOGOUT_CLEANUP_KEY) === "1";
-    if (marked) window.sessionStorage.removeItem(OIDC_POST_LOGOUT_CLEANUP_KEY);
-    return marked;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * 用户主动登出 — SSO 走完整流程,非 SSO 走 fallback。
  *
  * 不直接 export 给业务用,业务调 `authActions.signOut()` 即可,
- * signOut 内部 wire 到本函数。
+ * signOut 内部 dynamic import 本函数。
  */
 export async function logoutUserInitiated(fallback: () => void): Promise<void> {
   const user = authStore.state.user;
@@ -99,7 +81,7 @@ export async function logoutUserInitiated(fallback: () => void): Promise<void> {
     if (endSessionUrl) {
       markOidcPostLogoutCleanup();
       // 不调 fallback() — 它会跳 /login,我们要跳 IdP 的 end_session_url
-      clearLocalAuthState();
+      clearLocalAuthStorage();
       window.location.href = endSessionUrl;
       return;
     }
@@ -108,28 +90,4 @@ export async function logoutUserInitiated(fallback: () => void): Promise<void> {
   }
 
   fallback();
-}
-
-/**
- * 启动时兜底清:IdP 回源到 /login 时,清掉可能残留的本地 auth/space localStorage。
- * 在 main.tsx 入口同步调用一次。
- */
-export function runPostLogoutCleanupIfNeeded(): void {
-  if (typeof window === "undefined") return;
-  if (!consumeOidcPostLogoutCleanup()) return;
-  clearLocalAuthState();
-}
-
-function clearLocalAuthState(): void {
-  try {
-    window.localStorage.removeItem("octo:auth");
-    window.localStorage.removeItem("currentSpaceId");
-  } catch {
-    // ignore storage errors
-  }
-  try {
-    window.sessionStorage.removeItem("pending_oidc_login");
-  } catch {
-    // ignore
-  }
 }

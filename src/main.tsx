@@ -12,7 +12,7 @@ import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-
 import { persistChatSidebarTab } from "./features/chat/stores/chat-sidebar-tab";
 import { clearFetchedTitleCache } from "./features/chat/lib/live-channel-title";
 import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
-import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout";
+import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout-cleanup";
 import "./index.css";
 
 // IdP 回源到本站时兜底清:如果 sessionStorage 含 OIDC post-logout 标志,

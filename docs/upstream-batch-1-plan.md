@@ -152,11 +152,11 @@
 
 ### Batch 1.10 — Chat 大特性 3:Voice 设置面板(5 commits)
 
-- [ ] `c0a6f1ea` 2026-05-22 feat(voice): ASR privacy controls — feedback settings, notice popup, keyboard fix
-- [ ] `aec22081` 2026-05-26 feat: voice settings panel redesign
-- [ ] `ed5bc4bd` 2026-05-27 feat(voice): local ASR toggle in VoiceSettingsPanel + fix triple probe
-- [ ] `9d1fa159` 2026-05-26 feat: include ASR params in uploadLocal feedback metadata
-- [ ] `c4fd2a13` 2026-05-28 feat: use reset endpoint instead of delete for restoring defaults
+- [x] `c0a6f1ea` 2026-05-22 feat(voice): ASR privacy controls — feedback settings, notice popup, keyboard fix
+- [x] `aec22081` 2026-05-26 feat: voice settings panel redesign
+- [x] `ed5bc4bd` 2026-05-27 feat(voice): local ASR toggle in VoiceSettingsPanel + fix triple probe
+- [x] `9d1fa159` 2026-05-26 feat: include ASR params in uploadLocal feedback metadata
+- [x] `c4fd2a13` 2026-05-28 feat: use reset endpoint instead of delete for restoring defaults
 
 **手测**:NavRail 设置 → voice 面板有隐私开关 / 重设;录音时键盘交互;ASR 上传元数据完整。
 

@@ -25,8 +25,8 @@ export function notifyChatSummaryDeleted(detail: ChatSummaryEventDetail): void {
   window.dispatchEvent(new CustomEvent<ChatSummaryEventDetail>(DELETED, { detail }));
 }
 
-/** 订阅"创建" / "删除"任一事件,channelId 匹配时回调。返回 unsubscribe。 */
-export function subscribeChatSummaryEvents(
+function subscribeChatSummaryEvent(
+  eventName: typeof CREATED | typeof DELETED,
   channelId: string,
   cb: (detail: ChatSummaryEventDetail) => void,
 ): () => void {
@@ -34,10 +34,35 @@ export function subscribeChatSummaryEvents(
     const detail = (e as CustomEvent<ChatSummaryEventDetail>).detail;
     if (detail?.channelId === channelId) cb(detail);
   };
-  window.addEventListener(CREATED, handler);
-  window.addEventListener(DELETED, handler);
+  window.addEventListener(eventName, handler);
   return () => {
-    window.removeEventListener(CREATED, handler);
-    window.removeEventListener(DELETED, handler);
+    window.removeEventListener(eventName, handler);
+  };
+}
+
+export function subscribeChatSummaryCreated(
+  channelId: string,
+  cb: (detail: ChatSummaryEventDetail) => void,
+): () => void {
+  return subscribeChatSummaryEvent(CREATED, channelId, cb);
+}
+
+export function subscribeChatSummaryDeleted(
+  channelId: string,
+  cb: (detail: ChatSummaryEventDetail) => void,
+): () => void {
+  return subscribeChatSummaryEvent(DELETED, channelId, cb);
+}
+
+/** 订阅"创建" / "删除"任一事件,channelId 匹配时回调。返回 unsubscribe。 */
+export function subscribeChatSummaryEvents(
+  channelId: string,
+  cb: (detail: ChatSummaryEventDetail) => void,
+): () => void {
+  const unsubscribeCreated = subscribeChatSummaryCreated(channelId, cb);
+  const unsubscribeDeleted = subscribeChatSummaryDeleted(channelId, cb);
+  return () => {
+    unsubscribeCreated();
+    unsubscribeDeleted();
   };
 }

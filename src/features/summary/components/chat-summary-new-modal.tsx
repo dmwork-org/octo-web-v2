@@ -28,7 +28,7 @@ interface ChatSummaryNewModalProps {
   open: boolean;
   channel: { channelID: string; channelType: number };
   onClose: () => void;
-  /** 创建成功后回调:本仓 chat-summary-panel 用来 selectSummary(taskId) 跳详情。 */
+  /** 创建成功后回调:聊天壳负责关闭弹窗并打开 / 刷新智能总结历史面板。 */
   onCreated: (taskId: number) => void;
 }
 

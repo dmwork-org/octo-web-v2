@@ -84,12 +84,65 @@ export async function deleteSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}`, { method: "DELETE" });
 }
 
-export async function regenerateSummary(taskId: number): Promise<{ task_id: number }> {
-  return summaryApi<{ task_id: number }>(`/summaries/${taskId}/regenerate`, { method: "POST" });
+export async function regenerateSummary(
+  taskId: number,
+  body?: { topic?: string },
+): Promise<{ task_id: number }> {
+  return summaryApi<{ task_id: number }>(`/summaries/${taskId}/regenerate`, {
+    method: "POST",
+    body,
+  });
+}
+
+type EditSummaryResponse = { edited_at: string };
+type EditSummaryRawBody =
+  | EditSummaryResponse
+  | {
+      data?: EditSummaryResponse;
+      error?: { message?: string };
+      message?: string;
+    };
+
+function extractEditSummaryError(body: EditSummaryRawBody | undefined): string {
+  if (!body || typeof body !== "object") return "Request failed";
+  if ("error" in body && body.error?.message) return body.error.message;
+  if ("message" in body && body.message) return body.message;
+  return "Request failed";
+}
+
+function unwrapEditSummary(body: EditSummaryRawBody | undefined): EditSummaryResponse {
+  if (body && typeof body === "object" && "data" in body && body.data) return body.data;
+  return body as EditSummaryResponse;
+}
+
+/**
+ * 编辑总结正文。这里不用普通 summaryApi 调用,因为 409 需要保留 HTTP status,
+ * 上层据此按上游逻辑提示"内容已更新,请刷新"。
+ */
+export async function editSummary(
+  taskId: number,
+  content: string,
+  baseResultId: number,
+): Promise<EditSummaryResponse> {
+  const response = await summaryApi.raw<EditSummaryRawBody>(`/summaries/${taskId}/edit`, {
+    method: "PUT",
+    body: { content, base_result_id: baseResultId },
+    ignoreResponseError: true,
+  });
+  if (response.status >= 400) {
+    const err = new Error(extractEditSummaryError(response._data)) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
+  }
+  return unwrapEditSummary(response._data);
 }
 
 export async function cancelSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
+}
+
+export async function respondToTask(taskId: number, action: "accept" | "reject"): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/respond`, { method: "POST", body: { action } });
 }
 
 /**

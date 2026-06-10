@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
@@ -9,13 +9,21 @@ import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
-import { createSummary } from "@/features/summary/api/summary.api";
+import { createSummary, getTopicTemplates } from "@/features/summary/api/summary.api";
 import { ParticipantPicker } from "@/features/summary/components/participant-picker";
+import { TemplateCard } from "@/features/summary/components/template-card";
+import { TOPIC_TEMPLATES } from "@/features/summary/constants/topic-templates";
+import {
+  computeTemplateSelection,
+  resolveTemplate,
+  type ResolvableTemplate,
+} from "@/features/summary/utils/template-resolver";
 import {
   SourceType,
   SummaryMode,
   type SourceItem,
   type SummaryModeType,
+  type TopicTemplate,
 } from "@/features/summary/types/summary.types";
 
 interface SummaryCreateModalProps {
@@ -45,16 +53,33 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
   const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const topicRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [mode, setMode] = useState<SummaryModeType>(SummaryMode.BY_GROUP);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [participantUids, setParticipantUids] = useState<string[]>([]);
+  const [placeholderRange, setPlaceholderRange] = useState<[number, number] | null>(null);
 
   const { data: conversations } = useQuery({
     ...conversationsQueryOptions(spaceId),
     enabled: open,
   });
+
+  const { data: remoteTemplates } = useQuery({
+    queryKey: ["summary", "topic-templates"],
+    queryFn: () => getTopicTemplates(),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const templates: ResolvableTemplate[] =
+    remoteTemplates && remoteTemplates.length > 0 ? remoteTemplates : TOPIC_TEMPLATES;
+
+  const resolvedTemplates = useMemo(
+    () => templates.map((tpl) => resolveTemplate(tpl, t)),
+    [templates],
+  );
 
   const candidates = useMemo(() => {
     return (conversations ?? []).filter(
@@ -92,6 +117,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
       setSelectedIds(new Set());
       setParticipantUids([]);
       setMode(SummaryMode.BY_GROUP);
+      setPlaceholderRange(null);
       onCreated(task_id);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : t("summary.create.failed")),
@@ -116,6 +142,26 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
       else next.add(id);
       return next;
     });
+  };
+
+  const handleTemplateClick = (template: TopicTemplate) => {
+    const { text, range } = computeTemplateSelection(template);
+    setTopic(text);
+    setPlaceholderRange(range);
+    setTimeout(() => {
+      const input = topicRef.current;
+      if (!input) return;
+      input.focus();
+      if (range) input.setSelectionRange(range[0], range[1]);
+    }, 0);
+  };
+
+  const handleTopicFocus = () => {
+    if (!placeholderRange) return;
+    const [start, end] = placeholderRange;
+    setTopic((prev) => prev.substring(0, start) + prev.substring(end));
+    setPlaceholderRange(null);
+    setTimeout(() => topicRef.current?.setSelectionRange(start, start), 0);
   };
 
   const isPerson = mode === SummaryMode.BY_PERSON;
@@ -180,15 +226,37 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
                 {tr("summary.create.topicLabel")}
               </span>
               <textarea
+                ref={topicRef}
                 autoFocus
                 value={topic}
-                onChange={(e) => setTopic(e.target.value.slice(0, 1000))}
+                onChange={(e) => {
+                  setTopic(e.target.value.slice(0, 1000));
+                  setPlaceholderRange(null);
+                }}
+                onFocus={handleTopicFocus}
                 rows={3}
                 placeholder={tr("summary.create.topicPlaceholder")}
                 className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
               />
               <span className="self-end text-[10px] text-text-tertiary">{topic.length}/1000</span>
             </label>
+
+            {!topic.trim() ? (
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-text-secondary">
+                  {tr("summary.create.templatesTitle")}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {resolvedTemplates.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      template={template}
+                      onClick={handleTemplateClick}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-secondary">

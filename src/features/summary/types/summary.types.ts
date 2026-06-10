@@ -138,8 +138,16 @@ export interface SummaryDetail {
   result: SummaryResult | null;
   error_message: string | null;
   schedule_id?: number;
+  origin_channel_id?: string;
+  origin_channel_type?: number;
   created_at: string;
   updated_at: string;
+  result_id?: number;
+  result_edited_at?: string | null;
+  result_is_edited?: boolean;
+  permissions?: {
+    can_edit: boolean;
+  };
 }
 
 // ─── 请求 ─────────────────────────────────────────────────
@@ -208,6 +216,11 @@ export interface ScheduleItem {
   title: string;
   summary_mode: SummaryModeType;
   cron_expr: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type: TimeRangeTypeValue;
   sources: SourceItem[];
   participants: { user_id: string }[];
@@ -221,18 +234,44 @@ export interface CreateScheduleParams {
   title: string;
   summary_mode: SummaryModeType;
   cron_expr: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type: TimeRangeTypeValue;
   sources: SourceItem[];
   participants?: { user_id: string }[];
+  /** Task-scoped create atomically binds the new schedule to a summary task. */
+  scope?: "task";
+  task_id?: number;
 }
 
 export interface UpdateScheduleParams {
   title?: string;
   summary_mode?: SummaryModeType;
   cron_expr?: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type?: TimeRangeTypeValue;
   sources?: SourceItem[];
   participants?: { user_id: string }[];
+  scope?: "task";
+  task_id?: number;
+}
+
+export type ScheduleUnit = "day" | "week" | "month";
+
+export interface ScheduleConfig {
+  unit: ScheduleUnit;
+  every: number;
+  time: string;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  legacyCron?: boolean;
 }
 
 // ─── Batch status / chat-context types(Batch 1.11 chat panel) ─────────────

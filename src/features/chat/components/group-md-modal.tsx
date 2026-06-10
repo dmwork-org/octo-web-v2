@@ -32,6 +32,27 @@ function getByteLength(str: string): number {
   return new TextEncoder().encode(str).length;
 }
 
+/**
+ * 兼容历史数据:GROUP.md content 可能被以 literal `\n` / `\r\n` 字面量形式
+ * 落库(跨端存储路径的 escape 历史包袱),此处把 literal 还原为真换行,
+ * 让 markdown 渲染正确(对齐上游 `0f024d2d` normalizeGroupMdContent)。
+ *
+ * Guard 条件:
+ * - 已包含真换行 → 视为已 normalize,原样返回
+ * - 不含 literal `\n` / `\r\n` → 无需处理
+ * 否则全局 replace。
+ */
+function normalizeGroupMdContent(content: string): string {
+  if (
+    !content ||
+    content.includes("\n") ||
+    (!content.includes("\\n") && !content.includes("\\r\\n"))
+  ) {
+    return content;
+  }
+  return content.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
+}
+
 /** 拉到内容后把 textarea 同步到 server 值(避免编辑残留)。 */
 function useSyncDraftFromServer(
   data: { content: string; version: number } | undefined,
@@ -41,8 +62,9 @@ function useSyncDraftFromServer(
 ) {
   useEffect(() => {
     if (!data) return;
-    setDraft(data.content);
-    setBaseline(data.content);
+    const normalized = normalizeGroupMdContent(data.content);
+    setDraft(normalized);
+    setBaseline(normalized);
     setVersion(data.version);
   }, [data, setDraft, setBaseline, setVersion]);
 }

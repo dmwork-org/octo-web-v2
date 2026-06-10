@@ -260,5 +260,24 @@ PreToolUse hook 真触发验证通过:
 - **依赖**:后端 smart-summary 服务 `#61` 必须已部署(支持 origin_channel_id / chat-candidates / topic-templates endpoint);chat panel 入口探测请求会按当前 channelID 拉,后端不支持时 toast 友好提示
 - baseline SHA 暂不推进
 
+## 2026-06-10 — Batch 1.12 整批跳过
+
+陈超 2026-06-10 决策:matter 模块本仓未复刻好,跟 matter 强相关的搬运一并 defer。
+
+- [~] `66d474c9` refactor(todo): unify create-task modal — 等本仓 matter 模块完整再回头(本仓现状:两 modal 独立 — composer/matter.view 走 CreateMatterModal,selection-toolbar 走 SmartCreateModal)
+- [~] `60afb75e` feat(matters): add 产出文件 tab — 后端 octo-matter outputs endpoint 状态未确认 + 12 files +1575 行跨模块改动,跟 matter 主模块一并 P3 立项
+
+0 代码改动,只标 plan checkbox `[~]` 跟原因。
+
+## 2026-06-10 — Batch 1.13 杂项小 fix
+
+- 实际搬 1 个上游 SHA + 2 个等效已修/已搬过:
+  - `0f024d2d` 2026-06-04 fix(group-md): render escaped newlines as markdown — **搬**:在 `src/features/chat/components/group-md-modal.tsx` 加 `normalizeGroupMdContent(content)` helper(literal `\n`/`\r\n` → 真换行 guard:已含真换行 / 不含 literal 时不处理),`useSyncDraftFromServer` 内对 server 内容 normalize 后再喂 textarea/preview
+  - `12e579a4` 2026-06-03 fix: restore MeInfo modal content height — **等效已修**:本仓 `me-info-modal.tsx` 用 BaseDialog `className="h-[500px] w-[420px]"`(line 76)已对齐上游 CSS height:500px;无 Semi 依赖天然无样式迁移
+  - `1906c874` 2026-06-08 fix: unify thread archive action visibility — **已在 batch 1.3 搬过**(commit `b815d80` / `4434597`),本仓已有 `thread-permission.ts` canManageThread + `thread-list-panel.tsx` 两处入口统一调用,本 batch 不重复
+- 本仓 commits(分支 feat/upstream-batch-1-13):`4bd7244`(group-md normalize)+ docs
+- 关键决策:**最小改动 batch**(1 个 code commit + 1 个 docs commit);0f024d2d 上游同时迁了 preview 从 `<pre>` 改 `MarkdownContent`,本仓 group-md-modal preview 已用 `ReactMarkdown`(无需迁),只补 normalize
+- baseline SHA 暂不推进
+
 
 

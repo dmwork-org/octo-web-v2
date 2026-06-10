@@ -196,8 +196,8 @@
 
 ### Batch 1.14 — Conversation 大特性:drag-drop / 多选(2 commits)
 
-- [ ] `361447b6` 2026-06-04 feat(conversation): widen drag-drop hit area + file-size guard + edge-case hardening
-- [ ] `930b8fa5` 2026-06-02 fix: unify message multiselect behavior
+- [x] `361447b6` 2026-06-04 feat(conversation): widen drag-drop hit area + file-size guard + edge-case hardening — **部分搬**:仅搬 file-size guard(本仓 composer onDrop/onDragOver 已等效覆盖 hit area + dragOver guard;深度计数 _dragDepth 不需要,form 单层无嵌套 dragenter)
+- [x] `930b8fa5` 2026-06-02 fix: unify message multiselect behavior — **搬**:新增 message-selection.ts + message-row 加 selectable 判定
 
 **手测**:文件拖拽 hit area 大;超大文件被拦;多选模式跨场景行为一致(fold session / 普通)。
 

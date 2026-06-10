@@ -23,6 +23,7 @@ import { MessageStatusBadge } from "@/features/chat/components/message-status-ba
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { isMessageSelectable } from "@/features/chat/lib/message-selection";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import {
@@ -150,11 +151,18 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
   const selectionIds = useStore(chatSelectionStore, (s) => s.ids);
   const isSelected = selectionIds.has(message.clientMsgNo);
+  /**
+   * 多选可选性(对齐上游 `930b8fa5` isMessageSelectable):
+   * - time / historySplit / typing / threadCreated 等系统/标记类不可选
+   * - 不可选时:不渲染 checkbox + row 点击不 toggle + 不进选中集
+   *   (避免后续转发/批量操作命中 system message 导致后端 400)
+   */
+  const selectable = isMessageSelectable(message);
 
   const { onContextMenu, render: renderMenu } = useMessageContextMenu(message);
 
   const onRowClick = () => {
-    if (!selectionActive) return;
+    if (!selectionActive || !selectable) return;
     chatSelectionActions.toggle(message.clientMsgNo);
   };
 
@@ -174,19 +182,23 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const wrapperSelected = selectionActive && isSelected ? "bg-[rgba(127,59,245,0.08)]" : "";
   const wrapperSpacing = continueWithPrev ? "mt-3" : "mt-6";
   const wrapperClass = `${wrapperBase} ${wrapperHover} ${wrapperSelected} ${wrapperSpacing} ${
-    selectionActive ? "cursor-pointer" : ""
+    selectionActive && selectable ? "cursor-pointer" : ""
   }`;
 
+  // 多选模式且消息不可选时,仍占位 checkbox 槽位保持对齐(对齐上游灰化策略),
+  // 但内部不渲染勾选框(避免视觉误导)。
   const checkbox = selectionActive ? (
     <div className="flex w-6 shrink-0 items-center justify-center self-stretch">
-      <span
-        className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
-          isSelected ? "border-brand bg-brand text-white" : "border-border-default bg-bg-base"
-        }`}
-        aria-hidden
-      >
-        {isSelected ? <Check size={12} strokeWidth={3} /> : null}
-      </span>
+      {selectable ? (
+        <span
+          className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
+            isSelected ? "border-brand bg-brand text-white" : "border-border-default bg-bg-base"
+          }`}
+          aria-hidden
+        >
+          {isSelected ? <Check size={12} strokeWidth={3} /> : null}
+        </span>
+      ) : null}
     </div>
   ) : null;
 

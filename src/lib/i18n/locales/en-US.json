@@ -485,6 +485,8 @@
   "composer.toast.transcribeFailed": "Transcription failed",
   "composer.transcribing": "Transcribing...",
   "composer.transcribingShort": "Transcribing",
+  "composer.upload.fileTooLarge": "\"{{name}}\" exceeds {{max}} limit, cannot upload",
+  "composer.upload.totalTooLarge": "Attachments exceed {{max}} limit, please remove some files",
   "composer.voiceInputHint": "Voice input (hold Shift)",
   "composerAttachment.defaultName": "Unnamed file",
   "composerAttachment.remove": "Remove",

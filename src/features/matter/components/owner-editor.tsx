@@ -52,7 +52,6 @@ function useClickOutside(open: boolean, onClose: () => void) {
 export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidates }: OwnerEditorProps) {
   const tr = useT();
   const qc = useQueryClient();
-  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<Set<string>>(new Set());

@@ -367,23 +367,23 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           </h1>
         )}
 
-        {/* ── 主要目标(渐变 chip 标签 + description 紧跟)── */}
-        <div className="mt-4 flex flex-col gap-2 px-8">
-          <MainGoalEditor matterId={matterId} description={data.description} />
-
-          {(data.source_channel_id || data.source_name) ? (
-            <div className="inline-flex items-center gap-1 text-sm leading-[18px] text-text-primary">
-              <Tag size={14} className="shrink-0 text-text-tertiary" />
-              <span>
-                {t("matter.label.fromChannel", {
-                  values: { name: data.source_name || "" },
-                })}{" "}
-                <span className="text-brand">#{data.source_name}</span> ·{" "}
-                <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                {formatDateTime(data.created_at)}
-              </span>
-            </div>
-          ) : null}
+        {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
+        <div className="mt-4 px-8">
+          <MainGoalEditor matterId={matterId} description={data.description}>
+            {(data.source_channel_id || data.source_name) ? (
+              <div className="inline-flex items-center gap-1 px-2 py-1 text-sm leading-[18px] text-text-primary">
+                <Tag size={14} className="shrink-0 text-text-tertiary" />
+                <span>
+                  {t("matter.label.fromChannel", {
+                    values: { name: data.source_name || "" },
+                  })}{" "}
+                  <span className="text-brand">#{data.source_name}</span> ·{" "}
+                  <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
+                  {formatDateTime(data.created_at)}
+                </span>
+              </div>
+            ) : null}
+          </MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}

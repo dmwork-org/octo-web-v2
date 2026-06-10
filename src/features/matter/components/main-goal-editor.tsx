@@ -7,6 +7,8 @@ interface MainGoalEditorProps {
   matterId: string;
   /** 后端 description 字段(HTML 串)。 */
   description?: string | null;
+  /** 标签下方插入的内容（如"来自"行） */
+  children?: React.ReactNode;
 }
 
 /**
@@ -24,7 +26,7 @@ interface MainGoalEditorProps {
  * - onBlur 触发提交(dirty 时调 useUpdateMatter,description=HTML 串)
  * - 提交中显示"保存中…";失败由 withErrorToast 拦截器兜底
  */
-export function MainGoalEditor({ matterId, description }: MainGoalEditorProps) {
+export function MainGoalEditor({ matterId, description, children }: MainGoalEditorProps) {
   const t = useT();
   const initial = description ?? "";
   const [draft, setDraft] = useState(initial);
@@ -61,6 +63,7 @@ export function MainGoalEditor({ matterId, description }: MainGoalEditorProps) {
           </span>
         ) : null}
       </div>
+      {children}
       <div className="rounded-md border border-transparent px-1 py-0.5 transition-colors focus-within:border-[#6366f1] focus-within:bg-bg-primary focus-within:shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
         <RichEditor
           value={draft}

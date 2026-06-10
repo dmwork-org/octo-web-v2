@@ -3,6 +3,7 @@ import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
+  ChannelTypePerson,
   type CMDContent,
   ConnectStatus,
   type Message,
@@ -75,8 +76,16 @@ export function useMessagesSync(channel: Channel | null) {
       if (!message.channel.isEqual(channel)) return;
       // typing 消息(理论上走 CMD,兜底):不写 cache
       if (message.contentType === MessageContentTypeConst.typing) return;
-      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id)
-      if (!isMessageOfSpace(message, spaceId)) return;
+      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id);
+      // Group/Thread **不**二次守 — hook 顶层 isChannelOfSpace 已守过当前 channel,
+      // 在 listener 内重复 isChannelOfSpace 风险:channelSpaceMap / channelInfo
+      // 还没填充时 fail-close 静默丢消息,导致主面板看不到新消息但 sidebar 能看到。
+      if (
+        message.channel.channelType === ChannelTypePerson &&
+        !isMessageOfSpace(message, spaceId)
+      ) {
+        return;
+      }
       // bot 真消息到达 → 清掉 typing indicator(对齐旧 module.tsx:433)
       if (TypingManager.hasTyping(message.channel)) {
         TypingManager.removeTyping(message.channel);

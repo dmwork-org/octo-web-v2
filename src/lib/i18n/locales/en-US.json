@@ -1629,6 +1629,8 @@
   "messageRow.menu.reply": "Reply",
   "messageRow.menu.revoke": "Revoke",
   "messageRow.replyNotVisible": "Original message is not in the visible range",
+  "messageRow.replyLoading": "Loading original message...",
+  "messageRow.replyNotFound": "Original message deleted or out of range",
   "messageRow.threadModalPlaceholder": "Enter discussion topic...",
   "messageRow.threadModalTitle": "Create thread",
   "messageRow.toast.copied": "Copied",

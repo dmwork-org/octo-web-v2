@@ -53,6 +53,9 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
       open={!!uid}
       onClose={onClose}
       size="md"
+      // 锁定高度,避免 page 切换时 dialog 高度跳变;
+      // 子页(列表)内容超出时各自 overflow-y-auto,根页内容少时留白可接受。
+      height="sm"
       rootKey="detail"
       resetKey={uid}
       pages={buildPages(uid, onClose)}

@@ -134,6 +134,8 @@ export async function createThread(
  * mute tri-state:null = 未设置(继承父群);0 = 显式不静音;1 = 显式静音。
  */
 export interface ThreadRaw {
+  /** API 返回的完整 channel_id（如 groupNo____shortId），有则用，无则拼接 */
+  channel_id?: string;
   short_id: string;
   name: string;
   creator_uid?: string;

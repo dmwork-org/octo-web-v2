@@ -278,6 +278,3 @@ PreToolUse hook 真触发验证通过:
 - 本仓 commits(分支 feat/upstream-batch-1-13):`4bd7244`(group-md normalize)+ docs
 - 关键决策:**最小改动 batch**(1 个 code commit + 1 个 docs commit);0f024d2d 上游同时迁了 preview 从 `<pre>` 改 `MarkdownContent`,本仓 group-md-modal preview 已用 `ReactMarkdown`(无需迁),只补 normalize
 - baseline SHA 暂不推进
-
-
-

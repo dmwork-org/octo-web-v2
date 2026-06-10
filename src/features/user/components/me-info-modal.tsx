@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Check, CheckCircle2, QrCode } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
-import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
+import { userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useUpdateCurrentUserMutation, useUploadAvatarMutation } from "@/features/user/mutations";
+import { AvatarCropModal } from "@/features/user/components/avatar-crop-modal";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { QrcodeMy } from "@/features/user/components/qrcode-my";
 import { PersonaListModal } from "@/features/persona/components/persona-list-modal";
@@ -94,13 +95,17 @@ interface RootPanelProps {
   setSubpage: (v: Subpage | null) => void;
 }
 
+function isGif(file: File): boolean {
+  return file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+}
+
 function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
   const t = useT();
-  const qc = useQueryClient();
   const { data: detail } = useQuery(userDetailQueryOptions(uid));
   const uploadMu = useUploadAvatarMutation(uid);
   const updateMu = useUpdateCurrentUserMutation(uid);
   const { primaryProvider } = useSsoProviders();
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const channel = useMemo(() => new Channel(uid, ChannelTypePerson), [uid]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -115,16 +120,25 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
 
   const onPickFile = () => fileRef.current?.click();
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (isGif(file)) {
+      void onUpload(file);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    setCropFile(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const onUpload = async (file: File) => {
     try {
       await uploadMu.mutateAsync(file);
-      void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
+      setCropFile(null);
     } catch {
       // 静默(老仓也无 toast,UI 回滚显旧头像)
     }
-    if (fileRef.current) fileRef.current.value = "";
   };
 
   const onSaveName = async (next: string) => {
@@ -213,8 +227,15 @@ function RootPanel({ uid, editing, setEditing, setSubpage }: RootPanelProps) {
         ref={fileRef}
         type="file"
         accept="image/*"
-        onChange={(e) => void onFileChange(e)}
+        onChange={(e) => onFileChange(e)}
         className="hidden"
+      />
+      <AvatarCropModal
+        open={!!cropFile}
+        file={cropFile}
+        loading={uploadMu.isPending}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(file) => void onUpload(file)}
       />
     </>
   );

@@ -43,7 +43,9 @@ export function VoiceFeedbackNotice({
   });
 
   const acceptDisabled =
-    docQ.isLoading || submitting || (docQ.isError && !feedbackPrivacyUrl && !feedbackUserAgreementUrl);
+    docQ.isLoading ||
+    submitting ||
+    (docQ.isError && !feedbackPrivacyUrl && !feedbackUserAgreementUrl);
 
   const handleAccept = async () => {
     setSubmitting(true);
@@ -128,9 +130,7 @@ export function VoiceFeedbackNotice({
                 {tt("navRail.voiceSettings.privacyPolicy")}
               </a>
             ) : null}
-            {feedbackPrivacyUrl && feedbackUserAgreementUrl
-              ? tt("navRail.voiceNotice.and")
-              : null}
+            {feedbackPrivacyUrl && feedbackUserAgreementUrl ? tt("navRail.voiceNotice.and") : null}
             {feedbackUserAgreementUrl ? (
               <a
                 href={feedbackUserAgreementUrl}

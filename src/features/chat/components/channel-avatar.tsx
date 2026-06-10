@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import WKSDK, { type Channel, ChannelTypePerson } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { avatarVersionStore } from "@/features/base/stores/avatar-version";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 
 interface ChannelAvatarProps {
@@ -33,6 +34,11 @@ function useResetFailedOnUrlChange(url: string, setFailed: (v: boolean) => void)
   }, [url, setFailed]);
 }
 
+function withVersion(url: string, version: number): string {
+  if (!url || version <= 0 || url.startsWith("data:")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+}
+
 /**
  * 频道头像(对应旧 WKApp.shared.avatarChannel)。
  *
@@ -52,6 +58,9 @@ function useResetFailedOnUrlChange(url: string, setFailed: (v: boolean) => void)
  */
 export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps) {
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const avatarVersion = useStore(avatarVersionStore, (s) =>
+    channel.channelType === ChannelTypePerson ? (s.versions[channel.channelID] ?? 0) : 0,
+  );
   useChannelInfoTick();
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const [failed, setFailed] = useState(false);
@@ -65,11 +74,12 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
 
   // 只在 channelInfo.logo 非空时渲染 <img>;空就直接首字母占位
   const logo = channelInfo?.logo;
-  const url = !logo
+  const rawUrl = !logo
     ? ""
     : logo.startsWith("data:") || logo.startsWith("http://") || logo.startsWith("https://")
       ? logo
       : `${baseURL}/${logo.replace(/^\/+/, "")}`;
+  const url = withVersion(rawUrl, avatarVersion);
 
   useResetFailedOnUrlChange(url, setFailed);
 

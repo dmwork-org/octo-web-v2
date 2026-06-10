@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
 import {
   updateCurrentUser,
   uploadAvatar,
   type UpdateCurrentPayload,
 } from "@/features/base/api/endpoints/user.api";
 import { userDetailQueryKey } from "@/features/base/queries/user.query";
+import { avatarVersionActions } from "@/features/base/stores/avatar-version";
 
 /**
  * MeInfo 写操作 mutations(对齐老仓 MeInfo/vm.tsx)。
@@ -30,7 +32,10 @@ export function useUploadAvatarMutation(uid: string | null) {
       return uploadAvatar(uid, file);
     },
     onSuccess: () => {
-      if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
+      if (!uid) return;
+      avatarVersionActions.bump(uid);
+      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
     },
   });
 }

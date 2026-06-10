@@ -44,10 +44,7 @@ export async function precheckUploadCredentials(
     // ofetch FetchError 的 .data 是 response body;后端约定 { msg, status }
     const data = (err as { data?: { msg?: string; message?: string } }).data;
     const msg =
-      data?.msg ||
-      data?.message ||
-      (err instanceof Error ? err.message : "") ||
-      "上传失败";
+      data?.msg || data?.message || (err instanceof Error ? err.message : "") || "上传失败";
     throw new Error(msg, { cause: err });
   }
 }

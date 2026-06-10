@@ -36,11 +36,7 @@ interface DisplayEntry {
  * - "group":只 group + 缩进 thread + 孤儿 thread
  * - "direct":只 direct
  */
-function buildDisplayList(
-  candidates: ChatCandidate[],
-  tab: Tab,
-  keyword: string,
-): DisplayEntry[] {
+function buildDisplayList(candidates: ChatCandidate[], tab: Tab, keyword: string): DisplayEntry[] {
   const kw = keyword.trim().toLowerCase();
 
   if (tab === "direct") {
@@ -137,10 +133,7 @@ export function ChatSelectorModal({
     [candidates, tab, keyword],
   );
 
-  const selectedIds = useMemo(
-    () => new Set(localSelected.map((s) => s.chat_id)),
-    [localSelected],
-  );
+  const selectedIds = useMemo(() => new Set(localSelected.map((s) => s.chat_id)), [localSelected]);
 
   const toggle = (item: ChatCandidate) => {
     if (selectedIds.has(item.chat_id)) {

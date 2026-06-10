@@ -38,8 +38,15 @@ interface VoiceSettingsModalProps {
 export function VoiceSettingsModal({ open, onClose }: VoiceSettingsModalProps) {
   const tt = useT();
   const qc = useQueryClient();
-  const { spaceSetting, loaded, voiceConfig, toggleVoiceFeedback, acceptVoiceInput, disableVoiceInput, isPending } =
-    useSpaceFeedbackSetting();
+  const {
+    spaceSetting,
+    loaded,
+    voiceConfig,
+    toggleVoiceFeedback,
+    acceptVoiceInput,
+    disableVoiceInput,
+    isPending,
+  } = useSpaceFeedbackSetting();
 
   const [showNotice, setShowNotice] = useState(false);
 
@@ -225,7 +232,14 @@ function LocalAsrSection({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const [probeStatus, setProbeStatus] = useState<"idle" | "loading" | "success" | "fail">("idle");
 
   // 拉到 / 切到不同 local config 时,同步 state(命名 hook 满足 no-useeffect-in-component)
-  useSyncLocalConfigToState(localQ.data, setEnabled, setTimeoutMs, setProbeUrl, setTranscribeUrl, setDirty);
+  useSyncLocalConfigToState(
+    localQ.data,
+    setEnabled,
+    setTimeoutMs,
+    setProbeUrl,
+    setTranscribeUrl,
+    setDirty,
+  );
 
   const refreshAll = async () => {
     await qc.invalidateQueries({ queryKey: ["voice", "local-config"] });

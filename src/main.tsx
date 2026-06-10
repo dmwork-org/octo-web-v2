@@ -12,7 +12,13 @@ import { wireChatSelectedResetOnSpaceChange } from "./features/chat/stores/chat-
 import { persistChatSidebarTab } from "./features/chat/stores/chat-sidebar-tab";
 import { clearFetchedTitleCache } from "./features/chat/lib/live-channel-title";
 import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
+import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout-cleanup";
 import "./index.css";
+
+// IdP 回源到本站时兜底清:如果 sessionStorage 含 OIDC post-logout 标志,
+// 启动时再清一次本地 auth/space/pending,避免残留 token 让登录页直接重定向回主页。
+// 必须在 persistAuth 之前调,否则下一行 readPersisted 会先读到旧 token。
+runPostLogoutCleanupIfNeeded();
 
 persistAuth();
 persistSpace();

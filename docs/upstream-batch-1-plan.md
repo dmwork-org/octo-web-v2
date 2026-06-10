@@ -207,13 +207,13 @@
 
 独立模块,跟主线 chat/contact 关联弱,但全局影响登录入口。
 
-- [ ] `5ef5150f` 2026-05-22 feat(login): SSO panel redesign per Figma + theme-token compliance
-- [ ] `1bf42ba2` 2026-05-23 fix(login): breathe out the non-SSO panel layout
-- [ ] `2d4d4d51` 2026-05-27 Update Octo login button copy
-- [ ] `7de93ff1` 2026-05-30 feat(login): add Aegis migration notice
-- [ ] `86c5837b` 2026-06-02 fix: complete OIDC logout flow
-- [ ] `89d56e35` 2026-06-02 fix(web): add logout path to no-space pages
-- [ ] `43e7d354` 2026-05-29 feat: support disabling user space creation
+- [x] `5ef5150f` 2026-05-22 feat(login): SSO panel redesign per Figma + theme-token compliance — **业务对齐 UI 自有**(breadcrumb / Shield icon / 信任锚行 / 下载分隔线)
+- [x] `1bf42ba2` 2026-05-23 fix(login): breathe out the non-SSO panel layout — 跟 5ef5150f 同 commit(spacing 微调 + 下载分隔线)
+- [x] `2d4d4d51` 2026-05-27 Update Octo login button copy — **等效已修**(本仓 login.login.ssoButton 已是"Octo 登录")
+- [x] `7de93ff1` 2026-05-30 feat(login): add Aegis migration notice — **业务对齐 UI 自有**(BaseDialog + tailwind tokens 替代 Semi Modal + CSS)
+- [x] `86c5837b` 2026-06-02 fix: complete OIDC logout flow — **搬**(oidc-logout helper + auth.signOut wire + main.tsx 兜底清)
+- [x] `89d56e35` 2026-06-02 fix(web): add logout path to no-space pages — **等效已修**(本仓 join-space.view line 97 onLogout 已存在)
+- [x] `43e7d354` 2026-05-29 feat: support disabling user space creation — **搬 infra only**(本仓 SpaceSwitcher 无创建入口可隐,字段+helper 提前接好供后续用)
 
 **预期工作量**:中,Login 模块独立。
 

@@ -569,19 +569,28 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               onSave={(v) => renameMu.mutate(v)}
             />
             <NavRow
-              title={tt("channelSetting.backToParent", { values: { name: threadParentName } })}
-              center
+              title={tt("channelSetting.threadStatus")}
+              right={
+                isThreadArchived ? (
+                  <span className="rounded-sm bg-[rgba(28,28,35,0.06)] px-1.5 py-0.5 text-[11px] text-text-tertiary">
+                    {tt("threadPanelLocal.archived")}
+                  </span>
+                ) : (
+                  <span className="rounded-sm bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+                    {tt("channelSetting.threadStatusActive")}
+                  </span>
+                )
+              }
+            />
+            <NavRow
+              title={tt("channelSetting.threadParent")}
+              subTitle={threadParentName}
               onClick={() => {
                 if (!threadParentChannel) return;
                 chatSelectedActions.select(threadParentChannel);
                 onClose();
               }}
             />
-          </SectionGroup>
-        ) : null}
-
-        {isThread ? (
-          <SectionGroup>
             <NavRow
               title="GROUP.md"
               subTitle={
@@ -636,11 +645,17 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           </SectionGroup>
         ) : null}
 
-        {/* 子区归档入口(issue #53)— 跟 thread-list-panel inline 按钮共用 canManageThread
-            权限判定。activeStatus → "归档子区";archived → "取消归档"。confirm 走二级
-            modal 防误触,跟 dangerClose 同模式。 */}
-        {isThread && canArchiveThisThread ? (
-          <SectionGroup>
+        {/* 子区管理(对齐老仓"子区管理"组):归档/取消归档(canArchiveThisThread 才显)
+            + 离开/解散同组;非子区时 clearMessages + dangerClose 同组(原来逻辑) */}
+        <SectionGroup>
+          {!isThread ? (
+            <NavRow
+              title={tt("channelSetting.clearMessages")}
+              danger
+              onClick={() => setConfirmClear(true)}
+            />
+          ) : null}
+          {isThread && canArchiveThisThread ? (
             <NavRow
               title={
                 isThreadArchived
@@ -649,16 +664,6 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               }
               center
               onClick={() => setConfirmArchive(true)}
-            />
-          </SectionGroup>
-        ) : null}
-
-        <SectionGroup>
-          {!isThread ? (
-            <NavRow
-              title={tt("channelSetting.clearMessages")}
-              danger
-              onClick={() => setConfirmClear(true)}
             />
           ) : null}
           <NavRow

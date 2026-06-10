@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Virtuoso } from "react-virtuoso";
 import { toast } from "@/components/semi-bridge/toast";
 import { UserName } from "@/features/matter/components/user-name";
 import { useT } from "@/lib/i18n/use-t";
@@ -169,55 +170,59 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
 
       {/* 下拉 */}
       {open && (
-        <div className="absolute top-full left-0 z-popover mt-2 min-w-64 rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">
+        <div className="absolute top-full left-0 z-popover mt-2 min-w-64 max-h-64 overflow-hidden rounded-md border border-border-subtle bg-bg-surface shadow-lg">
           {candidates.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
               {tr("matter.member.empty")}
             </div>
           ) : (
-            candidates.map((c) => {
-              const picked = assignedUids.has(c.uid);
-              const isLast = picked && assignees.length <= 1;
-              const isLoading = pending.has(c.uid);
-              return (
-                <button
-                  key={c.uid}
-                  type="button"
-                  className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
-                    picked ? "font-medium text-text-primary" : "text-text-primary"
-                  } ${isLast || isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-                  disabled={isLast || isLoading}
-                  onClick={() => handleToggle(c.uid)}
-                >
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
-                    {picked && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                      >
-                        <path
-                          d="M2 6l3 3 5-5"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <ChannelAvatar
-                    channel={new Channel(c.uid, ChannelTypePerson)}
-                    size={20}
-                    title={c.name}
-                  />
-                  <span className="truncate">
-                    <UserName uid={c.uid} />
-                  </span>
-                </button>
-              );
-            })
+            <Virtuoso
+              style={{ height: "100%" }}
+              totalCount={candidates.length}
+              itemContent={(index) => {
+                const c = candidates[index];
+                const picked = assignedUids.has(c.uid);
+                const isLast = picked && assignees.length <= 1;
+                const isLoading = pending.has(c.uid);
+                return (
+                  <button
+                    type="button"
+                    className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
+                      picked ? "font-medium text-text-primary" : "text-text-primary"
+                    } ${isLast || isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                    disabled={isLast || isLoading}
+                    onClick={() => handleToggle(c.uid)}
+                  >
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
+                      {picked && (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                        >
+                          <path
+                            d="M2 6l3 3 5-5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <ChannelAvatar
+                      channel={new Channel(c.uid, ChannelTypePerson)}
+                      size={20}
+                      title={c.name}
+                    />
+                    <span className="truncate">
+                      <UserName uid={c.uid} />
+                    </span>
+                  </button>
+                );
+              }}
+            />
           )}
         </div>
       )}

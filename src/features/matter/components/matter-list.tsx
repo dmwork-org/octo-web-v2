@@ -152,7 +152,7 @@ export function MatterList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full bg-bg-elevated p-1">
+      <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1" style={{ background: "rgba(28, 28, 35, 0.04)" }}>
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
           // count:激活 tab 显示该 tab 命中数(channel 模式按本地 filter;非 channel 模式直接 all.length)

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { type Mention, type Message } from "wukongimjssdk";
-import { X } from "lucide-react";
 import {
   RichTextBlockType,
   type RichTextBlock,
   type RichTextContent,
 } from "@/features/base/im/richtext-content";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import { MentionAwareText } from "@/features/chat/lib/mention-aware-text";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -106,27 +106,7 @@ function RichTextImage({ block }: { block: RichTextBlock }) {
           style={{ maxWidth: MAX_W, maxHeight: MAX_H, objectFit: "contain" }}
         />
       </button>
-      {preview ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onClick={() => setPreview(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <button
-            type="button"
-            aria-label={t("imageRenderer.close")}
-            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreview(false);
-            }}
-          >
-            <X size={20} />
-          </button>
-          <img src={url} alt="" className="max-h-screen max-w-screen" />
-        </div>
-      ) : null}
+      {preview ? <ImagePreviewModal src={url} onClose={() => setPreview(false)} /> : null}
     </>
   );
 }

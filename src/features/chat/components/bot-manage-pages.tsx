@@ -2,10 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Search, Sparkles, ToggleLeft } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import {
-  DrilldownDrawer,
-  type DrilldownNav,
-} from "@/features/base/components/overlay/drilldown-drawer";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import {
   deleteRobotMentionPref,
@@ -18,62 +14,21 @@ import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
 /**
- * Bot 管理(对齐上游 e7c5e0be / #235)— 三级下钻,owner-only:
+ * Bot 管理两个 page 组件(对齐上游 e7c5e0be / #235),供 bot-detail-modal 用
+ * DrilldownDialog 嵌套渲染:
  *
- *   L1 BotDetailModal(既有)─入口按钮─▶ L2 BotManageModal ──drilldown push──▶ L3 MentionFreeList
+ *   L1 BotDetailModal(既有 detail page)
+ *     └─ push → L2 BotManageMenuPage(本文件 export)
+ *          └─ push → L3 MentionFreeListPage(本文件 export)
  *
- * 本仓不复刻老仓 WKModal + RoutePage,改用通用 DrilldownDrawer(BaseDrawer + stack),
- * 行为等效语义简化:
- *   - L2 menu 页:列出 sub-action;本期仅"💬 免@回答"可点,其他 disabled 占位
- *   - L3 mention-free 页:群列表 + 搜索 + cursor 分页 + 每行 ToggleRow;
- *     group_allow_no_mention=false 时禁用(群管理员未允许免@,bot 主人开了也无效)
+ * 不再独立暴露 modal 壳(之前的 BotManageModal 已删除)— modal 壳由 bot-detail
+ * 一个 DrilldownDialog 统一承载,避免"中央 BaseDialog + 右侧 BaseDrawer 形态割裂"。
  *
- * 防竞态:本仓走 React Query,query key 含 robotId + q,bot 切换或 q 变化自动 invalidate
- * 旧请求 → 不需要上游手写的 generation 世代号 vm。
+ * 防竞态:React Query key 含 robotId + q,bot 切换或 q 变化自动 invalidate 旧请求,
+ * 不需要上游手写的 generation 世代号 vm。
  */
 
-type BotManagePage = "menu" | "mention-free";
-
-interface BotManageModalProps {
-  open: boolean;
-  robotId: string;
-  onClose: () => void;
-}
-
-export function BotManageModal({ open, robotId, onClose }: BotManageModalProps) {
-  const tt = useT();
-  const pages = useMemo<
-    Record<BotManagePage, { title: React.ReactNode; render: (nav: DrilldownNav<BotManagePage>) => React.ReactNode }>
-  >(
-    () => ({
-      menu: {
-        title: tt("base.botManage.title"),
-        render: (nav) => <BotManageMenu onPickMentionFree={() => nav.push("mention-free")} />,
-      },
-      "mention-free": {
-        title: tt("base.botManage.mentionFree.title"),
-        render: () => <MentionFreeList robotId={robotId} />,
-      },
-    }),
-    [tt, robotId],
-  );
-
-  return (
-    <DrilldownDrawer<BotManagePage>
-      open={open}
-      onClose={onClose}
-      side="right"
-      size="md"
-      rootKey="menu"
-      pages={pages}
-      // 切 bot(robotId)时复位到 menu,避免上一个 bot 的 L3 列表串台
-      resetKey={robotId}
-      description={tt("base.botManage.description")}
-    />
-  );
-}
-
-function BotManageMenu({ onPickMentionFree }: { onPickMentionFree: () => void }) {
+export function BotManageMenuPage({ onPickMentionFree }: { onPickMentionFree: () => void }) {
   const tt = useT();
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
@@ -124,7 +79,7 @@ function DisabledMenuItem({
   );
 }
 
-function MentionFreeList({ robotId }: { robotId: string }) {
+export function MentionFreeListPage({ robotId }: { robotId: string }) {
   const tt = useT();
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState("");
@@ -153,7 +108,6 @@ function MentionFreeList({ robotId }: { robotId: string }) {
 
   const groups = useMemo<RobotGroupItem[]>(() => {
     const all = data?.pages.flatMap((p) => p.list) ?? [];
-    // 已开免@置顶,其他群按返回顺序保留
     const enabled = all.filter((g) => g.no_mention);
     const others = all.filter((g) => !g.no_mention);
     return [...enabled, ...others];
@@ -164,13 +118,11 @@ function MentionFreeList({ robotId }: { robotId: string }) {
       if (args.next) {
         await setRobotMentionPref(robotId, args.groupNo, true);
       } else {
-        // 关闭 = 回退账号级默认(DELETE),对齐上游
         await deleteRobotMentionPref(robotId, args.groupNo);
       }
       return args;
     },
     onSuccess: (args) => {
-      // 局部更新 cache:把 args.groupNo 的 no_mention 翻成 next
       qc.setQueryData<{ pages: RobotGroupListResp[]; pageParams: (string | null)[] } | undefined>(
         queryKey,
         (prev) => {
@@ -188,7 +140,9 @@ function MentionFreeList({ robotId }: { robotId: string }) {
       );
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("base.botManage.mentionFree.toggleFailed"));
+      toast.error(
+        err instanceof Error ? err.message : t("base.botManage.mentionFree.toggleFailed"),
+      );
     },
   });
 
@@ -217,7 +171,9 @@ function MentionFreeList({ robotId }: { robotId: string }) {
           </div>
         ) : groups.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
-            {debouncedKw ? tt("base.botManage.mentionFree.noMatches") : tt("base.botManage.mentionFree.noGroups")}
+            {debouncedKw
+              ? tt("base.botManage.mentionFree.noMatches")
+              : tt("base.botManage.mentionFree.noGroups")}
           </div>
         ) : (
           <SectionGroup>

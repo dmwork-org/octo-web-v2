@@ -82,6 +82,8 @@ export interface LoginResp {
   realname_verified?: boolean | number;
   real_name?: string;
   realname_verified_at?: number;
+  /** 用户语言偏好(BCP 47),后端可能下发也可能不下发;登录后若存在则自动应用。 */
+  language?: string;
 }
 
 export interface LoginDevice {
@@ -199,4 +201,15 @@ export async function uploadAvatar(uid: string, file: File | Blob): Promise<void
   const form = new FormData();
   form.append("file", file);
   await api(`users/${uid}/avatar`, { method: "POST", body: form });
+}
+
+/**
+ * 更新当前用户语言偏好(对齐老仓 dmworkbase UserLanguageService.update):
+ * PUT /v1/user/language,body { language }。空串 = 清空回 OCTO_DEFAULT_LANGUAGE。
+ *
+ * 后端见 octo-server modules/user/api.go:setLanguage。多端同步:其他端 token
+ * 缓存下次请求由 AuthMiddleware LanguageResolver hydrate(不需强制重新登录)。
+ */
+export async function updateUserLanguage(language: string): Promise<void> {
+  await api("user/language", { method: "PUT", body: { language } });
 }

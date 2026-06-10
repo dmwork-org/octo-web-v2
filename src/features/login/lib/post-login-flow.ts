@@ -4,6 +4,7 @@ import { authActions, type AuthUser } from "@/features/base/stores/auth";
 import { spaceActions } from "@/features/base/stores/space";
 import { getInviteInfo, getMySpaces, joinSpace } from "@/features/base/api/endpoints/space.api";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
+import { i18n } from "@/lib/i18n/instance";
 
 /**
  * 登录成功后的统一收尾(对齐老仓 LoginVM.loginSuccess + AppLayout.onLogin):
@@ -87,10 +88,16 @@ export function useFinalizeLogin(inviteCode: string | undefined, redirect: strin
       // 1. 写 token + user(localStorage 持久化生效)
       authActions.signIn(resp.token, loginRespToAuthUser(resp));
 
-      // 2. 清残留 spaceId — 新用户/换账号不应继承上次的 space 上下文
+      // 2. 应用用户后端语言偏好(如有) — 对齐老仓 NavLanguageSwitcher 同步语义,
+      //    多端切语言后下次登录在本端自动应用。后端不下发时为 undefined 跳过。
+      if (resp.language) {
+        i18n.setLocale(resp.language);
+      }
+
+      // 3. 清残留 spaceId — 新用户/换账号不应继承上次的 space 上下文
       spaceActions.setSpace(null);
 
-      // 3. 决定要进哪个 space
+      // 4. 决定要进哪个 space
       const effectiveCode =
         inviteCode && INVITE_CODE_REGEX.test(inviteCode) ? inviteCode : readPendingInviteCode();
 

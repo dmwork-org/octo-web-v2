@@ -129,7 +129,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   const currentUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const isOwner = currentUid
-    ? data.creator_id === currentUid || data.assignees.some((a) => a.user_id === currentUid)
+    ? data.creator_id === currentUid || (data.assignees ?? []).some((a) => a.user_id === currentUid)
     : false;
 
   const [menuOpen, setMenuOpen] = useState(false);

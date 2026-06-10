@@ -74,9 +74,15 @@ export async function buildLinkableChannels(
     memberCount: g.member_count,
   }));
 
-  // 2. 对每个群拉子区
-  const groupNos = groupOptions.map((g) => g.channelId);
-  const groupNameByNo = new Map(groupOptions.map((g) => [g.channelId, g.name]));
+  // 2. 只对群类型拉子区（对齐原始项目：跳过单聊等非群 channel）
+  const groupNos = groupOptions
+    .filter((g) => g.channelType === ChannelTypeGroup)
+    .map((g) => g.channelId);
+  const groupNameByNo = new Map(
+    groupOptions
+      .filter((g) => g.channelType === ChannelTypeGroup)
+      .map((g) => [g.channelId, g.name]),
+  );
 
   const threadsByGroup = new Map<string, ThreadRaw[]>();
   const failedGroupNames: string[] = [];

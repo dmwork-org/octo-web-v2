@@ -136,6 +136,8 @@
   "base.settings.language": "语言",
   "base.settings.switchToChinese": "切换为中文",
   "base.settings.switchToEnglish": "English",
+  "base.navRail.language.name.zh": "中文",
+  "base.navRail.language.name.en": "English",
   "base.sidebar.myAvatar": "我的头像",
   "base.sidebar.myInfo": "我的信息",
   "base.sidebar.nav": "主导航",

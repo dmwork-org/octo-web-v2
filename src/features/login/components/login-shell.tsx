@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LoginLanguageSwitcher } from "@/features/login/components/login-language-switcher";
 import { useT } from "@/lib/i18n/use-t";
 
 /**
@@ -6,12 +7,13 @@ import { useT } from "@/lib/i18n/use-t";
  *
  *   ┌──────────────────────────┬──────────────────────┐
  *   │ 55% 左 brand(紫蓝渐变)   │ 45% 右 form(白)      │
- *   │  logo + headline + sub   │  slogan + form ...   │
- *   │  + 聊天气泡装饰          │                      │
+ *   │  logo + headline + sub   │     [Languages] (右上)│
+ *   │  + 聊天气泡装饰          │  slogan + form ...   │
  *   └──────────────────────────┴──────────────────────┘
  *
  * 4 种 view(phone / qrcode / register / forgetPassword)都通过本 Shell 包裹,
- * 保证视觉一致性。
+ * 保证视觉一致性。**右上 LoginLanguageSwitcher** 对齐老仓 `5ef5150f`:
+ * 用户在登录前也能切语言(独立 dropdown,跟 sidebar 同语义)。
  */
 interface LoginShellProps {
   /** 右侧 form 内容(slogan + form 由调用方提供)。 */
@@ -84,6 +86,8 @@ export function LoginShell({ children, topBanner }: LoginShellProps) {
 
       {/* 右 form panel */}
       <div className="relative flex min-h-screen w-full items-center justify-center overflow-y-auto bg-white px-12 py-10 md:w-[45%]">
+        {/* 右上角语言切换(对齐老仓 LoginLanguageSwitcher,登录前也能切语言) */}
+        <LoginLanguageSwitcher />
         <div className="flex w-full max-w-[400px] flex-col">
           {/* 移动端 logo fallback(md 以上隐藏,因 brand panel 已显) */}
           <div className="mb-6 flex items-center justify-center md:hidden">

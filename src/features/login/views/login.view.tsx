@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Shield } from "lucide-react";
+import { Info, ShieldCheck } from "lucide-react";
 import { useLoginMutation } from "@/features/login/mutations";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
@@ -32,13 +32,13 @@ interface LoginViewProps {
  * 登录页 — 仅 phone(账号密码 / SSO)。其他 3 种 view 已拆独立路由:
  *   /qrcode / /register / /forgetpassword
  *
- * **SSO 启用 + 有 provider** → 对齐老仓 `5ef5150f` SSO panel:
+ * **SSO 启用 + 有 provider** → 对齐老仓 `5ef5150f` SsoLoginPanel:
  *   - 顶部 breadcrumb "登录到 Octo · Web"(紫色圆点 + 文案,业务上下文锚)
- *   - 主 CTA + Shield icon(信任增强)
- *   - meta 行:Shield icon + "身份认证由 {provider} 提供 · 企业级安全"(tooltip)
- *   - meta 行下方 link "了解登录方式变更"→ Aegis migration modal(对齐上游 7de93ff1)
- *   - 下载按钮前分隔线"也可下载移动版"(主流 vs 备用分层)
- *   - **完全隐藏密码表单 + 底部链接**(SSO 模式下走 IdP,本地账号入口全无)
+ *   - sub 两行:`ssoSub`(说明 provider)+ `ssoAutoCreate`(新用户自动创建)
+ *   - 主 CTA + ShieldCheck icon(对齐上游 shield-check 双 path,带勾增强信任)
+ *   - meta 行:ShieldCheck + "身份认证由 {provider} 提供 · 企业级安全 · 了解登录方式变更"
+ *     (migration link 紧跟同行,Info icon 前缀 + 仅 SSO 模式 + 未 suppress 时显)
+ *   - 下载按钮前分隔线"也可下载移动版"
  *
  * **SSO 未启用**:本地账号密码 + 底部 3 链接 + 下载按钮(也带分隔线)
  *
@@ -91,8 +91,8 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
 
   // Aegis migration notice 触发条件:SSO 模式 + appconfig 未 suppress + 本机未确认
   const suppressMigrationNotice = parseRemoteBool(appConfig?.suppress_login_migration_notice);
-  const shouldShowMigrationNotice =
-    hasSso && !suppressMigrationNotice && !hasAcknowledgedMigrationNotice();
+  const showMigrationLink = hasSso && !suppressMigrationNotice;
+  const shouldShowMigrationNotice = showMigrationLink && !hasAcknowledgedMigrationNotice();
   const aegisRegisterUrl = resolveAegisRegisterUrl(primaryProvider?.accountUrl);
 
   const startOidcNow = () => {
@@ -150,8 +150,14 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
           <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
             {t("login.login.welcome")}
           </div>
-          <div className="mb-7 text-left text-sm text-[#8a8fa8]">
-            {t("login.login.ssoSub", { values: { provider: primaryProvider.name, appName: "Octo" } })}
+          {/* sub 两行(对齐上游 5ef5150f):说明 provider + 新用户自动创建账号 */}
+          <div className="mb-7 flex flex-col gap-1 text-left text-sm text-[#8a8fa8]">
+            <div>
+              {t("login.login.ssoSub", {
+                values: { provider: primaryProvider.name, appName: "Octo" },
+              })}
+            </div>
+            <div>{t("login.login.ssoAutoCreate")}</div>
           </div>
 
           <div className="flex flex-col">
@@ -162,33 +168,37 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
               className="!flex h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
               onClick={onStartOidc}
             >
-              {!oidcStarting ? <Shield size={18} strokeWidth={2} /> : null}
+              {!oidcStarting ? <ShieldCheck size={20} strokeWidth={2} /> : null}
               {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.ssoButton")}
             </Button>
-            <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
-              <Shield size={12} className="shrink-0 text-[#5b5be5]" aria-hidden />
-              <span
-                className="cursor-help underline decoration-dotted underline-offset-2"
-                title={t("login.login.ssoMetaBrandTitle", {
-                  values: { provider: primaryProvider.name },
-                })}
-              >
-                {t("login.login.ssoMetaPrefix")} {primaryProvider.name}{" "}
-                {t("login.login.ssoMetaSuffix")}
-              </span>
+            {/* meta 行:ShieldCheck + 信任锚 + 企业级安全 + (可选)migration link
+                全部同行用 · 分隔,对齐老仓 wk-login-content-sso-meta 排版 */}
+            <div
+              className="mt-2.5 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[12px] text-[#8a8fa8]"
+              title={t("login.login.ssoMetaBrandTitle", {
+                values: { provider: primaryProvider.name },
+              })}
+            >
+              <ShieldCheck size={14} className="shrink-0 text-[#5b5be5]" aria-hidden />
+              <span>{t("login.login.ssoMetaPrefix")}</span>
+              <strong className="font-semibold text-[#1a1a2e]">{primaryProvider.name}</strong>
+              <span>{t("login.login.ssoMetaSuffix")}</span>
               <span className="text-[#b0b4c8]">·</span>
               <span>{t("login.login.ssoMetaTrust")}</span>
+              {showMigrationLink ? (
+                <>
+                  <span className="text-[#b0b4c8]">·</span>
+                  <button
+                    type="button"
+                    onClick={() => setMigrationOpen(true)}
+                    className="inline-flex cursor-pointer items-center gap-1 text-[#5b5be5] hover:underline"
+                  >
+                    <Info size={12} aria-hidden />
+                    <span>{t("login.migration.link")}</span>
+                  </button>
+                </>
+              ) : null}
             </div>
-            {/* Aegis migration notice trigger link(suppress 时隐) */}
-            {!suppressMigrationNotice ? (
-              <button
-                type="button"
-                onClick={() => setMigrationOpen(true)}
-                className="mt-1.5 cursor-pointer self-center text-[12px] text-[#5b5be5] underline-offset-2 hover:underline"
-              >
-                {t("login.migration.link")}
-              </button>
-            ) : null}
           </div>
 
           {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}

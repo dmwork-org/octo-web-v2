@@ -1163,6 +1163,7 @@
   "login.login.button": "Log in",
   "login.login.button.loading": "Logging in…",
   "login.login.defaultSub": "Log in to your account to continue",
+  "login.login.downloadDivider": "Or download the mobile app",
   "login.login.forgotPassword": "Forgot password",
   "login.login.invite": "You were invited to join",
   "login.login.memberCount": "{{count}} members",

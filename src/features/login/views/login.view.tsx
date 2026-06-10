@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { Shield } from "lucide-react";
 import { useLoginMutation } from "@/features/login/mutations";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { useStartOidcLogin } from "@/features/login/hooks/use-start-oidc.hook";
@@ -22,15 +23,16 @@ interface LoginViewProps {
  * 登录页 — 仅 phone(账号密码 / SSO)。其他 3 种 view 已拆独立路由:
  *   /qrcode / /register / /forgetpassword
  *
- * **SSO 启用 + 有 provider** → 1:1 对齐老仓 login.tsx 行 416-457:
- *   - 主 CTA "登录 / 注册"(紫色 #5b5be5)
- *   - meta 行:helper + 信任锚 "由 {provider} 提供"
- *   - 下载按钮
- *   - **完全隐藏密码表单 + 底部链接**(老仓硬编码 `{false && <LegacyPasswordSection />}`,
- *     SSO 模式下走 IdP,本地账号入口全无)
+ * **SSO 启用 + 有 provider** → 对齐老仓 `5ef5150f` SSO panel:
+ *   - 顶部 breadcrumb "登录到 Octo · Web"(紫色圆点 + 文案,业务上下文锚)
+ *   - 主 CTA + Shield icon(信任增强)
+ *   - meta 行:Shield icon + "身份认证由 {provider} 提供 · 企业级安全"(tooltip)
+ *   - 下载按钮前分隔线"也可下载移动版"(主流 vs 备用分层)
+ *   - **完全隐藏密码表单 + 底部链接**(SSO 模式下走 IdP,本地账号入口全无)
  *
- * **SSO 未启用**(env=false 或无 provider):本地账号密码登录 + 底部 3 链接
- * (扫码 / 没有账号？注册 / 忘记密码)+ 下载按钮。
+ * **SSO 未启用**:本地账号密码 + 底部 3 链接 + 下载按钮(也带分隔线)
+ *
+ * UI 风格:本仓 tailwind tokens,业务结构对齐上游 Figma。
  */
 export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   const t = useT();
@@ -71,8 +73,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void finalize(raw);
   };
 
-  // SSO 启用 + 有 provider → 整体走 SSO 路径,密码表单 + 底部链接全隐
-  // (对齐老仓 login.tsx 行 447-457 — legacyPasswordLoginOff flag 期间硬隐)
   const hasSso = ssoModuleEnabled && !!primaryProvider;
   const ssoErrorText = oidcStartError ?? resumeError;
   const loginErrorText = loginMu.isError ? extractSafeErrorMessage(loginMu.error) : null;
@@ -83,7 +83,6 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     void startOidc(primaryProvider);
   };
 
-  // 子路由 navigate 时透传 redirect + invite_code(供子页登录成功后继续走 finalize)
   const subSearch: { redirect?: string; invite_code?: string } = {};
   if (redirect) subSearch.redirect = redirect;
   if (inviteCode) subSearch.invite_code = inviteCode;
@@ -107,10 +106,18 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
     </div>
   ) : null;
 
+  const breadcrumb = (
+    <div className="mb-6 flex items-center gap-2 text-[12px] font-medium text-[#5b5be5]">
+      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#5b5be5]" aria-hidden />
+      <span>{t("login.login.breadcrumb", { values: { appName: "Octo" } })}</span>
+    </div>
+  );
+
   // ===================== SSO 模式 =====================
   if (hasSso) {
     return (
       <LoginShell topBanner={inviteBanner}>
+        {breadcrumb}
         <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
           {t("login.login.welcome")}
         </div>
@@ -123,14 +130,14 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
             type="primary"
             theme="solid"
             loading={oidcStarting}
-            className="h-[50px] w-full cursor-pointer rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
+            className="!flex h-[50px] w-full cursor-pointer items-center justify-center gap-2 rounded-[12px] !bg-[#5b5be5] text-[16px] font-semibold tracking-[0.3px] text-white hover:!bg-[#4848d4]"
             onClick={onStartOidc}
           >
-            {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.passwordCtaLink")}
+            {!oidcStarting ? <Shield size={18} strokeWidth={2} /> : null}
+            {oidcStarting ? t("login.login.ssoButton.loading") : t("login.login.ssoButton")}
           </Button>
           <div className="mt-2.5 flex items-center justify-center gap-2 text-[12px] text-[#8a8fa8]">
-            <span>{t("login.login.ssoAutoCreate")}</span>
-            <span className="text-[#b0b4c8]">·</span>
+            <Shield size={12} className="shrink-0 text-[#5b5be5]" aria-hidden />
             <span
               className="cursor-help underline decoration-dotted underline-offset-2"
               title={t("login.login.ssoMetaBrandTitle", {
@@ -140,11 +147,14 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
               {t("login.login.ssoMetaPrefix")} {primaryProvider.name}{" "}
               {t("login.login.ssoMetaSuffix")}
             </span>
+            <span className="text-[#b0b4c8]">·</span>
+            <span>{t("login.login.ssoMetaTrust")}</span>
           </div>
         </div>
 
         {ssoErrorText ? <p className="mt-2 text-xs text-error">{ssoErrorText}</p> : null}
 
+        <DownloadDivider />
         <DownloadButtons />
       </LoginShell>
     );
@@ -153,6 +163,7 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
   // ===================== 本地账号密码模式(SSO 未启用) =====================
   return (
     <LoginShell topBanner={inviteBanner}>
+      {breadcrumb}
       <div className="mb-2.5 text-left text-[30px] leading-[1.25] font-bold tracking-[-0.01em] text-[#1a1a2e]">
         {t("login.login.welcome")}
       </div>
@@ -191,8 +202,9 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         </Button>
       </form>
 
-      {/* 底部链接(扫码登录 灰 / 没有账号？注册 / 忘记密码 — 后两者深色 weight 500) */}
-      <div className="mt-5 flex items-center justify-center text-sm">
+      {/* 底部链接(扫码登录 灰 / 没有账号？注册 / 忘记密码 — 后两者深色 weight 500)。
+          spacing 对齐上游 1bf42ba2:mt-6 mb-2 让表单 → 链接 → 下载区有呼吸感 */}
+      <div className="mt-6 mb-2 flex items-center justify-center text-sm">
         <button
           type="button"
           onClick={() => void navigate({ to: "/qrcode", search: subSearch })}
@@ -218,7 +230,23 @@ export function LoginView({ redirect, inviteCode }: LoginViewProps) {
         </button>
       </div>
 
+      <DownloadDivider />
       <DownloadButtons />
     </LoginShell>
+  );
+}
+
+/**
+ * 下载按钮前分隔线 — 两侧细线 + 中心文案"也可下载移动版"(对齐上游 5ef5150f
+ * 主流程 vs 下载备用的视觉分层)。
+ */
+function DownloadDivider() {
+  const t = useT();
+  return (
+    <div className="mt-7 mb-3 flex items-center gap-3 text-[12px] text-[#8a8fa8]">
+      <span className="h-px flex-1 bg-[#e4e6ef]" aria-hidden />
+      <span className="shrink-0">{t("login.login.downloadDivider")}</span>
+      <span className="h-px flex-1 bg-[#e4e6ef]" aria-hidden />
+    </div>
   );
 }

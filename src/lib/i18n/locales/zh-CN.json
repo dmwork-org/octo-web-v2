@@ -1163,6 +1163,7 @@
   "login.login.button": "登录",
   "login.login.button.loading": "登录中…",
   "login.login.defaultSub": "登录你的账号以继续",
+  "login.login.downloadDivider": "也可下载移动版",
   "login.login.forgotPassword": "忘记密码",
   "login.login.invite": "你被邀请加入",
   "login.login.memberCount": "{{count}} 位成员",

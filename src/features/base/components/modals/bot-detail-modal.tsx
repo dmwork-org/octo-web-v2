@@ -76,9 +76,7 @@ function buildPages(
     },
     manage: {
       title: <BotManageTitle />,
-      render: (nav) => (
-        <BotManageMenuPage onPickMentionFree={() => nav.push("mention-free")} />
-      ),
+      render: (nav) => <BotManageMenuPage onPickMentionFree={() => nav.push("mention-free")} />,
     },
     "mention-free": {
       title: <MentionFreeTitle />,

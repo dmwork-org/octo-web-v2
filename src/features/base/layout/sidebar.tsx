@@ -1,10 +1,11 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Languages } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { avatarVersionStore } from "@/features/base/stores/avatar-version";
 import { useT } from "@/lib/i18n/use-t";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { userDetailQueryOptions } from "@/features/base/queries/user.query";
@@ -117,11 +118,24 @@ interface UserAvatarProps {
   onClick: () => void;
 }
 
+function withVersion(url: string, version: number): string {
+  if (!url || version <= 0) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+}
+
+function useResetFailedOnUrlChange(url: string, setFailed: (v: boolean) => void) {
+  useEffect(() => {
+    setFailed(false);
+  }, [url, setFailed]);
+}
+
 function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
   const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const avatarVersion = useStore(avatarVersionStore, (s) => (uid ? (s.versions[uid] ?? 0) : 0));
   const [failed, setFailed] = useState(false);
-  const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
+  const url = withVersion(uid ? `${baseURL}/users/${uid}/avatar` : "", avatarVersion);
+  useResetFailedOnUrlChange(url, setFailed);
 
   return (
     <Tooltip>

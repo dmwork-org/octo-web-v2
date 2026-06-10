@@ -228,5 +228,3 @@ PreToolUse hook 真触发验证通过:
   - 不接 DOMPurify(Notice doc 后端受信任内容,Markdown 组件 rehypeSanitize 已兜底)
   - Notice modal 跟 VoiceSettingsModal 互斥显示(`open && !showNotice`),避免视觉叠加
 - baseline SHA 暂不推进
-
-

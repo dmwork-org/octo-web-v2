@@ -30,8 +30,7 @@ import { VoiceFeedback } from "@/features/chat/services/voice-feedback";
  * **不复刻上游 shared listeners**:本仓走 React Query 自动多组件同步,不需要 sharedState。
  */
 
-export const spaceSettingQueryKey = (spaceId: string | null) =>
-  ["space-setting", spaceId] as const;
+export const spaceSettingQueryKey = (spaceId: string | null) => ["space-setting", spaceId] as const;
 
 export function useSpaceFeedbackSetting() {
   const qc = useQueryClient();
@@ -77,8 +76,7 @@ export function useSpaceFeedbackSetting() {
         voice_feedback_notice_acked: 1,
         voice_feedback_on: feedbackOn ? 1 : 0,
       }),
-    disableVoiceInput: () =>
-      updateMu.mutateAsync({ voice_input_enabled: 0, voice_feedback_on: 0 }),
+    disableVoiceInput: () => updateMu.mutateAsync({ voice_input_enabled: 0, voice_feedback_on: 0 }),
     isPending: updateMu.isPending,
   };
 }

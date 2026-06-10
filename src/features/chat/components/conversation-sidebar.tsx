@@ -6,7 +6,10 @@ import { Search, Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
-import { chatSidebarTabStore, chatSidebarTabActions } from "@/features/chat/stores/chat-sidebar-tab";
+import {
+  chatSidebarTabStore,
+  chatSidebarTabActions,
+} from "@/features/chat/stores/chat-sidebar-tab";
 import { ConnectionStatusBadge } from "@/features/chat/components/connection-status-badge";
 import { ConversationList, type ConvTab } from "@/features/chat/components/conversation-list";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";

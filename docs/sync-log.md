@@ -297,3 +297,39 @@ PreToolUse hook 真触发验证通过:
   - 不搬扩大 hit area / 遮罩层 z-index 调整(本仓 form 已直接覆盖整个编辑框)
   - checkbox 槽位为不可选项保留(对齐多选模式视觉,避免文字跳动)
 - baseline SHA 暂不推进
+
+## 2026-06-10 — P1 Login 模块 batch
+
+- 搬 4 个真改动 SHA + 2 个等效已修 + 1 个微调合并(共 7 个):
+  - `5ef5150f` SSO panel redesign + `1bf42ba2` 非 SSO spacing — **业务对齐 UI 自有**(陈超明确):
+    - SSO + 非 SSO 共用顶部 breadcrumb(紫色圆点 + "登录到 Octo · Web")
+    - SSO 主按钮加 Shield icon(信任增强);meta 行重排 Shield + "身份认证由 X 提供 · 企业级安全"(本仓既有 ssoMetaTrust key 终于上线)
+    - 共用 DownloadDivider:两侧细线 + "也可下载移动版"(主 SSO 流程 vs 下载备用的视觉分层)
+    - 非 SSO 底部链接 spacing mt-5 → mt-6 mb-2
+    - i18n 加 downloadDivider 1 个新 key
+  - `7de93ff1` Aegis migration notice — **业务对齐 UI 自有**:
+    - 新增 LoginMigrationModal 组件:BaseDialog size=lg + StepRow + CaseRow 子组件;3 步 + 邮箱一致(success)/不一致(warning)2 case + bindWarning
+    - 触发点 1:SSO 主按钮守门(未确认时弹,确认后才起 SSO)
+    - 触发点 2:meta 行下方 "了解登录方式变更" link(任意时机查看)
+    - ack key 带版本 `octo-login-migration-notice-v1-ack`(per-browser,后续重提示升 v2)
+    - appconfig 加 suppress_login_migration_notice 字段(部署侧强制隐藏)
+    - 注册 CTA 派生 provider.accountUrl + AEGIS_REGISTER_PATH "/register",accountUrl 缺失时隐(不写 prod/test fallback)
+    - i18n 26 keys(zh/en 各):title/kicker/summary*/important*/step1-3 + Label/Hint/sameEmail*/differentEmail*/bindWarning*/registerAegis/continueLogin/link
+  - `86c5837b` OIDC logout — **搬**:
+    - 新增 src/features/login/oidc/logout.ts(requestOidcLogout / safeEndSessionUrl / markOidcPostLogoutCleanup / consumeOidcPostLogoutCleanup / logoutUserInitiated / runPostLogoutCleanupIfNeeded)
+    - AuthUser 加 login_provider 字段(post-login-flow 从 pending OIDC session 读出)
+    - authActions.signOut 改 wire 到 logoutUserInitiated:SSO 走完整流程(调后端 → 标志 → 清本地 → 跳 IdP end_session_url);非 SSO / 失败 fallback 走原 clearLocalAndRedirect
+    - main.tsx 在 persistAuth 之前调 runPostLogoutCleanupIfNeeded(IdP 回源到 /login 时兜底清残留 token / pending)
+  - `43e7d354` disable_user_create_space — **搬 infra only**:
+    - 新增 src/features/base/lib/parse-remote-bool.ts:统一解析后端 bool 字段(number 1 / boolean true / string "1"|"true")
+    - appconfig.api.ts 加 disable_user_create_space 字段;appconfig.query.ts 加 useCanCreateSpace() hook(loading 时默认 true 乐观假设)
+    - **本仓 SpaceSwitcher 无创建入口可隐**(只有"加入新 Space"),infra 接好供后续若加创建入口时直接 wire useCanCreateSpace
+  - `2d4d4d51` button copy — **等效已修**:本仓 login.login.ssoButton 已是"Octo 登录"
+  - `89d56e35` no-space logout — **等效已修**:本仓 join-space.view line 97 已有 onLogout = authActions.signOut
+- 本仓 commits(分支 feat/upstream-login):`b0d3f5e`(SSO UI)/ `516f7e0`(OIDC logout)/ `22b3177`(disable space infra)/ `ae2b4e4`(Aegis migration)+ docs
+- 关键决策:
+  - SSO redesign 按陈超指示"业务对齐 UI 自己"— breadcrumb / Shield / 信任锚 / 下载分隔线 4 个业务元素全搬,UI 不复刻上游 --wk-sso-accent CSS 变量方案,本仓 tailwind direct expression
+  - Aegis migration 完整搬(陈超 "本仓后面也要用 aegis"):27 i18n keys + 完整 modal 业务流程 + appconfig suppress + localStorage ack flag;UI 用 BaseDialog 替代 Semi Modal
+  - OIDC logout 简化版:不搬 dev-only VITE_OIDC_POST_LOGOUT_REDIRECT_URI override(用户没明确需要);clearLocalAuthState 只清本仓存的 3 个 key(octo:auth / currentSpaceId / pending_oidc_login),不按 prefix 扫整个 storage
+  - disable_user_create_space 只搬 infra:本仓无创建入口可隐(SpaceSwitcher 只 join 不 create),字段+helper 接好让后续加创建时直接 wire
+- baseline SHA 暂不推进

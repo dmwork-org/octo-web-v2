@@ -160,7 +160,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
 
   return (
     <>
-      <div className="pointer-events-none fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
+      <div className="pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2">
         <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-white px-4 py-1 whitespace-nowrap shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)]">
           <button
             type="button"

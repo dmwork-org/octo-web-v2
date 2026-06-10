@@ -66,6 +66,26 @@ export async function resetVoiceLocalConfig(): Promise<void> {
   await api("voice/local-config/reset", { method: "POST" });
 }
 
+/**
+ * Voice 服务文档(对齐上游 c0a6f1ea getDocument):
+ * GET /v1/voice/document/:doc_type → { doc_type, title, content, version, updated_at }
+ *
+ * 当前 docType 值:
+ *   - "asr_service_doc":ASR 服务隐私 / 反馈说明(VoiceFeedbackNotice 内显示)
+ */
+export interface VoiceDocumentResponse {
+  doc_type: string;
+  title: string;
+  /** content 是 server 受信任的富文本(markdown);本仓走 Markdown 组件渲染 */
+  content: string;
+  version: string;
+  updated_at: string;
+}
+
+export async function getVoiceDocument(docType: string): Promise<VoiceDocumentResponse> {
+  return api<VoiceDocumentResponse>(`voice/document/${encodeURIComponent(docType)}`);
+}
+
 export interface TranscribeResult {
   text: string;
   /** 后端返回的模型名(短),前端不消费 */

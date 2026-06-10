@@ -113,7 +113,7 @@ export async function buildLinkableChannels(
       // 子区 channelId 必须有效
       if (!t.short_id) continue;
       result.push({
-        channelId: t.short_id, // 子区的 channel_id 是 short_id
+        channelId: `${g.channelId}____${t.short_id}`, // 子区完整 ID 格式: groupNo____shortId
         channelType: CHANNEL_TYPE_COMMUNITY_TOPIC,
         name: t.name || unnamedThreadName,
         memberCount: t.member_count,

@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import {
   Dialog,
   DialogClose,
@@ -20,7 +20,6 @@ export type DialogMask = "default" | "none" | "interactive";
 
 /**
  * 尺寸 token 映射(对齐 plan 设计 sm=384 / md=448 / lg=672 / xl=896 / fit=auto)。
- * 与现有 modal 调研出的主流宽度匹配:max-w-sm/md 占 80%,max-w-2xl 占 10%(global-search)。
  */
 const SIZE_CLASS: Record<DialogSize, string> = {
   sm: "w-full max-w-sm",
@@ -40,11 +39,9 @@ const HEIGHT_CLASS: Record<DialogHeight, string> = {
 
 /**
  * 嵌套层级 Context — 每层 BaseDialog 把 depth+1 传给子树,自动选 z-index token:
- *   depth 0(根)→ z-dialog (300)
- *   depth 1(主 modal 上又开)→ z-dialog-secondary (400)
- *   depth ≥ 2 → z-dialog-tertiary (500)
- *
- * 解决老仓"二级 modal 手动 z-[60]/z-[70]"的层级混乱问题。
+ *   depth 0(根)→ z-dialog
+ *   depth 1(主 modal 上又开)→ z-dialog-secondary
+ *   depth ≥ 2 → z-dialog-tertiary
  */
 const DialogNestingContext = createContext(0);
 
@@ -68,6 +65,13 @@ interface BaseDialogProps {
   description?: ReactNode;
   /** 是否显示右上角 X 关闭按钮(默认 true) */
   showCloseButton?: boolean;
+  /**
+   * header 左侧 ← 返回按钮(默认 false)— 用于下钻子页返回上一级。
+   * 对齐 BaseDrawer 同款语义,DrilldownDialog 自动 wire。
+   */
+  showBackButton?: boolean;
+  /** 自定义返回按钮回调(缺省 = onOpenChange(false)) */
+  onBack?: () => void;
   /** 点遮罩是否关闭(默认 true) */
   closeOnMask?: boolean;
   /** Esc 是否关闭(默认 true) */
@@ -76,8 +80,7 @@ interface BaseDialogProps {
    * 遮罩模式:
    * - 'default'(默认):标准黑色半透明 mask + 拦截背景交互
    * - 'none':不渲染 Overlay(罕见,如 toast-like 浮窗)
-   * - 'interactive':渲染 Overlay 但 pointer-events:none + bg-transparent,
-   *   背景可继续交互(对齐老仓 me-info-modal 的"无 mask + 卡片悬浮"模式)
+   * - 'interactive':渲染 Overlay 但 pointer-events:none + bg-transparent
    */
   mask?: DialogMask;
   /** 隐藏整个 header 区(无 title + 无 X);body 自己排版用 */
@@ -92,27 +95,25 @@ interface BaseDialogProps {
 }
 
 /**
- * 浮动元素壳层统一规范 — 中央 Dialog 基础组件(Phase B)。
+ * 浮动元素壳层统一规范 — 中央 Dialog 基础组件。
  *
  * 基于 Radix Dialog + shadcn 模板,免费获得:focus trap / scroll lock / aria /
  * 嵌套 Esc(只关最上层) / portal。
- *
- * **替换目标**:23 个散落的 `fixed inset-0 z-[xx] bg-black/40` 手写壳。
  *
  * 用法:
  * ```tsx
  * <BaseDialog open={open} onOpenChange={setOpen} size="md" title="发起好友申请">
  *   <form>...</form>
- *   {/* footer 也可独立传 *\/}
  * </BaseDialog>
  * ```
  *
- * 嵌套场景(在主 Dialog 内打开 ConfirmDialog):
+ * **下钻子页**(对齐 BaseDrawer showBackButton/onBack):
  * ```tsx
- * <BaseDialog ...>
- *   {open => <ConfirmDialog open={open} ... />}  // 自动用 z-dialog-secondary
+ * <BaseDialog ... showBackButton onBack={popPage} title="子页标题">
+ *   {...}
  * </BaseDialog>
  * ```
+ * 一般通过 `DrilldownDialog` 自动 wire,见 overlay/drilldown-dialog.tsx。
  */
 export function BaseDialog({
   open,
@@ -122,6 +123,8 @@ export function BaseDialog({
   title,
   description,
   showCloseButton = true,
+  showBackButton = false,
+  onBack,
   closeOnMask = true,
   closeOnEsc = true,
   mask = "default",
@@ -134,7 +137,12 @@ export function BaseDialog({
   const t = useT();
   const depth = useContext(DialogNestingContext);
   const zClass = useNestingZClass();
-  const renderHeader = !hideHeader && (title || showCloseButton);
+  const renderHeader = !hideHeader && (title || showCloseButton || showBackButton);
+
+  const handleBack = () => {
+    if (onBack) onBack();
+    else onOpenChange(false);
+  };
 
   return (
     <DialogNestingContext.Provider value={depth + 1}>
@@ -159,6 +167,16 @@ export function BaseDialog({
           >
             {renderHeader ? (
               <DialogHeader>
+                {showBackButton ? (
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    aria-label={t("base.common.back")}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                ) : null}
                 {title ? (
                   <DialogTitle className="min-w-0 flex-1 truncate">{title}</DialogTitle>
                 ) : (

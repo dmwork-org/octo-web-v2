@@ -142,9 +142,9 @@
 
 ### Batch 1.9 — Chat 大特性 2:BotManage 三级下钻(2 commits)
 
-- [ ] `e7c5e0be` 2026-06-03 [octo-web] 独立 Bot 管理模块（三级下钻）+ 免@回答群列表
-- [ ] `ee4275b4` 2026-06-03 fix: restore bot remark editing
-- [ ] `d6c20ed4` 2026-06-02 fix: unify avatar upload handling
+- [x] `e7c5e0be` 2026-06-03 [octo-web] 独立 Bot 管理模块（三级下钻）+ 免@回答群列表(本仓抽通用 DrilldownDrawer 替代上游 WKModal+RoutePage,2 commit:基础设施 + feature)
+- [x] `ee4275b4` 2026-06-03 fix: restore bot remark editing(复用本仓 InlineEditRow + setUserRemark,bot-detail isFriend 时 inline 编辑)
+- [x] `d6c20ed4` 2026-06-02 fix: unify avatar upload handling(**等效已修 / 本仓 uploadUserAvatar+uploadGroupAvatar 已 OK,GIF 保活 + 裁剪预览是 enhancement,未发现 bug 暂不补**)
 
 **手测**:点 bot 头像 → 三级下钻 → 免@回答群列表;改 bot 备注能保存;头像上传统一行为。
 

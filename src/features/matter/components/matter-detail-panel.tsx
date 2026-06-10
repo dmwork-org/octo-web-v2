@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { MoreHorizontal } from "lucide-react";
@@ -8,7 +8,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { authStore } from "@/features/base/stores/auth";
-import { matterDetailQueryOptions } from "@/features/matter/queries/matters.query";
+import { matterDetailQueryOptions, activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import {
   useDeleteMatter,
   useTransitionMatter,
@@ -250,6 +250,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     handleRetry: handleOutputsRetry,
   } = useMatterOutputs(matterId);
 
+  // 变更记录计数
+  const { data: activitiesData } = useInfiniteQuery(activitiesInfiniteQueryOptions(matterId));
+  const activitiesCount = activitiesData?.pages.flatMap((p) => p.data).length ?? 0;
+
   const getOutputChannelMembership = useCallback(
     (sourceChannelId?: string) => {
       if (!sourceChannelId) return { isMember: true, loading: false };
@@ -421,7 +425,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               active={secondaryTab === "changelog"}
               onClick={() => setSecondaryTab("changelog")}
               label={t("matter.detail.changelogTab")}
-              count={0}
+              count={activitiesCount}
             />
           </div>
         </div>

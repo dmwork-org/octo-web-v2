@@ -57,6 +57,7 @@ export function useUpdateMatter() {
     onSuccess: (updated, args) => {
       qc.setQueryData<MatterDetail>(matterDetailQueryKey(args.matterId), updated);
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: ["matter", "activities", args.matterId] });
     },
   });
 }

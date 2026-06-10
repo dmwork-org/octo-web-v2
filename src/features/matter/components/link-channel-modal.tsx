@@ -395,7 +395,7 @@ export function LinkChannelModal({
             type="button"
             onClick={() => void handleConfirm()}
             disabled={submitting || selected.length === 0}
-            className="inline-flex h-7 items-center gap-2 rounded-full bg-accent px-3 text-[12px] font-semibold leading-[20px] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-7 items-center gap-2 rounded-full bg-brand px-3 text-[12px] font-semibold leading-[20px] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting
               ? t("matter.linkChannels.linking")

@@ -133,6 +133,7 @@
   "base.settings.notiOpened": "已打开桌面通知",
   "base.settings.notiUnsupported": "当前浏览器不支持桌面通知",
   "base.settings.openDesktopNoti": "打开桌面通知",
+  "base.settings.language": "语言",
   "base.settings.switchToChinese": "切换为中文",
   "base.settings.switchToEnglish": "English",
   "base.sidebar.myAvatar": "我的头像",

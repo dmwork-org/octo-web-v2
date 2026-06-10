@@ -2,7 +2,7 @@ import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
-import { Languages } from "lucide-react";
+import { Check, Languages } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { useT } from "@/lib/i18n/use-t";
@@ -14,6 +14,8 @@ import { MeInfoModal } from "@/features/user/components/me-info-modal";
 import { SettingsIcon } from "@/components/ui/icons/settings";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { updateUserLanguage } from "@/features/base/api/endpoints/user.api";
 
 function isActive(item: MenuItem, path: string): boolean {
   return item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
@@ -45,26 +47,66 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   );
 }
 
-/** 语言切换按钮 — 老仓 NavBottom 翻译图标位,点击直接 toggle zh-CN ↔ en-US。 */
-function LanguageToggle() {
+/**
+ * 语言切换菜单 — 1:1 对齐老仓 NavLanguageSwitcher:
+ *   - 下拉菜单展示 [中文, English] 两项,当前 locale 打 ✓
+ *   - 切换 → 立即 setLocale(本地 + localStorage 持久化)
+ *   - 已登录 → silent PUT /v1/user/language 同步后端偏好(失败 console.warn,
+ *     不阻塞前端切换,对齐老仓 NavLanguageSwitcher.tsx:43-50)
+ */
+function LanguageMenu() {
   const t = useT();
   const { locale, setLocale } = useI18n();
-  const tooltipKey =
-    locale === "zh-CN" ? "base.settings.switchToEnglish" : "base.settings.switchToChinese";
+  const isLogined = useStore(authStore, (s) => !!s.token);
+  const [open, setOpen] = useState(false);
+
+  const items = [
+    { value: "zh-CN", label: "中文" },
+    { value: "en-US", label: "English" },
+  ];
+
+  const handleSelect = (next: string) => {
+    setOpen(false);
+    if (next === locale) return;
+    setLocale(next);
+    if (isLogined) {
+      updateUserLanguage(next).catch((err: unknown) => {
+        // 对齐老仓:静默失败,前端 locale 已切,不弹错误 toast
+        console.warn("[i18n] failed to sync user language preference", err);
+      });
+    }
+  };
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={t(tooltipKey)}
-          onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-          className="flex h-11 w-14 cursor-pointer items-center justify-center text-text-primary/30 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40 hover:text-text-primary/60"
-        >
-          <Languages size={20} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{t(tooltipKey)}</TooltipContent>
-    </Tooltip>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("base.settings.language")}
+              className="flex h-11 w-14 cursor-pointer items-center justify-center text-text-primary/30 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40 hover:text-text-primary/60"
+            >
+              <Languages size={20} />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t("base.settings.language")}</TooltipContent>
+      </Tooltip>
+      <PopoverContent side="right" align="end" className="w-32 p-1">
+        {items.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => handleSelect(item.value)}
+            className="flex w-full items-center justify-between rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+          >
+            <span>{item.label}</span>
+            {locale === item.value ? <Check size={14} className="text-brand" /> : null}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -181,7 +223,7 @@ export function Sidebar() {
         <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
         <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
-          <LanguageToggle />
+          <LanguageMenu />
           <Tooltip>
             <TooltipTrigger asChild>
               <button

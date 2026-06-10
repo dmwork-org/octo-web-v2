@@ -133,6 +133,7 @@
   "base.settings.notiOpened": "Desktop notifications enabled",
   "base.settings.notiUnsupported": "Your browser does not support desktop notifications",
   "base.settings.openDesktopNoti": "Enable desktop notifications",
+  "base.settings.language": "Language",
   "base.settings.switchToChinese": "切换为中文",
   "base.settings.switchToEnglish": "English",
   "base.sidebar.myAvatar": "My avatar",

@@ -16,7 +16,7 @@ import {
   useUpdateMatter,
 } from "@/features/matter/mutations/matters.mutation";
 import { UserName } from "@/features/matter/components/user-name";
-import { AssigneePicker } from "@/features/matter/components/assignee-picker";
+import { OwnerEditor } from "@/features/matter/components/owner-editor";
 import { DeadlinePicker } from "@/features/matter/components/deadline-picker";
 import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
@@ -133,7 +133,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("channels");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -175,8 +174,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     setTitleDraft(data.title);
     setEditingTitle(false);
   }, [data.title]);
-
-  const assigneeUids = useMemo(() => data.assignees.map((a) => a.user_id), [data.assignees]);
 
   const toggleLabel = (s: MatterStatus): string =>
     s === "open" ? t("matter.action.markDone") : t("matter.action.reopen");
@@ -374,29 +371,11 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
             <UserChip uid={data.creator_id} />
           </FieldChip>
           <FieldChip label={t("matter.sidebar.assigneeLabel")}>
-            {assigneeUids.length > 0 ? (
-              <ul className="flex flex-wrap items-center gap-1.5">
-                {assigneeUids.map((uid) => (
-                  <li key={uid}>
-                    <button
-                      type="button"
-                      onClick={() => setPickerOpen(true)}
-                      className="cursor-pointer border-0 bg-transparent p-0"
-                    >
-                      <UserChip uid={uid} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                className="cursor-pointer border-0 bg-transparent p-0 text-text-tertiary"
-              >
-                <span>{t("matter.assignee.empty")}</span>
-              </button>
-            )}
+            <OwnerEditor
+              matterId={matterId}
+              assignees={data.assignees}
+              canEdit={isOwner}
+            />
           </FieldChip>
         </div>
 
@@ -453,13 +432,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
           )}
         </div>
       </div>
-
-      <AssigneePicker
-        open={pickerOpen}
-        matterId={matterId}
-        currentAssigneeUids={assigneeUids}
-        onClose={() => setPickerOpen(false)}
-      />
 
       <ConfirmModal
         open={confirmDelete}

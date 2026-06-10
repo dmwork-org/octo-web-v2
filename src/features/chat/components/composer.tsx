@@ -50,7 +50,7 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
-import { useReactiveTiptapPlaceholder } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
+import { useDispatchOnPlaceholderChange } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
 import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import { spaceStore } from "@/features/base/stores/space";
@@ -200,6 +200,13 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     return info?.title ?? "";
   })();
   const placeholder = buildPlaceholder(tt, channel, channelName);
+  // ref + 回调式 placeholder:Placeholder extension 在 useEditor 配置时
+  // 捕获字符串到 plugin 闭包,React 重渲传新字符串不生效。改为 callback,
+  // 每次 decoration 重算时调函数读最新值(由 useDispatchOnPlaceholderChange
+  // 触发 view 重算)。render-time 同步 ref 保证 useEditor 首次 mount 时
+  // 也能拿到当前 locale 文案。
+  const placeholderRef = useRef(placeholder);
+  placeholderRef.current = placeholder;
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
@@ -233,7 +240,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         codeBlock: false,
         horizontalRule: false,
       }),
-      Placeholder.configure({ placeholder }),
+      Placeholder.configure({ placeholder: () => placeholderRef.current }),
       AttachmentNode,
       ...(isMentionable
         ? [
@@ -304,7 +311,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
-  useReactiveTiptapPlaceholder(editor, placeholder);
+  useDispatchOnPlaceholderChange(editor, placeholder);
 
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 

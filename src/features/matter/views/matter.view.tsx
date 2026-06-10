@@ -57,7 +57,7 @@ export function MatterView() {
   return (
     <div className="flex flex-1 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle px-5">
+        <header className="flex h-14 shrink-0 items-center justify-between px-5">
           <span className="text-base font-semibold text-text-primary">
             {t("matter.menu.title")}
           </span>

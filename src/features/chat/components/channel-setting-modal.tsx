@@ -10,6 +10,7 @@ import WKSDK, {
 import { Minus, Plus, QrCode } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
+import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
@@ -32,13 +33,18 @@ import {
   setChannelTop,
 } from "@/features/base/api/endpoints/channel-setting.api";
 import {
+  archiveThread,
   leaveThread,
   deleteThread,
+  unarchiveThread,
   updateGroup,
   updateGroupMember,
   updateThread,
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { canManageThread } from "@/features/chat/lib/thread-permission";
+import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 // section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -162,17 +168,24 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
 
 /**
  * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐)。
+ *
+ * **子区设置归档入口(issue #53)**:
+ * 老仓子区"归档/取消归档"挂在 ThreadPanel detail header 三点菜单。本仓把子区
+ * 设置统一塞进 ChannelSettingModal,所以归档入口也归到这里 — 在 danger 区前
+ * 单立一个 SectionGroup,canManageThread(creator / 父群 owner / manager)才显示。
  */
 export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingModalProps) {
   const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [kickListOpen, setKickListOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [subpage, setSubpage] = useState<Subpage | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -227,6 +240,19 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   // 子区 creator 不能"离开"(后端拒绝),只能"解散"— 对齐老仓 UI 分流(creator 看
   // "解散子区" → DELETE,普通成员看"离开子区" → POST leave)
   const isThreadCreator = isThread && !!threadCreatorUid && threadCreatorUid === myUid;
+  const threadStatus = (
+    channelInfo?.orgData as { thread?: { status?: number } } | undefined
+  )?.thread?.status;
+  const isThreadArchived = threadStatus === THREAD_STATUS_ARCHIVED;
+  // 子区归档权限:creator / 父群 owner / 父群 manager(对齐 thread-permission.ts
+  // 跟 thread-list-panel inline 按钮共用同款判定,避免一处可见一处不可见)
+  const canArchiveThisThread =
+    isThread &&
+    canManageThread(
+      threadCreatorUid ? { creator_uid: threadCreatorUid } : null,
+      threadParsed?.groupNo ?? "",
+      myUid,
+    );
   const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
     ?.has_thread_md;
   const threadMdVersion =
@@ -372,6 +398,43 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
+  /**
+   * 归档 / 取消归档子区 — 按 isThreadArchived 推导动作(issue #53)。
+   *
+   * 成功后:
+   * - 强制重拉 channelInfo(让 orgData.thread.status 同步,下次开 modal 显新文案)
+   * - invalidate thread-list query(让 thread panel 列表分组刷新)
+   * - invalidate sidebarFollow(让侧边栏关注列表跟着隐/显已归档子区)
+   * 跟 thread-list-panel inline 按钮的 invalidate 范围一致。
+   */
+  const archiveMu = useMutation({
+    mutationFn: async () => {
+      const p = parseThreadChannelId(channel.channelID);
+      if (!p) throw new Error(t("channelSetting.error.threadParseFailed"));
+      if (isThreadArchived) {
+        await unarchiveThread(p.groupNo, p.shortId);
+      } else {
+        await archiveThread(p.groupNo, p.shortId);
+      }
+    },
+    onSuccess: async () => {
+      WKSDK.shared().channelManager.deleteChannelInfo(channel);
+      await WKSDK.shared().channelManager.fetchChannelInfo(channel);
+      if (threadParsed) {
+        void qc.invalidateQueries({ queryKey: ["chat", "thread-list", threadParsed.groupNo] });
+      }
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      toast.success(
+        isThreadArchived
+          ? t("threadPanelLocal.unarchiveSuccess")
+          : t("threadPanelLocal.archiveSuccess"),
+      );
+      setConfirmArchive(false);
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+  });
+
   const dangerCloseTitle = isGroup
     ? tt("channelSetting.dangerCloseGroup")
     : isThread
@@ -506,19 +569,28 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               onSave={(v) => renameMu.mutate(v)}
             />
             <NavRow
-              title={tt("channelSetting.backToParent", { values: { name: threadParentName } })}
-              center
+              title={tt("channelSetting.threadStatus")}
+              right={
+                isThreadArchived ? (
+                  <span className="rounded-sm bg-[rgba(28,28,35,0.06)] px-1.5 py-0.5 text-[11px] text-text-tertiary">
+                    {tt("threadPanelLocal.archived")}
+                  </span>
+                ) : (
+                  <span className="rounded-sm bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+                    {tt("channelSetting.threadStatusActive")}
+                  </span>
+                )
+              }
+            />
+            <NavRow
+              title={tt("channelSetting.threadParent")}
+              subTitle={threadParentName}
               onClick={() => {
                 if (!threadParentChannel) return;
                 chatSelectedActions.select(threadParentChannel);
                 onClose();
               }}
             />
-          </SectionGroup>
-        ) : null}
-
-        {isThread ? (
-          <SectionGroup>
             <NavRow
               title="GROUP.md"
               subTitle={
@@ -573,12 +645,25 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           </SectionGroup>
         ) : null}
 
+        {/* 子区管理(对齐老仓"子区管理"组):归档/取消归档(canArchiveThisThread 才显)
+            + 离开/解散同组;非子区时 clearMessages + dangerClose 同组(原来逻辑) */}
         <SectionGroup>
           {!isThread ? (
             <NavRow
               title={tt("channelSetting.clearMessages")}
               danger
               onClick={() => setConfirmClear(true)}
+            />
+          ) : null}
+          {isThread && canArchiveThisThread ? (
+            <NavRow
+              title={
+                isThreadArchived
+                  ? tt("threadPanelLocal.unarchive")
+                  : tt("threadPanelLocal.archive")
+              }
+              center
+              onClick={() => setConfirmArchive(true)}
             />
           ) : null}
           <NavRow
@@ -661,6 +746,28 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           okLoading={closeMu.isPending}
           onOk={() => closeMu.mutate()}
           onCancel={() => setConfirmClose(false)}
+        />
+      ) : null}
+
+      {confirmArchive ? (
+        <ConfirmModal
+          open
+          title={
+            isThreadArchived
+              ? tt("threadPanelLocal.unarchiveConfirmTitle", { values: { name: title } })
+              : tt("threadPanelLocal.archiveConfirmTitle", { values: { name: title } })
+          }
+          content={
+            isThreadArchived
+              ? tt("threadPanelLocal.unarchiveConfirmContent")
+              : tt("threadPanelLocal.archiveConfirmContent")
+          }
+          okText={
+            isThreadArchived ? tt("threadPanelLocal.unarchive") : tt("threadPanelLocal.archive")
+          }
+          okLoading={archiveMu.isPending}
+          onOk={() => archiveMu.mutate()}
+          onCancel={() => setConfirmArchive(false)}
         />
       ) : null}
     </>

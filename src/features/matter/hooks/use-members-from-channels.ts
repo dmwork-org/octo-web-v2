@@ -41,12 +41,14 @@ export function useMembersFromChannels(
     setLoading(true);
 
     Promise.all(
-      channels.map((ref) => {
+      channels.map(async (ref) => {
         const ch = new Channel(ref.channelId, ref.channelType);
-        return WKSDK.shared()
-          .channelManager.getSubscribes(ch)
-          .then((subs: Array<{ uid: string; name?: string; remark?: string }>) => subs ?? [])
-          .catch(() => [] as Array<{ uid: string }>);
+        try {
+          await WKSDK.shared().channelManager.syncSubscribes(ch);
+          return WKSDK.shared().channelManager.getSubscribes(ch);
+        } catch {
+          return [];
+        }
       }),
     ).then((allBatches) => {
       if (reqId !== requestIdRef.current) return;

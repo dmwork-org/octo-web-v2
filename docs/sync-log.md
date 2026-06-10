@@ -278,3 +278,22 @@ PreToolUse hook 真触发验证通过:
 - 本仓 commits(分支 feat/upstream-batch-1-13):`4bd7244`(group-md normalize)+ docs
 - 关键决策:**最小改动 batch**(1 个 code commit + 1 个 docs commit);0f024d2d 上游同时迁了 preview 从 `<pre>` 改 `MarkdownContent`,本仓 group-md-modal preview 已用 `ReactMarkdown`(无需迁),只补 normalize
 - baseline SHA 暂不推进
+
+## 2026-06-10 — Batch 1.14 Conversation drag-drop / 多选
+
+- 搬 2 个上游 SHA(本仓拆 2 commits):
+  - `361447b6` 2026-06-04 feat(conversation): widen drag-drop hit area + file-size guard + edge-case hardening — **部分搬**:
+    - **[搬]** 第 2 块文件大小校验(单入口):`use-composer-attachments.hook.ts` addAttachments 顶部加 MAX_TOTAL_SIZE=100MB 守卫,单文件超限 / 累计超限分别 toast.error fileTooLarge / totalTooLarge,整批拒绝入队;累计判定包含 topAttachments + filesRef(inline 图片) + 本次 incoming;i18n 加 composer.upload.fileTooLarge / totalTooLarge(zh/en)
+    - **[等效已修]** 第 1 块扩大 hit area:本仓 composer.tsx 把 onDrop/onDragOver 直接挂在 form,无"展开态 inert/height:0 隐藏"问题,无需上移监听
+    - **[等效已修]** 第 3 块拖拽边界(dataTransfer.types === Files):本仓 onDragOver line 717 已检 `e.dataTransfer?.types?.includes("Files")`
+    - **[不搬]** 深度计数 _dragDepth:本仓 form 单层无嵌套 dragenter 区域,无闪烁 bug,后续若出现再补
+  - `930b8fa5` 2026-06-02 fix: unify message multiselect behavior — **搬**:
+    - 新增 `src/features/chat/lib/message-selection.ts` 暴露 isMessageSelectable + UNSELECTABLE_MESSAGE_TYPES set(time/-1 / typing/-2 / historySplit/-3 / threadCreated/1100)
+    - `message-row.tsx` 加 `selectable = isMessageSelectable(message)`:onRowClick 不可选时不 toggle;checkbox 槽位保留对齐避免文字跳动,内部不渲染勾选框;cursor-pointer 仅可选项显示
+    - 防止后续转发/批量操作命中 system message 被后端 400
+- 本仓 commits(分支 feat/upstream-batch-1-14):`7b0b590`(file size guard)/ `da68433`(multiselect selectable)+ docs
+- 关键决策:
+  - 不搬上游 _dragDepth(本仓 form 单层挂事件,无嵌套 dragenter 区域)
+  - 不搬扩大 hit area / 遮罩层 z-index 调整(本仓 form 已直接覆盖整个编辑框)
+  - checkbox 槽位为不可选项保留(对齐多选模式视觉,避免文字跳动)
+- baseline SHA 暂不推进

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { MoreHorizontal } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -11,7 +10,6 @@ import { authStore } from "@/features/base/stores/auth";
 import { matterDetailQueryOptions, activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import {
   useDeleteMatter,
-  useTransitionMatter,
   useUnlinkChannel,
   useUpdateMatter,
 } from "@/features/matter/mutations/matters.mutation";
@@ -86,28 +84,6 @@ function formatRelativeTime(iso: string, t: (key: string, params?: Record<string
   return t("matter.time.yearsAgo", { count: Math.floor(diffDays / 365) });
 }
 
-function nextStatusForToggle(s: MatterStatus): MatterStatus {
-  return s === "open" ? "done" : "open";
-}
-
-/** 点击外部关闭下拉菜单 */
-function useClickOutside(
-  ref: React.RefObject<HTMLDivElement | null>,
-  open: boolean,
-  onClose: () => void,
-) {
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open, ref, onClose]);
-}
-
 /** 编辑态自动 focus + select */
 function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, shouldFocus: boolean) {
   useEffect(() => {
@@ -125,7 +101,6 @@ function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, should
 export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
   const t = useT();
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
-  const transitionMu = useTransitionMatter();
   const deleteMu = useDeleteMatter();
   const updateMu = useUpdateMatter();
 
@@ -134,14 +109,9 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     ? data.creator_id === currentUid || (data.assignees ?? []).some((a) => a.user_id === currentUid)
     : false;
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("channels");
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // click-outside 关闭下拉菜单
-  useClickOutside(menuRef, menuOpen, () => setMenuOpen(false));
 
   // ── 标题 inline 编辑态 ──
   const [editingTitle, setEditingTitle] = useState(false);
@@ -177,19 +147,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     setTitleDraft(data.title);
     setEditingTitle(false);
   }, [data.title]);
-
-  const toggleLabel = (s: MatterStatus): string =>
-    s === "open" ? t("matter.action.markDone") : t("matter.action.reopen");
-
-  const handleToggle = () => {
-    setMenuOpen(false);
-    transitionMu.mutate({ matterId, status: nextStatusForToggle(data.status) });
-  };
-
-  const handleArchive = () => {
-    setMenuOpen(false);
-    transitionMu.mutate({ matterId, status: "archived" });
-  };
 
   const handleDelete = () => {
     deleteMu.mutate(matterId, {
@@ -297,53 +254,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
-      {/* ── Header:状态 pill + DDL + ⋯ ── */}
+      {/* ── Header:状态 pill + DDL ── */}
       <header className="flex shrink-0 items-center gap-2 rounded-t-lg border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
         <StatusPill status={data.status} seqNo={data.seq_no} />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
-        <div
-          ref={menuRef}
-          className={`relative flex shrink-0 items-center ${!isOwner ? "ml-auto" : ""}`}
-        >
-          <button
-            type="button"
-            aria-label={t("matter.detail.menuMore")}
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-          >
-            <MoreHorizontal size={16} />
-          </button>
-          {menuOpen ? (
-            <div className="absolute top-9 right-0 z-10 flex w-44 flex-col rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">
-              <MenuItem onClick={handleToggle} disabled={transitionMu.isPending}>
-                {toggleLabel(data.status)}
-              </MenuItem>
-              {data.status !== "archived" ? (
-                <MenuItem onClick={handleArchive} disabled={transitionMu.isPending}>
-                  {t("matter.action.archive")}
-                </MenuItem>
-              ) : null}
-              <MenuItem
-                onClick={() => {
-                  setMenuOpen(false);
-                  setPickerOpen(true);
-                }}
-              >
-                {t("matter.action.editAssignees")}
-              </MenuItem>
-              <div className="my-1 h-px bg-border-subtle" />
-              <MenuItem
-                danger
-                onClick={() => {
-                  setMenuOpen(false);
-                  setConfirmDelete(true);
-                }}
-              >
-                {t("matter.action.delete")}
-              </MenuItem>
-            </div>
-          ) : null}
-        </div>
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto">
@@ -781,24 +695,3 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
   );
 }
 
-interface MenuItemProps {
-  onClick: () => void;
-  children: React.ReactNode;
-  danger?: boolean;
-  disabled?: boolean;
-}
-
-function MenuItem({ onClick, children, danger, disabled }: MenuItemProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center px-3 py-1.5 text-left text-xs transition-colors disabled:opacity-50 ${
-        danger ? "text-error hover:bg-error/10" : "text-text-primary hover:bg-bg-hover"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}

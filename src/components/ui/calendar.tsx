@@ -28,12 +28,12 @@ export function Calendar({
         month: "flex flex-col gap-3",
         month_caption: "flex justify-center pt-1 relative items-center text-sm font-medium",
         caption_label: "text-sm font-medium",
-        nav: "flex items-center justify-between absolute inset-x-1 top-1",
+        nav: "flex items-center justify-between absolute inset-x-1 top-1 z-10",
         button_previous: cn(
-          "size-7 inline-flex items-center justify-center rounded-md hover:bg-bg-hover text-text-secondary",
+          "size-7 inline-flex items-center justify-center rounded-md cursor-pointer hover:bg-bg-hover text-text-secondary",
         ),
         button_next: cn(
-          "size-7 inline-flex items-center justify-center rounded-md hover:bg-bg-hover text-text-secondary",
+          "size-7 inline-flex items-center justify-center rounded-md cursor-pointer hover:bg-bg-hover text-text-secondary",
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",

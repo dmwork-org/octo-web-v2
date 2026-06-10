@@ -267,6 +267,14 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   // 来源 AnchorPopover 状态 (null = 关闭, 对象 = 锚定位置)
   const [sourceAnchor, setSourceAnchor] = useState<{ x: number; top?: number; bottom?: number } | null>(null);
 
+  // 状态切换 handler
+  const handleStatusChange = useCallback(
+    (newStatus: MatterStatus) => {
+      transitionMu.mutate({ matterId, status: newStatus });
+    },
+    [matterId, transitionMu],
+  );
+
   // 跳转到聊天并定位消息 (对齐老项目 showConversation + initLocateMessageSeq)
   const router = useRouter();
   const handleJumpToMessage = useCallback(
@@ -287,7 +295,13 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL ── */}
       <header className="flex shrink-0 items-center gap-2 rounded-t-lg border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
-        <StatusPill status={data.status} seqNo={data.seq_no} />
+        <StatusPicker
+          status={data.status}
+          seqNo={data.seq_no}
+          onChange={handleStatusChange}
+          isCreator={currentUid === data.creator_id}
+          canEditStatus={isOwner}
+        />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
       </header>
 
@@ -318,6 +332,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               title={t("matter.detail.clickToEdit")}
             >
               {data.title}
+              {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
             </button>
           </h1>
         )}
@@ -465,6 +480,89 @@ function StatusPill({ status, seqNo }: { status: MatterStatus; seqNo: number }) 
     <span className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${cls}`}>
       <span className="font-semibold">{t(STATUS_KEY[status])}</span>
       {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
+    </span>
+  );
+}
+
+const STATUS_OPTIONS: { value: MatterStatus; labelKey: string; cls: string }[] = [
+  { value: "open", labelKey: "matter.status.open", cls: "bg-[#ebf9ff] text-[#005694]" },
+  { value: "done", labelKey: "matter.status.done", cls: "bg-[#ecf9ec] text-[#176221]" },
+  { value: "archived", labelKey: "matter.status.archived", cls: "bg-[rgba(28,28,35,0.04)] text-text-tertiary" },
+];
+
+function StatusPicker({
+  status,
+  seqNo,
+  onChange,
+  isCreator,
+  canEditStatus,
+}: {
+  status: MatterStatus;
+  seqNo?: number;
+  onChange: (s: MatterStatus) => void;
+  isCreator: boolean;
+  canEditStatus: boolean;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const c = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", c);
+    return () => document.removeEventListener("mousedown", c);
+  }, [open]);
+
+  const visibleOptions = isCreator
+    ? STATUS_OPTIONS
+    : STATUS_OPTIONS.filter((o) => o.value !== "archived");
+  const current = STATUS_OPTIONS.find((o) => o.value === status) || STATUS_OPTIONS[0];
+  const isArchived = status === "archived";
+  const isDisabled = isArchived || !canEditStatus;
+
+  return (
+    <span className="relative inline-flex" ref={ref}>
+      <button
+        type="button"
+        className={`inline-flex h-5 cursor-pointer items-center rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
+          isDisabled ? "cursor-not-allowed opacity-80" : "hover:opacity-80"
+        }`}
+        onClick={() => !isDisabled && setOpen(!open)}
+        disabled={isDisabled}
+        title={
+          isArchived
+            ? t("matter.status.cannotChangeArchived")
+            : !canEditStatus
+              ? t("matter.status.onlyCreatorOrAssignee")
+              : t("matter.status.clickToChange")
+        }
+      >
+        <span className="font-semibold">{t(current.labelKey)}</span>
+        {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
+      </button>
+      {open && !isDisabled && (
+        <div className="absolute top-full left-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">
+          {visibleOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`flex cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-left text-xs transition-colors hover:bg-bg-hover ${
+                opt.value === status ? "font-semibold text-text-primary" : "text-text-primary"
+              }`}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+            >
+              <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${opt.cls}`} />
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
     </span>
   );
 }

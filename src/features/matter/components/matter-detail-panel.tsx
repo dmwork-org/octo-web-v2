@@ -73,16 +73,17 @@ function formatDateTime(iso: string): string {
   return `${mm}/${dd} ${hh}:${mi}`;
 }
 
-function formatRelativeTime(iso: string): string {
+/** 相对时间格式化（需要 t 函数） */
+function formatRelativeTime(iso: string, t: (key: string, params?: Record<string, unknown>) => string): string {
   const now = Date.now();
   const then = new Date(iso).getTime();
   const diffMs = now - then;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "今天";
-  if (diffDays === 1) return "昨天";
-  if (diffDays < 30) return `${diffDays} 天前`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} 个月前`;
-  return `${Math.floor(diffDays / 365)} 年前`;
+  if (diffDays === 0) return t("matter.day.today");
+  if (diffDays === 1) return t("matter.day.yesterday");
+  if (diffDays < 30) return t("matter.time.daysAgo", { count: diffDays });
+  if (diffDays < 365) return t("matter.time.monthsAgo", { count: Math.floor(diffDays / 30) });
+  return t("matter.time.yearsAgo", { count: Math.floor(diffDays / 365) });
 }
 
 function nextStatusForToggle(s: MatterStatus): MatterStatus {
@@ -207,7 +208,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
       try {
         await downloadFile(url, att.file_name || "file");
       } catch {
-        toast.error("下载失败");
+        toast.error(t("matter.outputs.downloadFailed"));
       }
     },
     [],
@@ -297,7 +298,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header:状态 pill + DDL + ⋯ ── */}
-      <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
+      <header className="flex shrink-0 items-center gap-2 rounded-t-lg border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
         <StatusPill status={data.status} seqNo={data.seq_no} />
         <DeadlinePicker matterId={matterId} deadline={data.deadline} />
         <div
@@ -640,7 +641,7 @@ function ChannelsTab({
                     className="ml-3 text-[14px] leading-[20px] whitespace-nowrap"
                     style={{ color: "rgba(28,28,35,0.4)" }}
                   >
-                    {formatRelativeTime(mc.created_at)}同步
+                    {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
                   </span>
                   {isMember && (
                     <ChannelMoreMenu
@@ -667,7 +668,7 @@ function ChannelsTab({
                       <span>{formatDateTime(latestEntry.created_at)}</span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">
-                      {latestEntry.content || "（无文本内容）"}
+                      {latestEntry.content || t("matter.timeline.noText")}
                     </div>
                   </div>
                 )}
@@ -680,7 +681,7 @@ function ChannelsTab({
                       onClick={() => toggleTimeline(mc.channel_id)}
                       className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[12px] font-semibold leading-[20px] text-purple-600 transition-opacity hover:opacity-80"
                     >
-                      {expandedTimelines.has(mc.channel_id) ? "收起群内时间线" : "展开群内时间线"}
+                      {expandedTimelines.has(mc.channel_id) ? t("matter.timeline.collapse") : t("matter.timeline.expand")}
                     </button>
                   </div>
                 )}
@@ -690,11 +691,11 @@ function ChannelsTab({
                   <div className="mt-2">
                     {timelineLoading && !timelineMap.has(mc.channel_id) ? (
                       <p className="py-10 text-center text-xs text-text-tertiary">
-                        正在加载时间线...
+                        {t("matter.timeline.loading")}
                       </p>
                     ) : (timelineMap.get(mc.channel_id) ?? []).length === 0 ? (
                       <p className="py-10 text-center text-xs text-text-tertiary">
-                        本群暂无时间线记录
+                        {t("matter.timeline.emptyInGroup")}
                       </p>
                     ) : (
                       <TimelinePanel

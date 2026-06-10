@@ -30,6 +30,7 @@ import { TimelinePanel } from "@/features/matter/components/timeline-panel";
 import { useMyGroups } from "@/features/matter/hooks/use-my-groups";
 import { useMatterOutputs } from "@/features/matter/hooks/use-matter-outputs";
 import { useMembersFromChannels, type ChannelRef } from "@/features/matter/hooks/use-members-from-channels";
+import { useChannelName } from "@/features/matter/hooks/use-channel-name";
 import {
   useLatestTimelinePerChannel,
   useChannelTimelineOnExpand,
@@ -254,6 +255,10 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   const { data: activitiesData } = useInfiniteQuery(activitiesInfiniteQueryOptions(matterId));
   const activitiesCount = activitiesData?.pages.flatMap((p) => p.data).length ?? 0;
 
+  // 来源频道实时名称
+  const sourceChannelName = useChannelName(data.source_channel_id, data.source_channel_type);
+  const displaySourceName = sourceChannelName || data.source_name || "";
+
   const getOutputChannelMembership = useCallback(
     (sourceChannelId?: string) => {
       if (!sourceChannelId) return { isMember: true, loading: false };
@@ -380,9 +385,9 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                   <path fillRule="evenodd" clipRule="evenodd" d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z" fill="currentColor" />
                 </svg>
                 {t("matter.label.fromChannel", {
-                  values: { name: data.source_name || "" },
+                  values: { name: displaySourceName },
                 })}{" "}
-                <span className="text-accent">#{data.source_name}</span> ·{" "}
+                <span className="text-accent">#{displaySourceName}</span> ·{" "}
                 <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
                 {formatDateTime(data.created_at)}
               </div>

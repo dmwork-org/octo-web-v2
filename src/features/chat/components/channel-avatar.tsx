@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import WKSDK, { type Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { endpointStore } from "@/features/base/stores/endpoint";
@@ -27,11 +27,21 @@ function useFetchChannelInfoIfMissing(channel: Channel, hasInfo: boolean) {
   }, [channel, hasInfo]);
 }
 
-/** url 变化时重置 failed:logo URL 变了让 `<img>` 再试一次。 */
-function useResetFailedOnUrlChange(url: string, setFailed: (v: boolean) => void) {
+/** url 变化时重置失败状态:logo URL 变了让 `<img>` 再试一次,同时取消 grace timer。 */
+function useResetFailedOnUrlChange(
+  url: string,
+  setSoftFailed: (v: boolean) => void,
+  setHardFailed: (v: boolean) => void,
+  timerRef: React.MutableRefObject<number | null>,
+) {
   useEffect(() => {
-    setFailed(false);
-  }, [url, setFailed]);
+    setSoftFailed(false);
+    setHardFailed(false);
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [url, setSoftFailed, setHardFailed, timerRef]);
 }
 
 function withVersion(url: string, version: number): string {
@@ -60,9 +70,14 @@ function groupFallbackUrl(baseURL: string, channelID: string): string {
  *   2. Group fallback:`${baseURL}/groups/{channelID}/avatar`(对齐老仓,服务端总返头像)
  *   3. 否则首字母占位
  *
- * **死锁防护**(issue #64):老版本曾担心 fallback URL 死锁(建群瞬间 404 → 浏览器
- * cache 404 → channelInfo 到位后即使 logo 同 URL 也不重 GET)。现在用 `avatarVersion`
- * 双管:
+ * **加载失败 2 段降级**(issue #64 followup):新建群瞬间 fallback URL 可能命中
+ * 后端尚未 ready 的窗口(404),如果立即降级到首字符,bump 后 url 变化重 GET
+ * 成功会出现"缺省字符 → 头像"的视觉闪烁。改为:
+ *   - **soft failed**(刚 onError):画灰块占位,无文字。等 1.5s grace period,
+ *     期间若 url 变化(avatarVersion bump / channelInfo 更新)→ reset 重 GET
+ *   - **hard failed**(1.5s 后还没救):退回首字符 — 用户看不到头像也能识别会话
+ *
+ * **死锁防护**(issue #64):用 `avatarVersion` 双管 cache busting:
  *   - createGroup onSuccess 主动 `avatarVersionActions.bump(group_no)` 让 fallback
  *     URL 带 `?v={ts}`,首次 GET 就有版本号,后端 ready 后即使是同款 path,version
  *     变化也强制重 GET
@@ -82,7 +97,9 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
   });
   useChannelInfoTick();
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
-  const [failed, setFailed] = useState(false);
+  const [softFailed, setSoftFailed] = useState(false);
+  const [hardFailed, setHardFailed] = useState(false);
+  const graceTimerRef = useRef<number | null>(null);
   useFetchChannelInfoIfMissing(channel, !!channelInfo);
 
   const isPerson = channel.channelType === ChannelTypePerson;
@@ -102,9 +119,18 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
       : "";
   const url = withVersion(rawUrl, avatarVersion);
 
-  useResetFailedOnUrlChange(url, setFailed);
+  useResetFailedOnUrlChange(url, setSoftFailed, setHardFailed, graceTimerRef);
 
-  if (!url || failed) {
+  const onImgError = () => {
+    setSoftFailed(true);
+    if (graceTimerRef.current != null) window.clearTimeout(graceTimerRef.current);
+    graceTimerRef.current = window.setTimeout(() => {
+      setHardFailed(true);
+    }, 1500);
+  };
+
+  // URL 完全空(person 无 logo)或硬性失败 → 首字符 fallback(最终态)
+  if (!url || hardFailed) {
     return (
       <div
         className={`flex shrink-0 items-center justify-center ${rounded} bg-bg-elevated font-medium text-text-secondary`}
@@ -116,13 +142,24 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
     );
   }
 
+  // 软性失败(刚 onError,grace period 内)→ 灰块占位,等 url 变化 reset 重 GET
+  if (softFailed) {
+    return (
+      <div
+        className={`shrink-0 ${rounded} bg-bg-elevated`}
+        style={{ width: size, height: size }}
+        aria-label={displayTitle}
+      />
+    );
+  }
+
   return (
     <img
       src={url}
       alt={displayTitle}
       width={size}
       height={size}
-      onError={() => setFailed(true)}
+      onError={onImgError}
       className={`shrink-0 ${rounded} bg-bg-elevated object-cover`}
       style={{ width: size, height: size }}
     />

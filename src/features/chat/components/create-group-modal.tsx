@@ -105,8 +105,10 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       // SDK 把它当作普通新消息累加 conversation.unread=1,sidebar / 最近 tab
       // 即出现红点。本端是自己发起的建群操作,该会话必无真实未读,三路同清:
       // - **服务端** PUT clearUnread:让其他端同步看到 unread=0(via unreadClear CMD)
-      // - **本地 SDK** conv.unread:用一次性 listener 等 SDK push add 完成后清,
-      //   通过 notifyConversationListeners 让 useConversationsSync 写回 cache
+      // - **本地 SDK** conv.unread:挂持续 10s 的 listener — SDK push 时序复杂
+      //   (add 时 unread=0,后续系统消息到达再 unread++),一次性 listener 会在
+      //   add 那次就 remove 自己,后续 unread+1 没人清。10s 内任何对该 channel
+      //   的 conv 更新都 reset unread=0;notify 后 conv.unread 已是 0 不递归
       // - **sidebar query**:invalidate 强刷快照(关注 tab 不订阅 conversationListener)
       void clearConversationUnread({
         channelId: resp.group_no,
@@ -114,25 +116,19 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
         unread: 0,
       });
       const cm = WKSDK.shared().conversationManager;
-      const tryClearLocal = (): boolean => {
+      const clearOnce = () => {
         const conv = cm.findConversation(newChannel);
-        if (!conv) return false;
-        if (conv.unread > 0) {
+        if (conv && conv.unread > 0) {
           conv.unread = 0;
           cm.notifyConversationListeners(conv, ConversationAction.update);
         }
-        return true;
       };
-      if (!tryClearLocal()) {
-        const listener = (c: Conversation) => {
-          if (c.channel.isEqual(newChannel) && tryClearLocal()) {
-            cm.removeConversationListener(listener);
-          }
-        };
-        cm.addConversationListener(listener);
-        // 10s 超时清理避免 listener 泄漏(SDK push 正常不会拖这么久)
-        setTimeout(() => cm.removeConversationListener(listener), 10000);
-      }
+      clearOnce();
+      const listener = (c: Conversation) => {
+        if (c.channel.isEqual(newChannel)) clearOnce();
+      };
+      cm.addConversationListener(listener);
+      setTimeout(() => cm.removeConversationListener(listener), 10000);
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);

@@ -18,8 +18,10 @@ import type { MatterAssignee } from "@/features/matter/types/matter.types";
 interface OwnerEditorProps {
   matterId: string;
   assignees: MatterAssignee[];
-  /** 当前用户是否有编辑权限 */
+  /** 当前用户是否有编辑权限 (creator 或 assignee) */
   canEdit: boolean;
+  /** 当前用户是否是 Matter 发起人 (creator 能移除任何人) */
+  isCreator: boolean;
 }
 
 /** click-outside 关闭下拉 */
@@ -45,8 +47,9 @@ function useClickOutside(open: boolean, onClose: () => void) {
  *
  * 点击负责人胶囊 → 弹出下拉列表,可勾选/取消勾选。
  * 权限:仅创建人或已有负责人可编辑。
+ * 移除权限:creator 能移除任何人,非 creator 只能移除自己。
  */
-export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) {
+export function OwnerEditor({ matterId, assignees, canEdit, isCreator }: OwnerEditorProps) {
   const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
@@ -121,6 +124,8 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
       const picked = assignedUids.has(uid);
       // 至少保留 1 位负责人
       if (picked && assignees.length <= 1) return;
+      // 移除权限:creator 能移除任何人,非 creator 只能移除自己
+      if (picked && !isCreator && uid !== myUid) return;
 
       setPending((prev) => {
         const next = new Set(prev);
@@ -129,7 +134,7 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
       });
       mu.mutate(uid);
     },
-    [assignedUids, assignees.length, mu, pending],
+    [assignedUids, assignees.length, mu, pending, isCreator, myUid],
   );
 
   const toggleDropdown = () => {
@@ -184,14 +189,18 @@ export function OwnerEditor({ matterId, assignees, canEdit }: OwnerEditorProps) 
                 const picked = assignedUids.has(c.uid);
                 const isLast = picked && assignees.length <= 1;
                 const isLoading = pending.has(c.uid);
+                // 移除权限:creator 能移除任何人,非 creator 只能移除自己
+                const cannotRemove = picked && !isCreator && c.uid !== myUid;
+                const isDisabled = isLast || isLoading || cannotRemove;
                 return (
                   <button
                     type="button"
                     className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
                       picked ? "font-medium text-text-primary" : "text-text-primary"
-                    } ${isLast || isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-                    disabled={isLast || isLoading}
+                    } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                    disabled={isDisabled}
                     onClick={() => handleToggle(c.uid)}
+                    title={cannotRemove ? tr("matter.owner.readonly") : undefined}
                   >
                     <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
                       {picked && (

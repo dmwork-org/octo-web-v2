@@ -375,6 +375,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
               matterId={matterId}
               assignees={data.assignees}
               canEdit={isOwner}
+              isCreator={currentUid === data.creator_id}
             />
           </FieldChip>
         </div>

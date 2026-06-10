@@ -65,7 +65,7 @@ export function LinkChannelModal({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // modal 打开时重置 UI 状态
+  // modal 打开时重置 UI 状态并加载候选列表
   useEffect(() => {
     if (!open) {
       setSearch("");
@@ -94,7 +94,8 @@ export function LinkChannelModal({
         toast.error(t("matter.linkChannels.loadFailedRetry"));
       })
       .finally(() => setLoading(false));
-  }, [open, spaceId, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, spaceId]);
 
   // 已关联的 channel_id 集合
   const linkedIds = useMemo(
@@ -158,7 +159,8 @@ export function LinkChannelModal({
     } finally {
       setSubmitting(false);
     }
-  }, [selected, submitting, channels, matterId, linkMu, onClose, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, submitting, channels, matterId, linkMu, onClose]);
 
   const reload = useCallback(() => {
     if (!spaceId) return;
@@ -180,7 +182,8 @@ export function LinkChannelModal({
         toast.error(t("matter.linkChannels.loadFailedRetry"));
       })
       .finally(() => setLoading(false));
-  }, [spaceId, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spaceId]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const selectedChannels = useMemo(

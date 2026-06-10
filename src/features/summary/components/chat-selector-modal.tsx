@@ -153,7 +153,7 @@ export function ChatSelectorModal({
   const footer = (
     <div className="flex w-full items-center justify-between">
       <span className="text-xs text-text-tertiary">
-        {tr("summary.chatSelector.selectedCount", {
+        {tr("summary.common.selectedCount", {
           values: { count: localSelected.length, max: maxSelect },
         })}
       </span>

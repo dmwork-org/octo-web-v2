@@ -1,9 +1,13 @@
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
+import { useStore } from "@tanstack/react-store";
+import { Check } from "lucide-react";
 import type { MouseEvent } from "react";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { type FoldSession } from "@/features/chat/lib/fold-session";
 import { formatMessageTimestamp as formatTime } from "@/features/chat/lib/format-message-time";
 import { useMessageContextMenu } from "@/features/chat/hooks/use-message-context-menu.hook";
+import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { isMessageSelectable } from "@/features/chat/lib/message-selection";
 
 interface FoldSessionCardProps {
   session: FoldSession;
@@ -77,12 +81,19 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
 
 /**
  * Fold 内单条消息渲染(折叠态摘要 / 展开态每条复用):
- *   [sender 白底黑字胶囊 12/700/r 3/padding 2 8] [HH:mm 12 rgba(28,28,35,0.4)]
+ *   [可选 checkbox 槽位(selectionActive 时占)] [sender 白底黑字胶囊 12/700/r 3/padding 2 8] [HH:mm 12 rgba(28,28,35,0.4)]
  *   body 走 MessageDispatch — text 走 TextRenderer 含 mention 高亮,
  *   file/image 走各自 renderer,跟旧 renderFoldMessageContent 同款。
  *
  * 对齐旧 `.wk-fold-msg-head` + `.wk-fold-msg-name` + `.wk-fold-msg-time` 样式,
  * **不**渲染 avatar(对齐 `.wk-fold-msg-ava { display: none }`)。
+ *
+ * **多选**(对齐老仓 FoldSessionCard summarySelectable / FoldSessionExpandedList editMode,
+ * issue #56):chatSelectionStore.active 时:
+ *   - selectable(`isMessageSelectable`)消息显示 checkbox + 整 item 可点切换选中
+ *   - 不可选(time/historySplit/typing 等)消息保留 checkbox 槽位空占,row click 不响应
+ *   - body 加 pointerEvents:none 屏蔽内部链接/按钮,避免误触
+ *   - 选中态加紫底高亮(对齐 message-row 同色 rgba(127,59,245,0.08))
  */
 function FoldSessionItem({
   message,
@@ -93,15 +104,51 @@ function FoldSessionItem({
 }) {
   const senderName = senderTitleOf(message.fromUID);
   const time = formatTime(message.timestamp);
+  const selectionActive = useStore(chatSelectionStore, (s) => s.active);
+  const selectionIds = useStore(chatSelectionStore, (s) => s.ids);
+  const selectable = isMessageSelectable(message);
+  const isSelected = selectionIds.has(message.clientMsgNo);
+
+  const onRowClick = () => {
+    if (!selectionActive || !selectable) return;
+    chatSelectionActions.toggle(message.clientMsgNo);
+  };
+
+  const selectedBg =
+    selectionActive && isSelected ? "-mx-1 rounded-sm bg-[rgba(127,59,245,0.08)] px-1" : "";
+  const cursor = selectionActive && selectable ? "cursor-pointer" : "";
+
   return (
-    <div className="flex flex-col gap-1" onContextMenu={onContextMenu}>
+    <div
+      className={`flex flex-col gap-1 ${selectedBg} ${cursor}`}
+      onClick={onRowClick}
+      onContextMenu={onContextMenu}
+    >
       <div className="flex items-center gap-2">
+        {selectionActive ? (
+          <span className="flex w-4 shrink-0 items-center justify-center">
+            {selectable ? (
+              <span
+                className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
+                  isSelected
+                    ? "border-brand bg-brand text-white"
+                    : "border-border-default bg-bg-base"
+                }`}
+                aria-hidden
+              >
+                {isSelected ? <Check size={12} strokeWidth={3} /> : null}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
         <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
           {senderName}
         </span>
         <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
       </div>
-      <MessageDispatch message={message} />
+      <div style={{ pointerEvents: selectionActive ? "none" : undefined }}>
+        <MessageDispatch message={message} />
+      </div>
     </div>
   );
 }

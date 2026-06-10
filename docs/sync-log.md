@@ -212,4 +212,21 @@ PreToolUse hook 真触发验证通过:
 - 关键决策:**拓展 BaseDrawer → 通用 DrilldownDrawer**(陈超明确"按本仓设计原则替代老仓 RoutePage,顺道拓展 base modal");本批 BotManage 用之,后续可重构 group-management / channel-setting 改用同款;e7c5e0be 拆 2 commit(基础设施 / feature)语义独立
 - baseline SHA 暂不推进
 
+## 2026-06-10 — Batch 1.10 chat 大特性 3:Voice 设置面板
+
+- 全搬 5 个上游 SHA(本仓拆 4 commit):
+  - **commit 1** `voice.api` 扩展(local-config / reset endpoint / document)+ `space-setting.api`(GET/PUT `/v1/user/space/setting`)+ `voice-feedback.ts` service(1:1 复刻上游 VoiceFeedback singleton:onTranscribeResult / uploadLocal / uploadFinal / submitAll / enable / disable)
+  - **commit 2** `use-voice-config.hook`(React Query 拉 `/v1/voice/config` staleTime=Infinity)+ `use-space-feedback-setting.hook`(React Query 拉 space setting + 3 个 mutation:toggleVoiceFeedback / acceptVoiceInput / disableVoiceInput;同步 VoiceFeedback singleton enable/disable)+ `voice-feedback-notice.tsx`(BaseDialog 渲染 `/v1/voice/document/asr_service_doc` markdown + 反馈同意 checkbox + 隐私/协议链接)
+  - **commit 3** `voice-settings-modal.tsx`(完整面板:voice 总开关触发 Notice / 反馈开关 / 本地 ASR section 含 URL+timeout+probe 表单 + Test Connection + Save + Reset)+ `settings-flyout.tsx` 加 "语音设置" FlyoutItem entry
+  - **commit 4** `composer.transcribeAndInsert` 拿到 transcribe 结果后调 `onTranscribeResult`(remote source + requestId + AsrParams);`composer.send` 顶部调 `submitAll(editor.getText())` flush pending
+- 后端 endpoint 已 ready(`modules/voice_adapter/adapter.go`:transcribe / config / context / document / local-config GET/PUT/DELETE/reset),`modules/user/api_space_setting.go`:GET/PUT `/v1/user/space/setting`(含 voice_input_enabled / voice_feedback_on / voice_feedback_notice_acked)
+- 本仓 commits(分支 feat/upstream-batch-1-10):e61263b / 36c4357 / 3676e4c / 26c0c3b(4 个 code commits + 收尾 docs)
+- 关键决策:
+  - i18n keys `navRail.voiceSettings.*` + `navRail.voiceNotice.*` 之前已加(不带 `base.` 前缀,跟本仓约定不一致但既成事实,沿用)
+  - VoiceFeedback service 通过 `await import()` 懒加载(composer 内),保持 voice feedback 可选;disabled 时所有方法 no-op
+  - 不复刻上游 shared state listeners pattern → 用 React Query 自动多组件同步
+  - 不接 DOMPurify(Notice doc 后端受信任内容,Markdown 组件 rehypeSanitize 已兜底)
+  - Notice modal 跟 VoiceSettingsModal 互斥显示(`open && !showNotice`),避免视觉叠加
+- baseline SHA 暂不推进
+
 

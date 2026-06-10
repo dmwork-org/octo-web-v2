@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ChannelTypeGroup,
+  ConversationAction,
+  type Conversation,
+} from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -10,7 +16,9 @@ import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { createGroup } from "@/features/base/api/endpoints/group.api";
+import { clearConversationUnread } from "@/features/base/api/endpoints/conversation.api";
 import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useT } from "@/lib/i18n/use-t";
@@ -93,6 +101,39 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
           // 静默 — 用户可手动拖到分组
         }
       }
+      // 主动清新群未读(issue #1):后端建群完成后会推一条"群创建成功"系统消息,
+      // SDK 把它当作普通新消息累加 conversation.unread=1,sidebar / 最近 tab
+      // 即出现红点。本端是自己发起的建群操作,该会话必无真实未读,三路同清:
+      // - **服务端** PUT clearUnread:让其他端同步看到 unread=0(via unreadClear CMD)
+      // - **本地 SDK** conv.unread:用一次性 listener 等 SDK push add 完成后清,
+      //   通过 notifyConversationListeners 让 useConversationsSync 写回 cache
+      // - **sidebar query**:invalidate 强刷快照(关注 tab 不订阅 conversationListener)
+      void clearConversationUnread({
+        channelId: resp.group_no,
+        channelType: ChannelTypeGroup,
+        unread: 0,
+      });
+      const cm = WKSDK.shared().conversationManager;
+      const tryClearLocal = (): boolean => {
+        const conv = cm.findConversation(newChannel);
+        if (!conv) return false;
+        if (conv.unread > 0) {
+          conv.unread = 0;
+          cm.notifyConversationListeners(conv, ConversationAction.update);
+        }
+        return true;
+      };
+      if (!tryClearLocal()) {
+        const listener = (c: Conversation) => {
+          if (c.channel.isEqual(newChannel) && tryClearLocal()) {
+            cm.removeConversationListener(listener);
+          }
+        };
+        cm.addConversationListener(listener);
+        // 10s 超时清理避免 listener 泄漏(SDK push 正常不会拖这么久)
+        setTimeout(() => cm.removeConversationListener(listener), 10000);
+      }
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);
       toast.success(t("createGroup.toast.created"));

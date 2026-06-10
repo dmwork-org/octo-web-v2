@@ -7,32 +7,18 @@ interface ImagePreviewModalProps {
   onClose: () => void;
 }
 
-// Portal 到 body 逃离父 stacking context;inline style 绕过 tailwind v4 @utility
-// (z-dialog/bg-black 等)在 vite-plus dev 不生成的问题,根治后可换回 token。
-const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  zIndex: 1000,
-  backgroundColor: "#000",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const imgStyle: React.CSSProperties = {
-  maxWidth: "100vw",
-  maxHeight: "100vh",
-  objectFit: "contain",
-};
-
+/**
+ * 全屏图片预览 lightbox。
+ *
+ * Portal 到 document.body — 否则 inline render 被父级 stacking context 困住,
+ * 无法盖兄弟的 composer / scroll-button / chat-side-panel(z-floating=100)。
+ * z-dialog(300)已足够压过 floating 层。
+ */
 export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   const t = useT();
   return createPortal(
     <div
-      style={overlayStyle}
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-black"
       onClick={onClose}
       onContextMenu={(e) => e.preventDefault()}
       role="dialog"
@@ -49,7 +35,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
       >
         <X size={20} />
       </button>
-      <img src={src} alt="" style={imgStyle} />
+      <img src={src} alt="" className="max-h-[100vh] max-w-[100vw] object-contain" />
     </div>,
     document.body,
   );

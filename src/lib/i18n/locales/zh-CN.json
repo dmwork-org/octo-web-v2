@@ -1581,7 +1581,7 @@
   "mergeForward.messageFallback": "[消息]",
   "mergeForward.noMessages": "无消息",
   "mergeForward.sourceLabel": "来源:",
-  "mergeForward.unknownFile": "unknown file",
+  "mergeForward.unknownFile": "未知文件",
   "mergeForward.userChatHistory": "{{names}}的聊天记录",
   "mergeForward.yesterdayAt": "昨天 {{time}}",
   "message.approveGroupMember.review": "去审核",

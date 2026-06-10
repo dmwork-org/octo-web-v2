@@ -485,6 +485,8 @@
   "composer.toast.transcribeFailed": "转写失败",
   "composer.transcribing": "转写中...",
   "composer.transcribingShort": "转写中",
+  "composer.upload.fileTooLarge": "文件「{{name}}」超过 {{max}} 上限，无法上传",
+  "composer.upload.totalTooLarge": "附件总大小超过 {{max}} 上限，请减少文件后重试",
   "composer.voiceInputHint": "语音输入 (长按 Shift)",
   "composerAttachment.defaultName": "未命名文件",
   "composerAttachment.remove": "移除",

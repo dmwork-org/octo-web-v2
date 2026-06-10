@@ -6,7 +6,6 @@ import type { MatterOutput } from "@/features/matter/types/matter.types";
 import { useT } from "@/lib/i18n/use-t";
 
 const OUTPUTS_PAGE_LIMIT = 50;
-const SEARCH_DEBOUNCE_MS = 300;
 
 interface UseMatterOutputsReturn {
   outputs: MatterOutput[];
@@ -20,19 +19,18 @@ interface UseMatterOutputsReturn {
 }
 
 /**
- * Outputs 数据管理 hook:初次加载 + 搜索(debounce) + cursor 分页 + race guard。
+ * Outputs 数据管理 hook:初次加载 + 搜索 + cursor 分页 + race guard。
  *
- * 搜索/初次加载通过 useQuery 自动管理(queryKey 含 matterId + debouncedQ)。
+ * 搜索/初次加载通过 useQuery 自动管理(queryKey 含 matterId + searchQ)。
+ * debounce 由 OutputsPanel 组件内部处理，hook 收到的已经是防抖后的值。
  * "加载更多"直接调 API,成功后通过 queryClient.setQueryData 追加到缓存。
  */
 export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
   const t = useT();
   const qc = useQueryClient();
 
-  // 搜索状态:debouncedQ 是实际传给 query 的值(经过 300ms 防抖)
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [displayQ, setDisplayQ] = useState("");
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 搜索状态:searchQ 是实际传给 query 的值(debounce 已在组件层完成)
+  const [searchQ, setSearchQ] = useState("");
 
   // cursor 分页状态(仅 load-more 路径使用)
   const [cursor, setCursor] = useState<string | undefined>();
@@ -42,7 +40,7 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
   // seq guard:防止过期的 load-more 响应覆盖新数据
   const loadMoreSeqRef = useRef(0);
 
-  // useQuery:初次加载 + 搜索(debouncedQ 变化时自动重新请求)
+  // useQuery:初次加载 + 搜索(searchQ 变化时自动重新请求)
   const {
     data: queryData,
     isLoading,
@@ -50,20 +48,16 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
     error: queryError,
     refetch,
   } = useQuery({
-    queryKey: matterOutputsQueryKey(matterId, debouncedQ),
-    queryFn: () => listOutputs(matterId, { limit: OUTPUTS_PAGE_LIMIT, q: debouncedQ || undefined }),
+    queryKey: matterOutputsQueryKey(matterId, searchQ),
+    queryFn: () => listOutputs(matterId, { limit: OUTPUTS_PAGE_LIMIT, q: searchQ || undefined }),
     staleTime: 30 * 1000,
   });
 
-  // 搜索:300ms debounce
+  // 搜索:直接更新 query key(debounce 由 OutputsPanel 内部处理)
   const handleSearch = useCallback((val: string) => {
-    setDisplayQ(val);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => {
-      setDebouncedQ(val);
-      setCursor(undefined);
-      setHasMore(false);
-    }, SEARCH_DEBOUNCE_MS);
+    setSearchQ(val);
+    setCursor(undefined);
+    setHasMore(false);
   }, []);
 
   // 加载更多:直接调 API,成功后追加到 query cache
@@ -77,11 +71,11 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
     listOutputs(matterId, {
       limit: OUTPUTS_PAGE_LIMIT,
       cursor: currentCursor,
-      q: debouncedQ || undefined,
+      q: searchQ || undefined,
     })
       .then((res) => {
         if (seq !== loadMoreSeqRef.current) return;
-        const key = matterOutputsQueryKey(matterId, debouncedQ);
+        const key = matterOutputsQueryKey(matterId, searchQ);
         qc.setQueryData(key, (prev: typeof queryData) => {
           if (!prev) return res;
           return {
@@ -98,7 +92,7 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
       .finally(() => {
         if (seq === loadMoreSeqRef.current) setLoadMoreLoading(false);
       });
-  }, [matterId, debouncedQ, queryData, cursor, loadMoreLoading, qc]);
+  }, [matterId, searchQ, queryData, cursor, loadMoreLoading, qc]);
 
   // 重试
   const handleRetry = useCallback(() => {
@@ -114,7 +108,7 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
     outputs,
     loading: isLoading || isFetching || loadMoreLoading,
     hasMore: effectiveHasMore,
-    query: displayQ,
+    query: searchQ,
     error: queryError ? t("matter.outputs.loadFailed") : null,
     handleSearch,
     handleLoadMore,

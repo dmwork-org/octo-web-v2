@@ -1407,6 +1407,8 @@
   "matter.outputs.loadFailed": "加载失败，请稍后重试",
   "matter.outputs.loadMoreFailed": "加载更多失败，请稍后重试",
   "matter.outputs.downloadFailed": "下载失败",
+  "matter.outputs.preview": "预览",
+  "matter.outputs.download": "下载",
   "matter.field.assignee": "负责人",
   "matter.field.goal": "主要目标",
   "matter.field.goalPlaceholder": "请输入主要目标",

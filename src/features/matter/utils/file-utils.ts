@@ -1,59 +1,66 @@
-import {
-  File,
-  FileText,
-  FileSpreadsheet,
-  FileImage,
-  FileVideo,
-  FileArchive,
-  FileCode,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+/**
+ * 文件类型图标 + 工具函数。
+ * 对齐原始项目 getFileIcon() 行为，返回 SVG URL 字符串。
+ */
+
+// 文件类型图标（Vite 解析为 URL 字符串）
+import defaultIcon from "@/features/chat/assets/files/default.svg";
+import docIcon from "@/features/chat/assets/files/doc.svg";
+import excelIcon from "@/features/chat/assets/files/excel.svg";
+import gifIcon from "@/features/chat/assets/files/gif.svg";
+import pdfIcon from "@/features/chat/assets/files/pdf.svg";
+import videoIcon from "@/features/chat/assets/files/video.svg";
+import zipIcon from "@/features/chat/assets/files/zip.svg";
+import htmlIcon from "@/features/chat/assets/files/html.svg";
+import mdIcon from "@/features/chat/assets/files/md.svg";
+import txtIcon from "@/features/chat/assets/files/txt.svg";
 
 /**
- * 根据文件名和 MIME 类型返回对应的 lucide-react 图标组件。
- * 对齐原始项目 getFileIcon() 的行为，但用 lucide 组件替代 SVG 文件。
+ * 根据文件名和 MIME 类型返回对应的文件图标 URL。
+ * 对齐原始项目 getFileIcon() 的行为。
  */
-export function getFileIcon(name: string, type: string): LucideIcon {
+export function getFileIcon(name: string, type: string): string {
   const dotIdx = name.lastIndexOf(".");
   const ext = dotIdx > 0 ? name.substring(dotIdx + 1).toLowerCase() : "";
 
   // 视频
   if (type.startsWith("video/") || ["mp4", "avi", "mov", "mkv", "webm"].includes(ext)) {
-    return FileVideo;
+    return videoIcon;
   }
-  // 图片
-  if (
-    type.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext)
-  ) {
-    return FileImage;
+  // GIF
+  if (ext === "gif") {
+    return gifIcon;
   }
   // PDF
   if (ext === "pdf") {
-    return FileText;
+    return pdfIcon;
   }
   // Word
   if (["doc", "docx"].includes(ext)) {
-    return FileText;
+    return docIcon;
   }
   // Excel
-  if (["xls", "xlsx", "csv"].includes(ext)) {
-    return FileSpreadsheet;
+  if (["xls", "xlsx"].includes(ext)) {
+    return excelIcon;
   }
   // 压缩包
   if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) {
-    return FileArchive;
+    return zipIcon;
   }
-  // 代码/网页
-  if (["html", "htm", "js", "ts", "tsx", "jsx", "css", "json"].includes(ext)) {
-    return FileCode;
+  // HTML
+  if (["html", "htm"].includes(ext)) {
+    return htmlIcon;
   }
-  // 文本/Markdown
-  if (["txt", "md"].includes(ext)) {
-    return FileText;
+  // Markdown
+  if (ext === "md") {
+    return mdIcon;
+  }
+  // 纯文本
+  if (ext === "txt") {
+    return txtIcon;
   }
 
-  return File;
+  return defaultIcon;
 }
 
 /**

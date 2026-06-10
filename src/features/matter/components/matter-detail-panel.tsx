@@ -485,9 +485,9 @@ function StatusPill({ status, seqNo }: { status: MatterStatus; seqNo: number }) 
 /** 用户 chip:头像 + UserName,带浅灰底圆角。 */
 function UserChip({ uid }: { uid: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-bg-elevated py-0.5 pr-2 pl-0.5">
-      <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={18} title={uid} />
-      <UserName uid={uid} className="text-text-primary" />
+    <span className="inline-flex h-5 items-center gap-1.5 rounded-full border border-brand-tint-10 bg-bg-surface py-0 pr-2 pl-0.5">
+      <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={16} title={uid} />
+      <UserName uid={uid} className="text-sm font-normal text-text-primary" />
     </span>
   );
 }

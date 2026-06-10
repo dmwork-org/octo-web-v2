@@ -168,7 +168,7 @@ export function TimelinePanel({
                                 const name = att.file_name || "未命名文件";
                                 const sizeText =
                                   att.file_size != null ? formatFileSize(att.file_size) : null;
-                                const Icon = getFileIcon(name, att.mime_type || "");
+                                const iconUrl = getFileIcon(name, att.mime_type || "");
                                 return (
                                   <div
                                     key={att.id}
@@ -176,9 +176,12 @@ export function TimelinePanel({
                                     role="listitem"
                                     title={name}
                                   >
-                                    <Icon
-                                      size={20}
-                                      className="shrink-0 text-icon-default"
+                                    <img
+                                      src={iconUrl}
+                                      alt=""
+                                      width={20}
+                                      height={20}
+                                      className="shrink-0 object-contain"
                                       aria-hidden="true"
                                     />
                                     <span className="inline-flex min-w-0 max-w-[220px] items-baseline gap-1">

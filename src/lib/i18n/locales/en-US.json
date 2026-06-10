@@ -1406,6 +1406,8 @@
   "matter.outputs.loadFailed": "Loading failed, please retry",
   "matter.outputs.loadMoreFailed": "Load more failed, please retry",
   "matter.outputs.downloadFailed": "Download failed",
+  "matter.outputs.preview": "Preview",
+  "matter.outputs.download": "Download",
   "matter.field.assignee": "Assignee",
   "matter.field.goal": "Main goal",
   "matter.field.goalPlaceholder": "Enter the main goal",

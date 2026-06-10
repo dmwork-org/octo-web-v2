@@ -139,7 +139,13 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
       <div
         className="fixed inset-0 z-popover"
         onClick={onClose}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          // 菜单开着时再右键 mask 覆盖区域(空白处):关菜单 + 阻止浏览器默认菜单。
+          // 之前只 preventDefault 不 onClose,导致"右键空白也能出菜单"错觉,
+          // 且菜单仍指向上次 row 但 row 无高亮 — 用户不知对应谁(issue #51 bug 1)。
+          e.preventDefault();
+          onClose();
+        }}
       />
       <div
         ref={rootRef}

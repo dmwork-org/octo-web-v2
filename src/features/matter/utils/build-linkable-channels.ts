@@ -34,9 +34,6 @@ export interface LoadChannelsResult {
 /** 子区类型常量（对应 wukongimjssdk 的 ChannelTypeCommunityTopic） */
 const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
 
-/** 子区状态：Active = 1 */
-const THREAD_STATUS_ACTIVE = 1;
-
 /**
  * 把"我加入的群" + "每群我加入的活跃子区"摊平成 ChannelOption 列表。
  *
@@ -110,9 +107,11 @@ export async function buildLinkableChannels(
     result.push(g);
     const threads = threadsByGroup.get(g.channelId) || [];
     for (const t of threads) {
-      // 只列 status=Active 且 is_member !== 0
-      if (t.status !== THREAD_STATUS_ACTIVE) continue;
+      // 只列 status=Active(1) 且 is_member !== 0
+      if (t.status !== 1 && t.status !== undefined) continue;
       if (t.is_member === 0) continue;
+      // 子区 channelId 必须有效
+      if (!t.short_id) continue;
       result.push({
         channelId: t.short_id, // 子区的 channel_id 是 short_id
         channelType: CHANNEL_TYPE_COMMUNITY_TOPIC,

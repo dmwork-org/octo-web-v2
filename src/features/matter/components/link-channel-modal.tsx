@@ -26,7 +26,6 @@ const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
 interface LinkChannelModalProps {
   open: boolean;
   matterId: string;
-  matterTitle?: string;
   /** 已关联的群聊列表，用于过滤重复 */
   linkedChannels: MatterChannel[];
   onClose: () => void;
@@ -253,7 +252,7 @@ export function LinkChannelModal({
                 </span>
                 <button
                   type="button"
-                  className="shrink-0 rounded-sm border px-2 py-0.5 text-[12px] font-medium transition-colors hover:text-white"
+                  className="shrink-0 rounded-sm border px-2 py-0.5 text-[12px] font-medium transition-colors hover:bg-[#f5a623] hover:text-white"
                   style={{ borderColor: "#f5a623", color: "#f5a623" }}
                   onClick={loadChannels}
                   disabled={loading}

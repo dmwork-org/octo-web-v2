@@ -1,13 +1,11 @@
+import type { TranslateOptions } from "@/lib/i18n/types";
 import type {
   LocalTopicTemplate,
   TopicTemplate,
   TopicTemplatePlaceholder,
 } from "@/features/summary/types/summary.types";
 
-type TranslateFn = (
-  key: string,
-  options?: { values?: Record<string, unknown>; defaultValue?: string },
-) => string;
+type TranslateFn = (key: string, options?: TranslateOptions) => string;
 
 /** 解析期接受两态:前端 LocalTopicTemplate(含 i18n key 字段)或后端明文 TopicTemplate。 */
 export type ResolvableTemplate = LocalTopicTemplate | TopicTemplate;

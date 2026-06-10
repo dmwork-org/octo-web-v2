@@ -38,7 +38,9 @@
   --color-brand: #1c1c23;
   --color-brand-hover: #2a2a33;
   --color-brand-tint: rgb(28 28 35 / 0.08);
+  --color-brand-tint-04: rgb(28 28 35 / 0.04);
   --color-brand-tint-10: rgb(28 28 35 / 0.1);
+  --color-brand-tint-15: rgb(28 28 35 / 0.15);
   --color-online: #52c41a;
   --color-success: #41cd59;
   --color-warning: #fc8800;

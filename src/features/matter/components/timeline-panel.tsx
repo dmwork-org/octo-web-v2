@@ -68,7 +68,7 @@ export function TimelinePanel({
   const grouped = groupByDate(sorted);
 
   return (
-    <div className="mt-0 flex flex-col gap-4 rounded-md border border-border-subtle bg-bg-surface p-6">
+    <div className="mt-0 flex flex-col gap-4 rounded-md border border-brand-tint-15 bg-bg-surface p-6">
       {/* Header: 标题 + 排序切换 */}
       <div className="flex items-center justify-between">
         <span className="text-[14px] font-medium leading-[20px] text-text-primary">群内进展</span>
@@ -112,14 +112,11 @@ export function TimelinePanel({
                   {dl.label}
                 </span>
                 {dl.label !== dl.raw && (
-                  <span
-                    className="shrink-0 text-[14px] font-medium leading-[20px]"
-                    style={{ color: "rgba(28,28,35,0.4)" }}
-                  >
+                  <span className="shrink-0 text-[14px] font-medium leading-[20px] text-icon-muted">
                     {dl.raw}
                   </span>
                 )}
-                <span className="h-px flex-1" style={{ background: "rgba(28,28,35,0.15)" }} />
+                <span className="h-px flex-1 bg-brand-tint-15" />
               </div>
 
               {/* 当日条目 */}
@@ -131,10 +128,7 @@ export function TimelinePanel({
                     <div key={entry.id} className="flex items-start justify-between gap-2">
                       <div className="flex flex-1 items-start gap-2">
                         {/* 时间 */}
-                        <span
-                          className="shrink-0 text-[14px] leading-[20px]"
-                          style={{ color: "rgba(28,28,35,0.4)" }}
-                        >
+                        <span className="shrink-0 text-[14px] leading-[20px] text-icon-muted">
                           {formatTime(entry.created_at)}
                         </span>
                         {/* 头像 + 用户名 */}
@@ -146,7 +140,7 @@ export function TimelinePanel({
                           />
                           <UserName
                             uid={entry.user_id}
-                            className="text-[14px] font-normal leading-[20px] text-text-secondary"
+                            className="text-[14px] font-normal leading-[20px] text-[rgba(28,28,35,0.8)]"
                           />
                         </span>
                         {/* 冒号 + 内容 */}

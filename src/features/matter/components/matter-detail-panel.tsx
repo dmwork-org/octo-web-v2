@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
+import { useRouter } from "@tanstack/react-router";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
@@ -21,7 +22,7 @@ import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
 import { OutputsPanel } from "@/features/matter/components/outputs-panel";
 import { LinkChannelModal } from "@/features/matter/components/link-channel-modal";
-import { AnchorPopover } from "@/features/matter/components/anchor-popover";
+import { AnchorPopover, computeAnchorPosition } from "@/features/matter/components/anchor-popover";
 import { ChannelNameLabel } from "@/features/matter/components/channel-name-label";
 import { NotMemberBadge } from "@/features/matter/components/not-member-badge";
 import { ChannelMoreMenu } from "@/features/matter/components/channel-more-menu";
@@ -36,6 +37,7 @@ import {
 } from "@/features/matter/hooks/use-channel-timeline";
 import { toParentGroupNo } from "@/features/matter/utils/channel-id";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import type {
   MatterChannel,
   MatterOutput,
@@ -80,9 +82,9 @@ function formatRelativeTime(iso: string, t: (key: string, params?: Record<string
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays === 0) return t("matter.day.today");
   if (diffDays === 1) return t("matter.day.yesterday");
-  if (diffDays < 30) return t("matter.time.daysAgo", { count: diffDays });
-  if (diffDays < 365) return t("matter.time.monthsAgo", { count: Math.floor(diffDays / 30) });
-  return t("matter.time.yearsAgo", { count: Math.floor(diffDays / 365) });
+  if (diffDays < 30) return t("matter.time.daysAgo", { values: { count: diffDays } });
+  if (diffDays < 365) return t("matter.time.monthsAgo", { values: { count: Math.floor(diffDays / 30) } });
+  return t("matter.time.yearsAgo", { values: { count: Math.floor(diffDays / 365) } });
 }
 
 /** 编辑态自动 focus + select */
@@ -262,8 +264,24 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   })();
   const hasSourceMsgs = (data.source_msgs ?? []).length > 0;
 
-  // 来源 AnchorPopover 状态
-  const [sourceAnchor, setSourceAnchor] = useState(false);
+  // 来源 AnchorPopover 状态 (null = 关闭, 对象 = 锚定位置)
+  const [sourceAnchor, setSourceAnchor] = useState<{ x: number; top?: number; bottom?: number } | null>(null);
+
+  // 跳转到聊天并定位消息 (对齐老项目 showConversation + initLocateMessageSeq)
+  const router = useRouter();
+  const handleJumpToMessage = useCallback(
+    (_messageSeq: number) => {
+      // 跳转到聊天页面
+      void router.navigate({ to: "/" });
+      // 切换到来源群
+      if (data.source_channel_id) {
+        const ch = new Channel(data.source_channel_id, data.source_channel_type ?? 2);
+        chatSelectedActions.select(ch);
+      }
+      // TODO: 传递 messageSeq 给聊天组件实现消息定位滚动
+    },
+    [router, data.source_channel_id, data.source_channel_type],
+  );
 
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
@@ -323,9 +341,11 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                         ? t("matter.channel.notMemberTitle")
                         : undefined
                 }
-                onClick={() => {
+                onClick={(e) => {
                   if (!myGroupsQ.isLoading && isSourceMember && hasSourceMsgs) {
-                    setSourceAnchor((v) => !v);
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pos = computeAnchorPosition(rect);
+                    setSourceAnchor((prev) => prev ? null : pos);
                   }
                 }}
               >
@@ -350,7 +370,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                     {t("matter.label.fromHiddenChannel")}
                   </span>
                 )}
-              </div>{sourceAnchor && (<AnchorPopover open channelId={data.source_channel_id ?? ""} channelType={data.source_channel_type ?? 2} channelName={displaySourceName} messageIds={data.source_msgs ?? []} onClose={() => setSourceAnchor(false)} />)}</div>) : null}</MainGoalEditor>
+              </div>{sourceAnchor && (<AnchorPopover open channelId={data.source_channel_id ?? ""} channelType={data.source_channel_type ?? 2} channelName={displaySourceName} messageIds={data.source_msgs ?? []} onClose={() => setSourceAnchor(null)} x={sourceAnchor.x} top={sourceAnchor.top} bottom={sourceAnchor.bottom} onJumpToMessage={handleJumpToMessage} />)}</div>) : null}</MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
@@ -502,6 +522,9 @@ function ChannelsTab({
     channelType: number;
     channelName: string;
     messageIds: string[];
+    x: number;
+    top?: number;
+    bottom?: number;
   } | null>(null);
 
   const unlinkMu = useUnlinkChannel();
@@ -532,6 +555,19 @@ function ChannelsTab({
       return next;
     });
   }, []);
+
+  // 跳转到聊天并定位消息
+  const router = useRouter();
+  const handleJumpToMessage = useCallback(
+    (_messageSeq: number) => {
+      if (!anchor) return;
+      void router.navigate({ to: "/" });
+      const ch = new Channel(anchor.channelId, anchor.channelType);
+      chatSelectedActions.select(ch);
+      // TODO: 传递 messageSeq 给聊天组件实现消息定位滚动
+    },
+    [router, anchor],
+  );
 
   const handleUnlink = () => {
     if (!unlinkTarget) return;
@@ -567,7 +603,7 @@ function ChannelsTab({
 
       {/* 已关联群聊列表 */}
       {channels.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
+        <div className="rounded border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
           {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
@@ -579,24 +615,23 @@ function ChannelsTab({
             const latestEntry = latestByChannel.get(mc.channel_id);
 
             return (
-              <li key={mc.id} className="flex flex-col gap-4 rounded-lg bg-black/[0.04] p-3">
+              <li key={mc.id} className="flex flex-col gap-4 rounded-2xl bg-brand-tint-04 p-3">
                 {/* Card head */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[16px] font-medium leading-[20px] text-text-primary">
-                    #
-                    <ChannelNameLabel
-                      channelId={mc.channel_id}
-                      channelType={mc.channel_type}
-                      fallback={mc.channel_name}
-                      blur={!isMember && !myGroupsLoading}
-                      loading={myGroupsLoading}
-                    />
-                  </span>
-                  {!myGroupsLoading && !isMember && <NotMemberBadge />}
-                  <span
-                    className="ml-3 text-[14px] leading-[20px] whitespace-nowrap"
-                    style={{ color: "rgba(28,28,35,0.4)" }}
-                  >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-medium leading-[20px] text-text-primary">
+                      #
+                      <ChannelNameLabel
+                        channelId={mc.channel_id}
+                        channelType={mc.channel_type}
+                        fallback={mc.channel_name}
+                        blur={!isMember && !myGroupsLoading}
+                        loading={myGroupsLoading}
+                      />
+                    </span>
+                    {!myGroupsLoading && !isMember && <NotMemberBadge />}
+                  </div>
+                  <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
                     {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
                   </span>
                   {isMember && (
@@ -611,17 +646,14 @@ function ChannelsTab({
                 {/* 最新进展：仅成员可见 */}
                 {isMember && latestEntry !== undefined && latestEntry !== null && (
                   <div className="flex flex-col gap-2">
-                    <div
-                      className="flex items-center gap-1 text-[14px] leading-[20px]"
-                      style={{ color: "rgba(28,28,35,0.8)" }}
-                    >
+                    <div className="flex items-center gap-1 text-[14px] leading-[20px] text-[rgba(28,28,35,0.8)]">
                       <ChannelAvatar
                         channel={new Channel(latestEntry.user_id, ChannelTypePerson)}
                         size={16}
                         title={latestEntry.user_id}
                       />
-                      <UserName uid={latestEntry.user_id} className="font-medium" />
-                      <span>{formatDateTime(latestEntry.created_at)}</span>
+                      <UserName uid={latestEntry.user_id} className="font-normal" />
+                      <span className="text-icon-muted">{formatDateTime(latestEntry.created_at)}</span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">
                       {latestEntry.content || t("matter.timeline.noText")}
@@ -635,7 +667,7 @@ function ChannelsTab({
                     <button
                       type="button"
                       onClick={() => toggleTimeline(mc.channel_id)}
-                      className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[12px] font-semibold leading-[20px] text-purple-600 transition-opacity hover:opacity-80"
+                      className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[12px] font-semibold leading-[20px] text-accent transition-opacity hover:opacity-80"
                     >
                       {expandedTimelines.has(mc.channel_id) ? t("matter.timeline.collapse") : t("matter.timeline.expand")}
                     </button>
@@ -657,12 +689,17 @@ function ChannelsTab({
                       <TimelinePanel
                         entries={timelineMap.get(mc.channel_id) ?? []}
                         canShowAnchor={isMember}
-                        onShowAnchor={(entry, _ev) => {
+                        onShowAnchor={(entry, ev) => {
+                          const rect = ev.currentTarget.getBoundingClientRect();
+                          const pos = computeAnchorPosition(rect);
                           setAnchor({
                             channelId: mc.channel_id,
                             channelType: mc.channel_type,
                             channelName: mc.channel_name ?? mc.channel_id.slice(0, 8),
                             messageIds: entry.source_msgs || [],
+                            x: pos.x,
+                            top: pos.top,
+                            bottom: pos.bottom,
                           });
                         }}
                         onDownloadAttachment={onDownloadAttachment}
@@ -704,7 +741,11 @@ function ChannelsTab({
           channelType={anchor.channelType}
           channelName={anchor.channelName}
           messageIds={anchor.messageIds}
+          x={anchor.x}
+          top={anchor.top}
+          bottom={anchor.bottom}
           onClose={() => setAnchor(null)}
+          onJumpToMessage={handleJumpToMessage}
         />
       ) : null}
     </div>
@@ -724,8 +765,8 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
     <button
       type="button"
       onClick={onClick}
-      className={`relative inline-flex h-12 items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors cursor-pointer ${
-        active ? "font-semibold text-text-primary" : "text-text-secondary hover:text-text-primary"
+      className={`relative inline-flex h-[47px] items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] font-normal text-[rgba(28,28,35,0.9)] transition-colors cursor-pointer hover:text-text-primary ${
+        active ? "text-text-primary" : ""
       }`}
     >
       {label}

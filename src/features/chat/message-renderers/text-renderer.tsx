@@ -70,6 +70,16 @@ function EmojiImg({ keyword }: { keyword: string }) {
 }
 
 /**
+ * @ 关键字集合 — 这些是 mention.all / humans / ais 字段独立表达的全员/AI 标记,
+ * **不消耗 mention.uids**(uids 只装具体用户)。
+ *
+ * 之前 extractAtSpansFromText 对 text 里出现的 `@所有人`/`@all`/`@所有AI` 不加区分
+ * 都计入 uids 顺位,text=`"@所有人 @张三"` 会让 `@所有人 → uids[0]` 错绑、`@张三`
+ * 越界丢失(issue #46 真凶)。
+ */
+const SKIP_AT_KEYWORDS = new Set(["@所有人", "@all", "@所有AI"]);
+
+/**
  * 从 text 正则提取所有 `@xxx`,按出现顺序对应 mention.uids[i] — 主路径。
  *
  * **背景**:同一 uid 在 text 里可能是中文名 / 英文 username / remark,
@@ -80,16 +90,21 @@ function EmojiImg({ keyword }: { keyword: string }) {
  * mention.uids 一一对应 — 发送端 input 插 mention 时是按顺序填入 uids,
  * i 对应不会错位。
  *
- * 正则:`@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}` — 必须首字符是中文或字母,
+ * 正则:`@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}` — 必须首字符是中文或字母,
  * 避免 "@123" / "@-x" 误识别;不包含空白/中文标点,保证 mention 边界。
+ * 包含 `·` 支持中文圆点(常见日韩英复名)。
+ *
+ * **跳过全员/AI 关键字**:`@所有人` / `@all` / `@所有AI` 由 mention.all/humans/ais
+ * 独立字段表达,**不消耗 uids 顺位**,否则会导致后续 @具体用户 错绑(issue #46)。
  */
 function extractAtSpansFromText(text: string, uids: string[]): { match: string; uid: string }[] {
   if (!text || uids.length === 0) return [];
   // eslint-disable-next-line no-misleading-character-class
-  const re = /@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}/g;
+  const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
   const out: { match: string; uid: string }[] = [];
   let i = 0;
   for (const m of text.matchAll(re)) {
+    if (SKIP_AT_KEYWORDS.has(m[0])) continue;
     if (i >= uids.length) break;
     out.push({ match: m[0], uid: uids[i++] });
   }

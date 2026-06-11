@@ -139,6 +139,7 @@ function ConversationRow({
   onContextMenu,
   rowRef,
   unreadPulseToken,
+  suppressDraft,
 }: {
   conversation: Conversation;
   /**
@@ -152,6 +153,7 @@ function ConversationRow({
   onContextMenu: (e: MouseEvent) => void;
   rowRef?: (node: HTMLButtonElement | null) => void;
   unreadPulseToken?: number;
+  suppressDraft?: boolean;
 }) {
   const tt = useT();
   const channel = conversation.channel;
@@ -314,6 +316,7 @@ function ConversationRow({
               fallback={digest}
               reminders={conversation.simpleReminders}
               countHint={showCountHint ? conversation.unread : 0}
+              suppressDraft={suppressDraft}
             />
           </span>
           {mentionMe && hasUnread && !isMuted ? (
@@ -810,26 +813,28 @@ export function ConversationList({
   return (
     <div ref={listRef} className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
       <style>{LIST_SKELETON_STYLE}</style>
-      {filtered.map((c) => (
-        <ConversationRow
-          key={conversationDomKey(c)}
-          conversation={c}
-          active={
-            c.channel.channelID === selectedChannelId || c.channel.channelID === ctxMenuRowKey
-          }
-          myUid={myUid}
-          onClick={() => onSelect?.(c)}
-          onContextMenu={onRowContextMenu(c)}
-          unreadPulseToken={
-            recentJumpPulse?.key === conversationDomKey(c) ? recentJumpPulse.token : 0
-          }
-          rowRef={(node) => {
-            const key = conversationDomKey(c);
-            if (node) rowRefs.current.set(key, node);
-            else rowRefs.current.delete(key);
-          }}
-        />
-      ))}
+      {filtered.map((c) => {
+        const selected = c.channel.channelID === selectedChannelId;
+        return (
+          <ConversationRow
+            key={conversationDomKey(c)}
+            conversation={c}
+            active={selected || c.channel.channelID === ctxMenuRowKey}
+            suppressDraft={selected}
+            myUid={myUid}
+            onClick={() => onSelect?.(c)}
+            onContextMenu={onRowContextMenu(c)}
+            unreadPulseToken={
+              recentJumpPulse?.key === conversationDomKey(c) ? recentJumpPulse.token : 0
+            }
+            rowRef={(node) => {
+              const key = conversationDomKey(c);
+              if (node) rowRefs.current.set(key, node);
+              else rowRefs.current.delete(key);
+            }}
+          />
+        );
+      })}
 
       <ContextMenu
         open={menu.open}

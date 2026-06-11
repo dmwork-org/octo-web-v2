@@ -243,7 +243,9 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
         if (!next) onClose();
       }}
       size="fit"
-      title={<span className="text-center text-[17px] font-semibold">{tt("addMembers.title")}</span>}
+      title={
+        <span className="text-center text-[17px] font-semibold">{tt("addMembers.title")}</span>
+      }
       showCloseButton={false}
       className="h-[560px] w-[625px]"
       contentClassName="overflow-hidden p-0"

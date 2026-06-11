@@ -25,6 +25,8 @@ interface ConversationTypingDigestProps {
    * 对齐老仓 wk-conv-count-hint(行 685-690)。
    */
   countHint?: number;
+  /** 当前打开的会话行不提前显示草稿；切走后再显示在列表里。 */
+  suppressDraft?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export function ConversationTypingDigest({
   fallback,
   reminders,
   countHint,
+  suppressDraft = false,
 }: ConversationTypingDigestProps) {
   const t = useT();
   const typing = useTypingForChannel(channel);
@@ -93,7 +96,7 @@ export function ConversationTypingDigest({
   const undoneReminders =
     reminders?.filter((r) => !r.done && r.reminderType !== ReminderType.ReminderTypeMentionMe) ??
     [];
-  const hasDraft = !!draft && draft.trim() !== "";
+  const hasDraft = !suppressDraft && !!draft && draft.trim() !== "";
   const showCountHint = countHint != null && countHint > 0;
 
   return (

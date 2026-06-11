@@ -9,7 +9,7 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid, readMessageMention } from "@/features/chat/lib/read-message-mention";
+import { readMessageMention } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
@@ -199,14 +199,9 @@ function mentionTokens(
   for (const uid of uids) {
     const names = collectCandidateNames(uid, channel);
     if (names.length === 0) {
-      // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
-      // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens。
-      // 非法 uid(sentinel / 字面 "uid" / 太短)跳过避免 toast 风暴(issue #74);
-      // SDK 内部 promise 去重保证 in-flight 不重复发,失败不 blacklist 让下次
-      // 自然重试(issue #73 followup)。
-      if (isFetchableUid(uid)) {
-        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
-      }
+      // candidate 拉不到就不高亮(退化为普通文本) — 不再 fetch Person channelInfo
+      // 兜底(issue #84):真 uid 通常已被 message-row / subscribers cache 覆盖,
+      // 脏数据 uid(如 "utility")fetch 永远 400 反而触发"用户信息不存在"toast。
       continue;
     }
     // 按长度升序排序 — 短名优先匹配,避免长 candidate(如 displayName 设成

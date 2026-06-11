@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
@@ -264,13 +263,12 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              // 非法 uid 跳过避免 toast 风暴(issue #74);SDK 内部 promise
-              // 去重保证不重复 HTTP,失败不 blacklist 让下次自然重试(issue #73 followup)
-              if (isFetchableUid(uid)) {
-                void WKSDK.shared().channelManager.fetchChannelInfo(
-                  new Channel(uid, ChannelTypePerson),
-                );
-              }
+              // candidate 拉不到就不高亮(退化为普通文本) — 不再 fetch Person
+              // channelInfo 兜底(issue #84):
+              //   - 真 uid:sender channelInfo 已被 message-row mount 时拉过,
+              //     群友通常在 subscribers cache,兜底命中率极低
+              //   - 脏数据 uid(如 "utility" / 旧版 label-as-uid):fetch 永远 400,
+              //     一点用没有 + 触发"用户信息不存在"toast
               continue;
             }
             let found = false;

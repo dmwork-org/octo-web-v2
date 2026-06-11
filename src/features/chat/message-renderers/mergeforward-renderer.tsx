@@ -13,6 +13,7 @@ import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   MergeforwardContent,
@@ -86,7 +87,7 @@ function usePrefetchSenderInfos(content: MergeforwardContent): void {
       if (!m.fromUID || seen.has(m.fromUID)) continue;
       seen.add(m.fromUID);
       const ch = new Channel(m.fromUID, ChannelTypePerson);
-      if (!mgr.getChannelInfo(ch)) void mgr.fetchChannelInfo(ch);
+      if (!mgr.getChannelInfo(ch)) tryFetchChannelInfo(ch);
     }
   }, [content]);
 }

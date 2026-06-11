@@ -66,12 +66,20 @@ export function useCmdSync() {
           const conv = cm.findConversation(channel);
           const rawUnread = param.unread as number | undefined;
           const next = rawUnread && rawUnread > 0 ? rawUnread : 0;
+          let didChange = false;
           if (conv && conv.unread !== next) {
             conv.unread = next;
             cm.notifyConversationListeners(conv, ConversationAction.update);
+            didChange = true;
           }
-          // 关注 tab sidebar 角标快照不订阅 conversationListener,显式重 fetch
-          void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+          // 关注 tab sidebar 角标快照不订阅 conversationListener,显式重 fetch。
+          // **只在 unread 真改时 invalidate**(issue #84 风暴防御):server 初始时
+          // 给每个 conv 推 unreadClear CMD(可能含本来就 unread=0 的会话),无脑
+          // invalidate 会让 sidebar/sync 在 React Query 跨 microtask batch 失效
+          // 后被打多次。
+          if (didChange) {
+            void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+          }
           return;
         }
 

@@ -5,6 +5,7 @@ import { endpointStore } from "@/features/base/stores/endpoint";
 import { avatarVersionFor, avatarVersionStore } from "@/features/base/stores/avatar-version";
 import { spaceStore } from "@/features/base/stores/space";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 interface ChannelAvatarProps {
   channel: Channel;
@@ -19,12 +20,17 @@ interface ChannelAvatarProps {
  * 新建群:onSuccess 已 fetch 一次,这里二次保险 + 让所有 avatar 实例都成为
  * "渲染即触发 fetch" 的入口。
  *
+ * **风暴防护**(issue #84):走 `tryFetchChannelInfo`(模块级 attempted Set,
+ * Space 切换由 clearFetchedTitleCache 清),避免两波 mount 之间 SDK
+ * `fetchChannelInfo` 重复发 HTTP(SDK 内部只防 in-flight,不防 cache 命中
+ * 后的二次调用)。同一 channel 整会话期最多 fetch 1 次。
+ *
  * 抽出命名 hook 满足 no-useeffect-in-component。
  */
 function useFetchChannelInfoIfMissing(channel: Channel, hasInfo: boolean) {
   useEffect(() => {
     if (hasInfo) return;
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
   }, [channel, hasInfo]);
 }
 

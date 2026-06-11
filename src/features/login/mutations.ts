@@ -60,7 +60,10 @@ export function useLoginMutation() {
           flag: payload.flag ?? DEVICE_FLAG_PC,
           device: payload.device,
         },
-      });
+        // silent:login.view 用 loginErrorText inline 展示错误,
+        // 不绕过 withErrorToast 会"全局 toast + inline error"重复(issue #91 同因)。
+        silent: true,
+      } as Parameters<typeof api<LoginResponse>>[1]);
       const user: AuthUser = {
         uid: resp.uid,
         name: resp.name,

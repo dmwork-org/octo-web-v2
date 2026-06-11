@@ -110,7 +110,10 @@ export async function registerByUsername(payload: {
   return api<LoginResp>("user/usernameregister", {
     method: "POST",
     body: { ...payload, flag: 1 },
-  });
+    // silent:login views 自带 error catch + extractSafeErrorMessage 翻译展示;
+    // 不绕过 withErrorToast 会"raw 中文 toast + view 翻译 toast"同时弹(issue #91)。
+    silent: true,
+  } as Parameters<typeof api<LoginResp>>[1]);
 }
 
 /** 邮箱注册(emailregister)— 对齐老仓 requestEmailRegister。 */
@@ -124,7 +127,8 @@ export async function registerByEmail(payload: {
   return api<LoginResp>("user/emailregister", {
     method: "POST",
     body: { ...payload, flag: 1 },
-  });
+    silent: true,
+  } as Parameters<typeof api<LoginResp>>[1]);
 }
 
 /** 邮箱+密码登录 — 对齐老仓 requestEmailLogin。 */
@@ -136,7 +140,8 @@ export async function loginByEmail(payload: {
   return api<LoginResp>("user/emaillogin", {
     method: "POST",
     body: { ...payload, flag: 1 },
-  });
+    silent: true,
+  } as Parameters<typeof api<LoginResp>>[1]);
 }
 
 /**
@@ -148,7 +153,8 @@ export async function sendEmailCode(email: string, codeType: 0 | 2): Promise<voi
   await api("user/email/sendcode", {
     method: "POST",
     body: { email, code_type: codeType },
-  });
+    silent: true,
+  } as Parameters<typeof api>[1]);
 }
 
 /** 重置密码(忘记密码流程)。 */
@@ -157,7 +163,11 @@ export async function resetPassword(payload: {
   code: string;
   new_password: string;
 }): Promise<void> {
-  await api("user/email/forgetpwd", { method: "POST", body: payload });
+  await api("user/email/forgetpwd", {
+    method: "POST",
+    body: payload,
+    silent: true,
+  } as Parameters<typeof api>[1]);
 }
 
 /** 获取二维码 UUID(loginuuid)。 */

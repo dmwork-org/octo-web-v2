@@ -36,7 +36,6 @@ import {
   deriveArchiveAction,
   shouldShowArchiveButton,
 } from "@/features/chat/lib/thread-archive-actions";
-import { toast as sonnerToast } from "sonner";
 import {
   sidebarFollowQueryKey,
   sidebarFollowQueryOptions,
@@ -717,7 +716,7 @@ function ThreadItem({
       }
       void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      sonnerToast.success(
+      toast.success(
         action === "archive"
           ? t("threadPanelLocal.toast.archived")
           : t("threadPanelLocal.toast.unarchived"),

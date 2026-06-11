@@ -384,10 +384,6 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
           if (!next) onClose();
         }}
         size="sm"
-        // 固定高度 480px,覆盖 HEIGHT_CLASS 的 max-h-[85vh]:所有场景(self/非 self
-        // /loading/loaded)modal 高度一致,开/关动画不再有"跳一下"(issue #38)。
-        // content 多于 480 时内部 sections 区会 overflow-auto 滚动,少时下方留白。
-        className="h-[480px]"
         description={
           display
             ? t("base.userInfo.cardOf", { values: { name: display } })
@@ -431,7 +427,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
             </div>
 
             {hasSections ? (
-              <div className="flex flex-1 flex-col overflow-y-auto border-t border-border-subtle py-2">
+              <div className="flex flex-col border-t border-border-subtle py-2">
                 {sectionsContent}
               </div>
             ) : null}

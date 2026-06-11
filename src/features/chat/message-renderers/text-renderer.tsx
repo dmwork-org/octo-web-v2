@@ -8,6 +8,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
@@ -70,54 +71,12 @@ function EmojiImg({ keyword }: { keyword: string }) {
 }
 
 /**
- * @ 关键字集合 — 这些是 mention.all / humans / ais 字段独立表达的全员/AI 标记,
- * **不消耗 mention.uids**(uids 只装具体用户)。
- *
- * 之前 extractAtSpansFromText 对 text 里出现的 `@所有人`/`@all`/`@所有AI` 不加区分
- * 都计入 uids 顺位,text=`"@所有人 @张三"` 会让 `@所有人 → uids[0]` 错绑、`@张三`
- * 越界丢失(issue #46 真凶)。
- */
-const SKIP_AT_KEYWORDS = new Set(["@所有人", "@all", "@所有AI"]);
-
-/**
- * 从 text 正则提取所有 `@xxx`,按出现顺序对应 mention.uids[i] — 主路径。
- *
- * **背景**:同一 uid 在 text 里可能是中文名 / 英文 username / remark,
- * channelInfo/subscriber 缓存里的候选可能全部不匹配(刘会燕场景:sub.name 和
- * channelInfo.title 都是 "liuhuiyan",但 text 里写的是 "@刘会燕")。
- *
- * 主路径:正则匹配 text 里所有 `@xxx`(以中文/字母开头),按出现顺序跟
- * mention.uids 一一对应 — 发送端 input 插 mention 时是按顺序填入 uids,
- * i 对应不会错位。
- *
- * 正则:`@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}` — 必须首字符是中文或字母,
- * 避免 "@123" / "@-x" 误识别;不包含空白/中文标点,保证 mention 边界。
- * 包含 `·` 支持中文圆点(常见日韩英复名)。
- *
- * **跳过全员/AI 关键字**:`@所有人` / `@all` / `@所有AI` 由 mention.all/humans/ais
- * 独立字段表达,**不消耗 uids 顺位**,否则会导致后续 @具体用户 错绑(issue #46)。
- */
-function extractAtSpansFromText(text: string, uids: string[]): { match: string; uid: string }[] {
-  if (!text || uids.length === 0) return [];
-  // eslint-disable-next-line no-misleading-character-class
-  const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
-  const out: { match: string; uid: string }[] = [];
-  let i = 0;
-  for (const m of text.matchAll(re)) {
-    if (SKIP_AT_KEYWORDS.has(m[0])) continue;
-    if (i >= uids.length) break;
-    out.push({ match: m[0], uid: uids[i++] });
-  }
-  return out;
-}
-
-/**
- * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选** — 兜底路径。
+ * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选** — mention 高亮主路径。
  *   - 群 subscriber:remark / name / orgData.real_name / orgData.displayName
  *   - Person channelInfo:title / orgData.remark / orgData.real_name / orgData.displayName
  *
  * 旧仓 mention 走 `message.parts`(SDK 把 text + uid 解析配对);新仓没这数据,
- * 必须靠文本匹配。多候选覆盖各种 name 写法。
+ * 必须靠 candidate name 在 text 里精确匹配。多候选覆盖各种 name 写法。
  */
 function collectCandidateNames(uid: string, channel: Channel): string[] {
   const names: string[] = [];
@@ -155,14 +114,15 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
  *   - 优点 2:**不会误绑文字里的字面 @ 串**(如 `@我点不掉` 不是任何 uid 的
  *     candidate name → 不渲染),issue #46 真凶
  *
- * **兜底(regex)**:candidates 全没匹配到的 uid(缓存 race / 真实显示名跟
- * text 里写法不一致),用正则按出现顺序对应剩余未匹配 uid。
+ * **cache race**:candidates 没拉到时主动 fetchChannelInfo,useChannelInfoTick
+ * 监听到 channelInfo 变化触发 re-render,本函数重算 tokens 自动高亮。
+ * **不走正则兜底** — 老仓 SDK 给 parts 精确边界,新仓没 parts 必须靠 candidate
+ * 真名匹配。正则按文本顺序绑会误绑文字字面 @ 串。
  *
  * **全员/AI 关键字独立**:`@所有人` / `@all` / `@所有AI` 由 mention.all/humans/ais
- * 字段表达,不消耗 mention.uids 顺位(extractAtSpansFromText 内 SKIP_AT_KEYWORDS
- * 也会跳)。
+ * 字段表达,不消耗 mention.uids 顺位。
  * - mention.ais=1 时 uids 是 routing bot uid(client expand 给 legacy adapter),
- *   不参与 candidate / regex,fail-closed 防绑到 @ops 等裸 @text(上游 90556da2)
+ *   不参与 candidate,fail-closed 防绑到 @ops 等裸 @text(上游 90556da2)
  */
 function mentionTokens(
   text: string,
@@ -212,9 +172,14 @@ function mentionTokens(
   }
   // 主路径 — candidate names 精确匹配(支持空格 / 特殊字符 / 防文字误绑)
   const uids = mention.uids ?? [];
-  const matchedUids = new Set<string>();
   for (const uid of uids) {
     const names = collectCandidateNames(uid, channel);
+    if (names.length === 0) {
+      // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
+      // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens
+      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      continue;
+    }
     for (const name of names) {
       const match = `@${name}`;
       if (text.includes(match)) {
@@ -226,26 +191,14 @@ function mentionTokens(
             </MentionTag>
           ),
         });
-        matchedUids.add(uid);
         break;
       }
     }
   }
-  // 兜底 — 仅对 candidate 未匹配上的 uid 走正则按序绑(缓存 race / 用户写
-  // 法跟 candidate 不一致)。正则内已跳 SKIP_AT_KEYWORDS 避免误占。
-  const remainingUids = uids.filter((u) => !matchedUids.has(u));
-  if (remainingUids.length > 0) {
-    for (const { match, uid } of extractAtSpansFromText(text, remainingUids)) {
-      tokens.push({
-        match,
-        render: (key) => (
-          <MentionTag key={key} uid={uid}>
-            {match}
-          </MentionTag>
-        ),
-      });
-    }
-  }
+  // **不走正则兜底** — 老仓 SDK 给 parts 精确边界,新仓没 parts 必须靠 candidate
+  // 真名匹配。正则按文本顺序绑会把"@我点不掉"等文字字面 @ 串误绑给 uids[0]
+  // (issue #46 真凶)。candidates cache race 时宁可暂时不高亮 — channelInfo
+  // 到位后 useChannelInfoTick → re-render → 重算 → 高亮自动出现。
   return tokens;
 }
 
@@ -279,6 +232,9 @@ function emojiTokens(text: string): MarkdownToken[] {
 export function TextRenderer({ message }: TextRendererProps) {
   const content = message.content as MessageText;
   const text = content.text ?? "";
+  // 订阅全局 channelInfo 变化 — mention candidate 来自 channelInfo/subscribers,
+  // cache race 时主路径没匹配,主动 fetchChannelInfo 后到位时重渲就能正确高亮
+  useChannelInfoTick();
 
   // 单独一个 custom emoji → 大图(120×120),跳过 markdown
   const largeCustom = getSingleCustomEmoji(text);

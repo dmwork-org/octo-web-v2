@@ -1,17 +1,10 @@
 import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
-
-/**
- * @ 关键字集合 — 这些是 mention.all / humans / ais 字段独立表达的全员/AI 标记,
- * **不消耗 mention.uids**(uids 只装具体用户)。
- * 跟 text-renderer.tsx SKIP_AT_KEYWORDS 同款,避免 RichText 渲染时同款错位
- * (issue #46 followup)。
- */
-const SKIP_AT_KEYWORDS = new Set(["@所有人", "@all", "@所有AI"]);
 
 /**
  * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**(跟 text-renderer
@@ -106,6 +99,9 @@ export function MentionAwareText({
   mention?: Mention;
   channel?: Channel;
 }) {
+  // 订阅全局 channelInfo 变化 — cache race 时主路径会触发 fetch,到位后重渲。
+  // 必须在所有早返回之前调,遵守 React Rules of Hooks。
+  useChannelInfoTick();
   if (!text) return <>{text}</>;
   if (!mention) return <>{text}</>;
   const flags = mention as MentionWithFlags;
@@ -156,15 +152,20 @@ export function MentionAwareText({
     // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
   } else {
     const uids = mention.uids ?? [];
-    const matchedUids = new Set<string>();
-    // 主路径 — candidate names 精确匹配(需要 channel)
+    // 主路径 — candidate names 精确匹配(需要 channel)。
+    // 不走正则兜底:正则按文本顺序绑会把"@我点不掉"等文字字面 @ 串误绑给
+    // uids[0](issue #46 真凶)。cache race 时主动 fetchChannelInfo 触发拉取,
+    // useChannelInfoTick 监听 channelInfo 变化后 re-render,本函数重算 hits。
     if (channel) {
       for (const uid of uids) {
         const names = collectCandidateNames(uid, channel);
+        if (names.length === 0) {
+          void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+          continue;
+        }
         let found = false;
         for (const name of names) {
           const needle = `@${name}`;
-          // 找一个未被占用的位置
           let from = 0;
           while (from < text.length) {
             const idx = text.indexOf(needle, from);
@@ -180,7 +181,6 @@ export function MentionAwareText({
                   </MentionTag>
                 ),
               });
-              matchedUids.add(uid);
               found = true;
               break;
             }
@@ -188,35 +188,6 @@ export function MentionAwareText({
           }
           if (found) break;
         }
-      }
-    }
-    // 兜底 — 正则按序绑剩余未匹配 uid
-    const remainingUids = uids.filter((u) => !matchedUids.has(u));
-    if (remainingUids.length > 0) {
-      // eslint-disable-next-line no-misleading-character-class
-      const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
-      let i = 0;
-      for (const m of text.matchAll(re)) {
-        const match = m[0];
-        if (SKIP_AT_KEYWORDS.has(match)) continue;
-        if (i >= remainingUids.length) break;
-        const start = m.index ?? -1;
-        if (start === -1) {
-          i++;
-          continue;
-        }
-        // 跳过已被 candidate 匹配占用的位置
-        if (hits.some((h) => start < h.end && start + match.length > h.start)) continue;
-        const uid = remainingUids[i++];
-        hits.push({
-          start,
-          end: start + match.length,
-          node: (
-            <MentionTag key={`tk-uid-${start}`} uid={uid}>
-              {match}
-            </MentionTag>
-          ),
-        });
       }
     }
   }

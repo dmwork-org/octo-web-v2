@@ -130,7 +130,7 @@ function SummarySourcesPanel({ sources }: { sources: SourceItem[] }) {
   };
 
   return (
-    <section className="overflow-hidden rounded-md border border-border-subtle bg-bg-surface">
+    <section className="shrink-0 overflow-hidden rounded-md border border-border-subtle bg-bg-surface">
       <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-3">
         <MessageSquareText size={15} className="shrink-0 text-text-tertiary" />
         <h3 className="text-sm font-semibold text-text-primary">
@@ -138,7 +138,7 @@ function SummarySourcesPanel({ sources }: { sources: SourceItem[] }) {
         </h3>
       </div>
       {sources.length > 0 ? (
-        <div className="flex flex-col divide-y divide-border-subtle bg-bg-base">
+        <div className="flex max-h-40 flex-col divide-y divide-border-subtle overflow-y-auto bg-bg-base">
           {sources.map((source) => (
             <div
               key={`${source.source_type}-${source.source_id}`}
@@ -362,43 +362,46 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
           </div>
         </header>
 
-        <div className="flex flex-1 overflow-y-auto">
-          <article className="mx-auto flex w-full max-w-[920px] flex-col gap-5 px-8 py-6">
-            {isGenerating ? (
-              <>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <article className="mx-auto flex w-full max-w-[920px] flex-col gap-5 px-8 py-6">
+              {isGenerating ? (
                 <SummaryProcessingPanel status={data.status} />
-                <SummarySourcesPanel sources={data.sources} />
-              </>
-            ) : (
-              <>
-                {isPersonalMode ? <PersonalSection detail={data} /> : null}
+              ) : (
+                <>
+                  {isPersonalMode ? <PersonalSection detail={data} /> : null}
 
-                {!isPersonalMode ? (
-                  <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
-                    {isProcessing ? (
-                      <SummaryProcessingPanel status={data.status} />
-                    ) : isFailed ? (
-                      <p className="text-sm text-error">
-                        {data.error_message ?? tr("summary.detail.failedFallback")}
-                      </p>
-                    ) : data.result ? (
-                      hasCitations ? (
-                        <CitationText content={data.result.content} citations={citations!} />
-                      ) : (
-                        <SummaryContent content={data.result.content} />
-                      )
-                    ) : !isPersonalMode ? (
-                      <p className="text-sm italic text-text-tertiary">
-                        {tr("summary.detail.emptyContent")}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
+                  {!isPersonalMode ? (
+                    <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
+                      {isProcessing ? (
+                        <SummaryProcessingPanel status={data.status} />
+                      ) : isFailed ? (
+                        <p className="text-sm text-error">
+                          {data.error_message ?? tr("summary.detail.failedFallback")}
+                        </p>
+                      ) : data.result ? (
+                        hasCitations ? (
+                          <CitationText content={data.result.content} citations={citations!} />
+                        ) : (
+                          <SummaryContent content={data.result.content} />
+                        )
+                      ) : !isPersonalMode ? (
+                        <p className="text-sm italic text-text-tertiary">
+                          {tr("summary.detail.emptyContent")}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </article>
+          </div>
 
-                <SummarySourcesPanel sources={data.sources} />
-              </>
-            )}
-          </article>
+          <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-8 py-3">
+            <div className="mx-auto w-full max-w-[920px]">
+              <SummarySourcesPanel sources={data.sources} />
+            </div>
+          </div>
         </div>
       </section>
       <ForwardModal

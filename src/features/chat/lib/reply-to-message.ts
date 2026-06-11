@@ -18,10 +18,26 @@ const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
  * 不取 subscriber.remark(他人对该用户起的备注),避免 "@ 我自己起的备注"
  * 发出去后对方看到不知所云。
  *
+ * **issue #76**:私聊 reply 时,sender channelInfo 通常未预热(没列表/sidebar
+ * 触发过 fetch),lookupNicknameLabel 退化到返回 uid → reply digest 显示
+ * "回复 ada105087fbe...: ..." 而不是对方名字。在 reply set 时主动触发
+ * fetchChannelInfo(uid),channelInfoListener 到位后 composer 通过
+ * useChannelInfoTick 重渲拿到 title。
+ *
  * caller(右键菜单 / file-preview reply 按钮等)统一走这个 helper,避免不对称。
  */
 export function replyToMessage(channel: Channel, message: Message, myUid: string | null): void {
   chatReplyActions.set(channel, message);
+  // 主动 fetch sender channelInfo:私聊 reply 场景下对方 info 通常未缓存,
+  // 否则 reply digest 显示 uid(issue #76)。fetchChannelInfo 异步推送
+  // channelInfoListener,各订阅方(composer 通过 useChannelInfoTick / 消息行
+  // 通过 useSenderInfoLive)自动重渲。
+  if (message.fromUID) {
+    const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
+    if (!WKSDK.shared().channelManager.getChannelInfo(senderChannel)) {
+      void WKSDK.shared().channelManager.fetchChannelInfo(senderChannel);
+    }
+  }
   if (!myUid) return;
   if (message.fromUID === myUid) return;
   if (channel.channelType === ChannelTypePerson) return;
@@ -36,12 +52,15 @@ export function replyToMessage(channel: Channel, message: Message, myUid: string
  * 查找顺序:
  *   1. 群/thread 父群 subscribers.find(s => s.uid === uid).name
  *   2. Person channelInfo.orgData.name(后端全局昵称)
- *   3. uid 兜底(防止显示 "@"  空字符串)
+ *   3. **(issue #76)** Person channelInfo.title — 私聊 reply 兜底,title 通常
+ *      就是 sender remark 或 name;就算是本地备注,私聊里显示自己起的备注也合理,
+ *      总好过裸 uid。群里同理 — 如果走到这一步说明前面 subscriber/orgName 都没
+ *      命中(罕见),title 至少能给个 fallback
+ *   4. uid 兜底(防止显示 "@"  空字符串)
  *
- * **故意不取**:
- *   - subscriber.remark / channelInfo.orgData.remark / channelInfo.title
- *     (后者在 SDK 里通常 = remark || name,会被本地备注污染 — 例如把
- *     "李志伟" 备注成 "Will" 后,channelInfo.title 就是 "Will")
+ * **故意不取**:subscriber.remark / orgData.remark(群场景下 "@ 我给他起的备注"
+ * 发出去后对方看到不知所云)。但 channelInfo.title 在 SDK 内通常 = remark || name,
+ * 群场景下走到第 3 步是 fallback,不是首选,trade-off 可接受。
  */
 export function lookupNicknameLabel(channel: Channel, uid: string): string {
   const subscribersChannel = resolveSubscribersChannel(channel);
@@ -54,6 +73,7 @@ export function lookupNicknameLabel(channel: Channel, uid: string): string {
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
   const orgName = (info?.orgData as { name?: string } | undefined)?.name;
   if (orgName) return orgName;
+  if (info?.title) return info.title;
   return uid;
 }
 

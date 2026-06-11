@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Search } from "lucide-react";
-import { Button } from "@/components/semi-bridge/button";
+import { Check, Search, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
+import { type SpaceMember } from "@/features/base/api/endpoints/space.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { addGroupMembers } from "@/features/base/api/endpoints/group.api";
@@ -22,26 +24,169 @@ interface AddMembersModalProps {
   onClose: () => void;
 }
 
-/** open 翻转时 reset selected。 */
-function useResetOnOpen(open: boolean, setSelected: (v: Set<string>) => void) {
+const ADD_MEMBER_ROW_HEIGHT = 36;
+const ADD_MEMBER_LIST_OVERSCAN = 8;
+
+function useResetOnClose(open: boolean, reset: () => void): void {
+  const resetRef = useRef(reset);
+  resetRef.current = reset;
   useEffect(() => {
-    if (open) setSelected(new Set());
-  }, [open, setSelected]);
+    if (!open) resetRef.current();
+  }, [open]);
+}
+
+function useDebouncedKeyword(input: string, setKeyword: (k: string) => void): void {
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(input), 300);
+    return () => clearTimeout(timer);
+  }, [input, setKeyword]);
+}
+
+function AddMemberAvatar({ member }: { member: SpaceMember }) {
+  return (
+    <ChannelAvatar
+      channel={new Channel(member.uid, ChannelTypePerson)}
+      size={28}
+      title={member.name || member.uid}
+    />
+  );
+}
+
+function AddMemberName({ member }: { member: SpaceMember }) {
+  return (
+    <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">
+      {member.name || member.uid}
+    </span>
+  );
+}
+
+function AddMemberCandidateRow({
+  member,
+  checked,
+  onToggle,
+}: {
+  member: SpaceMember;
+  checked: boolean;
+  onToggle: (uid: string) => void;
+}) {
+  return (
+    <div
+      onClick={() => onToggle(member.uid)}
+      className="flex h-9 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]"
+    >
+      <span
+        role="checkbox"
+        aria-checked={checked}
+        className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[3px] border-[1.5px] transition-colors ${
+          checked ? "border-brand bg-brand text-text-inverse" : "border-border-strong bg-bg-surface"
+        }`}
+      >
+        {checked ? <Check size={12} strokeWidth={2.5} /> : null}
+      </span>
+      <AddMemberAvatar member={member} />
+      <AddMemberName member={member} />
+      {member.robot === 1 ? <AiBadge size="small" /> : null}
+    </div>
+  );
+}
+
+function AddMemberCandidateList({
+  items,
+  selectedIds,
+  onToggle,
+  empty,
+}: {
+  items: SpaceMember[];
+  selectedIds: Set<string>;
+  onToggle: (uid: string) => void;
+  empty: ReactNode;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ADD_MEMBER_ROW_HEIGHT,
+    overscan: ADD_MEMBER_LIST_OVERSCAN,
+  });
+
+  if (items.length === 0) {
+    return <div className="flex-1 overflow-y-auto py-1">{empty}</div>;
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto py-1">
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const member = items[virtualItem.index];
+          if (!member) return null;
+          return (
+            <div
+              key={virtualItem.key}
+              className="absolute top-0 left-0 w-full"
+              style={{
+                height: virtualItem.size,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <AddMemberCandidateRow
+                member={member}
+                checked={selectedIds.has(member.uid)}
+                onToggle={onToggle}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AddMemberSelectedRow({
+  member,
+  onRemove,
+}: {
+  member: SpaceMember;
+  onRemove: (uid: string) => void;
+}) {
+  const tt = useT();
+  return (
+    <div className="group flex h-9 items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]">
+      <AddMemberAvatar member={member} />
+      <AddMemberName member={member} />
+      {member.robot === 1 ? <AiBadge size="small" /> : null}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(member.uid);
+        }}
+        aria-label={tt("forwardModalLocal.remove")}
+        className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.06)] hover:text-text-primary"
+      >
+        <X size={14} strokeWidth={2} />
+      </button>
+    </div>
+  );
 }
 
 /**
- * 群加成员选择器(对应旧 dmworkbase Components/MemberPicker 精简版)。
- *
- * 浮动元素壳层统一规范 Phase C — 走 BaseDialog。
+ * 群加成员选择器,UI 对齐转发弹窗:左侧候选列表,右侧已选预览。
  */
 export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps) {
   const tt = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  useResetOnOpen(open, setSelected);
+
+  useResetOnClose(open, () => {
+    setInput("");
+    setKeyword("");
+    setSelected(new Set());
+  });
+  useDebouncedKeyword(input, setKeyword);
 
   const { data: members } = useQuery({
     ...spaceMembersQueryOptions(spaceId),
@@ -53,7 +198,6 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
     const inGroup = new Set(subscribers.map((s) => s.uid));
     return (members ?? []).filter((m) => {
       if (m.uid === myUid) return false;
-      if (m.robot === 1) return false;
       if (inGroup.has(m.uid)) return false;
       return true;
     });
@@ -66,6 +210,10 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
       (c) => (c.name || "").toLowerCase().includes(kw) || c.uid.toLowerCase().includes(kw),
     );
   }, [candidates, keyword]);
+
+  const selectedCandidates = useMemo(() => {
+    return candidates.filter((m) => selected.has(m.uid));
+  }, [candidates, selected]);
 
   const mu = useMutation({
     mutationFn: () => addGroupMembers(channel.channelID, [...selected]),
@@ -94,85 +242,89 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      size="md"
-      height="sm"
-      title={
-        selected.size > 0
-          ? tt("addMembers.titleWithCount", { values: { count: selected.size } })
-          : tt("addMembers.title")
-      }
-      contentClassName="overflow-hidden"
+      size="fit"
+      title={<span className="text-center text-[17px] font-semibold">{tt("addMembers.title")}</span>}
+      showCloseButton={false}
+      className="h-[560px] w-[625px]"
+      contentClassName="overflow-hidden p-0"
       footer={
-        <>
-          <Button type="tertiary" theme="borderless" onClick={onClose}>
+        <div className="flex w-full items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 items-center rounded-full border border-[rgba(28,28,35,0.15)] bg-white px-4 text-[14px] text-[rgba(28,28,35,0.8)] transition-colors hover:bg-[rgba(28,28,35,0.04)]"
+          >
             {tt("addMembers.cancel")}
-          </Button>
-          <Button
-            type="primary"
-            theme="solid"
-            loading={mu.isPending}
-            disabled={selected.size === 0}
+          </button>
+          <button
+            type="button"
             onClick={() => mu.mutate()}
+            disabled={selected.size === 0 || mu.isPending}
+            className="inline-flex h-9 min-w-16 items-center justify-center rounded-full bg-[#1c1c23] px-4 text-[14px] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-35"
           >
             {selected.size > 0
               ? tt("addMembers.addWithCount", { values: { count: selected.size } })
               : tt("addMembers.add")}
-          </Button>
-        </>
+          </button>
+        </div>
       }
     >
-      <div className="shrink-0 px-5 py-2">
-        <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-base px-2 py-1.5">
-          <Search size={14} className="shrink-0 text-text-tertiary" />
-          <input
-            autoFocus
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder={tt("addMembers.searchPlaceholder")}
-            className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
+          <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
+            <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
+            <input
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={tt("addMembers.searchPlaceholder")}
+              className="flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
+            />
+          </div>
+
+          <AddMemberCandidateList
+            items={filtered}
+            selectedIds={selected}
+            onToggle={toggle}
+            empty={
+              <div className="flex h-20 items-center justify-center px-4 text-center text-[13px] text-[rgba(28,28,35,0.35)]">
+                {keyword
+                  ? tt("addMembers.noMatches")
+                  : candidates.length === 0
+                    ? tt("addMembers.allInGroup")
+                    : tt("addMembers.noCandidates")}
+              </div>
+            }
           />
         </div>
-      </div>
 
-      <ul className="flex flex-1 flex-col overflow-y-auto py-1">
-        {filtered.length === 0 ? (
-          <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            {keyword
-              ? tt("addMembers.noMatches")
-              : candidates.length === 0
-                ? tt("addMembers.allInGroup")
-                : tt("addMembers.noCandidates")}
-          </li>
-        ) : (
-          filtered.map((m) => {
-            const checked = selected.has(m.uid);
-            return (
-              <li key={m.uid} className="px-2">
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                    checked ? "bg-brand-tint" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(m.uid)}
-                    className="shrink-0"
+        <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
+
+        <div className="flex flex-1 flex-col overflow-hidden py-2">
+          {selectedCandidates.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
+              {tt("forwardModalLocal.notSelected")}
+            </div>
+          ) : (
+            <>
+              <div className="shrink-0 px-2 pb-1.5 text-[12px] text-[rgba(28,28,35,0.4)]">
+                {tt("forwardModalLocal.selectedCount", {
+                  values: { count: selectedCandidates.length },
+                })}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {selectedCandidates.map((member) => (
+                  <AddMemberSelectedRow
+                    key={`sel-${member.uid}`}
+                    member={member}
+                    onRemove={toggle}
                   />
-                  <ChannelAvatar
-                    channel={new Channel(m.uid, ChannelTypePerson)}
-                    size={32}
-                    title={m.name}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                    {m.name || m.uid}
-                  </span>
-                </label>
-              </li>
-            );
-          })
-        )}
-      </ul>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </BaseDialog>
   );
 }

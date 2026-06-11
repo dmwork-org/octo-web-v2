@@ -9,7 +9,11 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid, readMessageMention } from "@/features/chat/lib/read-message-mention";
+import {
+  isFetchableUid,
+  markUidFetchFailed,
+  readMessageMention,
+} from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
@@ -201,11 +205,13 @@ function mentionTokens(
     if (names.length === 0) {
       // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
       // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens。
-      // 非法 uid(sentinel / 字面 "uid" / 太短)跳过避免 toast 风暴(issue #74);
-      // SDK 内部 promise 去重保证 in-flight 不重复发,失败不 blacklist 让下次
-      // 自然重试(issue #73 followup)。
+      // 非法 uid + 30s 内失败过的 uid 跳过(issue #84):避免 mention 多 + 每次
+      // re-render 都打到 backend → "请求过于频繁"。SDK in-flight 去重 + 我们
+      // 30s TTL blacklist 双保险。
       if (isFetchableUid(uid)) {
-        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+        void WKSDK.shared()
+          .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
+          .catch(() => markUidFetchFailed(uid));
       }
       continue;
     }

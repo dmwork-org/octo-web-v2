@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
+import { isFetchableUid, markUidFetchFailed } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
@@ -266,12 +266,12 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              // 非法 uid 跳过避免 toast 风暴(issue #74);SDK 内部 promise
-              // 去重保证不重复 HTTP,失败不 blacklist 让下次自然重试(issue #73 followup)
+              // 非法 uid + 30s 内失败的 uid 跳过(issue #84 防风暴);SDK in-flight
+              // 去重 + 30s TTL blacklist 双保险,失败 30s 后允许下次重试。
               if (isFetchableUid(uid)) {
-                void WKSDK.shared().channelManager.fetchChannelInfo(
-                  new Channel(uid, ChannelTypePerson),
-                );
+                void WKSDK.shared()
+                  .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
+                  .catch(() => markUidFetchFailed(uid));
               }
               continue;
             }

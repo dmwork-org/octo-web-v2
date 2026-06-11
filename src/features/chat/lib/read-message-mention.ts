@@ -45,17 +45,27 @@ export function readMessageMention(content: unknown): MentionWithFlags | undefin
  * **形态白名单**:uid 必须是非空字符串、非 sentinel、长度 ≥ 6(后端真 uid
  * 通常是 32 位 hex 或类似,短的几乎全是错误数据)。
  *
- * **不**做"已失败 uid blacklist" — 之前曾加 markUidFetchFailed 一次失败永久
- * 拒绝,但合法 uid 偶尔 fetch 失败会被永久误拒 → 永久不高亮(issue #73 误改成
- * 完全不显的真凶)。SDK 内部 fetchChannelInfo 自带 promise 去重保证 in-flight
- * 不重复发 HTTP,失败后下次 re-render 自然重试。toast 飘满由 withErrorToast
- * 自带的 key 去重已经解决。
+ * **失败短期 blacklist (TTL 30s, issue #84)**:某些合法 uid 后端持续 4xx /
+ * 5xx,React re-render 多次就会触发 N 次 fetch 风暴 → 后端"请求过于频繁"。
+ * issue #73 曾完全移除 blacklist 解决"一次失败永久误拒",但带来 #84 的
+ * 频繁触发问题。折衷:失败后 30s 内 isFetchableUid 返 false → 不 fetch,
+ * 30s 后允许下一次重试。
+ *   - 一次失败的合法 uid 不会永久误拒(用户切走再切回 / 等 30s 都能重试)
+ *   - 持续失败的 uid 30s 内不会洪流
  */
 const SENTINEL_UIDS = new Set(["-1", "-2", "-3", "@all", "uid"]);
+const FAILED_TTL_MS = 30_000;
+const failedUidAtMap = new Map<string, number>();
 
 export function isFetchableUid(uid: string | undefined | null): boolean {
   if (!uid || typeof uid !== "string") return false;
   if (SENTINEL_UIDS.has(uid)) return false;
   if (uid.length < 6) return false;
+  const failedAt = failedUidAtMap.get(uid);
+  if (failedAt && Date.now() - failedAt < FAILED_TTL_MS) return false;
   return true;
+}
+
+export function markUidFetchFailed(uid: string): void {
+  failedUidAtMap.set(uid, Date.now());
 }

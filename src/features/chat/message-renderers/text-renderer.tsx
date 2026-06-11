@@ -9,6 +9,7 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { readMessageMention } from "@/features/chat/lib/read-message-mention";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
@@ -245,6 +246,9 @@ export function TextRenderer({ message }: TextRendererProps) {
     );
   }
 
-  const tokens = [...mentionTokens(text, content.mention, message.channel), ...emojiTokens(text)];
+  const tokens = [
+    ...mentionTokens(text, readMessageMention(content), message.channel),
+    ...emojiTokens(text),
+  ];
   return <Markdown content={text} tokens={tokens} />;
 }

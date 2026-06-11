@@ -50,7 +50,7 @@ export function ChannelMoreMenu({ channelId, channelType, onUnlink }: ChannelMor
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="flex h-6 w-6 items-center justify-center rounded text-text-tertiary transition-colors hover:text-text-primary hover:bg-bg-hover"
+        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-text-tertiary transition-colors hover:text-text-primary hover:bg-bg-hover"
       >
         <MoreHorizontal size={14} />
       </button>
@@ -58,7 +58,7 @@ export function ChannelMoreMenu({ channelId, channelType, onUnlink }: ChannelMor
         <div className="absolute top-7 right-0 z-10 flex w-36 flex-col rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">
           <button
             type="button"
-            className="flex items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-bg-hover"
+            className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-bg-hover"
             onClick={handleViewChannel}
           >
             <ExternalLink size={11} />
@@ -66,7 +66,7 @@ export function ChannelMoreMenu({ channelId, channelType, onUnlink }: ChannelMor
           </button>
           <button
             type="button"
-            className="flex items-center gap-2 px-3 py-1.5 text-left text-xs text-error transition-colors hover:bg-error/10"
+            className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-error transition-colors hover:bg-error/10"
             onClick={() => {
               setOpen(false);
               onUnlink();

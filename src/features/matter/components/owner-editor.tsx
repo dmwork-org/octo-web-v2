@@ -91,7 +91,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
       await addAssignee(matterId, uid);
       return { uid, added: true };
     },
-    onSuccess: ({ uid, added }) => {
+    onSuccess: ({ added }) => {
       void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
       void qc.invalidateQueries({
         queryKey: mattersQueryKey(undefined).slice(0, 2),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Download } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -60,7 +60,17 @@ export function TimelinePanel({
 }: TimelinePanelProps) {
   const [sortNewest, setSortNewest] = useState(true);
 
-  const sorted = [...entries].sort((a, b) => {
+  // 去重：确保每个 entry id 唯一
+  const uniqueEntries = useMemo(() => {
+    const seen = new Set<string>();
+    return entries.filter((e) => {
+      if (seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+  }, [entries]);
+
+  const sorted = [...uniqueEntries].sort((a, b) => {
     const ta = new Date(a.created_at).getTime();
     const tb = new Date(b.created_at).getTime();
     return sortNewest ? tb - ta : ta - tb;

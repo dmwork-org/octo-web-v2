@@ -26,45 +26,40 @@ export function MatterListPanel() {
       style={{ width }}
       className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
     >
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          {matterId ? (
-            <button
-              type="button"
-              onClick={() => chatSidePanelActions.selectMatter(null)}
-              className="text-[13px] text-text-tertiary hover:text-text-secondary"
-            >
-              {t("matterListPanel.backToList")}
-            </button>
-          ) : (
-            <h3 className="truncate text-sm font-semibold text-text-primary">
-              {t("matterListPanel.title")}
-            </h3>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => chatSidePanelActions.close()}
-          aria-label={t("matterListPanel.closeAria")}
-          className="flex h-6 w-6 items-center justify-center text-text-tertiary hover:text-text-secondary"
-        >
-          <X size={16} />
-        </button>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {matterId ? (
+      {matterId ? (
+        /* 详情态: MatterDetailPanel 自带 header (标题+状态+关闭按钮) */
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <MatterDetailInner
             matterId={matterId}
             onClose={() => chatSidePanelActions.selectMatter(null)}
+            showClose
           />
-        ) : (
-          <MatterList
-            selectedId={null}
-            onSelect={(id) => chatSidePanelActions.selectMatter(id)}
-            channel={channel ?? undefined}
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        /* 列表态: 外层 header + MatterList */
+        <>
+          <header className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
+            <h3 className="truncate text-sm font-semibold text-text-primary">
+              {t("matterListPanel.title")}
+            </h3>
+            <button
+              type="button"
+              onClick={() => chatSidePanelActions.close()}
+              aria-label={t("matterListPanel.closeAria")}
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary hover:text-text-secondary"
+            >
+              <X size={16} />
+            </button>
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <MatterList
+              selectedId={null}
+              onSelect={(id) => chatSidePanelActions.selectMatter(id)}
+              channel={channel ?? undefined}
+            />
+          </div>
+        </>
+      )}
 
       <PanelSplitter
         side="left"

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -25,18 +25,6 @@ export interface AnchorPopoverProps {
 }
 
 // ─── Types ──────────────────────────────────────────────
-
-interface LoadedMessage {
-  id: string;
-  ok: true;
-  data: IMMessageResp;
-}
-interface FailedMessage {
-  id: string;
-  ok: false;
-  reason: "not_found" | "error";
-}
-type FetchResult = LoadedMessage | FailedMessage;
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -216,9 +204,9 @@ export function AnchorPopover({
                 <MessageRow
                   key={msg.message_idstr}
                   msg={msg}
-                  onJump={onJumpToMessage ? () => {
+                  onJump={onJumpToMessage && msg.message_seq != null ? () => {
                     onClose();
-                    onJumpToMessage(msg.message_seq);
+                    onJumpToMessage(msg.message_seq!);
                   } : undefined}
                 />
               ))}

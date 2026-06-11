@@ -81,7 +81,7 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
         <button
           type="button"
           disabled={updateMu.isPending}
-          className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-sm leading-[18px] text-text-tertiary transition-colors hover:text-text-primary disabled:opacity-50"
+          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-sm leading-[18px] text-text-tertiary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <CalendarIcon />
           {deadline ? formatDeadlineLabel(deadline) : t("matter.deadline.set")}

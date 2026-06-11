@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -132,7 +132,11 @@ export function ChatMain() {
         />
       ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
-      {sidePanelKind === "matter" ? <MatterListPanel /> : null}
+      {sidePanelKind === "matter" ? (
+        <Suspense fallback={<div className="flex h-full w-80 shrink-0 items-center justify-center border-l border-border-default bg-bg-base text-sm text-text-tertiary">加载中…</div>}>
+          <MatterListPanel />
+        </Suspense>
+      ) : null}
       {sidePanelKind === "summary" ? (
         <ChatSummaryPanel onCreateNew={() => setSummaryCreateChannel(channel)} />
       ) : null}

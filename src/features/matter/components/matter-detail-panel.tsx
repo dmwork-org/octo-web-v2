@@ -49,21 +49,11 @@ import type {
 interface MatterDetailPanelProps {
   matterId: string;
   onClose: () => void;
+  /** 嵌入模式：显示关闭按钮，标题在 header 内 */
+  showClose?: boolean;
 }
 
 type SecondaryTab = "channels" | "outputs" | "changelog";
-
-const STATUS_KEY: Record<MatterStatus, string> = {
-  open: "matter.status.open",
-  done: "matter.status.done",
-  archived: "matter.status.archived",
-};
-
-const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-[#ebf9ff] text-[#005694]",
-  done: "bg-[#ecf9ec] text-[#176221]",
-  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
-};
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -101,7 +91,7 @@ function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, should
  * Matter 详情面板(1:1 对齐 P3-matter 设计稿 + 原 dmworktodo MatterDetailPanel
  * 独立模式样式)。
  */
-export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
+export function MatterDetailPanel({ matterId, onClose, showClose = false }: MatterDetailPanelProps) {
   const t = useT();
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
   const deleteMu = useDeleteMatter();
@@ -172,7 +162,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         toast.error(t("matter.outputs.downloadFailed"));
       }
     },
-    [],
+    [t],
   );
 
   // ── Outputs (产出文件) ──
@@ -258,7 +248,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   // 来源群成员判断
   const isSourceMember = (() => {
-    if (!data.source_channel_id) return false;
+    if (!data.source_channel_id) return true; // 无来源群, 不限制
     if (myGroupsQ.isError) return false;
     const parentNo = toParentGroupNo(data.source_channel_id, data.source_channel_type ?? 2);
     return myGroupNos.has(parentNo);
@@ -294,48 +284,110 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
-      {/* ── Header:状态 pill + DDL ── */}
-      <header className="flex shrink-0 items-center gap-2 rounded-t-lg border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
-        <StatusPicker
-          status={data.status}
-          seqNo={data.seq_no}
-          onChange={handleStatusChange}
-          isCreator={currentUid === data.creator_id}
-          canEditStatus={isOwner}
-        />
-        <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+      {/* ── Header ── */}
+      <header className="flex shrink-0 items-center justify-between border-b px-4 py-2 rounded-t-lg" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
+        {showClose ? (
+          /* 嵌入模式：标题+状态在第一行，日期在第二行，右侧关闭按钮 */
+          <>
+            <div className="flex min-w-0 flex-1 flex-col gap-0">
+              <div className="flex items-center gap-2">
+                {/* 嵌入模式标题（带 M-xxx 前缀） */}
+                {editingTitle ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <span className="shrink-0 text-[14px] font-medium text-text-primary">M-{data.seq_no}｜</span>
+                    <input
+                      ref={titleInputRef}
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveTitle();
+                        if (e.key === "Escape") cancelEditing();
+                      }}
+                      onBlur={saveTitle}
+                      className="min-w-0 flex-1 bg-transparent text-[14px] font-medium leading-[20px] text-text-primary outline-none"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-left text-[14px] font-medium leading-[20px] text-text-primary transition-opacity hover:opacity-70"
+                    title={t("matter.detail.clickToEdit")}
+                  >
+                    M-{data.seq_no}｜{data.title}
+                  </button>
+                )}
+                <StatusPicker
+                  status={data.status}
+                  seqNo={data.seq_no}
+                  onChange={handleStatusChange}
+                  isCreator={currentUid === data.creator_id}
+                  canEditStatus={isOwner}
+                />
+              </div>
+              <div className="flex items-center gap-0.5">
+                <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+              </div>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              aria-label={t("matter.action.close")}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          /* 独立模式：状态pill + 日期 */
+          <div className="flex flex-1 items-center gap-2">
+            <StatusPicker
+              status={data.status}
+              seqNo={data.seq_no}
+              onChange={handleStatusChange}
+              isCreator={currentUid === data.creator_id}
+              canEditStatus={isOwner}
+            />
+            <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+          </div>
+        )}
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* ── Title（点击可编辑）── */}
-        {editingTitle ? (
-          <div className="px-4 pt-5">
-            <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
-              <input
-                ref={titleInputRef}
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveTitle();
-                  if (e.key === "Escape") cancelEditing();
-                }}
-                onBlur={saveTitle}
-                className="w-full bg-transparent px-1 py-0.5 text-[24px] leading-[1.25] font-semibold text-text-primary outline-none"
-              />
+        {/* ── Title（独立模式下显示）── */}
+        {!showClose && (
+          editingTitle ? (
+            <div className="px-4 pt-4">
+              <div className="rounded-sm border border-accent bg-bg-surface shadow-[0_0_0_2px_rgba(127,59,245,0.1)]">
+                <input
+                  ref={titleInputRef}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveTitle();
+                    if (e.key === "Escape") cancelEditing();
+                  }}
+                  onBlur={saveTitle}
+                  className="w-full bg-transparent px-1.5 py-1 text-[20px] leading-[26px] font-semibold text-text-primary outline-none"
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <h1 className="px-4 pt-5">
-            <button
-              type="button"
-              onClick={startEditing}
-              className="w-full rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
-              title={t("matter.detail.clickToEdit")}
-            >
-              {data.title}
-              {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
-            </button>
-          </h1>
+          ) : (
+            <h1 className="px-4 pt-4">
+              <button
+                type="button"
+                onClick={startEditing}
+                className="w-full cursor-pointer rounded-sm border border-transparent px-1.5 py-1 text-left text-[20px] leading-[26px] font-semibold text-text-primary transition-colors hover:bg-brand-tint-04"
+                title={t("matter.detail.clickToEdit")}
+              >
+                {data.title}
+                {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
+              </button>
+            </h1>
+          )
         )}
 
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
@@ -386,11 +438,28 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
                     {t("matter.label.fromHiddenChannel")}
                   </span>
                 )}
-              </div>{sourceAnchor && (<AnchorPopover open channelId={data.source_channel_id ?? ""} channelType={data.source_channel_type ?? 2} channelName={displaySourceName} messageIds={data.source_msgs ?? []} onClose={() => setSourceAnchor(null)} x={sourceAnchor.x} top={sourceAnchor.top} bottom={sourceAnchor.bottom} onJumpToMessage={handleJumpToMessage} />)}</div>) : null}</MainGoalEditor>
+              </div>
+              {sourceAnchor && (
+                <AnchorPopover
+                  open
+                  channelId={data.source_channel_id ?? ""}
+                  channelType={data.source_channel_type ?? 2}
+                  channelName={displaySourceName}
+                  messageIds={data.source_msgs ?? []}
+                  onClose={() => setSourceAnchor(null)}
+                  x={sourceAnchor.x}
+                  top={sourceAnchor.top}
+                  bottom={sourceAnchor.bottom}
+                  onJumpToMessage={handleJumpToMessage}
+                />
+              )}
+            </div>
+          ) : null}
+        </MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-sm text-text-tertiary">
+        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-xs text-icon-default">
           <FieldChip label={t("matter.sidebar.createdByLabel")}>
             <UserChip uid={data.creator_id} />
           </FieldChip>
@@ -406,7 +475,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 border-b border-border-subtle px-4">
+        <div className="mt-6 mb-4 h-[47px] border-b border-brand-tint px-4">
           <div className="flex items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
@@ -470,18 +539,6 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
         onCancel={() => setConfirmDelete(false)}
       />
     </section>
-  );
-}
-
-/** 状态 + M-序号 合并 pill(同 SidebarCard 风格)。 */
-function StatusPill({ status, seqNo }: { status: MatterStatus; seqNo: number }) {
-  const t = useT();
-  const cls = STATUS_CLASS[status];
-  return (
-    <span className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${cls}`}>
-      <span className="font-semibold">{t(STATUS_KEY[status])}</span>
-      {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
-    </span>
   );
 }
 
@@ -702,11 +759,11 @@ function ChannelsTab({
 
       {/* 已关联群聊列表 */}
       {channels.length === 0 ? (
-        <div className="rounded border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
+        <div className="rounded-md border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
           {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-2">
           {channels.map((mc) => {
             // 判断成员权限
             const parentGroupNo = toParentGroupNo(mc.channel_id, mc.channel_type);
@@ -714,11 +771,11 @@ function ChannelsTab({
             const latestEntry = latestByChannel.get(mc.channel_id);
 
             return (
-              <li key={mc.id} className="flex flex-col gap-4 rounded-2xl bg-brand-tint-04 p-3">
+              <li key={mc.id} className="flex flex-col gap-4 rounded-lg bg-brand-tint-04 p-2">
                 {/* Card head */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-medium leading-[20px] text-text-primary">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[14px] font-normal leading-[20px] text-text-primary">
                       #
                       <ChannelNameLabel
                         channelId={mc.channel_id}
@@ -729,10 +786,10 @@ function ChannelsTab({
                       />
                     </span>
                     {!myGroupsLoading && !isMember && <NotMemberBadge />}
+                    <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
+                      {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
-                    {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
-                  </span>
                   {isMember && (
                     <ChannelMoreMenu
                       channelId={mc.channel_id}
@@ -745,13 +802,13 @@ function ChannelsTab({
                 {/* 最新进展：仅成员可见 */}
                 {isMember && latestEntry !== undefined && latestEntry !== null && (
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-1 text-[14px] leading-[20px] text-[rgba(28,28,35,0.8)]">
+                    <div className="flex items-center gap-1 text-[14px] leading-[20px]">
                       <ChannelAvatar
                         channel={new Channel(latestEntry.user_id, ChannelTypePerson)}
-                        size={16}
+                        size={20}
                         title={latestEntry.user_id}
                       />
-                      <UserName uid={latestEntry.user_id} className="font-normal" />
+                      <UserName uid={latestEntry.user_id} className="font-normal text-[rgba(28,28,35,0.8)]" />
                       <span className="text-icon-muted">{formatDateTime(latestEntry.created_at)}</span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">
@@ -864,8 +921,8 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
     <button
       type="button"
       onClick={onClick}
-      className={`relative inline-flex h-[47px] items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] font-normal text-[rgba(28,28,35,0.9)] transition-colors cursor-pointer hover:text-text-primary ${
-        active ? "text-text-primary" : ""
+      className={`relative inline-flex h-full cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors hover:text-text-primary ${
+        active ? "font-semibold text-text-primary" : "font-normal text-text-primary"
       }`}
     >
       {label}

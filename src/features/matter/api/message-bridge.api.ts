@@ -10,6 +10,8 @@ export interface IMMessageResp {
   channel_type: number;
   timestamp: number;
   payload: Record<string, unknown>;
+  /** 消息序号（用于跳转定位） */
+  message_seq?: number;
 }
 
 /**

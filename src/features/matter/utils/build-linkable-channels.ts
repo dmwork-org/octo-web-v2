@@ -70,7 +70,7 @@ export async function buildLinkableChannels(
     channelId: g.group_no,
     channelType: ChannelTypeGroup,
     name: g.name,
-    desc: g.remark,
+    desc: g.notice,
     memberCount: g.member_count,
   }));
 

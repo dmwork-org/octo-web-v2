@@ -1,4 +1,4 @@
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { useEditor, EditorContent } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { useEffect, useRef } from "react";
@@ -15,27 +15,6 @@ interface RichEditorProps {
   readOnly?: boolean;
   className?: string;
   autoFocus?: boolean;
-}
-
-/**
- * 当外部 value 变化(比如 query refetch 拿到最新 description)且与 editor 内部
- * HTML 不同时,同步进 editor。命名 hook 包 useEffect 符合 no-useeffect-in-component。
- *
- * **防循环**:用 useRef 记录最后一次同步进 editor 的 value,只有外部 value 与
- * ref 不同时才 setContent。这样 editor onUpdate → onChange → setDraft → value
- * 变化时,value 与 ref 相同(都是刚从 editor 拿出来的 HTML),不会触发二次 setContent,
- * 避免无限循环。
- */
-function useSyncExternalValue(editor: Editor | null, value: string) {
-  const lastSynced = useRef(value);
-  useEffect(() => {
-    if (!editor) return;
-    // 只有外部 value 与上次同步值不同时才更新(防止 onUpdate→onChange→value 循环)
-    if (value !== lastSynced.current) {
-      lastSynced.current = value;
-      editor.commands.setContent(value || "", { emitUpdate: false });
-    }
-  }, [editor, value]);
 }
 
 /**
@@ -56,6 +35,9 @@ export function RichEditor({
   className,
   autoFocus,
 }: RichEditorProps) {
+  // 用 ref 追踪内部快照,在 onUpdate 时同步,防止 useEffect 误判为外部变更
+  const internalSnapshot = useRef(value);
+
   const editor = useEditor({
     immediatelyRender: false,
     editable: !readOnly,
@@ -81,14 +63,24 @@ export function RichEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange?.(e.getHTML());
+      const html = e.getHTML();
+      // 🔑 关键:编辑器自身内容变更时,立即同步 ref,打断循环
+      internalSnapshot.current = html;
+      onChange?.(html);
     },
     onBlur: ({ editor: e }) => {
       onBlur?.(e.getHTML());
     },
   });
 
-  useSyncExternalValue(editor, value);
+  // 外部 value 同步到 editor(仅当 value 来自外部如 refetch 时)
+  useEffect(() => {
+    if (!editor) return;
+    if (value !== internalSnapshot.current) {
+      internalSnapshot.current = value;
+      editor.commands.setContent(value || "", { emitUpdate: false });
+    }
+  }, [editor, value]);
 
   return <EditorContent editor={editor} />;
 }

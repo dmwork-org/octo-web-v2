@@ -55,18 +55,6 @@ interface MatterDetailPanelProps {
 
 type SecondaryTab = "channels" | "outputs" | "changelog";
 
-const STATUS_KEY: Record<MatterStatus, string> = {
-  open: "matter.status.open",
-  done: "matter.status.done",
-  archived: "matter.status.archived",
-};
-
-const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-[#ebf9ff] text-[#005694]",
-  done: "bg-[#ecf9ec] text-[#176221]",
-  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
-};
-
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const mm = String(d.getMonth() + 1);
@@ -174,7 +162,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         toast.error(t("matter.outputs.downloadFailed"));
       }
     },
-    [],
+    [t],
   );
 
   // ── Outputs (产出文件) ──
@@ -260,7 +248,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
 
   // 来源群成员判断
   const isSourceMember = (() => {
-    if (!data.source_channel_id) return false;
+    if (!data.source_channel_id) return true; // 无来源群, 不限制
     if (myGroupsQ.isError) return false;
     const parentNo = toParentGroupNo(data.source_channel_id, data.source_channel_type ?? 2);
     return myGroupNos.has(parentNo);
@@ -450,7 +438,24 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                     {t("matter.label.fromHiddenChannel")}
                   </span>
                 )}
-              </div>{sourceAnchor && (<AnchorPopover open channelId={data.source_channel_id ?? ""} channelType={data.source_channel_type ?? 2} channelName={displaySourceName} messageIds={data.source_msgs ?? []} onClose={() => setSourceAnchor(null)} x={sourceAnchor.x} top={sourceAnchor.top} bottom={sourceAnchor.bottom} onJumpToMessage={handleJumpToMessage} />)}</div>) : null}</MainGoalEditor>
+              </div>
+              {sourceAnchor && (
+                <AnchorPopover
+                  open
+                  channelId={data.source_channel_id ?? ""}
+                  channelType={data.source_channel_type ?? 2}
+                  channelName={displaySourceName}
+                  messageIds={data.source_msgs ?? []}
+                  onClose={() => setSourceAnchor(null)}
+                  x={sourceAnchor.x}
+                  top={sourceAnchor.top}
+                  bottom={sourceAnchor.bottom}
+                  onJumpToMessage={handleJumpToMessage}
+                />
+              )}
+            </div>
+          ) : null}
+        </MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
@@ -534,18 +539,6 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         onCancel={() => setConfirmDelete(false)}
       />
     </section>
-  );
-}
-
-/** 状态 + M-序号 合并 pill(同 SidebarCard 风格)。 */
-function StatusPill({ status, seqNo }: { status: MatterStatus; seqNo: number }) {
-  const t = useT();
-  const cls = STATUS_CLASS[status];
-  return (
-    <span className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${cls}`}>
-      <span className="font-semibold">{t(STATUS_KEY[status])}</span>
-      {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
-    </span>
   );
 }
 

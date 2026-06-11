@@ -13,7 +13,7 @@ import WKSDK, {
   type SendackPacket,
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
-import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
+import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
@@ -34,10 +34,15 @@ import { TypingManager } from "@/features/chat/services/typing-manager";
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
  *
- * **空间隔离双保险**:
- *   - hook 层:`isChannelOfSpace(channel, spaceId)` — channel 不属当前 Space 不挂 listener
- *   - listener 层:messageListener 内 `isMessageOfSpace` — Person 私聊
- *     (尤其 BotFather 这类全局 bot)按 message.content.contentObj.space_id 过滤
+ * **空间隔离**:
+ *   - MessageList 只挂在当前选中 channel 上,选中态随 Space 切换清理;
+ *   - listener 层仅对 Person 私聊做 `isMessageOfSpace` 过滤
+ *     (尤其 BotFather 这类全局 bot)按 message.content.contentObj.space_id 过滤。
+ *
+ * 当前会话不要在 hook 入口用 `isChannelOfSpace` fail-close:群聊的
+ * channelSpaceMap / channelInfo 可能在首次打开时尚未回填,会导致 SDK
+ * `send()` 立即触发的本地 messageListener 和后续 ack 都没订阅到,表现为
+ * "发送后不刷新,切换会话回来才补差"。
  *
  * **typing 联动**(对齐旧 dmworkbase TypingManager):
  *   - CMD `cmd: 'typing'` → TypingManager.addTyping(对齐旧 module.tsx:290)
@@ -51,8 +56,6 @@ export function useMessagesSync(channel: Channel | null) {
 
   useEffect(() => {
     if (!channel) return;
-    // Space 隔离兜底:channel 不属当前 Space 不挂 listener(防 cache 跨 Space 渗漏)
-    if (!isChannelOfSpace(channel, spaceId)) return;
     const key = messagesQueryKey(channel.channelID, channel.channelType);
 
     const updateInPlace = (predicate: (m: Message) => boolean, update: (m: Message) => void) => {
@@ -78,9 +81,9 @@ export function useMessagesSync(channel: Channel | null) {
       // typing 消息(理论上走 CMD,兜底):不写 cache
       if (message.contentType === MessageContentTypeConst.typing) return;
       // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id);
-      // Group/Thread **不**二次守 — hook 顶层 isChannelOfSpace 已守过当前 channel,
-      // 在 listener 内重复 isChannelOfSpace 风险:channelSpaceMap / channelInfo
-      // 还没填充时 fail-close 静默丢消息,导致主面板看不到新消息但 sidebar 能看到。
+      // Group/Thread 不二次守:当前 MessageList 已绑定选中会话;在 listener 内
+      // 重复 isChannelOfSpace 风险是 channelSpaceMap / channelInfo 还没填充时
+      // fail-close 静默丢消息,导致主面板看不到新消息但 sidebar 能看到。
       if (
         message.channel.channelType === ChannelTypePerson &&
         !isMessageOfSpace(message, spaceId)

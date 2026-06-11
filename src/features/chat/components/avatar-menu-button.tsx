@@ -50,7 +50,7 @@ export function AvatarMenuButton({
 
   const onShowUser = () => {
     setOpen(false);
-    openChatProfile(senderUid);
+    openChatProfile(senderUid, messageChannel);
   };
 
   return (

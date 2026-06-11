@@ -8,6 +8,7 @@ import { Store } from "@tanstack/react-store";
 export interface ChatProfileState {
   kind: "user" | "bot" | null;
   uid: string | null;
+  groupNo?: string;
 }
 
 export const chatProfileStore = new Store<ChatProfileState>({
@@ -16,7 +17,8 @@ export const chatProfileStore = new Store<ChatProfileState>({
 });
 
 export const chatProfileActions = {
-  openUser: (uid: string) => chatProfileStore.setState(() => ({ kind: "user", uid })),
+  openUser: (uid: string, groupNo?: string) =>
+    chatProfileStore.setState(() => ({ kind: "user", uid, groupNo })),
   openBot: (uid: string) => chatProfileStore.setState(() => ({ kind: "bot", uid })),
   close: () => chatProfileStore.setState(() => ({ kind: null, uid: null })),
 };

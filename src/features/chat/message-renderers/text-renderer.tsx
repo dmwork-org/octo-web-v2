@@ -32,7 +32,17 @@ interface TextRendererProps {
  * brand 色文本 + 浅 brand 底胶囊,@all 用纯 brand 色无背景。
  * uid 非空时 click 弹 UserInfoModal / BotDetailModal(经 openChatProfile 判 bot)。
  */
-function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolean; uid?: string }) {
+function MentionTag({
+  children,
+  isAll,
+  sourceChannel,
+  uid,
+}: {
+  children: string;
+  isAll?: boolean;
+  sourceChannel?: Channel;
+  uid?: string;
+}) {
   const clickable = !isAll && !!uid;
   // 旧 mention-entity CSS:#6B3DD8 紫 + rgba(107,61,216,0.08) bg + 4px 圆角 + 2px/8px padding + 500
   // brand 主题色实际是 #1c1c23 黑灰,mention 紫色固定不随主题,inline 紫色值。
@@ -47,7 +57,7 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        openChatProfile(uid);
+        openChatProfile(uid, sourceChannel);
       }}
       className={`${base} cursor-pointer bg-[rgba(107,61,216,0.08)] hover:bg-[rgba(107,61,216,0.12)]`}
     >
@@ -194,7 +204,7 @@ function mentionTokens(
         tokens.push({
           match,
           render: (key) => (
-            <MentionTag key={key} uid={uid}>
+            <MentionTag key={key} sourceChannel={channel} uid={uid}>
               {match}
             </MentionTag>
           ),

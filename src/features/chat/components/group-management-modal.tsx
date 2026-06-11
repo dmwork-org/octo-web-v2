@@ -328,23 +328,21 @@ export function GroupManagementModal({
               emptyText={tt("groupMgmt.noBotAdmins")}
             />
             {canManage ? (
-              <div className="mx-4 mb-3">
-                <SectionGroup>
-                  <NavRow
-                    title={tt("groupMgmt.memberManagement")}
-                    subTitle={tt("groupMgmt.memberManagementHint", {
-                      values: { count: subscribers.length },
-                    })}
-                    onClick={() => setMembersOpen(true)}
-                  />
-                  <ToggleRow
-                    title={tt("groupMgmt.allowNoMention")}
-                    checked={allowNoMention}
-                    loading={allowNoMentionMu.isPending}
-                    onChange={(v) => allowNoMentionMu.mutate(v)}
-                  />
-                </SectionGroup>
-              </div>
+              <SectionGroup>
+                <NavRow
+                  title={tt("groupMgmt.memberManagement")}
+                  subTitle={tt("groupMgmt.memberManagementHint", {
+                    values: { count: subscribers.length },
+                  })}
+                  onClick={() => setMembersOpen(true)}
+                />
+                <ToggleRow
+                  title={tt("groupMgmt.allowNoMention")}
+                  checked={allowNoMention}
+                  loading={allowNoMentionMu.isPending}
+                  onChange={(v) => allowNoMentionMu.mutate(v)}
+                />
+              </SectionGroup>
             ) : null}
           </div>
         )}

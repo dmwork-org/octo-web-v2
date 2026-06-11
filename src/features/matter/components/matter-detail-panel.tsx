@@ -297,11 +297,11 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header ── */}
-      <header className="flex shrink-0 items-start gap-2 border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
+      <header className="flex shrink-0 items-center justify-between border-b px-4 py-2 rounded-t-lg" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
         {showClose ? (
           /* 嵌入模式：标题+状态在第一行，日期在第二行，右侧关闭按钮 */
           <>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-0">
               <div className="flex items-center gap-2">
                 {/* 嵌入模式标题（带 M-xxx 前缀） */}
                 {editingTitle ? (
@@ -323,7 +323,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                   <button
                     type="button"
                     onClick={startEditing}
-                    className="min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 text-left text-[14px] font-medium leading-[20px] text-text-primary transition-colors hover:bg-bg-hover"
+                    className="min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-left text-[14px] font-medium leading-[20px] text-text-primary transition-opacity hover:opacity-70"
                     title={t("matter.detail.clickToEdit")}
                   >
                     M-{data.seq_no}｜{data.title}
@@ -337,7 +337,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                   canEditStatus={isOwner}
                 />
               </div>
-              <div className="flex items-center">
+              <div className="flex items-center gap-0.5">
                 <DeadlinePicker matterId={matterId} deadline={data.deadline} />
               </div>
             </div>
@@ -355,7 +355,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
           </>
         ) : (
           /* 独立模式：状态pill + 日期 */
-          <>
+          <div className="flex flex-1 items-center gap-2">
             <StatusPicker
               status={data.status}
               seqNo={data.seq_no}
@@ -364,7 +364,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
               canEditStatus={isOwner}
             />
             <DeadlinePicker matterId={matterId} deadline={data.deadline} />
-          </>
+          </div>
         )}
       </header>
 
@@ -372,8 +372,8 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         {/* ── Title（独立模式下显示）── */}
         {!showClose && (
           editingTitle ? (
-            <div className="px-4 pt-5">
-              <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
+            <div className="px-4 pt-4">
+              <div className="rounded-sm border border-accent bg-bg-surface shadow-[0_0_0_2px_rgba(127,59,245,0.1)]">
                 <input
                   ref={titleInputRef}
                   value={titleDraft}
@@ -383,16 +383,16 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                     if (e.key === "Escape") cancelEditing();
                   }}
                   onBlur={saveTitle}
-                  className="w-full bg-transparent px-1 py-0.5 text-[24px] leading-[1.25] font-semibold text-text-primary outline-none"
+                  className="w-full bg-transparent px-1.5 py-1 text-[20px] leading-[26px] font-semibold text-text-primary outline-none"
                 />
               </div>
             </div>
           ) : (
-            <h1 className="px-4 pt-5">
+            <h1 className="px-4 pt-4">
               <button
                 type="button"
                 onClick={startEditing}
-                className="w-full cursor-pointer rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
+                className="w-full cursor-pointer rounded-sm border border-transparent px-1.5 py-1 text-left text-[20px] leading-[26px] font-semibold text-text-primary transition-colors hover:bg-brand-tint-04"
                 title={t("matter.detail.clickToEdit")}
               >
                 {data.title}
@@ -454,7 +454,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-sm text-text-tertiary">
+        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-xs text-icon-default">
           <FieldChip label={t("matter.sidebar.createdByLabel")}>
             <UserChip uid={data.creator_id} />
           </FieldChip>
@@ -470,7 +470,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 border-b border-border-subtle px-4">
+        <div className="mt-6 h-[47px] border-b border-brand-tint px-4">
           <div className="flex items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
@@ -766,11 +766,11 @@ function ChannelsTab({
 
       {/* 已关联群聊列表 */}
       {channels.length === 0 ? (
-        <div className="rounded border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
+        <div className="rounded-md border border-dashed border-border-default py-8 text-center text-xs text-text-quaternary">
           {t("matter.detail.noLinkedChannels")}
         </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-2">
           {channels.map((mc) => {
             // 判断成员权限
             const parentGroupNo = toParentGroupNo(mc.channel_id, mc.channel_type);
@@ -778,11 +778,11 @@ function ChannelsTab({
             const latestEntry = latestByChannel.get(mc.channel_id);
 
             return (
-              <li key={mc.id} className="flex flex-col gap-4 rounded-2xl bg-brand-tint-04 p-3">
+              <li key={mc.id} className="flex flex-col gap-4 rounded-lg bg-brand-tint-04 p-2">
                 {/* Card head */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-medium leading-[20px] text-text-primary">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[14px] font-normal leading-[20px] text-text-primary">
                       #
                       <ChannelNameLabel
                         channelId={mc.channel_id}
@@ -793,10 +793,10 @@ function ChannelsTab({
                       />
                     </span>
                     {!myGroupsLoading && !isMember && <NotMemberBadge />}
+                    <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
+                      {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
-                    {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
-                  </span>
                   {isMember && (
                     <ChannelMoreMenu
                       channelId={mc.channel_id}
@@ -809,13 +809,13 @@ function ChannelsTab({
                 {/* 最新进展：仅成员可见 */}
                 {isMember && latestEntry !== undefined && latestEntry !== null && (
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-1 text-[14px] leading-[20px] text-[rgba(28,28,35,0.8)]">
+                    <div className="flex items-center gap-1 text-[14px] leading-[20px]">
                       <ChannelAvatar
                         channel={new Channel(latestEntry.user_id, ChannelTypePerson)}
-                        size={16}
+                        size={20}
                         title={latestEntry.user_id}
                       />
-                      <UserName uid={latestEntry.user_id} className="font-normal" />
+                      <UserName uid={latestEntry.user_id} className="font-normal text-[rgba(28,28,35,0.8)]" />
                       <span className="text-icon-muted">{formatDateTime(latestEntry.created_at)}</span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">
@@ -928,8 +928,8 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
     <button
       type="button"
       onClick={onClick}
-      className={`relative inline-flex h-[47px] items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] font-normal text-[rgba(28,28,35,0.9)] transition-colors cursor-pointer hover:text-text-primary ${
-        active ? "text-text-primary" : ""
+      className={`relative inline-flex h-full cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors hover:text-text-primary ${
+        active ? "font-semibold text-text-primary" : "font-normal text-text-primary"
       }`}
     >
       {label}

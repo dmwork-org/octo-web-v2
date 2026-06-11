@@ -641,6 +641,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       })();
     },
     () => void voiceRec.stop(true),
+    formRef,
   );
 
   const onClickMic = async () => {

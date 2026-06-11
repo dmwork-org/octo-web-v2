@@ -4,6 +4,7 @@ import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { MENTION_UID_AIS, isStickyMentionUid } from "@/features/base/lib/mention-three-state";
+import { resolveMentionListKeyAction } from "./mention-list-keyboard";
 
 /**
  * Mention 候选项 — 字段对齐 TipTap `MentionNodeAttrs = { id, label }`。
@@ -74,15 +75,16 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
 
     useImperativeHandle(ref, () => ({
       onKeyDown: ({ event }) => {
-        if (event.key === "ArrowUp") {
+        const action = resolveMentionListKeyAction(event.key, items.length);
+        if (action === "previous") {
           setActiveIndex((i) => (i + items.length - 1) % items.length);
           return true;
         }
-        if (event.key === "ArrowDown") {
+        if (action === "next") {
           setActiveIndex((i) => (i + 1) % items.length);
           return true;
         }
-        if (event.key === "Enter" || event.key === "Tab") {
+        if (action === "select") {
           selectItem(activeIndex);
           return true;
         }

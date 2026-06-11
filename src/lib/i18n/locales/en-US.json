@@ -54,6 +54,7 @@
   "base.botDetail.editIntro": "Edit description",
   "base.botDetail.intro": "Description",
   "base.botDetail.introPlaceholder": "Write a short description for this bot",
+  "base.botDetail.nickname": "Nickname",
   "base.botDetail.noDescription": "No description",
   "base.botDetail.notReported": "Agent info not reported",
   "base.botDetail.remark": "Remark",

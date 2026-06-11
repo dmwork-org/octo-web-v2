@@ -106,6 +106,7 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
   const deleteMu = useDeleteMatter();
   const updateMu = useUpdateMatter();
+  const transitionMu = useTransitionMatter();
 
   const currentUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const isOwner = currentUid

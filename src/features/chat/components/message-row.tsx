@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import { isMessageSelectable } from "@/features/chat/lib/message-selection";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import {
@@ -66,7 +67,9 @@ function useSenderInfoLive(fromUID: string): void {
     const mgr = WKSDK.shared().channelManager;
     const ch = new Channel(fromUID, ChannelTypePerson);
     if (!mgr.getChannelInfo(ch)) {
-      void mgr.fetchChannelInfo(ch);
+      // 走 tryFetchChannelInfo 模块级 attempted set 防 message-row 多次 mount
+      // 触发同 uid 重复 fetch(issue #84)
+      tryFetchChannelInfo(ch);
     }
     const listener: ChannelInfoListener = (info) => {
       const c = info?.channel;

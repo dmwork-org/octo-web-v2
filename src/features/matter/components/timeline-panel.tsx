@@ -74,8 +74,9 @@ export function TimelinePanel({
         <span className="text-[14px] font-medium leading-[20px] text-text-primary">群内进展</span>
         <button
           type="button"
+          title="切换排序"
           onClick={() => setSortNewest((v) => !v)}
-          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[14px] leading-[20px] text-text-primary transition-colors hover:text-text-primary"
+          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[14px] leading-[20px] text-icon-default transition-colors hover:text-text-primary"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
@@ -128,7 +129,7 @@ export function TimelinePanel({
                     <div key={entry.id} className="flex items-start justify-between gap-2">
                       <div className="flex flex-1 items-start gap-2">
                         {/* 时间 */}
-                        <span className="shrink-0 text-[14px] leading-[20px] text-icon-muted">
+                        <span className="shrink-0 font-sans text-[14px] leading-[20px] text-icon-muted">
                           {formatTime(entry.created_at)}
                         </span>
                         {/* 头像 + 用户名 */}
@@ -143,69 +144,69 @@ export function TimelinePanel({
                             className="text-[14px] font-normal leading-[20px] text-[rgba(28,28,35,0.8)]"
                           />
                         </span>
-                        {/* 冒号 + 内容 */}
-                        <span className="shrink-0 text-[14px] leading-[20px] text-text-primary">
-                          ：
-                        </span>
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <span className="text-[14px] leading-[20px] text-text-primary">
-                            {entry.content || ""}
-                          </span>
-                          {/* 附件列表 */}
-                          {entry.attachments && entry.attachments.length > 0 && (
-                            <div
-                              className="flex flex-wrap gap-1.5"
-                              role="list"
-                              aria-label="附件列表"
-                            >
-                              {entry.attachments.map((att) => {
-                                const name = att.file_name || "未命名文件";
-                                const sizeText =
-                                  att.file_size != null ? formatFileSize(att.file_size) : null;
-                                const iconUrl = getFileIcon(name, att.mime_type || "");
-                                return (
-                                  <div
-                                    key={att.id}
-                                    className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border-subtle bg-bg-surface px-2 py-1 transition-colors hover:border-border-default hover:bg-bg-item-hover"
-                                    role="listitem"
-                                    title={name}
-                                  >
-                                    <img
-                                      src={iconUrl}
-                                      alt=""
-                                      width={20}
-                                      height={20}
-                                      className="shrink-0 object-contain"
-                                      aria-hidden="true"
-                                    />
-                                    <span className="inline-flex min-w-0 max-w-[220px] items-baseline gap-1">
-                                      <span className="truncate text-[12px] leading-[18px] text-text-primary">
-                                        {name}
+                        {/* content-wrap: 冒号 + 内容列 */}
+                        <div className="flex min-w-0 flex-1 items-start">
+                          <span className="shrink-0 text-[14px] leading-[20px] text-text-primary">：</span>
+                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            <span className="whitespace-pre-wrap break-words text-[14px] leading-[20px] text-text-primary">
+                              {entry.content || ""}
+                            </span>
+                            {/* 附件列表 */}
+                            {entry.attachments && entry.attachments.length > 0 && (
+                              <div
+                                className="flex flex-wrap gap-1.5"
+                                role="list"
+                                aria-label="附件列表"
+                              >
+                                {entry.attachments.map((att) => {
+                                  const name = att.file_name || "未命名文件";
+                                  const sizeText =
+                                    att.file_size != null ? formatFileSize(att.file_size) : null;
+                                  const iconUrl = getFileIcon(name, att.mime_type || "");
+                                  return (
+                                    <div
+                                      key={att.id}
+                                      className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border-subtle bg-bg-surface px-2 py-1 transition-colors hover:border-border-default hover:bg-bg-item-hover"
+                                      role="listitem"
+                                      title={name}
+                                    >
+                                      <img
+                                        src={iconUrl}
+                                        alt=""
+                                        width={20}
+                                        height={20}
+                                        className="shrink-0 object-contain"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="inline-flex min-w-0 max-w-[220px] items-baseline gap-1">
+                                        <span className="truncate text-[12px] leading-[18px] text-text-primary">
+                                          {name}
+                                        </span>
+                                        {sizeText && (
+                                          <span className="shrink-0 text-[11px] text-text-tertiary">
+                                            {sizeText}
+                                          </span>
+                                        )}
                                       </span>
-                                      {sizeText && (
-                                        <span className="shrink-0 text-[11px] text-text-tertiary">
-                                          {sizeText}
+                                      {onDownloadAttachment && (
+                                        <span className="inline-flex shrink-0 items-center">
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-xs border-0 bg-transparent text-icon-default transition-colors hover:bg-bg-item-hover hover:text-text-primary"
+                                            title={`下载 ${name}`}
+                                            aria-label={`下载 ${name}`}
+                                            onClick={() => onDownloadAttachment(att, entry)}
+                                          >
+                                            <Download size={14} aria-hidden="true" />
+                                          </button>
                                         </span>
                                       )}
-                                    </span>
-                                    {onDownloadAttachment && (
-                                      <span className="inline-flex shrink-0 items-center">
-                                        <button
-                                          type="button"
-                                          className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-xs border-0 bg-transparent text-icon-default transition-colors hover:bg-bg-item-hover hover:text-text-primary"
-                                          title={`下载 ${name}`}
-                                          aria-label={`下载 ${name}`}
-                                          onClick={() => onDownloadAttachment(att, entry)}
-                                        >
-                                          <Download size={14} aria-hidden="true" />
-                                        </button>
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {/* ↗ 原消息 — isMember 时才渲染 */}
@@ -219,7 +220,7 @@ export function TimelinePanel({
                               ? (ev) => onShowAnchor(entry, ev)
                               : undefined
                           }
-                          className={`shrink-0 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[14px] leading-[20px] text-text-primary transition-colors hover:text-text-primary ${
+                          className={`shrink-0 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[14px] leading-[20px] text-icon-default transition-colors hover:text-text-primary ${
                             !hasSourceMsgs ? "cursor-not-allowed opacity-40" : ""
                           }`}
                         >

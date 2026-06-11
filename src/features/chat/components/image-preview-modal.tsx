@@ -1,10 +1,33 @@
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Download, X } from "lucide-react";
+import { triggerDownload } from "@/features/chat/lib/file-download";
 import { useT } from "@/lib/i18n/use-t";
 
 interface ImagePreviewModalProps {
   src: string;
   onClose: () => void;
+}
+
+function imageFileNameFromSrc(src: string): string {
+  const dataMime = /^data:image\/([a-z0-9.+-]+)[;,]/i.exec(src);
+  if (dataMime?.[1]) {
+    const ext = dataMime[1].replace("svg+xml", "svg").replace("jpeg", "jpg");
+    return `image.${ext}`;
+  }
+
+  try {
+    const parsed = new URL(src, window.location.href);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1];
+    if (!lastSegment) return "image";
+    try {
+      return decodeURIComponent(lastSegment);
+    } catch {
+      return lastSegment;
+    }
+  } catch {
+    return "image";
+  }
 }
 
 /**
@@ -17,6 +40,7 @@ interface ImagePreviewModalProps {
  */
 export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   const t = useT();
+  const filename = imageFileNameFromSrc(src);
   return createPortal(
     <div
       className="fixed inset-0 z-system-overlay flex items-center justify-center bg-black"
@@ -25,17 +49,32 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
       role="dialog"
       aria-modal="true"
     >
-      <button
-        type="button"
-        aria-label={t("imageRenderer.close")}
-        className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-      >
-        <X size={20} />
-      </button>
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={t("imageRenderer.download")}
+          title={t("imageRenderer.download")}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          onClick={(e) => {
+            e.stopPropagation();
+            void triggerDownload(src, filename);
+          }}
+        >
+          <Download size={20} />
+        </button>
+        <button
+          type="button"
+          aria-label={t("imageRenderer.close")}
+          title={t("imageRenderer.close")}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+        >
+          <X size={20} />
+        </button>
+      </div>
       <img src={src} alt="" className="max-h-[100vh] max-w-[100vw] object-contain" />
     </div>,
     document.body,

@@ -25,7 +25,8 @@ export async function triggerDownload(url: string, filename: string): Promise<vo
   }
   let downloadUrl = parsed.href;
   const isCrossOrigin = parsed.origin !== window.location.origin;
-  if (isCrossOrigin && filename) {
+  const supportsPresignedDownload = parsed.protocol === "http:" || parsed.protocol === "https:";
+  if (isCrossOrigin && filename && supportsPresignedDownload) {
     try {
       const resp = await api<{ url?: string }>(
         `file/download/url?path=${encodeURIComponent(parsed.href)}&filename=${encodeURIComponent(filename)}`,

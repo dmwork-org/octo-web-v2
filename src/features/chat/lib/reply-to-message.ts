@@ -18,20 +18,28 @@ const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
  * 不取 subscriber.remark(他人对该用户起的备注),避免 "@ 我自己起的备注"
  * 发出去后对方看到不知所云。
  *
- * **issue #76**:私聊 reply 时,sender channelInfo 通常未预热(没列表/sidebar
- * 触发过 fetch),lookupNicknameLabel 退化到返回 uid → reply digest 显示
- * "回复 ada105087fbe...: ..." 而不是对方名字。在 reply set 时主动触发
- * fetchChannelInfo(uid),channelInfoListener 到位后 composer 通过
- * useChannelInfoTick 重渲拿到 title。
+ * **issue #76 两个根因**:
+ *   1. **channel key 错配** — WKSDK 私聊接收消息时把 `message.channel.channelID`
+ *      设为**接收者 uid(我自己)**而非对端;caller(右键菜单)直接透传
+ *      message.channel,导致 set 用 `自己_Person` 作 key,composer 用
+ *      `对端_Person` 订阅,永远 miss → reply bar 不出现。下方 fixedChannel
+ *      自我修正。
+ *   2. **昵称未预热** — 私聊场景对端 channelInfo 通常没被列表/sidebar
+ *      触发过 fetch,lookupNicknameLabel 兜底回 uid → reply bar 显示
+ *      "回复 ada105...: ..." 而非昵称。这里 set 后主动 fetchChannelInfo,
+ *      lookupNicknameLabel 加 title 兜底,composer 通过 useChannelInfoTick
+ *      在 cache 到位时重渲。
  *
  * caller(右键菜单 / file-preview reply 按钮等)统一走这个 helper,避免不对称。
  */
 export function replyToMessage(channel: Channel, message: Message, myUid: string | null): void {
-  chatReplyActions.set(channel, message);
-  // 主动 fetch sender channelInfo:私聊 reply 场景下对方 info 通常未缓存,
-  // 否则 reply digest 显示 uid(issue #76)。fetchChannelInfo 异步推送
-  // channelInfoListener,各订阅方(composer 通过 useChannelInfoTick / 消息行
-  // 通过 useSenderInfoLive)自动重渲。
+  // 根因 1:fix channel key —— 详见函数 doc。
+  const fixedChannel =
+    channel.channelType === ChannelTypePerson && myUid && channel.channelID === myUid
+      ? new Channel(message.fromUID, ChannelTypePerson)
+      : channel;
+  chatReplyActions.set(fixedChannel, message);
+  // 根因 2:预热 sender channelInfo —— 详见函数 doc。
   if (message.fromUID) {
     const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
     if (!WKSDK.shared().channelManager.getChannelInfo(senderChannel)) {
@@ -40,9 +48,9 @@ export function replyToMessage(channel: Channel, message: Message, myUid: string
   }
   if (!myUid) return;
   if (message.fromUID === myUid) return;
-  if (channel.channelType === ChannelTypePerson) return;
-  const label = lookupNicknameLabel(channel, message.fromUID);
-  chatMentionRequestActions.request(channel, { uid: message.fromUID, label });
+  if (fixedChannel.channelType === ChannelTypePerson) return;
+  const label = lookupNicknameLabel(fixedChannel, message.fromUID);
+  chatMentionRequestActions.request(fixedChannel, { uid: message.fromUID, label });
 }
 
 /**

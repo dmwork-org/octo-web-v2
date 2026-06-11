@@ -30,7 +30,7 @@ function isSafeUrl(url: string): boolean {
  * RichText(=14)图文混排消息(对齐上游 b1bb31df 接收 + fff36eb1 UI 迁移 / file 前向兼容)。
  *
  * 按 content blocks 数组顺序穿插渲染 text / image / file 块:
- *   - text  block:plain text + @ 高亮(MentionAwareText 复用 text-renderer 同款逻辑);
+ *   - text  block:plain text + @ 高亮 + 安全外链高亮;
  *     MVP 锁 markdown(跟上游 enableMarkdown=false 一致,避免 web/mobile 差异)
  *   - image block:url 经 isSafeUrl 校验(仅 http/https);不安全降级为文本占位,
  *     绝不渲染。点击全屏 lightbox 预览
@@ -61,7 +61,7 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
             key={`${message.clientMsgNo}-text-${i}`}
             className="text-[14px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary"
           >
-            <MentionAwareText text={text} mention={mention} />
+            <MentionAwareText text={text} mention={mention} linkify />
           </div>
         );
       })}

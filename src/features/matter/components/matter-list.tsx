@@ -21,7 +21,7 @@ const TAB_KEYS: { id: MatterTab; key: string }[] = [
 interface MatterListProps {
   selectedId: string | null;
   onSelect: (matterId: string) => void;
-  /** 切 tab 时通知 view 层清掉 selectedId / URL state。 */
+  /** 切 tab 时通知 view 层更新 URL。 */
   onTabChange?: (tab: MatterTab) => void;
   /**
    * 群聊 chat header matter panel 触发时传入:
@@ -32,6 +32,12 @@ interface MatterListProps {
    * 不传时 — matter.view + 按钮场景:每个 tab 各自 API 拉,默认 "mine"。
    */
   channel?: Channel;
+  /** 初始 tab（从 URL 读取） */
+  initialTab?: MatterTab;
+  /** 初始搜索关键词（从 URL 读取） */
+  initialQ?: string;
+  /** 搜索关键词变化时通知 view 层更新 URL */
+  onQChange?: (q: string | null) => void;
 }
 
 /** IntersectionObserver 监听 sentinel 触底加载(命名 hook 包 useEffect)。 */
@@ -79,34 +85,53 @@ function filterByTab(all: Matter[], tab: MatterTab, myUid: string): Matter[] {
  * - chat panel 模式(channel 传入):一次按 channel_id 拉全 + 默认 tab=all,
  *   切 tab 走本地 filter(对齐旧 ChatMatterPanel.displayMatters)
  */
-export function MatterList({ selectedId, onSelect, onTabChange, channel }: MatterListProps) {
+export function MatterList({
+  selectedId,
+  onSelect,
+  onTabChange,
+  channel,
+  initialTab,
+  initialQ,
+  onQChange,
+}: MatterListProps) {
   const t = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const isChannelMode = !!channel;
-  const [tab, setTab] = useState<MatterTab>(isChannelMode ? "all" : "mine");
+  const [tab, setTab] = useState<MatterTab>(initialTab ?? (isChannelMode ? "all" : "mine"));
+  const [q, setQ] = useState(initialQ ?? "");
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [activeOpen, setActiveOpen] = useState(true);
 
-  // params:channel 模式 → 一次性按 channel_id 拉;非 channel 模式 → 跟 tab 切换
+  // params:channel 模式 → 一次性按 channel_id 拉;page 模式 → 一次拉全量，本地按 tab 过滤
   const params = useMemo<MatterListParams>(() => {
     if (isChannelMode) return { channel_id: channel.channelID };
-    if (tab === "mine") return { assignee_id: myUid };
-    if (tab === "created") return { creator_id: myUid };
     return {};
-  }, [isChannelMode, channel, tab, myUid]);
+  }, [isChannelMode, channel]);
 
   const query = useInfiniteQuery(mattersListInfiniteQueryOptions(spaceId, params));
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
 
   const all = useMemo<Matter[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
 
-  // channel 模式:已拿 matters 本地按 tab 二次过滤;非 channel 模式:API 已按 tab 过滤,all 即结果
+  // 所有模式都本地按 tab 过滤（一次拉全量，所有 tab 计数都准确）
   const filtered = useMemo<Matter[]>(
-    () => (isChannelMode ? filterByTab(all, tab, myUid) : all),
-    [isChannelMode, all, tab, myUid],
+    () => filterByTab(all, tab, myUid),
+    [all, tab, myUid],
   );
-  const active = filtered.filter((m) => m.status !== "archived");
-  const archived = filtered.filter((m) => m.status === "archived");
+
+  // 搜索过滤（本地过滤，不重新请求 API）
+  const searched = useMemo<Matter[]>(() => {
+    if (!q.trim()) return filtered;
+    const keyword = q.trim().toLowerCase();
+    return filtered.filter(
+      (m) =>
+        m.title.toLowerCase().includes(keyword) || m.description?.toLowerCase().includes(keyword),
+    );
+  }, [filtered, q]);
+
+  const active = searched.filter((m) => m.status !== "archived");
+  const archived = searched.filter((m) => m.status === "archived");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useFetchNextOnInView(sentinelRef, !!hasNextPage && !isFetchingNextPage, fetchNextPage);
@@ -118,34 +143,49 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
     onTabChange?.(tb);
   };
 
+  const handleQChange = (newQ: string) => {
+    setQ(newQ);
+    onQChange?.(newQ || null);
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full bg-bg-elevated p-1">
+      <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1" style={{ background: "rgba(28, 28, 35, 0.04)" }}>
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
-          // count:激活 tab 显示该 tab 命中数(channel 模式按本地 filter;非 channel 模式直接 all.length)
-          const count = isActive ? (isChannelMode ? filtered.length : all.length) : null;
+          // 所有模式都一次拉全量 → 每个 tab 计数都准确
+          const tabFiltered = filterByTab(all, tk.id, myUid);
+          const count = tabFiltered.length;
           return (
             <button
               key={tk.id}
               type="button"
               onClick={() => handleTabChange(tk.id)}
-              className={`flex-1 rounded-full py-1.5 text-sm font-medium transition-all duration-150 ease-(--ease-emphasized) ${
+              className={`flex-1 rounded-full py-1.5 h-9 text-sm font-normal transition-all duration-150 ease-(--ease-emphasized) ${
                 isActive
-                  ? "bg-bg-surface text-text-primary shadow-sm"
-                  : "text-text-tertiary hover:text-text-secondary"
+                  ? "bg-bg-surface text-text-primary shadow-[0_1px_3px_rgba(28,28,35,0.06)]"
+                  : "text-icon-muted hover:text-text-secondary"
               }`}
             >
               {t(tk.key)}
-              {count !== null && count > 0 ? (
-                <span className="ml-1 font-semibold">{count}</span>
-              ) : null}
+              {count > 0 ? <span className="ml-0.5">{count}</span> : null}
             </button>
           );
         })}
       </nav>
 
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
+      {/* 搜索框 */}
+      <div className="mx-3 mb-3">
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => handleQChange(e.target.value)}
+          placeholder={t("matter.list.searchPlaceholder")}
+          className="w-full rounded-md border border-border-subtle bg-bg-elevated px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+        />
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2 py-1 pb-3">
         {isLoading ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
             {t("matter.list.loading")}
@@ -154,33 +194,44 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
           <p className="flex flex-1 items-center justify-center text-sm text-error">
             {t("matter.list.loadFailed")}
           </p>
-        ) : filtered.length === 0 ? (
+        ) : searched.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-            {t("matter.state.empty")}
+            {q.trim() ? t("matter.list.searchEmpty") : t("matter.state.empty")}
           </p>
         ) : (
           <>
-            <SegmentLabel text={t("matter.sidebar.unarchived")} />
-            {active.map((m) => (
-              <SidebarCard
-                key={m.id}
-                matter={m}
-                selected={m.id === selectedId}
-                onClick={() => onSelect(m.id)}
+            <button
+              type="button"
+              onClick={() => setActiveOpen((v) => !v)}
+              className="flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
+            >
+              <SegmentLabel text={t("matter.sidebar.unarchivedWithCount", { values: { count: active.length } })} />
+              <ChevronRight
+                size={14}
+                className={`text-icon-muted transition-transform ${activeOpen ? "rotate-90" : ""}`}
               />
-            ))}
+            </button>
+            {activeOpen &&
+              active.map((m) => (
+                <SidebarCard
+                  key={m.id}
+                  matter={m}
+                  selected={m.id === selectedId}
+                  onClick={() => onSelect(m.id)}
+                />
+              ))}
 
             <button
               type="button"
               onClick={() => setArchivedOpen((v) => !v)}
-              className="mt-2 flex items-center justify-between rounded-md px-1 py-1.5 text-left transition-colors hover:bg-bg-hover"
+              className="mt-2 flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
             >
               <SegmentLabel
                 text={t("matter.sidebar.archivedWithCount", { values: { count: archived.length } })}
               />
               <ChevronRight
                 size={14}
-                className={`text-text-tertiary transition-transform ${archivedOpen ? "rotate-90" : ""}`}
+                className={`text-icon-muted transition-transform ${archivedOpen ? "rotate-90" : ""}`}
               />
             </button>
             {archivedOpen
@@ -210,7 +261,7 @@ export function MatterList({ selectedId, onSelect, onTabChange, channel }: Matte
 /** 列表分段标题:左侧 brand 色短竖条 + 文字。 */
 function SegmentLabel({ text }: { text: string }) {
   return (
-    <span className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+    <span className="flex items-center gap-2 text-xs font-medium text-text-primary">
       <span className="h-3 w-0.5 rounded-full bg-brand" />
       {text}
     </span>

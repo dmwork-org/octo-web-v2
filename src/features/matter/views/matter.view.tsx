@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
-import { MatterList } from "@/features/matter/components/matter-list";
+import { MatterList, type MatterTab } from "@/features/matter/components/matter-list";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { MatterDetailPanel } from "@/features/matter/components/matter-detail-panel";
 import { Route } from "@/routes/_auth.matter";
@@ -26,11 +26,19 @@ export function MatterView() {
   const t = useT();
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const navigate = Route.useNavigate();
-  const { id: selectedId } = Route.useSearch();
+  const { id: selectedId, tab: tabFromUrl, q: qFromUrl } = Route.useSearch();
   const [createOpen, setCreateOpen] = useState(false);
 
   const setSelectedId = (id: string | null) => {
     void navigate({ search: (prev) => ({ ...prev, id: id ?? undefined }) });
+  };
+
+  const setTab = (tab: MatterTab | null) => {
+    void navigate({ search: (prev) => ({ ...prev, tab: tab ?? undefined }) });
+  };
+
+  const setQ = (q: string | null) => {
+    void navigate({ search: (prev) => ({ ...prev, q: q ?? undefined }) });
   };
 
   useResetOnSpaceChange(() => {
@@ -49,7 +57,7 @@ export function MatterView() {
   return (
     <div className="flex flex-1 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border-subtle bg-bg-base">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle bg-bg-surface px-5">
+        <header className="flex h-14 shrink-0 items-center justify-between px-5">
           <span className="text-base font-semibold text-text-primary">
             {t("matter.menu.title")}
           </span>
@@ -70,7 +78,10 @@ export function MatterView() {
         <MatterList
           selectedId={selectedId ?? null}
           onSelect={setSelectedId}
-          onTabChange={() => setSelectedId(null)}
+          onTabChange={setTab}
+          initialTab={tabFromUrl}
+          initialQ={qFromUrl}
+          onQChange={setQ}
         />
       </aside>
 

@@ -8,13 +8,12 @@ const STATUS_KEY: Record<MatterStatus, string> = {
 };
 
 /**
- * 视觉:open 用 brand 色;done 用 online 色;archived 用 tertiary 灰。
- * 旧项目 dmworktodo TodoStatusBadge 同语义,这里精简为 12px 圆角小标签。
+ * 视觉:open 用浅蓝;done 用浅绿;archived 用 tertiary 灰。对齐原 dmworktodo。
  */
 const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-brand-tint text-brand",
-  done: "bg-online/10 text-online",
-  archived: "bg-bg-elevated text-text-tertiary",
+  open: "bg-[#ebf9ff] text-[#005694]",
+  done: "bg-[#ecf9ec] text-[#176221]",
+  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
 };
 
 interface MatterStatusBadgeProps {

@@ -1,0 +1,1034 @@
+index.tsx:31
+  26| 
+  27| /**
+  28|  * MatterList — 统一的事项列表组件
+  29|  *
+  30|  * 合并了原 ChatMatterPanel（会话右侧面板）和 MatterPage（事项页面）的优点：
+> 31|  *   - 来自 MatterPage: 归档折叠区、Tab 数量标签、新建按钮、加载更多
+  32|  *   - 来自 ChatMatterPanel: Splitter 拖拽、关闭按钮、inline 详情模式
+  33|  *
+  34|  * 通过 props 控制不同场景的行为差异。
+  35|  */
+  36| 
+  37| export type NavTab = "mine" | "created" | "all";
+  38| 
+  39| 
+  40| 
+  41| export interface MatterListProps {
+  42|   /**
+  43|    * 模式：
+  44|    * - "channel": 会话侧面板，按 channel_id 过滤，详情 inline 展示
+  45|    * - "page": 事项页面，按用户维度过滤，详情走 routeRight
+  46|    */
+
+index.tsx:37
+  32|  *   - 来自 ChatMatterPanel: Splitter 拖拽、关闭按钮、inline 详情模式
+  33|  *
+  34|  * 通过 props 控制不同场景的行为差异。
+  35|  */
+  36| 
+> 37| export type NavTab = "mine" | "created" | "all";
+  38| 
+  39| 
+  40| 
+  41| export interface MatterListProps {
+  42|   /**
+  43|    * 模式：
+  44|    * - "channel": 会话侧面板，按 channel_id 过滤，详情 inline 展示
+  45|    * - "page": 事项页面，按用户维度过滤，详情走 routeRight
+  46|    */
+  47|   mode: "channel" | "page";
+  48| 
+  49|   // ── channel 模式专用 ──
+  50|   /** 会话 ID（mode="channel" 时必填） */
+  51|   channelId?: string;
+  52|   /** 会话类型（mode="channel" 时必填） */
+
+index.tsx:68
+  63|   showCloseButton?: boolean;
+  64|   /** 显示新建按钮（默认开启） */
+  65|   showCreateButton?: boolean;
+  66|   /** 显示归档折叠区（默认开启） */
+  67|   showArchivedSection?: boolean;
+> 68|   /** 显示 Tab 数量（默认开启） */
+  69|   showTabCounts?: boolean;
+  70|   /** 显示加载更多（默认开启） */
+  71|   showLoadMore?: boolean;
+  72| }
+  73| 
+  74| function buildParams(
+  75|   mode: "channel" | "page",
+  76|   tab: NavTab,
+  77|   myUid: string,
+  78|   channelId?: string,
+  79| ): MatterListParams {
+  80|   if (mode === "channel" && channelId) {
+  81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+
+index.tsx:69
+  64|   /** 显示新建按钮（默认开启） */
+  65|   showCreateButton?: boolean;
+  66|   /** 显示归档折叠区（默认开启） */
+  67|   showArchivedSection?: boolean;
+  68|   /** 显示 Tab 数量（默认开启） */
+> 69|   showTabCounts?: boolean;
+  70|   /** 显示加载更多（默认开启） */
+  71|   showLoadMore?: boolean;
+  72| }
+  73| 
+  74| function buildParams(
+  75|   mode: "channel" | "page",
+  76|   tab: NavTab,
+  77|   myUid: string,
+  78|   channelId?: string,
+  79| ): MatterListParams {
+  80|   if (mode === "channel" && channelId) {
+  81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+  84|   // page 模式：按用户维度过滤
+
+index.tsx:76
+  71|   showLoadMore?: boolean;
+  72| }
+  73| 
+  74| function buildParams(
+  75|   mode: "channel" | "page",
+> 76|   tab: NavTab,
+  77|   myUid: string,
+  78|   channelId?: string,
+  79| ): MatterListParams {
+  80|   if (mode === "channel" && channelId) {
+  81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+  84|   // page 模式：按用户维度过滤
+  85|   if (tab === "mine") return { assignee_id: myUid };
+  86|   if (tab === "created") return { creator_id: myUid };
+  87|   return {};
+  88| }
+  89| 
+  90| 
+  91| 
+
+index.tsx:81
+  76|   tab: NavTab,
+  77|   myUid: string,
+  78|   channelId?: string,
+  79| ): MatterListParams {
+  80|   if (mode === "channel" && channelId) {
+> 81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+  84|   // page 模式：按用户维度过滤
+  85|   if (tab === "mine") return { assignee_id: myUid };
+  86|   if (tab === "created") return { creator_id: myUid };
+  87|   return {};
+  88| }
+  89| 
+  90| 
+  91| 
+  92| export default function MatterList({
+  93|   mode,
+  94|   channelId,
+  95|   channelType,
+  96|   onClose,
+
+index.tsx:85
+  80|   if (mode === "channel" && channelId) {
+  81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+  84|   // page 模式：按用户维度过滤
+> 85|   if (tab === "mine") return { assignee_id: myUid };
+  86|   if (tab === "created") return { creator_id: myUid };
+  87|   return {};
+  88| }
+  89| 
+  90| 
+  91| 
+  92| export default function MatterList({
+  93|   mode,
+  94|   channelId,
+  95|   channelType,
+  96|   onClose,
+  97|   showSplitter = mode === "channel",
+  98|   showCloseButton = mode === "channel",
+  99|   // 新建按钮原本只有 page 模式有；归档折叠和加载更多两种模式共享。
+  100|   showCreateButton = mode === "page",
+
+index.tsx:86
+  81|     // channel 模式：固定按 channel_id 过滤，tab 只做前端筛选
+  82|     return { channel_id: channelId };
+  83|   }
+  84|   // page 模式：按用户维度过滤
+  85|   if (tab === "mine") return { assignee_id: myUid };
+> 86|   if (tab === "created") return { creator_id: myUid };
+  87|   return {};
+  88| }
+  89| 
+  90| 
+  91| 
+  92| export default function MatterList({
+  93|   mode,
+  94|   channelId,
+  95|   channelType,
+  96|   onClose,
+  97|   showSplitter = mode === "channel",
+  98|   showCloseButton = mode === "channel",
+  99|   // 新建按钮原本只有 page 模式有；归档折叠和加载更多两种模式共享。
+  100|   showCreateButton = mode === "page",
+  101|   showArchivedSection = true,
+
+index.tsx:103
+  98|   showCloseButton = mode === "channel",
+  99|   // 新建按钮原本只有 page 模式有；归档折叠和加载更多两种模式共享。
+  100|   showCreateButton = mode === "page",
+  101|   showArchivedSection = true,
+  102|   showLoadMore = true,
+> 103|   // Tab 数量：channel 模式用当前全量数据实时算；page 模式预拉各 tab 首屏计数。
+  104|   showTabCounts = true,
+  105| }: MatterListProps) {
+  106|   const { t } = useI18n();
+  107|   // 默认 tab 按 mode 区分（对齐原组件行为）：
+  108|   //   - channel 模式：默认 "all"（会话侧面板展示该群全部事项）
+  109|   //   - page 模式：默认 "mine"（事项页面默认看我负责的）
+  110|   const [activeTab, setActiveTab] = useState<NavTab>(
+  111|     mode === "channel" ? "all" : "mine",
+  112|   );
+  113|   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  114|   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  115|   // 未归档分组默认展开，可折叠（与已归档对称）。
+  116|   const [activeExpanded, setActiveExpanded] = useState(true);
+  117|   const [showCreateModal, setShowCreateModal] = useState(false);
+  118| 
+
+index.tsx:104
+  99|   // 新建按钮原本只有 page 模式有；归档折叠和加载更多两种模式共享。
+  100|   showCreateButton = mode === "page",
+  101|   showArchivedSection = true,
+  102|   showLoadMore = true,
+  103|   // Tab 数量：channel 模式用当前全量数据实时算；page 模式预拉各 tab 首屏计数。
+> 104|   showTabCounts = true,
+  105| }: MatterListProps) {
+  106|   const { t } = useI18n();
+  107|   // 默认 tab 按 mode 区分（对齐原组件行为）：
+  108|   //   - channel 模式：默认 "all"（会话侧面板展示该群全部事项）
+  109|   //   - page 模式：默认 "mine"（事项页面默认看我负责的）
+  110|   const [activeTab, setActiveTab] = useState<NavTab>(
+  111|     mode === "channel" ? "all" : "mine",
+  112|   );
+  113|   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  114|   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  115|   // 未归档分组默认展开，可折叠（与已归档对称）。
+  116|   const [activeExpanded, setActiveExpanded] = useState(true);
+  117|   const [showCreateModal, setShowCreateModal] = useState(false);
+  118| 
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+
+index.tsx:107
+  102|   showLoadMore = true,
+  103|   // Tab 数量：channel 模式用当前全量数据实时算；page 模式预拉各 tab 首屏计数。
+  104|   showTabCounts = true,
+  105| }: MatterListProps) {
+  106|   const { t } = useI18n();
+> 107|   // 默认 tab 按 mode 区分（对齐原组件行为）：
+  108|   //   - channel 模式：默认 "all"（会话侧面板展示该群全部事项）
+  109|   //   - page 模式：默认 "mine"（事项页面默认看我负责的）
+  110|   const [activeTab, setActiveTab] = useState<NavTab>(
+  111|     mode === "channel" ? "all" : "mine",
+  112|   );
+  113|   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  114|   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  115|   // 未归档分组默认展开，可折叠（与已归档对称）。
+  116|   const [activeExpanded, setActiveExpanded] = useState(true);
+  117|   const [showCreateModal, setShowCreateModal] = useState(false);
+  118| 
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+  120| 
+  121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+
+index.tsx:110
+  105| }: MatterListProps) {
+  106|   const { t } = useI18n();
+  107|   // 默认 tab 按 mode 区分（对齐原组件行为）：
+  108|   //   - channel 模式：默认 "all"（会话侧面板展示该群全部事项）
+  109|   //   - page 模式：默认 "mine"（事项页面默认看我负责的）
+> 110|   const [activeTab, setActiveTab] = useState<NavTab>(
+  111|     mode === "channel" ? "all" : "mine",
+  112|   );
+  113|   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  114|   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  115|   // 未归档分组默认展开，可折叠（与已归档对称）。
+  116|   const [activeExpanded, setActiveExpanded] = useState(true);
+  117|   const [showCreateModal, setShowCreateModal] = useState(false);
+  118| 
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+  120| 
+  121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+  123|       { id: "mine", label: t("todo.tabs.mine") },
+  124|       { id: "created", label: t("todo.tabs.created") },
+  125|       { id: "all", label: t("todo.tabs.all") },
+
+index.tsx:121
+  116|   const [activeExpanded, setActiveExpanded] = useState(true);
+  117|   const [showCreateModal, setShowCreateModal] = useState(false);
+  118| 
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+  120| 
+> 121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+  123|       { id: "mine", label: t("todo.tabs.mine") },
+  124|       { id: "created", label: t("todo.tabs.created") },
+  125|       { id: "all", label: t("todo.tabs.all") },
+  126|     ],
+  127|     [t],
+  128|   );
+  129| 
+  130|   // ── UI/数据分离: 为 ui/ 组件提供 renderAvatar / renderUserName ──
+  131|   const renderAvatar = useCallback(
+  132|     (uid: string, size: number) => (
+  133|       <WKAvatar
+  134|         channel={new Channel(uid, ChannelTypePerson)}
+  135|         style={{ width: size, height: size }}
+  136|       />
+
+index.tsx:123
+  118| 
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+  120| 
+  121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+> 123|       { id: "mine", label: t("todo.tabs.mine") },
+  124|       { id: "created", label: t("todo.tabs.created") },
+  125|       { id: "all", label: t("todo.tabs.all") },
+  126|     ],
+  127|     [t],
+  128|   );
+  129| 
+  130|   // ── UI/数据分离: 为 ui/ 组件提供 renderAvatar / renderUserName ──
+  131|   const renderAvatar = useCallback(
+  132|     (uid: string, size: number) => (
+  133|       <WKAvatar
+  134|         channel={new Channel(uid, ChannelTypePerson)}
+  135|         style={{ width: size, height: size }}
+  136|       />
+  137|     ),
+  138|     [],
+
+index.tsx:124
+  119|   const myUid = WKApp.loginInfo.uid ?? "";
+  120| 
+  121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+  123|       { id: "mine", label: t("todo.tabs.mine") },
+> 124|       { id: "created", label: t("todo.tabs.created") },
+  125|       { id: "all", label: t("todo.tabs.all") },
+  126|     ],
+  127|     [t],
+  128|   );
+  129| 
+  130|   // ── UI/数据分离: 为 ui/ 组件提供 renderAvatar / renderUserName ──
+  131|   const renderAvatar = useCallback(
+  132|     (uid: string, size: number) => (
+  133|       <WKAvatar
+  134|         channel={new Channel(uid, ChannelTypePerson)}
+  135|         style={{ width: size, height: size }}
+  136|       />
+  137|     ),
+  138|     [],
+  139|   );
+
+index.tsx:125
+  120| 
+  121|   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
+  122|     () => [
+  123|       { id: "mine", label: t("todo.tabs.mine") },
+  124|       { id: "created", label: t("todo.tabs.created") },
+> 125|       { id: "all", label: t("todo.tabs.all") },
+  126|     ],
+  127|     [t],
+  128|   );
+  129| 
+  130|   // ── UI/数据分离: 为 ui/ 组件提供 renderAvatar / renderUserName ──
+  131|   const renderAvatar = useCallback(
+  132|     (uid: string, size: number) => (
+  133|       <WKAvatar
+  134|         channel={new Channel(uid, ChannelTypePerson)}
+  135|         style={{ width: size, height: size }}
+  136|       />
+  137|     ),
+  138|     [],
+  139|   );
+  140|   const renderUserName = useCallback(
+
+index.tsx:156
+  151|     clampThreadWidth(restoreThreadWidth(), window.innerWidth, 300),
+  152|   );
+  153| 
+  154|   // ── 数据获取 ──
+  155|   const initialFilters = useMemo(
+> 156|     () => buildParams(mode, activeTab, myUid, channelId),
+  157|     [mode, activeTab, myUid, channelId],
+  158|   );
+  159| 
+  160|   const { matters, loading, hasMore, loadMore, reload } = useMatterList({
+  161|     initialFilters,
+  162|     pageSize: mode === "channel" ? 100 : 50,
+  163|   });
+  164| 
+  165|   // channel 模式下 tab 只做前端筛选
+  166|   const displayMatters = useMemo(() => {
+  167|     if (mode === "page") return matters;
+  168|     // channel 模式：前端过滤
+  169|     switch (activeTab) {
+  170|       case "mine":
+  171|         return matters.filter((m) =>
+
+index.tsx:157
+  152|   );
+  153| 
+  154|   // ── 数据获取 ──
+  155|   const initialFilters = useMemo(
+  156|     () => buildParams(mode, activeTab, myUid, channelId),
+> 157|     [mode, activeTab, myUid, channelId],
+  158|   );
+  159| 
+  160|   const { matters, loading, hasMore, loadMore, reload } = useMatterList({
+  161|     initialFilters,
+  162|     pageSize: mode === "channel" ? 100 : 50,
+  163|   });
+  164| 
+  165|   // channel 模式下 tab 只做前端筛选
+  166|   const displayMatters = useMemo(() => {
+  167|     if (mode === "page") return matters;
+  168|     // channel 模式：前端过滤
+  169|     switch (activeTab) {
+  170|       case "mine":
+  171|         return matters.filter((m) =>
+  172|           m.assignees?.some((a) => a.user_id === myUid),
+
+index.tsx:165
+  160|   const { matters, loading, hasMore, loadMore, reload } = useMatterList({
+  161|     initialFilters,
+  162|     pageSize: mode === "channel" ? 100 : 50,
+  163|   });
+  164| 
+> 165|   // channel 模式下 tab 只做前端筛选
+  166|   const displayMatters = useMemo(() => {
+  167|     if (mode === "page") return matters;
+  168|     // channel 模式：前端过滤
+  169|     switch (activeTab) {
+  170|       case "mine":
+  171|         return matters.filter((m) =>
+  172|           m.assignees?.some((a) => a.user_id === myUid),
+  173|         );
+  174|       case "created":
+  175|         return matters.filter((m) => m.creator_id === myUid);
+  176|       case "all":
+  177|       default:
+  178|         return matters;
+  179|     }
+  180|   }, [mode, activeTab, matters, myUid]);
+
+index.tsx:169
+  164| 
+  165|   // channel 模式下 tab 只做前端筛选
+  166|   const displayMatters = useMemo(() => {
+  167|     if (mode === "page") return matters;
+  168|     // channel 模式：前端过滤
+> 169|     switch (activeTab) {
+  170|       case "mine":
+  171|         return matters.filter((m) =>
+  172|           m.assignees?.some((a) => a.user_id === myUid),
+  173|         );
+  174|       case "created":
+  175|         return matters.filter((m) => m.creator_id === myUid);
+  176|       case "all":
+  177|       default:
+  178|         return matters;
+  179|     }
+  180|   }, [mode, activeTab, matters, myUid]);
+  181| 
+  182|   // 分离活跃 vs 归档
+  183|   const activeMatters = useMemo(
+  184|     () => displayMatters.filter((m) => m.status !== "archived"),
+
+index.tsx:180
+  175|         return matters.filter((m) => m.creator_id === myUid);
+  176|       case "all":
+  177|       default:
+  178|         return matters;
+  179|     }
+> 180|   }, [mode, activeTab, matters, myUid]);
+  181| 
+  182|   // 分离活跃 vs 归档
+  183|   const activeMatters = useMemo(
+  184|     () => displayMatters.filter((m) => m.status !== "archived"),
+  185|     [displayMatters],
+  186|   );
+  187|   const archivedMatters = useMemo(
+  188|     () => displayMatters.filter((m) => m.status === "archived"),
+  189|     [displayMatters],
+  190|   );
+  191| 
+  192|   // Tab 数量：
+  193|   //   - channel 模式：数据一次拉到前端，可同时算三个 tab 的数字
+  194|   //   - page 模式：只显示当前 tab 的数字（从已加载的 matters 计算，不额外请求）
+  195|   //
+
+index.tsx:192
+  187|   const archivedMatters = useMemo(
+  188|     () => displayMatters.filter((m) => m.status === "archived"),
+  189|     [displayMatters],
+  190|   );
+  191| 
+> 192|   // Tab 数量：
+  193|   //   - channel 模式：数据一次拉到前端，可同时算三个 tab 的数字
+  194|   //   - page 模式：只显示当前 tab 的数字（从已加载的 matters 计算，不额外请求）
+  195|   //
+  196|   // 改进说明：原 page 模式用 countMatters() 发 6 次分页请求算全量数字，
+  197|   // 但这导致数字与实际显示的卡片不一致（数字是全量，卡片是分页）。
+  198|   // 现在改成跟原 TodoPage 一样，只显示已加载数据的数字，保持一致性。
+  199|   const tabCounts = useMemo<Record<NavTab, number>>(() => {
+  200|     if (mode === "channel") {
+  201|       // channel 模式：从全量 matters 算三个 tab
+  202|       return {
+  203|         mine: matters.filter((m) =>
+  204|           m.assignees?.some((a) => a.user_id === myUid),
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+
+index.tsx:193
+  188|     () => displayMatters.filter((m) => m.status === "archived"),
+  189|     [displayMatters],
+  190|   );
+  191| 
+  192|   // Tab 数量：
+> 193|   //   - channel 模式：数据一次拉到前端，可同时算三个 tab 的数字
+  194|   //   - page 模式：只显示当前 tab 的数字（从已加载的 matters 计算，不额外请求）
+  195|   //
+  196|   // 改进说明：原 page 模式用 countMatters() 发 6 次分页请求算全量数字，
+  197|   // 但这导致数字与实际显示的卡片不一致（数字是全量，卡片是分页）。
+  198|   // 现在改成跟原 TodoPage 一样，只显示已加载数据的数字，保持一致性。
+  199|   const tabCounts = useMemo<Record<NavTab, number>>(() => {
+  200|     if (mode === "channel") {
+  201|       // channel 模式：从全量 matters 算三个 tab
+  202|       return {
+  203|         mine: matters.filter((m) =>
+  204|           m.assignees?.some((a) => a.user_id === myUid),
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+  208|       };
+
+index.tsx:194
+  189|     [displayMatters],
+  190|   );
+  191| 
+  192|   // Tab 数量：
+  193|   //   - channel 模式：数据一次拉到前端，可同时算三个 tab 的数字
+> 194|   //   - page 模式：只显示当前 tab 的数字（从已加载的 matters 计算，不额外请求）
+  195|   //
+  196|   // 改进说明：原 page 模式用 countMatters() 发 6 次分页请求算全量数字，
+  197|   // 但这导致数字与实际显示的卡片不一致（数字是全量，卡片是分页）。
+  198|   // 现在改成跟原 TodoPage 一样，只显示已加载数据的数字，保持一致性。
+  199|   const tabCounts = useMemo<Record<NavTab, number>>(() => {
+  200|     if (mode === "channel") {
+  201|       // channel 模式：从全量 matters 算三个 tab
+  202|       return {
+  203|         mine: matters.filter((m) =>
+  204|           m.assignees?.some((a) => a.user_id === myUid),
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+  208|       };
+  209|     }
+
+index.tsx:199
+  194|   //   - page 模式：只显示当前 tab 的数字（从已加载的 matters 计算，不额外请求）
+  195|   //
+  196|   // 改进说明：原 page 模式用 countMatters() 发 6 次分页请求算全量数字，
+  197|   // 但这导致数字与实际显示的卡片不一致（数字是全量，卡片是分页）。
+  198|   // 现在改成跟原 TodoPage 一样，只显示已加载数据的数字，保持一致性。
+> 199|   const tabCounts = useMemo<Record<NavTab, number>>(() => {
+  200|     if (mode === "channel") {
+  201|       // channel 模式：从全量 matters 算三个 tab
+  202|       return {
+  203|         mine: matters.filter((m) =>
+  204|           m.assignees?.some((a) => a.user_id === myUid),
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+  208|       };
+  209|     }
+  210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+
+index.tsx:201
+  196|   // 改进说明：原 page 模式用 countMatters() 发 6 次分页请求算全量数字，
+  197|   // 但这导致数字与实际显示的卡片不一致（数字是全量，卡片是分页）。
+  198|   // 现在改成跟原 TodoPage 一样，只显示已加载数据的数字，保持一致性。
+  199|   const tabCounts = useMemo<Record<NavTab, number>>(() => {
+  200|     if (mode === "channel") {
+> 201|       // channel 模式：从全量 matters 算三个 tab
+  202|       return {
+  203|         mine: matters.filter((m) =>
+  204|           m.assignees?.some((a) => a.user_id === myUid),
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+  208|       };
+  209|     }
+  210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+
+index.tsx:210
+  205|         ).length,
+  206|         created: matters.filter((m) => m.creator_id === myUid).length,
+  207|         all: matters.length,
+  208|       };
+  209|     }
+> 210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+  218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+
+index.tsx:212
+  207|         all: matters.length,
+  208|       };
+  209|     }
+  210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+> 212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+  218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+  226|   useEffect(() => {
+  227|     const reloader = () => {
+
+index.tsx:213
+  208|       };
+  209|     }
+  210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+> 213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+  218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+  226|   useEffect(() => {
+  227|     const reloader = () => {
+  228|       if (listRef.current) {
+
+index.tsx:214
+  209|     }
+  210|     // page 模式：只有当前 tab 有数字
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+> 214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+  218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+  226|   useEffect(() => {
+  227|     const reloader = () => {
+  228|       if (listRef.current) {
+  229|         pendingScrollRestoreRef.current = listRef.current.scrollTop;
+
+index.tsx:216
+  211|     return {
+  212|       mine: activeTab === "mine" ? displayMatters.length : 0,
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+> 216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+  218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+  226|   useEffect(() => {
+  227|     const reloader = () => {
+  228|       if (listRef.current) {
+  229|         pendingScrollRestoreRef.current = listRef.current.scrollTop;
+  230|       }
+  231|       reload();
+
+index.tsx:218
+  213|       created: activeTab === "created" ? displayMatters.length : 0,
+  214|       all: activeTab === "all" ? displayMatters.length : 0,
+  215|     };
+  216|   }, [mode, matters, displayMatters, activeTab, myUid]);
+  217| 
+> 218|   // 当前 tab 的活跃/归档数量（从已加载数据计算）
+  219|   const activeCount = activeMatters.length;
+  220|   const archivedCount = archivedMatters.length;
+  221| 
+  222|   // ── 滚动位置恢复 ──
+  223|   const listRef = useRef<HTMLDivElement>(null);
+  224|   const pendingScrollRestoreRef = useRef<number | null>(null);
+  225| 
+  226|   useEffect(() => {
+  227|     const reloader = () => {
+  228|       if (listRef.current) {
+  229|         pendingScrollRestoreRef.current = listRef.current.scrollTop;
+  230|       }
+  231|       reload();
+  232|     };
+  233|     WKApp.mittBus.on("wk:matter-updated", reloader);
+
+index.tsx:266
+  261| 
+  262|   useEffect(() => {
+  263|     if (mode !== "page") return;
+  264|     // Space 切换重置
+  265|     const handler = () => {
+> 266|       setActiveTab("mine");
+  267|       setSelectedMatterId(null);
+  268|     };
+  269|     WKApp.mittBus.on("space-changed", handler);
+  270|     return () => {
+  271|       WKApp.mittBus.off("space-changed", handler);
+  272|     };
+  273|   }, [mode]);
+  274| 
+  275|   // Tab 切换时重置选中
+  276|   useEffect(() => {
+  277|     setSelectedMatterId(null);
+  278|   }, [activeTab]);
+  279| 
+  280|   // ── 点击卡片 ──
+  281|   const handleSelect = useCallback(
+
+index.tsx:275
+  270|     return () => {
+  271|       WKApp.mittBus.off("space-changed", handler);
+  272|     };
+  273|   }, [mode]);
+  274| 
+> 275|   // Tab 切换时重置选中
+  276|   useEffect(() => {
+  277|     setSelectedMatterId(null);
+  278|   }, [activeTab]);
+  279| 
+  280|   // ── 点击卡片 ──
+  281|   const handleSelect = useCallback(
+  282|     (matterId: string) => {
+  283|       setSelectedMatterId(matterId);
+  284|       if (mode === "page") {
+  285|         // page 模式：推到 routeRight
+  286|         WKApp.routeRight.replaceToRoot(
+  287|           <MatterDetailPanel
+  288|             key={matterId}
+  289|             matterId={matterId}
+  290|             channelId=""
+
+index.tsx:278
+  273|   }, [mode]);
+  274| 
+  275|   // Tab 切换时重置选中
+  276|   useEffect(() => {
+  277|     setSelectedMatterId(null);
+> 278|   }, [activeTab]);
+  279| 
+  280|   // ── 点击卡片 ──
+  281|   const handleSelect = useCallback(
+  282|     (matterId: string) => {
+  283|       setSelectedMatterId(matterId);
+  284|       if (mode === "page") {
+  285|         // page 模式：推到 routeRight
+  286|         WKApp.routeRight.replaceToRoot(
+  287|           <MatterDetailPanel
+  288|             key={matterId}
+  289|             matterId={matterId}
+  290|             channelId=""
+  291|             channelType={0}
+  292|             onClose={() => setSelectedMatterId(null)}
+  293|           />,
+
+index.tsx:448
+  443|             ✕
+  444|           </button>
+  445|         )}
+  446|       </div>
+  447| 
+> 448|       {/* Tabs */}
+  449|       <div className="wk-mp-page-sidebar__tabs">
+  450|         {tabs.map((tab) => (
+  451|           <button
+  452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+
+index.tsx:449
+  444|           </button>
+  445|         )}
+  446|       </div>
+  447| 
+  448|       {/* Tabs */}
+> 449|       <div className="wk-mp-page-sidebar__tabs">
+  450|         {tabs.map((tab) => (
+  451|           <button
+  452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+
+index.tsx:450
+  445|         )}
+  446|       </div>
+  447| 
+  448|       {/* Tabs */}
+  449|       <div className="wk-mp-page-sidebar__tabs">
+> 450|         {tabs.map((tab) => (
+  451|           <button
+  452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+
+index.tsx:452
+  447| 
+  448|       {/* Tabs */}
+  449|       <div className="wk-mp-page-sidebar__tabs">
+  450|         {tabs.map((tab) => (
+  451|           <button
+> 452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+
+index.tsx:454
+  449|       <div className="wk-mp-page-sidebar__tabs">
+  450|         {tabs.map((tab) => (
+  451|           <button
+  452|             key={tab.id}
+  453|             type="button"
+> 454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+
+index.tsx:455
+  450|         {tabs.map((tab) => (
+  451|           <button
+  452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+> 455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+  470|           <div className="wk-mp-page-sidebar__empty">
+
+index.tsx:457
+  452|             key={tab.id}
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+> 457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+  470|           <div className="wk-mp-page-sidebar__empty">
+  471|             {t("todo.state.loading")}
+  472|           </div>
+
+index.tsx:458
+  453|             type="button"
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+> 458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+  470|           <div className="wk-mp-page-sidebar__empty">
+  471|             {t("todo.state.loading")}
+  472|           </div>
+  473|         )}
+
+index.tsx:459
+  454|             className={`wk-mp-page-sidebar__tab${activeTab === tab.id ? " is-active" : ""}`}
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+> 459|               <span className="wk-mp-page-sidebar__tab-count">
+  460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+  470|           <div className="wk-mp-page-sidebar__empty">
+  471|             {t("todo.state.loading")}
+  472|           </div>
+  473|         )}
+  474|         {!loading && activeMatters.length === 0 && (
+
+index.tsx:460
+  455|             onClick={() => setActiveTab(tab.id)}
+  456|           >
+  457|             {tab.label}
+  458|             {showTabCounts && tabCounts[tab.id] > 0 && (
+  459|               <span className="wk-mp-page-sidebar__tab-count">
+> 460|                 {tabCounts[tab.id]}
+  461|               </span>
+  462|             )}
+  463|           </button>
+  464|         ))}
+  465|       </div>
+  466| 
+  467|       {/* 列表 */}
+  468|       <div className="wk-mp-page-sidebar__list" ref={listRef}>
+  469|         {loading && (
+  470|           <div className="wk-mp-page-sidebar__empty">
+  471|             {t("todo.state.loading")}
+  472|           </div>
+  473|         )}
+  474|         {!loading && activeMatters.length === 0 && (
+  475|           <div className="wk-mp-page-sidebar__empty">

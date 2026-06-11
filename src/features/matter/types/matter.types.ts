@@ -9,6 +9,26 @@
 
 export type MatterStatus = "open" | "done" | "archived";
 
+// ─── 频道类型常量 ─────────────────────────────────────────
+
+/** 普通群 */
+export const CHANNEL_TYPE_GROUP = 2 as const;
+/** 子区(thread) */
+export const CHANNEL_TYPE_THREAD = 5 as const;
+
+// ─── 活动动作类型 ─────────────────────────────────────────
+
+export type MatterAction =
+  | "created"
+  | "title_changed"
+  | "description_changed"
+  | "status_changed"
+  | "assignee_added"
+  | "assignee_removed"
+  | "deadline_changed"
+  | "channel_linked"
+  | "channel_unlinked";
+
 // ─── 核心模型 ─────────────────────────────────────────────
 
 export interface MatterAssignee {
@@ -16,6 +36,24 @@ export interface MatterAssignee {
   matter_id: string;
   user_id: string;
   created_at: string;
+}
+
+/** Matter 关联群聊条目(来自 GET /matters/:id 返回的 channels 字段)。 */
+export interface MatterChannel {
+  id: string;
+  matter_id: string;
+  channel_id: string;
+  channel_type: number;
+  channel_name?: string;
+  linked_by: string;
+  created_at: string;
+}
+
+/** 关联群聊请求体(POST /matters/:id/channels)。 */
+export interface LinkChannelReq {
+  channel_id: string;
+  channel_type: number;
+  channel_name?: string;
 }
 
 export interface Matter {
@@ -40,6 +78,8 @@ export interface Matter {
 export interface MatterDetail extends Matter {
   assignees: MatterAssignee[];
   participants?: string[];
+  /** 关联群聊列表,包含 source_channel 在内(后端统一返回)。 */
+  channels?: MatterChannel[];
 }
 
 // ─── 分页 ─────────────────────────────────────────────────
@@ -107,6 +147,8 @@ export interface TimelineEntry {
   channel_type?: number;
   source_channel_id?: string;
   related_uids?: string[];
+  /** 原消息 ID 列表，用于"查看原消息上下文"。 */
+  source_msgs?: string[];
   created_at: string;
   attachments?: TimelineAttachment[];
 }
@@ -137,7 +179,7 @@ export interface ActivityEntry {
   id: string;
   matter_id: string;
   actor_id: string;
-  action: string;
+  action: MatterAction;
   detail: Record<string, unknown> | null;
   created_at: string;
 }
@@ -172,7 +214,40 @@ export interface ExtractResult {
   title: string;
   description: string;
   source_msgs: string[];
+  /** 时间戳(ms),与 Matter.deadline(RFC3339 string)格式不同 — 后端 extract 接口返回的是 unix 毫秒 */
   deadline?: number | null;
-  status: string;
+  status: MatterStatus;
   created_at: string;
+}
+
+// ─── Outputs (产出文件) ─────────────────────────────────
+
+/**
+ * MatterOutput — 产出文件条目。
+ * 后端 GET /matters/:id/outputs 返回的去重文件列表。
+ * 按 sent_at DESC, id DESC 排序; 同一 file_url 只保留最早的行。
+ *
+ * source_channel_id 是 IM 的 channel_id (非 matter_channels.id UUID)。
+ * 前端做 channel 反查时按 matter.channels[].channel_id 匹配。
+ */
+export interface MatterOutput {
+  id: string;
+  entry_id: string;
+  matter_id: string;
+  file_url: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  description?: string;
+  sender_uid: string;
+  sender_uname: string;
+  source_channel_id?: string;
+  source_channel_name?: string;
+  sent_at: string;
+}
+
+export interface ListOutputsParams {
+  limit?: number;
+  cursor?: string;
+  q?: string;
 }

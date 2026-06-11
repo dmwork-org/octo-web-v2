@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useT } from "@/lib/i18n/use-t";
@@ -63,11 +62,6 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
     updateMu.mutate({ matterId, req: { deadline: toIsoLocalMidnight(d) } });
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateMu.mutate({ matterId, req: { deadline: null } });
-  };
-
   const selectedDate = deadline ? new Date(deadline) : undefined;
 
   const formatDeadlineLabel = (iso: string): string => {
@@ -91,23 +85,6 @@ export function DeadlinePicker({ matterId, deadline }: DeadlinePickerProps) {
         >
           <CalendarIcon />
           {deadline ? formatDeadlineLabel(deadline) : t("matter.deadline.set")}
-          {deadline ? (
-            <span
-              role="button"
-              tabIndex={0}
-              aria-label={t("matter.deadline.clear")}
-              onClick={handleClear}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleClear(e as unknown as React.MouseEvent);
-                }
-              }}
-              className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded text-text-tertiary hover:bg-bg-elevated hover:text-text-primary"
-            >
-              <X size={10} />
-            </span>
-          ) : null}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

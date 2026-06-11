@@ -9,11 +9,8 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import {
-  isFetchableUid,
-  markUidFetchFailed,
-  readMessageMention,
-} from "@/features/chat/lib/read-message-mention";
+import { isFetchableUid, readMessageMention } from "@/features/chat/lib/read-message-mention";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
@@ -83,9 +80,13 @@ function EmojiImg({ keyword }: { keyword: string }) {
   );
 }
 
+/** 子区 channel type(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
+const CHANNEL_TYPE_THREAD = 5;
+
 /**
  * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选** — mention 高亮主路径。
  *   - 群 subscriber:remark / name / orgData.real_name / orgData.displayName
+ *   - **子区**(channelType=5):解析出父群 groupNo,查父群 subscribers(本身没 sub 列表)
  *   - Person channelInfo:title / orgData.remark / orgData.real_name / orgData.displayName
  *
  * 旧仓 mention 走 `message.parts`(SDK 把 text + uid 解析配对);新仓没这数据,
@@ -96,9 +97,19 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
   const push = (v: unknown) => {
     if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
   };
+  // 群 / 子区(走父群)的 subscriber 列表
+  let groupChannel: Channel | null = null;
   if (channel.channelType === ChannelTypeGroup) {
+    groupChannel = channel;
+  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (parsed) {
+      groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
+    }
+  }
+  if (groupChannel) {
     const sub = WKSDK.shared()
-      .channelManager.getSubscribes(channel)
+      .channelManager.getSubscribes(groupChannel)
       ?.find((s) => s.uid === uid);
     push(sub?.remark);
     push(sub?.name);
@@ -190,15 +201,17 @@ function mentionTokens(
     if (names.length === 0) {
       // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
       // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens。
-      // 非法 uid(sentinel / 字面 "uid" / 太短)+ 已失败 uid 跳过,避免 toast 风暴(issue #74)
+      // 非法 uid(sentinel / 字面 "uid" / 太短)跳过避免 toast 风暴(issue #74);
+      // SDK 内部 promise 去重保证 in-flight 不重复发,失败不 blacklist 让下次
+      // 自然重试(issue #73 followup)。
       if (isFetchableUid(uid)) {
-        void WKSDK.shared()
-          .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
-          .catch(() => markUidFetchFailed(uid));
+        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
       }
       continue;
     }
-    for (const name of names) {
+    // 按长度升序排序 — 短名优先匹配,避免长 candidate(如 displayName 设成
+    // "李志伟测试测试测试")吞掉用户在 mention 后输入的普通文字(issue #73)
+    for (const name of names.slice().sort((a, b) => a.length - b.length)) {
       const match = `@${name}`;
       if (text.includes(match)) {
         tokens.push({

@@ -2,10 +2,14 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid, markUidFetchFailed } from "@/features/chat/lib/read-message-mention";
+import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
+
+/** 子区 channel type(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 const richTextLinkRe = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
 const trailingLinkPunctuation = new Set([
@@ -41,9 +45,19 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
   const push = (v: unknown) => {
     if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
   };
+  // 群 / 子区(走父群)的 subscriber 列表 — 子区本身无 sub 列表,必须解析父群(issue #73 真凶)
+  let groupChannel: Channel | null = null;
   if (channel.channelType === ChannelTypeGroup) {
+    groupChannel = channel;
+  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (parsed) {
+      groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
+    }
+  }
+  if (groupChannel) {
     const sub = WKSDK.shared()
-      .channelManager.getSubscribes(channel)
+      .channelManager.getSubscribes(groupChannel)
       ?.find((s) => s.uid === uid);
     push(sub?.remark);
     push(sub?.name);
@@ -252,16 +266,19 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              // 非法 uid + 已失败 uid 跳过,避免 toast 风暴(issue #74)
+              // 非法 uid 跳过避免 toast 风暴(issue #74);SDK 内部 promise
+              // 去重保证不重复 HTTP,失败不 blacklist 让下次自然重试(issue #73 followup)
               if (isFetchableUid(uid)) {
-                void WKSDK.shared()
-                  .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
-                  .catch(() => markUidFetchFailed(uid));
+                void WKSDK.shared().channelManager.fetchChannelInfo(
+                  new Channel(uid, ChannelTypePerson),
+                );
               }
               continue;
             }
             let found = false;
-            for (const name of names) {
+            // 按长度升序 — 短名优先匹配,避免长 candidate 吞掉 mention 后的
+            // 普通文字(issue #73 `@李志伟测试测试测试` 多余高亮)
+            for (const name of names.slice().sort((a, b) => a.length - b.length)) {
               const needle = `@${name}`;
               let from = 0;
               while (from < text.length) {

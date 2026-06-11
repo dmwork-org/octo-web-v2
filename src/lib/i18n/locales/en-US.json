@@ -2029,7 +2029,6 @@
   "selectionToolbar.loading": "Loading…",
   "selectionToolbar.mergeForward": "Merge forward",
   "selectionToolbar.noMatters": "No matters available",
-  "selectionToolbar.syncContentHeader": "Synced from {{count}} messages:\n{{lines}}",
   "selectionToolbar.syncToExisting": "Sync to existing matter",
   "selectionToolbar.syncToMatter": "Sync to matter",
   "selectionToolbar.syncing": "Syncing…",

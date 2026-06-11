@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import type { Channel, Message } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -10,10 +10,12 @@ import { SmartCreateModal } from "@/features/matter/components/smart-create-moda
 import { deleteMessages as deleteMessagesApi } from "@/features/base/api/endpoints/message.api";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
+import { authStore } from "@/features/base/stores/auth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
+import type { ExtractMessage } from "@/features/matter/types/matter.types";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -36,6 +38,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   const tt = useT();
   const qc = useQueryClient();
   const ids = useStore(chatSelectionStore, (s) => s.ids);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const count = ids.size;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
@@ -105,39 +108,45 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   /**
    * 查本群关联 Matter 列表(对齐老仓 module.tsx L497-507:用 channel_id 过滤,
    * 避免混入"我相关但跟本群无关"的 matter)。limit 20 跟老仓一致。
+   *
+   * staleTime 0:每次打开菜单都视作过期 → 立即重新拉取最新事项列表,
+   * 避免刚创建/刚同步的事项因缓存没及时出现在候选里。
    */
   const mattersQ = useQuery({
     queryKey: ["matter", "by-channel", channel.channelID, channel.channelType],
     queryFn: () => listMatters({ channel_id: channel.channelID, limit: 20 }),
     enabled: syncMenuOpen,
-    staleTime: 30 * 1000,
+    staleTime: 0,
   });
 
   /**
-   * 同步到已有 matter:把多选消息拼成 markdown 文本写进 timeline。
-   * 老仓直接传 participant_uid + msgs[] 让后端 LLM 抽取进展;新仓 AddTimelineReq
-   * 只接 content,先用前端拼接(每条 sender: content,markdown 列表),后端若加
-   * msgs 字段时再换。
+   * 同步到已有 matter:对齐旧 dmworktodo —— 不在前端拼接消息原文,而是把原始
+   * 消息列表(msgs)+ participant_uid 传给后端,由后端 LLM 抽取进展**摘要**写入
+   * timeline。这样事项时间线里看到的是提炼后的进展,而非聊天原文。
    */
-  const buildContent = (msgs: Message[]): string => {
-    const lines = msgs.map((m) => {
-      const sender = m.fromUID || "?";
-      const text = m.content?.conversationDigest ?? "";
-      return `- ${sender}:${text}`;
+  const toExtractMsgs = (msgs: Message[]): ExtractMessage[] =>
+    msgs.map((m) => {
+      const info = WKSDK.shared().channelManager.getChannelInfo(
+        new Channel(m.fromUID, ChannelTypePerson),
+      );
+      return {
+        message_id: m.messageID,
+        from_uid: m.fromUID,
+        from_uname: info?.title,
+        timestamp: m.timestamp,
+        content: m.content?.conversationDigest ?? "",
+      };
     });
-    return t("selectionToolbar.syncContentHeader", {
-      values: { count: msgs.length, lines: lines.join("\n") },
-    });
-  };
 
   const syncMu = useMutation({
     mutationFn: async (matterId: string) => {
       const msgs = findMessages();
       if (msgs.length === 0) throw new Error(t("selectionToolbar.error.nothingToSync"));
       await addTimelineEntry(matterId, {
-        content: buildContent(msgs),
         channel_id: channel.channelID,
         channel_type: channel.channelType,
+        participant_uid: myUid,
+        msgs: toExtractMsgs(msgs),
       });
     },
     onSuccess: () => {
@@ -184,7 +193,15 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
             {tt("selectionToolbar.createMatter")}
           </button>
           <span className={sep} />
-          <Popover open={syncMenuOpen} onOpenChange={setSyncMenuOpen}>
+          <Popover
+            open={syncMenuOpen}
+            onOpenChange={(next) => {
+              setSyncMenuOpen(next);
+              // 打开菜单时立即拉最新事项列表(staleTime 0 + 显式 refetch 双保险:
+              // query 已挂载过时 enabled 重新置 true 不一定触发请求)。
+              if (next) void mattersQ.refetch();
+            }}
+          >
             <PopoverTrigger asChild>
               <button type="button" disabled={count === 0} className={btn}>
                 {tt("selectionToolbar.syncToMatter")}

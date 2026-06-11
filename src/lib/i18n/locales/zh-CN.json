@@ -2031,7 +2031,6 @@
   "selectionToolbar.loading": "加载中…",
   "selectionToolbar.mergeForward": "合并转发",
   "selectionToolbar.noMatters": "暂无可关联的事项",
-  "selectionToolbar.syncContentHeader": "同步自 {{count}} 条消息:\n{{lines}}",
   "selectionToolbar.syncToExisting": "同步到已有事项",
   "selectionToolbar.syncToMatter": "同步到事项",
   "selectionToolbar.syncing": "同步中…",

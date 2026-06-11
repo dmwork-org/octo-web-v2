@@ -475,7 +475,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 h-[47px] border-b border-brand-tint px-4">
+        <div className="mt-6 mb-4 h-[47px] border-b border-brand-tint px-4">
           <div className="flex items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}

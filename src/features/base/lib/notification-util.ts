@@ -4,12 +4,14 @@
  * **职责**(对齐老仓 Utils/NotificationUtil.ts 的核心契约,不含 Electron 兼容):
  * - 检测能力 / 请求权限
  * - 单条全局 message notification(同 tag 替换,5s 自动关)
+ * - 消息提示音(对齐老仓 module.tsx tipsAudio + assets/msg-tip.mp3)
  * - 用户偏好(localStorage)— "已关闭桌面通知" 时直接 noop
  *
  * **page-visible 时不弹**:document.visibilityState === 'visible' 跳过(在用了不打扰)。
  *
  * 调用方做过滤(自己发的 / 静音 / 当前会话 / noPersist / 无 reddot 等),本模块只管"如何弹"。
  */
+import msgTipUrl from "@/assets/msg-tip.mp3";
 import { i18n } from "@/lib/i18n/instance";
 
 const STORAGE_KEY = "octo:settings:desktopNotificationsOff";
@@ -108,4 +110,33 @@ export function sendNotification(opts: SendNotificationOptions): void {
 
 export function closeAllNotifications(): void {
   closeCurrent();
+}
+
+/**
+ * 消息提示音 — 对齐老仓 `module.tsx tipsAudio()`(单例 Audio 复用 src/assets/msg-tip.mp3)。
+ *
+ * - 受 `isNotificationsOff()` 控制(用户关了桌面通知 → 不响)
+ * - **不查** visibility(老仓行为:visible 时也响,用户切走的反馈)
+ * - 不查 channel mute / 当前会话等业务过滤,调用方负责拦截
+ *
+ * 浏览器自动播放策略:首次播放需用户与页面有过交互(click/keydown),否则
+ * `play()` 返回 rejected promise — 我们静默吞掉(不影响主流程),用户后续
+ * 操作过页面后下条消息就能响。
+ */
+let messageTone: HTMLAudioElement | null = null;
+
+export function playMessageTone(): void {
+  if (typeof window === "undefined") return;
+  if (isNotificationsOff()) return;
+  if (!messageTone) {
+    messageTone = new Audio(msgTipUrl);
+  }
+  // 重置到起点 — 高频消息时仍能听到每次响起,而不是被上次播放截断
+  messageTone.currentTime = 0;
+  const p = messageTone.play();
+  if (p && typeof p.catch === "function") {
+    p.catch(() => {
+      // autoplay 策略 / 用户未交互 — 静默
+    });
+  }
 }

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Subscriber } from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
@@ -26,6 +27,8 @@ import { InlineEditRow } from "@/features/base/components/section-form/inline-ed
 
 interface UserInfoModalProps {
   uid: string | null;
+  /** 群内查看用户信息时传入,用于展示进群方式并让详情接口返回群上下文。 */
+  groupNo?: string;
   /** 搜索结果带来的 vercode(陌生人申请好友需要) */
   vercode?: string;
   onClose: () => void;
@@ -35,6 +38,30 @@ const APP_NAME = "Octo";
 const REL_FRIEND = 1;
 const REL_BLACKLIST = 2;
 
+interface GroupJoinOrgData {
+  created_at?: unknown;
+  invite_name?: unknown;
+  invite_uid?: unknown;
+  inviter_name?: unknown;
+}
+
+function findGroupSubscriber(subscribers: Subscriber[], uid: string | null): Subscriber | null {
+  if (!uid) return null;
+  return subscribers.find((s) => s.uid === uid) ?? null;
+}
+
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function joinDate(value: unknown): string {
+  if (typeof value === "string") return value.slice(0, 10);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value * 1000).toISOString().slice(0, 10);
+  }
+  return "";
+}
+
 /**
  * 用户名片弹窗(对应旧 dmworkbase Components/UserInfo)。
  *
@@ -42,13 +69,18 @@ const REL_BLACKLIST = 2;
  *
  * Sections 4 段 + 底部按钮 5 分支(F-1a 已对齐 UserInfo.getBottomPanel)。
  */
-export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
+export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalProps) {
   const t = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const myName = useStore(authStore, (s) => s.user?.name ?? s.user?.username ?? "");
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
-  const { data, isLoading } = useQuery(userDetailQueryOptions(uid));
+  const { data, isLoading } = useQuery(userDetailQueryOptions(uid, groupNo));
+  const groupChannel = useMemo(
+    () => new Channel(groupNo ?? "", ChannelTypeGroup),
+    [groupNo],
+  );
+  const groupSubscribers = useGroupSubscribers(groupChannel, !!groupNo && !!uid);
   const [friendApplyOpen, setFriendApplyOpen] = useState(false);
   const [remarkEditing, setRemarkEditing] = useState(false);
   const [confirm, setConfirm] = useState<null | {
@@ -58,7 +90,7 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
   }>(null);
 
   const invalidate = () => {
-    if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
+    if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid, groupNo) });
     void qc.invalidateQueries({ queryKey: ["contacts"] });
   };
 
@@ -66,6 +98,13 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     mutationFn: (remark: string) => setUserRemark(uid!, remark),
     onSuccess: () => {
       invalidate();
+      // 对齐上游 2b1c78c3(#326):备注改完后立即刷新 SDK channelInfo cache,
+      // 让群消息的 senderDisplay(读 personChannelInfo.title)即时反映新备注。
+      // useSenderInfoLive 已挂 channelInfoListener,fetch 拿到新 cache 后会
+      // 触发 force re-render。
+      if (uid) {
+        void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      }
       toast.success(t("base.userInfo.saved"));
       setRemarkEditing(false);
     },
@@ -130,6 +169,29 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
     realname_verified: data?.realname_verified,
   });
   const hasRemark = !!(data?.remark && data.remark !== "");
+  const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
+
+  const groupJoinMethod = (() => {
+    if (!groupSubscriber) return "";
+    const org = (groupSubscriber.orgData ?? {}) as GroupJoinOrgData;
+    const date = joinDate(org.created_at);
+    if (!date) return "";
+    const inviteName =
+      textValue(org.invite_name) ||
+      textValue(org.inviter_name) ||
+      (() => {
+        const inviteUid = textValue(org.invite_uid);
+        if (!inviteUid) return "";
+        const inviteInfo = WKSDK.shared().channelManager.getChannelInfo(
+          new Channel(inviteUid, ChannelTypePerson),
+        );
+        return inviteInfo?.title ?? "";
+      })();
+    if (inviteName) {
+      return `${date}${t("base.userInfo.invitedBy", { values: { name: inviteName } })}`;
+    }
+    return `${date}${t("base.userInfo.joinedGroup")}`;
+  })();
 
   const handleMessage = () => {
     if (!channel) return;
@@ -254,6 +316,14 @@ export function UserInfoModal({ uid, vercode, onClose }: UserInfoModalProps) {
       sections.push(
         <SectionGroup key="source">
           <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
+        </SectionGroup>,
+      );
+    }
+
+    if (groupJoinMethod) {
+      sections.push(
+        <SectionGroup key="group-join-method">
+          <NavRow title={t("base.userInfo.joinMethod")} subTitle={groupJoinMethod} />
         </SectionGroup>,
       );
     }

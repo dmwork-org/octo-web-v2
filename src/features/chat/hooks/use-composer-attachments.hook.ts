@@ -16,6 +16,16 @@ import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
 } from "@/features/base/lib/mention-three-state";
+import { formatFileSize } from "@/features/chat/file-preview/config";
+import { toast } from "@/components/semi-bridge/toast";
+import { t } from "@/lib/i18n/instance";
+
+/**
+ * 附件总大小上限(对齐上游 `361447b6` ConversationVM.MAX_TOTAL_SIZE = 100MB)。
+ * 单文件、待发送队列总大小都不能超过。三路入口(按钮 / paste / drag)共用
+ * addAttachments,守卫在此处统一拦截,toast.error + 拒绝入队。
+ */
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
 
 /** 编辑器内按顺序拆出的发送块。 */
 export type OrderedBlock =
@@ -39,6 +49,9 @@ export interface UseComposerAttachmentsReturn {
    * 加附件(自动分流):
    *   source="paste" + image → 插入 editor inline AttachmentNode + 缩略图
    *   其它(paste 非图 / drag 拖入 / 上传按钮)→ 顶部附件区卡片
+   *
+   * 守卫:单文件 > MAX_TOTAL_SIZE 或 累计 > MAX_TOTAL_SIZE → toast.error + 整批不入队
+   * (对齐上游 `361447b6` 单入口校验,与扩展名黑名单同一处)。
    */
   addAttachments: (
     files: File[],
@@ -146,6 +159,26 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
 
   const addAttachments = useCallback(
     async (files: File[], source: "paste" | "upload", editor: Editor | null) => {
+      // 单入口大小守卫(对齐上游 361447b6 addPendingAttachments)。
+      const maxLabel = formatFileSize(MAX_TOTAL_SIZE);
+      const oversized = files.find((f) => f.size > MAX_TOTAL_SIZE);
+      if (oversized) {
+        toast.error(
+          t("composer.upload.fileTooLarge", {
+            values: { name: oversized.name, max: maxLabel },
+          }),
+        );
+        return;
+      }
+      const incomingTotal = files.reduce((acc, f) => acc + f.size, 0);
+      const currentTotal =
+        topAttachments.reduce((acc, a) => acc + a.size, 0) +
+        Array.from(filesRef.current.values()).reduce((acc, f) => acc + f.size, 0);
+      if (currentTotal + incomingTotal > MAX_TOTAL_SIZE) {
+        toast.error(t("composer.upload.totalTooLarge", { values: { max: maxLabel } }));
+        return;
+      }
+
       for (const file of files) {
         const id = makeAttachmentId(file);
         const isImage = isImageMime(file.type, file.name);
@@ -186,7 +219,7 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
         setTopAttachments((prev) => [...prev, item]);
       }
     },
-    [],
+    [topAttachments],
   );
 
   const removeTopAttachment = useCallback((id: string) => {

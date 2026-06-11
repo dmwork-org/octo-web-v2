@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypePerson,
+  ChannelTypeGroup,
+  ConversationAction,
+  type Conversation,
+} from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -10,7 +16,10 @@ import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { avatarVersionActions } from "@/features/base/stores/avatar-version";
 import { createGroup } from "@/features/base/api/endpoints/group.api";
+import { clearConversationUnread } from "@/features/base/api/endpoints/conversation.api";
 import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useT } from "@/lib/i18n/use-t";
@@ -84,6 +93,11 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
     onSuccess: async (resp) => {
       const newChannel = new Channel(resp.group_no, ChannelTypeGroup);
       void WKSDK.shared().channelManager.fetchChannelInfo(newChannel);
+      // 头像首屏(issue #64):channelInfo.logo 后端建群时通常为空,channel-avatar
+      // 会走 `${baseURL}/groups/{groupNo}/avatar` fallback URL。主动 bump 一个
+      // 非零 version,让 fallback URL 首次就带 `?v={ts}`,后端 ready 后即使是
+      // 同一 path,version 变化也强制重 GET,绕过潜在的旧 404 cache。
+      avatarVersionActions.bump(resp.group_no);
       if (categoryId) {
         try {
           await moveGroupToCategory(resp.group_no, categoryId);
@@ -93,6 +107,35 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
           // 静默 — 用户可手动拖到分组
         }
       }
+      // 主动清新群未读(issue #1):后端建群完成后会推一条"群创建成功"系统消息,
+      // SDK 把它当作普通新消息累加 conversation.unread=1,sidebar / 最近 tab
+      // 即出现红点。本端是自己发起的建群操作,该会话必无真实未读,三路同清:
+      // - **服务端** PUT clearUnread:让其他端同步看到 unread=0(via unreadClear CMD)
+      // - **本地 SDK** conv.unread:挂持续 10s 的 listener — SDK push 时序复杂
+      //   (add 时 unread=0,后续系统消息到达再 unread++),一次性 listener 会在
+      //   add 那次就 remove 自己,后续 unread+1 没人清。10s 内任何对该 channel
+      //   的 conv 更新都 reset unread=0;notify 后 conv.unread 已是 0 不递归
+      // - **sidebar query**:invalidate 强刷快照(关注 tab 不订阅 conversationListener)
+      void clearConversationUnread({
+        channelId: resp.group_no,
+        channelType: ChannelTypeGroup,
+        unread: 0,
+      });
+      const cm = WKSDK.shared().conversationManager;
+      const clearOnce = () => {
+        const conv = cm.findConversation(newChannel);
+        if (conv && conv.unread > 0) {
+          conv.unread = 0;
+          cm.notifyConversationListeners(conv, ConversationAction.update);
+        }
+      };
+      clearOnce();
+      const listener = (c: Conversation) => {
+        if (c.channel.isEqual(newChannel)) clearOnce();
+      };
+      cm.addConversationListener(listener);
+      setTimeout(() => cm.removeConversationListener(listener), 10000);
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);
       toast.success(t("createGroup.toast.created"));

@@ -1,4 +1,4 @@
-import { Channel, ChannelTypePerson, type Reminder } from "wukongimjssdk";
+import { Channel, ChannelTypePerson, ReminderType, type Reminder } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channel.hook";
 import { chatDraftStore, selectDraftForChannel } from "@/features/chat/stores/chat-draft";
@@ -6,6 +6,7 @@ import {
   chatAiCollabFoldStore,
   selectAiCollabFoldForChannel,
 } from "@/features/chat/stores/ai-collab-fold";
+import { formatDraftPreview } from "@/features/chat/lib/draft-preview";
 import { useT } from "@/lib/i18n/use-t";
 
 interface ConversationTypingDigestProps {
@@ -36,6 +37,10 @@ interface ConversationTypingDigestProps {
  *     绿色 pulse 点 + 灰字 X 连接参与者)
  *   - 否则 → [草稿] label(有 draft) + reminders 红 tag(未完成) + [N 条] 红字 + fallback(digest)
  *     四者并存
+ *
+ * **草稿 preview**(对齐上游 30185565):草稿原文是 `@[uid:label]` 序列化格式(由
+ * useComposerDraft 写入),展示前过 formatDraftPreview 渲染成 `@label`(以及 sticky
+ * 三态的 @所有人 / @所有AI)。
  */
 export function ConversationTypingDigest({
   channel,
@@ -83,7 +88,11 @@ export function ConversationTypingDigest({
     );
   }
 
-  const undoneReminders = reminders?.filter((r) => !r.done) ?? [];
+  // ReminderTypeMentionMe 已在右侧 mention badge 单独显示(对齐上游 de16d69f),
+  // 这里过滤掉避免「@我」reminder 文本和右侧 @我 badge 双显。
+  const undoneReminders =
+    reminders?.filter((r) => !r.done && r.reminderType !== ReminderType.ReminderTypeMentionMe) ??
+    [];
   const hasDraft = !!draft && draft.trim() !== "";
   const showCountHint = countHint != null && countHint > 0;
 
@@ -108,8 +117,8 @@ export function ConversationTypingDigest({
           })}
         </span>
       ) : null}
-      {hasDraft ? (
-        <span className="min-w-0 truncate">{draft}</span>
+      {hasDraft && draft ? (
+        <span className="min-w-0 truncate">{formatDraftPreview(draft)}</span>
       ) : (
         <span className="min-w-0 flex-1 truncate">{fallback}</span>
       )}

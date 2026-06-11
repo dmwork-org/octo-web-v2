@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { type Channel, type Message } from "wukongimjssdk";
+import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
@@ -16,6 +17,11 @@ import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
 import { buildRenderItems } from "@/features/chat/lib/fold-session";
+import { locateMessageWindow, locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
+import {
+  chatLocateMessageActions,
+  chatLocateMessageStore,
+} from "@/features/chat/stores/chat-locate-message";
 import {
   distanceFromBottom,
   getPulldownRestoredScrollTop,
@@ -47,13 +53,29 @@ const NEAR_BOTTOM_THRESHOLD = 200;
 
 /**
  * 同发送者 = 连续(对齐旧 dmworkbase useMessageRow.ts:86 isContinue):
- *   pre 存在 + 非系统(bare)消息 + 同 sender
- * **不**做时间窗口判断 — 即使跨多小时,同一发送者连发的消息全聚合一个 header。
+ *   pre 存在 + 非系统(bare)消息 + 同 sender + **10 分钟内**(对齐上游 195625e8 / #113)
+ * 同一发送者跨长间隔(>10min)不聚合,避免"早上一条 + 下午一条"挤成一个 header。
+ *
+ * **boundary 类**(对齐上游 c2f9e18e / #308 + Service/messageContinuity.ts isBoundaryMessage):
+ *   screenshot(contentType=20)即使 fromUID 同也打断 continuation — 截屏是居中胶囊,
+ *   不属"对话气泡流",前后正常消息必须重新显示头像/sender。
  */
 function isContinue(curr: Message, prev: Message | undefined): boolean {
   if (!prev) return false;
   if (shouldRenderBare(prev) || shouldRenderBare(curr)) return false;
-  return prev.fromUID === curr.fromUID;
+  if (
+    prev.contentType === MessageContentTypeConst.screenshot ||
+    curr.contentType === MessageContentTypeConst.screenshot
+  ) {
+    return false;
+  }
+  if (!prev.fromUID || prev.fromUID !== curr.fromUID) return false;
+  // 10 分钟阈值(秒级 timestamp);对齐上游 MESSAGE_CONTINUATION_MAX_GAP_SEC
+  const prevTs = prev.timestamp;
+  const currTs = curr.timestamp;
+  if (typeof prevTs !== "number" || typeof currTs !== "number") return true;
+  if (!Number.isFinite(prevTs) || !Number.isFinite(currTs)) return true;
+  return Math.abs(currTs - prevTs) < 10 * 60;
 }
 
 /**
@@ -79,16 +101,21 @@ function shouldInsertDividerByTs(currTs: number, prevTs: number | undefined): bo
 function useInitialScrollToBottom(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   firstReadyKey: string,
+  skip: boolean,
 ) {
   const initRef = useRef("");
   useLayoutEffect(() => {
     if (!firstReadyKey) return;
     if (initRef.current === firstReadyKey) return;
+    if (skip) {
+      initRef.current = firstReadyKey;
+      return;
+    }
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     initRef.current = firstReadyKey;
-  }, [firstReadyKey, scrollRef]);
+  }, [firstReadyKey, scrollRef, skip]);
 }
 
 interface FollowBottomKey {
@@ -101,10 +128,15 @@ interface FollowBottomKey {
 function useFollowBottomOnNewMessages(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   key: FollowBottomKey,
+  skip: boolean,
 ) {
   const lastIdRef = useRef("");
   useLayoutEffect(() => {
     if (!key.id || lastIdRef.current === key.id) return;
+    if (skip) {
+      lastIdRef.current = key.id;
+      return;
+    }
     const el = scrollRef.current;
     if (!el) {
       lastIdRef.current = key.id;
@@ -118,7 +150,7 @@ function useFollowBottomOnNewMessages(
       });
     }
     lastIdRef.current = key.id;
-  }, [key.id, key.mine, scrollRef]);
+  }, [key.id, key.mine, scrollRef, skip]);
 }
 
 /**
@@ -150,6 +182,7 @@ function usePulldownToLoadHistory(
   hasNextPage: boolean,
   isFetchingNextPage: boolean,
   fetchNextPage: () => void,
+  skip: boolean,
 ) {
   const snapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const prevPageCountRef = useRef(pageCount);
@@ -158,6 +191,7 @@ function usePulldownToLoadHistory(
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
+      if (skip) return;
       if (!hasNextPage || isFetchingNextPage) return;
       if (!isNearTopForHistory(el.scrollTop)) return;
       snapshotRef.current = { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop };
@@ -165,7 +199,7 @@ function usePulldownToLoadHistory(
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollRef, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [scrollRef, hasNextPage, isFetchingNextPage, fetchNextPage, skip]);
 
   useLayoutEffect(() => {
     if (pageCount <= prevPageCountRef.current) {
@@ -186,6 +220,79 @@ function usePulldownToLoadHistory(
   }, [pageCount, scrollRef]);
 }
 
+function highlightLocatedMessage(el: HTMLElement): void {
+  el.scrollIntoView({ behavior: "auto", block: "center" });
+  const prevRadius = el.style.borderRadius;
+  el.style.borderRadius = "8px";
+  const anim = el.animate(
+    [
+      { backgroundColor: "rgba(28, 28, 35, 0.1)" },
+      { backgroundColor: "rgba(28, 28, 35, 0.06)", offset: 0.6 },
+      { backgroundColor: "transparent" },
+    ],
+    { duration: 2000, easing: "ease-out", fill: "forwards" },
+  );
+  anim.onfinish = () => {
+    anim.cancel();
+    el.style.borderRadius = prevRadius;
+  };
+}
+
+function useLocateRequestedMessage(channel: Channel, ready: boolean): void {
+  const t = useT();
+  const qc = useQueryClient();
+  const request = useStore(chatLocateMessageStore, (s) => s);
+
+  useEffect(() => {
+    if (!ready || !request.messageSeq) return;
+    if (request.channelId !== channel.channelID || request.channelType !== channel.channelType) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = request.requestId;
+    const messageSeq = request.messageSeq;
+
+    async function locate() {
+      let el = document.querySelector<HTMLElement>(`[data-msg-seq="${messageSeq}"]`);
+      if (!el) {
+        const loadingId = toast.loading(t("messageRow.replyLoading"));
+        try {
+          el =
+            request.strategy === "window"
+              ? await locateMessageWindow(qc, channel, messageSeq)
+              : await locateReplyMessage(qc, channel, messageSeq);
+        } finally {
+          toast.dismiss(loadingId);
+        }
+      }
+      if (cancelled) return;
+      if (!el) {
+        toast.warning(t("messageRow.replyNotFound"));
+        chatLocateMessageActions.clear(requestId);
+        return;
+      }
+      highlightLocatedMessage(el);
+      chatLocateMessageActions.clear(requestId);
+    }
+
+    void locate();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    channel,
+    qc,
+    ready,
+    request.channelId,
+    request.channelType,
+    request.messageSeq,
+    request.requestId,
+    request.strategy,
+    t,
+  ]);
+}
+
 export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
@@ -197,6 +304,7 @@ export function MessageList({ channel }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // typing info(per-channel)— bot CMD typing 推送 → TypingManager → 本 hook 同步
   const typing = useTypingForChannel(channel);
+  const locateRequest = useStore(chatLocateMessageStore, (s) => s);
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
@@ -249,9 +357,13 @@ export function MessageList({ channel }: MessageListProps) {
       mine: !!myUid && last.fromUID === myUid,
     };
   }, [messages, myUid]);
+  const pendingLocateForChannel =
+    !!locateRequest.messageSeq &&
+    locateRequest.channelId === channel.channelID &&
+    locateRequest.channelType === channel.channelType;
 
-  useInitialScrollToBottom(scrollRef, firstReadyKey);
-  useFollowBottomOnNewMessages(scrollRef, followKey);
+  useInitialScrollToBottom(scrollRef, firstReadyKey, pendingLocateForChannel);
+  useFollowBottomOnNewMessages(scrollRef, followKey, pendingLocateForChannel);
   useFollowBottomOnTyping(scrollRef, typing?.fromUID ?? "");
   usePulldownToLoadHistory(
     scrollRef,
@@ -259,10 +371,14 @@ export function MessageList({ channel }: MessageListProps) {
     !!hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    pendingLocateForChannel,
   );
+  useLocateRequestedMessage(channel, !isLoading && !error && !!data);
 
-  // 右下角 scroll-to-bottom 按钮 + 未读徽标(1:1 对齐旧 ConversationPositionView)
-  const scrollBtn = useScrollToBottomButton(scrollRef, messages.length);
+  // 右下角 scroll-to-bottom 按钮 + 未读徽标(对齐旧 ConversationPositionView,
+  // issue #31 修复:用末尾消息稳定 id 替代 messages.length,避免向上拉历史时
+  // messages.length 增加被误判为新消息)。复用 followKey 的 id + mine 标识。
+  const scrollBtn = useScrollToBottomButton(scrollRef, followKey.id, followKey.mine);
 
   if (isLoading) {
     return (

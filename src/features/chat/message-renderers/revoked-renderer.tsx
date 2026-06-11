@@ -8,22 +8,42 @@ interface RevokedRendererProps {
 }
 
 /**
- * 撤回消息占位渲染(1:1 对齐旧 dmworkbase Messages/Revoke/index.tsx 文案):
- * - 自己撤回:"你撤回了一条消息"
- * - 他人撤回:"<姓名> 撤回了一条消息"(走 Person channelInfo.title fallback uid)
+ * 撤回消息占位渲染(1:1 对齐老仓 dmworkbase Messages/Revoke/index.tsx 文案 4 分支):
+ *
+ *   revoker == me &&  revoker == sender  → "你撤回了一条消息"
+ *   revoker != me &&  revoker == sender  → "<sender> 撤回了一条消息"
+ *   revoker == me &&  revoker != sender  → "你撤回了成员 \"<sender>\" 的一条消息"
+ *   revoker != me &&  revoker != sender  → "<revoker> 撤回了一条成员消息"
  *
  * 由 dispatch 在所有 contentType 分发之前优先检查 message.remoteExtra.revoke。
  */
 export function RevokedRenderer({ message }: RevokedRendererProps) {
   const t = useT();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
-  const revoker = message.remoteExtra.revoker || message.fromUID;
-  const isSelf = me !== null && revoker === me;
-  const name = isSelf ? t("revoke.you") : displayNameOf(revoker);
+  const sender = message.fromUID;
+  const revoker = message.remoteExtra.revoker || sender;
+  const revokerIsMe = me !== null && revoker === me;
+  const revokerIsSender = revoker === sender;
+
+  let text: string;
+  if (revokerIsSender) {
+    // 撤回自己消息(标准场景):"你/<sender> 撤回了一条消息"
+    const name = revokerIsMe ? t("revoke.you") : displayNameOf(revoker);
+    text = t("revoke.revokedMessage", { values: { name } });
+  } else if (revokerIsMe) {
+    // 群主/管理员撤回他人消息(自己视角):"你撤回了成员 \"X\" 的一条消息"
+    const member = displayNameOf(sender);
+    text = t("revoke.revokedMemberMessageByYou", { values: { member } });
+  } else {
+    // 群主/管理员撤回他人消息(旁观者视角):"<revoker> 撤回了一条成员消息"
+    const name = displayNameOf(revoker);
+    text = t("revoke.revokedMemberMessage", { values: { name } });
+  }
+
   return (
     <div className="flex justify-center py-1">
       <span className="rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
-        {t("revoke.revokedMessage", { values: { name } })}
+        {text}
       </span>
     </div>
   );

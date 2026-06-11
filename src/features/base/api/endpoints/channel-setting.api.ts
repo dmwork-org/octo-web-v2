@@ -28,6 +28,7 @@ export type ChannelSettingBody = Partial<{
   forbidden_add_friend: 0 | 1;
   allow_view_history_msg: 0 | 1;
   allow_member_pinned_message: 0 | 1;
+  allow_no_mention: 0 | 1;
 }>;
 
 export async function updateChannelSetting(
@@ -73,3 +74,11 @@ export const setChannelSave = (channel: Channel, save: boolean) =>
 /** 设置会话备注(对应旧 ChannelSettingManager.shared.remark)。 */
 export const setChannelRemark = (channel: Channel, remark: string) =>
   updateChannelSetting(channel, { remark });
+
+/**
+ * 群级「允许群内 Bot 免@回答」总开关(对齐上游 ceffa569 / YUJ-3088)。
+ * 两轴语义:最终免at = bot主人开了本群免at(no_mention) AND 群管理员允许本群免at(allow_no_mention)。
+ * 本 helper 管的是「群管理员 allow_no_mention 轴」;服务端校验 owner/admin 权限。
+ */
+export const setChannelAllowNoMention = (channel: Channel, allow: boolean) =>
+  updateChannelSetting(channel, { allow_no_mention: allow ? 1 : 0 });

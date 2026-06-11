@@ -1,6 +1,6 @@
 import { Outlet, createRootRouteWithContext, ErrorComponent } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
-import { Toaster } from "@/components/semi-bridge/toast";
+import { MessageContainer } from "@/components/ui/message";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NotFoundView } from "@/components/ui/not-found";
 
@@ -12,7 +12,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: () => (
     <TooltipProvider delayDuration={500}>
       <Outlet />
-      <Toaster position="top-center" richColors closeButton />
+      <MessageContainer />
     </TooltipProvider>
   ),
   errorComponent: ErrorComponent,

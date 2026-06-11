@@ -101,6 +101,17 @@ export async function addTimelineEntry(
   });
 }
 
+/**
+ * Summary 上游的"转发到 Matters"语义是给目标事项追加一条评论。
+ * 新版 Matter 仍保留 comments endpoint,这里独立暴露给 summary 使用。
+ */
+export async function addMatterComment(matterId: string, content: string): Promise<void> {
+  await matterApi(`/matters/${matterId}/comments`, {
+    method: "POST",
+    body: { content },
+  });
+}
+
 /** DELETE /matters/{id}/timeline/{entry_id} */
 export async function deleteTimelineEntry(matterId: string, entryId: string): Promise<void> {
   await matterApi(

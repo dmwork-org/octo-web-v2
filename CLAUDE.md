@@ -5,7 +5,7 @@
 
 ## Who
 
-**陈超**，前端团队 lead。这不是通用 harness，不对外发布，只服务**本团队的标准技术栈**。
+**项目负责人**，前端团队 lead。这不是通用 harness，不对外发布，只服务**本团队的标准技术栈**。
 
 ## 技术栈（硬绑定）
 
@@ -79,6 +79,6 @@ scripts/                     # taste-lint / run-evals / wiki-lint / ingest-failu
 - **写代码前**：触发对应 skill(paths 自动匹配 或 `/<skill-name>`);skill 内 `@` 引用示范 + `@src/lib/*` 引用基础设施
 - **写 TanStack 代码前**：**必须** 先 `tanstack doc <topic>` 或 `tanstack search-docs "<keyword>"`
 - **改动前**：优先 Ask，不自作主张
-- **回应偏好**：简洁、直接、少铺陈（陈超讨厌大而全叙事和过度抽象）
+- **回应偏好**：简洁、直接、少铺陈（本团队不喜欢大而全叙事和过度抽象）
 - **决策偏好**：量化 > 感觉（用 metrics 说话）
 - **方法论**:严格 7 步不跳步;证据源优先级 Anthropic > OpenAI > Vercel > Meta > X > GitHub > AI 大佬 > 其他

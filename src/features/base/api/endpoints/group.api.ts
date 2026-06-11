@@ -156,6 +156,8 @@ export interface ThreadRaw {
   group_name?: string;
   last_message_at?: string;
   mute?: number | null; // tri-state
+  /** 当前用户是否关注此子区(对齐上游 35b35757,follow_sort 入侧边栏标志) */
+  is_followed?: boolean;
 }
 
 export async function getThread(
@@ -415,13 +417,16 @@ export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise
 
 /**
  * 群下的子区列表(对应旧 dmworkdatasource threadList):
- * GET /v1/groups/{groupNo}/threads?page_index&page_size → { list: ThreadRaw[] }
+ * GET /v1/groups/{groupNo}/threads?page_index&page_size&status → { list: ThreadRaw[] }
  *
- * 用于 chat-header 子区按钮弹出的子区面板列表。
+ * `status` 默认后端只返活跃(active)子区;传 "all" 才能拿到已归档(archived)子区,
+ * thread panel 需要"活跃中 + 已归档"两组,必须 status:"all"(对齐上游 23b59a41)。
  */
 export interface ThreadListParams {
   page_index?: number;
   page_size?: number;
+  /** "all" | "active" | "archived"(后端口径);ThreadPanel 用 "all" */
+  status?: string;
 }
 
 export async function listThreads(
@@ -443,6 +448,14 @@ export async function joinThread(shortId: string): Promise<void> {
 export async function archiveThread(groupNo: string, shortId: string): Promise<void> {
   await api(
     `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/archive`,
+    { method: "POST" },
+  );
+}
+
+/** 取消归档子区(旧 threadUnarchive)— POST /v1/groups/{groupNo}/threads/{shortId}/unarchive。 */
+export async function unarchiveThread(groupNo: string, shortId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/threads/${encodeURIComponent(shortId)}/unarchive`,
     { method: "POST" },
   );
 }

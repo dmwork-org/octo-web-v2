@@ -6,56 +6,78 @@ const NEAR_BOTTOM_THRESHOLD = 200;
 
 /**
  * 消息列表右下角 scroll-to-bottom 按钮 + 未读徽标 state hook
- * (1:1 对齐旧 dmworkbase ConversationPositionView + vm.showScrollToBottomBtn / unreadCount):
+ * (对齐旧 dmworkbase Conversation/vm.ts refreshNewMsgCount 语义)。
  *
- * **可见**:scrollTop > lastMessageHeight+20 → 显示;在底部 → 隐藏。
- *   新仓简化 — 距底部 ≥ 200px → 显示按钮。
+ * **可见**:距底部 ≥ NEAR_BOTTOM_THRESHOLD(200px)→ 显示按钮。
  *
- * **未读计数**(简化版):
- *   - baseline = "用户最近一次在底部时" 的 messageCount
- *   - unreadCount = max(messageCount - baseline, 0)
- *   - 滚到底部 / 点按钮 / 自己发消息 → baseline = messageCount(清 unread)
- *   - 不在底部时新消息进来 → unreadCount 自动 +1
+ * **未读计数**(issue #31 修复):
+ *   - 入参 `tailKey` = 末尾消息的稳定 id(clientMsgNo / messageID),**只有末尾消息
+ *     变化才视作"有新消息进来"**;**isOwnTail** = 末尾是自己发的
+ *   - baseline:用户最近一次在底部时记下的 `tailKey`(快照)
+ *   - 不在底部 + tailKey 跟 baseline 不同 + 末尾不是自己发 → unread +1
+ *   - 在底部 / scrollToBottom() / 末尾换成自己发的 → 重置 baseline + unread=0
  *
- *   未走旧仓 messageSeq diff(`lastMessage.messageSeq - browseToMessageSeq`),
- *   原因:browseToMessageSeq 需要逐条消息 viewport 可见性检测,实现成本高;
- *   baseline diff 在新仓单会话场景已足够准确。
+ *   **原 bug**:用 `messages.length` 作 diff 基础,`fetchNextPage` 把历史插到头部
+ *   也会让 messages.length 增加 → 向上滚加载历史时被误判为"新消息"显未读徽标。
+ *   现改用末尾稳定 id,加载历史时 tail 不变 → unread 不动。
  *
- * **初始 baseline**:首条消息到位时(messageCount: 0 → >0)同步到 messageCount,
- *   避免初次进入会话时按钮显示 unread = total messages 的 bug。
+ *   未走老仓精确 `messageSeq - baselineSeq` 计数(老仓真实 unread 数字):
+ *   本仓简化为"每条 +1",pending message seq=0 也算,99+ 时显示 99+。
  *
- * **myUid 自己消息**:自己发出会触发 useFollowBottomOnNewMessages 强制滚到底,
- *   滚动 listener 触发 atBottom → baseline 同步,本 hook 不用单独处理 self message。
+ * **myUid 自己消息**:useFollowBottomOnNewMessages 会强制滚到底,但末尾换为
+ *   自己时本 hook 主动同步 baseline + 清 unread,防止 follow-bottom 触发 scroll
+ *   listener 之前的窗口期残留 unread。
  */
 export function useScrollToBottomButton(
   scrollRef: React.RefObject<HTMLDivElement | null>,
-  messageCount: number,
+  tailKey: string,
+  isOwnTail: boolean,
 ): {
   visible: boolean;
   unreadCount: number;
   scrollToBottom: () => void;
 } {
   const [atBottom, setAtBottom] = useState(true);
-  const [baseline, setBaseline] = useState(0);
-  // ref:scroll listener 闭包始终读最新 messageCount,避免每次 messageCount 变重 attach
-  const messageCountRef = useRef(messageCount);
-  messageCountRef.current = messageCount;
+  const [baselineTailKey, setBaselineTailKey] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
   const initRef = useRef(false);
+  // ref:scroll listener 闭包始终读最新 tailKey,避免 listener 每次 tailKey 变重 attach
+  const tailKeyRef = useRef(tailKey);
+  tailKeyRef.current = tailKey;
+  const atBottomRef = useRef(atBottom);
+  atBottomRef.current = atBottom;
 
-  // 首条消息到位 → baseline = 当前 messageCount(避免 unread 误报为 total)
+  // 首条消息到位 → baseline 直接对齐当前 tail,unread=0(避免首屏误报)
   useLayoutEffect(() => {
     if (initRef.current) return;
-    if (messageCount > 0) {
-      setBaseline(messageCount);
+    if (tailKey) {
+      setBaselineTailKey(tailKey);
+      setUnreadCount(0);
       initRef.current = true;
     }
-  }, [messageCount]);
+  }, [tailKey]);
+
+  // tailKey 变化(末尾消息更新):在底部或自己发 → 同步 baseline 清零;不在底部
+  // 且末尾不是自己 → unread +1
+  useEffect(() => {
+    if (!initRef.current || !tailKey) return;
+    if (tailKey === baselineTailKey) return;
+    if (atBottomRef.current || isOwnTail) {
+      setBaselineTailKey(tailKey);
+      setUnreadCount(0);
+    } else {
+      setUnreadCount((c) => c + 1);
+    }
+    // baselineTailKey 不进 deps:在底部时 setBaselineTailKey 触发本 effect 重跑
+    // 会进入 tail === baseline 分支自然 noop,但避免重算 +1。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tailKey, isOwnTail]);
 
   // 关键:effect deps 必须含 `ready` 而非仅 scrollRef(ref 引用稳定不触发重跑)。
   // message-list 在 messages.length===0/loading/error 时 early-return 不渲染 scroll 容器,
   // scrollRef.current = null,effect 跑了也 attach 不上;等 messages 到位 ready
   // 从 false→true,effect 重跑此时才能 attach listener。
-  const ready = messageCount > 0;
+  const ready = !!tailKey;
   useEffect(() => {
     if (!ready) return;
     const el = scrollRef.current;
@@ -63,7 +85,10 @@ export function useScrollToBottomButton(
     const onScroll = () => {
       const near = distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
       setAtBottom(near);
-      if (near) setBaseline(messageCountRef.current);
+      if (near) {
+        setBaselineTailKey(tailKeyRef.current);
+        setUnreadCount(0);
+      }
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -73,9 +98,9 @@ export function useScrollToBottomButton(
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    setBaseline(messageCountRef.current);
+    setBaselineTailKey(tailKeyRef.current);
+    setUnreadCount(0);
   }, [scrollRef]);
 
-  const unreadCount = Math.max(0, messageCount - baseline);
   return { visible: !atBottom, unreadCount, scrollToBottom };
 }

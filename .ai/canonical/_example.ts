@@ -2,7 +2,7 @@
  * 示例 canonical（**不是真实范本**）
  *
  * 命名 `_example.ts` 下划线前缀 = 约定的"非生产 / 仅展示格式"标记。
- * Week 1-2 起由陈超从 pilot 项目挑真实代码，填真实 `pinned_sha`，替换或补充本文件。
+ * Week 1-2 起由项目负责人从 pilot 项目挑真实代码，填真实 `pinned_sha`，替换或补充本文件。
  *
  * 真实 canonical 必须满足（Week 1-2 验收标准）：
  *   1. `path` 指向 pilot 项目存在的真实 `.tsx` 文件

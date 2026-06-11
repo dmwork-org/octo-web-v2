@@ -3,28 +3,34 @@ import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
+  ChannelTypePerson,
   type CMDContent,
+  ConnectStatus,
   type Message,
   MessageStatus,
+  PullMode,
+  ReasonCode,
   type SendackPacket,
-  type Task,
-  TaskStatus,
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { isChannelOfSpace, isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
-
-/** Task 实例可能是 MessageTask 子类(.message 字段);用类型 intersection 让 cast 通过。 */
-type TaskWithMessage = Task & { message?: Message };
 
 /**
  * 订阅当前会话的:
  * - 新消息推送(messageListener)— append 到 InfiniteData.pages[0]
  * - 发送 ack(messageStatusListener)— 找 clientSeq 对应消息,更新 messageID/messageSeq/status
- * - 上传任务失败(taskManager.addListener)— 把 sendingQueue 内对应消息标 Fail
+ *   (sendack 是 message.status 的唯一权威 — 对齐旧 dmworkbase/Components/Conversation/index.tsx
+ *    `taskListener + ackListener` 双源 done 协议:task fail 仅影响该 send 操作的 retry 决策,
+ *    不写 message.status;UI 层 image/file/video renderer 自行 subscribe task 显示进度 overlay)
  * - CMD messageRevoke / typing(chatManager.addCMDListener)
+ * - WebSocket 重连(connectStatusListener)— Connected 时 invalidate 当前 channel
+ *   的 messages query 补刷首屏(对齐上游 7a42c23a / #187):staleTime=Infinity 不会
+ *   自动 refetch,断连期间 bot 回复经 HTTP sync 落库但当前会话拿不到,5s 去抖避免
+ *   短间隔重连多次 invalidate
  *
  * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
  *
@@ -71,8 +77,16 @@ export function useMessagesSync(channel: Channel | null) {
       if (!message.channel.isEqual(channel)) return;
       // typing 消息(理论上走 CMD,兜底):不写 cache
       if (message.contentType === MessageContentTypeConst.typing) return;
-      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id)
-      if (!isMessageOfSpace(message, spaceId)) return;
+      // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id);
+      // Group/Thread **不**二次守 — hook 顶层 isChannelOfSpace 已守过当前 channel,
+      // 在 listener 内重复 isChannelOfSpace 风险:channelSpaceMap / channelInfo
+      // 还没填充时 fail-close 静默丢消息,导致主面板看不到新消息但 sidebar 能看到。
+      if (
+        message.channel.channelType === ChannelTypePerson &&
+        !isMessageOfSpace(message, spaceId)
+      ) {
+        return;
+      }
       // bot 真消息到达 → 清掉 typing indicator(对齐旧 module.tsx:433)
       if (TypingManager.hasTyping(message.channel)) {
         TypingManager.removeTyping(message.channel);
@@ -93,30 +107,18 @@ export function useMessagesSync(channel: Channel | null) {
     };
 
     const statusListener = (ack: SendackPacket) => {
-      // ack.clientSeq 对应发送时分配的 clientSeq;reasonCode 0 成功,非 0 失败
+      // ack.clientSeq 对应发送时分配的 clientSeq
+      // ReasonCode.success = 1(SDK ReasonCode 枚举);0 = unknown,其他 = 各种失败
       updateInPlace(
         (m) => m.clientSeq === ack.clientSeq,
         (m) => {
-          if (ack.reasonCode === 0) {
+          if (ack.reasonCode === ReasonCode.success) {
             m.messageID = ack.messageID.toString();
             m.messageSeq = ack.messageSeq;
             m.status = MessageStatus.Normal;
           } else {
             m.status = MessageStatus.Fail;
           }
-        },
-      );
-    };
-
-    const taskListener = (task: Task) => {
-      if (task.status !== TaskStatus.fail && task.status !== TaskStatus.cancel) return;
-      const taskMsg = (task as TaskWithMessage).message;
-      if (!taskMsg) return;
-      if (!taskMsg.channel.isEqual(channel)) return;
-      updateInPlace(
-        (m) => m.clientMsgNo === taskMsg.clientMsgNo,
-        (m) => {
-          m.status = MessageStatus.Fail;
         },
       );
     };
@@ -152,17 +154,72 @@ export function useMessagesSync(channel: Channel | null) {
           m.remoteExtra.revoker = cmdMessage.fromUID;
         },
       );
+      // 侧栏 conversation 预览的 lastMessage 摘要由 sidebar query 派生,撤回最后一条
+      // 后 digest 应跟随刷新(对齐老仓 Conversation/vm.ts:630-632);refetch 频次极低
+      // (撤回事件本身就少),全量 invalidate 同 spaceId 下 follow 列表即可。
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    };
+
+    // 重连补刷当前会话首屏(对齐上游 7a42c23a / #187 第二层):
+    // queryOptions staleTime=Infinity 不会自动 refetch,断连期间 bot 回复经
+    // HTTP sync 落库但当前 InfiniteQuery 拿不到。5s 去抖避免短间隔重连多次刷。
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const connectStatusListener = (status: ConnectStatus) => {
+      if (status !== ConnectStatus.Connected) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: key, refetchType: "active" });
+      }, 5000);
     };
 
     WKSDK.shared().chatManager.addMessageListener(messageListener);
     WKSDK.shared().chatManager.addMessageStatusListener(statusListener);
     WKSDK.shared().chatManager.addCMDListener(cmdListener);
-    WKSDK.shared().taskManager.addListener(taskListener);
+    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener);
+
+    // 进入 channel 时主动补差(对齐老仓 "打开会话即 syncMessages"):
+    // messagesInfiniteQueryOptions staleTime=Infinity 让 cache 不会自动 refetch。
+    // 若上次离开本会话期间有新消息(bot 回复 / 别人发言),messageListener 只对
+    // **当前** mounted channel 生效,B 没打开时根本没人写它的 cache。点回 B 时
+    // useInfiniteQuery 看到 cache 命中直接用旧数据 → 新消息看不到。
+    //
+    // 修法:进入(且 cache 已有数据)时主动 SDK syncMessages 拉最新一页,
+    // append 到 firstPage 末尾,渲染时按 messageSeq 排序自动排到底部。
+    // 去重靠 clientMsgNo,与 messageListener 同模式。
+    const prevData = qc.getQueryData<InfiniteData<Message[], number>>(key);
+    if (prevData && prevData.pages.length > 0) {
+      void (async () => {
+        try {
+          const latest = await WKSDK.shared().chatManager.syncMessages(channel, {
+            startMessageSeq: 0,
+            endMessageSeq: 0,
+            limit: 30,
+            pullMode: PullMode.Down,
+          });
+          if (!latest || latest.length === 0) return;
+          qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
+            if (!prev || prev.pages.length === 0) return prev;
+            const firstPage = prev.pages[0];
+            const existingClientNos = new Set(prev.pages.flat().map((m) => m.clientMsgNo));
+            const newOnes = latest.filter((m) => !existingClientNos.has(m.clientMsgNo));
+            if (newOnes.length === 0) return prev;
+            return {
+              ...prev,
+              pages: [[...firstPage, ...newOnes], ...prev.pages.slice(1)],
+            };
+          });
+        } catch {
+          // 静默失败 — messageListener 实时推送 + reconnect 5s invalidate 仍是兜底
+        }
+      })();
+    }
+
     return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       WKSDK.shared().chatManager.removeMessageListener(messageListener);
       WKSDK.shared().chatManager.removeMessageStatusListener(statusListener);
       WKSDK.shared().chatManager.removeCMDListener(cmdListener);
-      WKSDK.shared().taskManager.removeListener(taskListener);
+      WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener);
     };
   }, [channel, qc, spaceId]);
 }

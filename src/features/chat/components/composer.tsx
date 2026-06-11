@@ -50,6 +50,8 @@ import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { useDispatchOnPlaceholderChange } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
+import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import { spaceStore } from "@/features/base/stores/space";
 import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
@@ -87,6 +89,17 @@ const STICKY_MENTIONS: MentionItem[] = [
 
 interface ComposerProps {
   channel: Channel;
+  /**
+   * 顶部 banner 文案(如已归档子区的"发送后会恢复活跃"提示)。
+   * 对齐上游 23b59a41 archivedInputNotice — 在 input 上方展示一行提示。
+   */
+  inputNotice?: string;
+  /**
+   * 消息发送成功后回调(每条消息发送完都调一次)。
+   * DetailView 用它在 archived 子区发消息后 invalidate thread query,
+   * 让后端把 status 从 Archived 自动 reactivate 回 Active 后 UI 同步。
+   */
+  onMessageSent?: () => void;
 }
 
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
@@ -110,32 +123,35 @@ function extOf(name: string): string {
   return i >= 0 ? name.substring(i + 1).toLowerCase() : "";
 }
 
-function fromName(uid: string): string {
-  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  return info?.title ?? uid;
-}
-
-function quotedTypeMeta(content: MessageContent | undefined): {
+function quotedTypeMeta(
+  tt: (key: string, opts?: { values?: Record<string, string> }) => string,
+  content: MessageContent | undefined,
+): {
   Icon: typeof ImageIcon | null;
   hint: string;
 } {
   const ct = (content as { contentType?: number } | undefined)?.contentType;
-  if (ct === MessageContentType.image) return { Icon: ImageIcon, hint: t("composer.quoted.image") };
+  if (ct === MessageContentType.image)
+    return { Icon: ImageIcon, hint: tt("composer.quoted.image") };
   if (ct === MessageContentType.text) return { Icon: null, hint: "" };
-  if (ct === 6) return { Icon: FileText, hint: t("composer.quoted.file") };
-  if (ct === 4) return { Icon: Mic, hint: t("composer.quoted.voice") };
+  if (ct === 6) return { Icon: FileText, hint: tt("composer.quoted.file") };
+  if (ct === 4) return { Icon: Mic, hint: tt("composer.quoted.voice") };
   return { Icon: null, hint: "" };
 }
 
-function buildPlaceholder(channel: Channel, name: string): string {
+function buildPlaceholder(
+  tt: (key: string, opts?: { values?: Record<string, string> }) => string,
+  channel: Channel,
+  name: string,
+): string {
   if (channel.channelType === ChannelTypePerson) {
     return name
-      ? t("composer.placeholder.directWithName", { values: { name } })
-      : t("composer.placeholder.direct");
+      ? tt("composer.placeholder.directWithName", { values: { name } })
+      : tt("composer.placeholder.direct");
   }
   return name
-    ? t("composer.placeholder.replyWithName", { values: { name, alt: ALT_KEY } })
-    : t("composer.placeholder.reply", { values: { alt: ALT_KEY } });
+    ? tt("composer.placeholder.replyWithName", { values: { name, alt: ALT_KEY } })
+    : tt("composer.placeholder.reply", { values: { alt: ALT_KEY } });
 }
 
 function createSubmitOnEnter(onSubmit: () => void) {
@@ -159,7 +175,7 @@ function createSubmitOnEnter(onSubmit: () => void) {
   });
 }
 
-export function Composer({ channel }: ComposerProps) {
+export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps) {
   const tt = useT();
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -183,7 +199,14 @@ export function Composer({ channel }: ComposerProps) {
     const info = WKSDK.shared().channelManager.getChannelInfo(channel);
     return info?.title ?? "";
   })();
-  const placeholder = buildPlaceholder(channel, channelName);
+  const placeholder = buildPlaceholder(tt, channel, channelName);
+  // ref + 回调式 placeholder:Placeholder extension 在 useEditor 配置时
+  // 捕获字符串到 plugin 闭包,React 重渲传新字符串不生效。改为 callback,
+  // 每次 decoration 重算时调函数读最新值(由 useDispatchOnPlaceholderChange
+  // 触发 view 重算)。render-time 同步 ref 保证 useEditor 首次 mount 时
+  // 也能拿到当前 locale 文案。
+  const placeholderRef = useRef(placeholder);
+  placeholderRef.current = placeholder;
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
@@ -217,7 +240,7 @@ export function Composer({ channel }: ComposerProps) {
         codeBlock: false,
         horizontalRule: false,
       }),
-      Placeholder.configure({ placeholder }),
+      Placeholder.configure({ placeholder: () => placeholderRef.current }),
       AttachmentNode,
       ...(isMentionable
         ? [
@@ -288,6 +311,7 @@ export function Composer({ channel }: ComposerProps) {
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
+  useDispatchOnPlaceholderChange(editor, placeholder);
 
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 
@@ -298,7 +322,7 @@ export function Composer({ channel }: ComposerProps) {
       r.messageID = replyingTo.messageID;
       r.messageSeq = replyingTo.messageSeq;
       r.fromUID = replyingTo.fromUID;
-      r.fromName = fromName(replyingTo.fromUID);
+      r.fromName = lookupNicknameLabel(channel, replyingTo.fromUID);
       r.content = replyingTo.content;
       return r;
     },
@@ -330,6 +354,15 @@ export function Composer({ channel }: ComposerProps) {
       });
     };
 
+    // VoiceFeedback uploadFinal(对齐上游 c0a6f1ea submitAll):用户实际发送的文本
+    // 跟之前 ASR modelText 配对上报,server 评估识别准确率。disabled 时 no-op。
+    try {
+      const { VoiceFeedback } = await import("@/features/chat/services/voice-feedback");
+      VoiceFeedback.shared()?.submitAll(editor?.getText() ?? "");
+    } catch {
+      /* feedback 失败不影响 send */
+    }
+
     setSending(true);
     let isFirst = true;
     const attachReplyOnce = (c: MessageContent) => {
@@ -339,49 +372,139 @@ export function Composer({ channel }: ComposerProps) {
       isFirst = false;
     };
 
-    const sendImageFile = async (file: File) => {
+    const sendImageFile = async (file: File): Promise<boolean> => {
+      const { precheckUploadCredentials } =
+        await import("@/features/chat/services/upload-preflight");
+      try {
+        await precheckUploadCredentials(file, channel, extOf(file.name));
+      } catch (err) {
+        toast.error(`图片「${file.name}」${(err as Error).message}`);
+        return false;
+      }
       const { width, height } = await readImageSize(file);
       const image = new MessageImage(file, width, height);
       attachReplyOnce(image);
       await WKSDK.shared().chatManager.send(wrapInject(image), channel);
+      return true;
     };
-    const sendRegularFile = async (file: File) => {
+    const sendRegularFile = async (file: File): Promise<boolean> => {
+      const { precheckUploadCredentials } =
+        await import("@/features/chat/services/upload-preflight");
+      try {
+        await precheckUploadCredentials(file, channel, extOf(file.name));
+      } catch (err) {
+        toast.error(`文件「${file.name}」${(err as Error).message}`);
+        return false;
+      }
       const content = new FileContent(file, file.name, extOf(file.name), file.size);
       attachReplyOnce(content);
       await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+      return true;
+    };
+
+    /**
+     * RichText=14 聚合发送(对齐上游 b5a3b68e):editor 内同时有 text + image
+     * 且无 file blocks 时,合并成单个 type=14 payload(blocks 顺序保持图文穿插)。
+     * 顶部附件区(top)不参与聚合,继续走独立发送路径。
+     *
+     * 每张图先 uploadChatMedia 拿 downloadUrl → isSafeUrl 校验(防止 javascript:/data:
+     * 等不安全 scheme 注入到 wire payload)→ 不安全或上传失败的图 skip + toast。
+     * mention 合并:所有 text blocks 的 all/humans/ais/uids 取并集挂在单个消息上,
+     * 保证 @所有AI / @所有人 / @某人 不丢。
+     */
+    const sendRichTextMixed = async (
+      ords: ReturnType<typeof attachments.extractOrderedBlocks>,
+    ): Promise<boolean> => {
+      const { uploadChatMedia, isSafeUrl } =
+        await import("@/features/chat/services/upload-chat-media");
+      const { makeTextBlock, makeImageBlock, createRichTextContent } =
+        await import("@/features/base/im/richtext-content");
+      const rtBlocks: import("@/features/base/im/richtext-content").RichTextBlock[] = [];
+      const merged = { all: false, humans: 0, ais: 0, uids: new Set<string>() };
+      for (const b of ords) {
+        if (b.type === "text") {
+          if (b.text) rtBlocks.push(makeTextBlock(b.text));
+          if (b.all) merged.all = true;
+          if (b.humans) merged.humans = 1;
+          if (b.ais) merged.ais = 1;
+          for (const uid of b.uids) merged.uids.add(uid);
+        } else if (b.type === "image") {
+          try {
+            const { width, height } = await readImageSize(b.file);
+            const url = await uploadChatMedia(b.file, channel, extOf(b.file.name));
+            if (!isSafeUrl(url)) {
+              toast.error(`图片「${b.file.name}」URL 校验失败`);
+              continue;
+            }
+            rtBlocks.push(
+              makeImageBlock({ url, width, height, size: b.file.size, name: b.file.name }),
+            );
+          } catch (err) {
+            toast.error(`图片「${b.file.name}」${(err as Error).message}`);
+          }
+        }
+      }
+      if (rtBlocks.length === 0) return false;
+      const content = createRichTextContent(rtBlocks);
+      // mention 合并(同纯文本路径,@所有AI 时把 bot uid 列进 mention.uids,GH#100)
+      if (isMentionable && (merged.all || merged.humans || merged.ais || merged.uids.size > 0)) {
+        const m = new ImMention() as ImMention & { humans?: number; ais?: number };
+        if (merged.all) m.all = true;
+        if (merged.humans) m.humans = 1;
+        if (merged.ais) {
+          m.ais = 1;
+          for (const uid of candidatesRef.current.filter((c) => c.isBot).map((c) => c.id)) {
+            merged.uids.add(uid);
+          }
+        }
+        if (merged.uids.size > 0) m.uids = [...merged.uids];
+        (content as MessageContent & { mention?: ImMention }).mention = m;
+      }
+      attachReplyOnce(content);
+      await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+      return true;
     };
 
     try {
-      for (const b of blocks) {
-        if (b.type === "text") {
-          const content = new MessageText(b.text);
-          const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
-          if (hasMention) {
-            const m = new ImMention() as ImMention & { humans?: number; ais?: number };
-            if (b.all) m.all = true;
-            const uids = [...b.uids];
-            if (b.humans) m.humans = 1;
-            if (b.ais) {
-              m.ais = 1;
-              // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
-              // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
-              // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
-              // (octo-server PR#145)对客户端发送的消息无效。
-              const botUids = candidatesRef.current
-                .filter((m) => m.isBot)
-                .map((m) => m.id)
-                .filter((uid) => !uids.includes(uid));
-              if (botUids.length > 0) uids.push(...botUids);
+      const editorHasText = blocks.some((b) => b.type === "text" && b.text);
+      const editorHasImage = blocks.some((b) => b.type === "image");
+      const editorHasFile = blocks.some((b) => b.type === "file");
+      const shouldAggregateRichText = editorHasText && editorHasImage && !editorHasFile;
+
+      if (shouldAggregateRichText) {
+        await sendRichTextMixed(blocks);
+      } else {
+        for (const b of blocks) {
+          if (b.type === "text") {
+            const content = new MessageText(b.text);
+            const hasMention = isMentionable && (b.all || b.humans || b.ais || b.uids.length > 0);
+            if (hasMention) {
+              const m = new ImMention() as ImMention & { humans?: number; ais?: number };
+              if (b.all) m.all = true;
+              const uids = [...b.uids];
+              if (b.humans) m.humans = 1;
+              if (b.ais) {
+                m.ais = 1;
+                // GH#100(对齐上游 405bbe98):@所有AI 时把 bot uid 列进 mention.uids,
+                // 让只识别 mention.uids 不识别 mention.ais 的 legacy adapter bot 也能收到。
+                // 客户端发消息走 WuKongIM SDK 直传(不走后端 REST),server 侧的 ais 展开
+                // (octo-server PR#145)对客户端发送的消息无效。
+                const botUids = candidatesRef.current
+                  .filter((m) => m.isBot)
+                  .map((m) => m.id)
+                  .filter((uid) => !uids.includes(uid));
+                if (botUids.length > 0) uids.push(...botUids);
+              }
+              if (uids.length > 0) m.uids = uids;
+              content.mention = m;
             }
-            if (uids.length > 0) m.uids = uids;
-            content.mention = m;
+            attachReplyOnce(content);
+            await WKSDK.shared().chatManager.send(wrapInject(content), channel);
+          } else if (b.type === "image") {
+            await sendImageFile(b.file);
+          } else {
+            await sendRegularFile(b.file);
           }
-          attachReplyOnce(content);
-          await WKSDK.shared().chatManager.send(wrapInject(content), channel);
-        } else if (b.type === "image") {
-          await sendImageFile(b.file);
-        } else {
-          await sendRegularFile(b.file);
         }
       }
       for (const item of top) {
@@ -397,6 +520,7 @@ export function Composer({ channel }: ComposerProps) {
       attachments.clearAll();
       chatReplyActions.clear(channel);
       dropDraft();
+      onMessageSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
@@ -410,11 +534,32 @@ export function Composer({ channel }: ComposerProps) {
     setTranscribing(true);
     try {
       const contextText = mode === "edit_only" ? (editor?.getText() ?? "") : undefined;
-      const { text } = await transcribeVoice(file, {
+      const result = await transcribeVoice(file, {
         channelType: channel.channelType,
         contextText,
         mode,
       });
+      const text = result.text;
+
+      // VoiceFeedback uploadLocal(对齐上游 c0a6f1ea onTranscribeResult):
+      // 把这次转写结果记 pending,user 实际发送时 submitAll 会再 uploadFinal 对齐 model/user
+      try {
+        const { VoiceFeedback } = await import("@/features/chat/services/voice-feedback");
+        VoiceFeedback.shared()?.onTranscribeResult({
+          utteranceId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          modelText: text,
+          source: "remote",
+          requestId: result.request_id,
+          asrParams: {
+            mode,
+            channelType: channel.channelType,
+            contextText,
+          },
+        });
+      } catch {
+        /* feedback 失败不影响转写流程 */
+      }
+
       if (!text || !editor) return;
 
       if (mode === "edit_only") {
@@ -584,8 +729,8 @@ export function Composer({ channel }: ComposerProps) {
     ? ((replyingTo.content as { conversationDigest?: string } | undefined)?.conversationDigest ??
       "")
     : "";
-  const replySender = replyingTo ? fromName(replyingTo.fromUID) : "";
-  const replyTypeMeta = quotedTypeMeta(replyingTo?.content);
+  const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
+  const replyTypeMeta = quotedTypeMeta(tt, replyingTo?.content);
 
   const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing
     ? "transcribing"
@@ -609,6 +754,11 @@ export function Composer({ channel }: ComposerProps) {
 
   return (
     <div className="shrink-0 px-4 pb-2">
+      {inputNotice ? (
+        <div className="mb-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-text-secondary">
+          {inputNotice}
+        </div>
+      ) : null}
       <form
         ref={formRef}
         onSubmit={onSubmit}

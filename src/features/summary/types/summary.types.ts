@@ -138,8 +138,16 @@ export interface SummaryDetail {
   result: SummaryResult | null;
   error_message: string | null;
   schedule_id?: number;
+  origin_channel_id?: string;
+  origin_channel_type?: number;
   created_at: string;
   updated_at: string;
+  result_id?: number;
+  result_edited_at?: string | null;
+  result_is_edited?: boolean;
+  permissions?: {
+    can_edit: boolean;
+  };
 }
 
 // ─── 请求 ─────────────────────────────────────────────────
@@ -151,12 +159,22 @@ export interface TimeRange {
 
 export interface CreateSummaryParams {
   topic: string;
-  title: string;
+  /** 老仓 CreateSummary handler 当 title 为空时回退到 topic,前端可省略。 */
+  title?: string;
   summary_mode?: SummaryModeType;
   time_range?: TimeRange;
   sources?: SourceItem[];
   participants?: { user_id: string }[];
   confirm_timeout_hours?: number;
+  /**
+   * Chat 上下文创建总结时透传当前 channel:让后端 listSummaries(origin_channel_id)
+   * 能查回当前会话的总结历史(对齐老仓 ChatSummaryStarButton.fetchSummaryCount)。
+   * 后端 OriginChannelType 1=Group / 2=Thread / 3=DM(SourceType 枚举,**不是** WK
+   * SDK channelType:1=Person / 2=Group / 5=Thread,直接传 channelType 会被后端
+   * 400 拒收 thread)。
+   */
+  origin_channel_id?: string;
+  origin_channel_type?: SourceTypeValue;
 }
 
 export interface ListSummariesParams {
@@ -167,6 +185,8 @@ export interface ListSummariesParams {
   sort_by?: string;
   sort_order?: "asc" | "desc";
   keyword?: string;
+  /** 按 chat 过滤:仅返回 origin_channel_id == 此 channelID 的总结(chat panel 用)。 */
+  origin_channel_id?: string;
 }
 
 export interface ListSummariesResponse {
@@ -196,6 +216,11 @@ export interface ScheduleItem {
   title: string;
   summary_mode: SummaryModeType;
   cron_expr: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type: TimeRangeTypeValue;
   sources: SourceItem[];
   participants: { user_id: string }[];
@@ -209,16 +234,114 @@ export interface CreateScheduleParams {
   title: string;
   summary_mode: SummaryModeType;
   cron_expr: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type: TimeRangeTypeValue;
   sources: SourceItem[];
   participants?: { user_id: string }[];
+  /** Task-scoped create atomically binds the new schedule to a summary task. */
+  scope?: "task";
+  task_id?: number;
 }
 
 export interface UpdateScheduleParams {
   title?: string;
   summary_mode?: SummaryModeType;
   cron_expr?: string;
+  interval_days?: number;
+  interval_months?: number;
+  day_of_week?: number;
+  day_of_month?: number;
+  run_time?: string;
   time_range_type?: TimeRangeTypeValue;
   sources?: SourceItem[];
   participants?: { user_id: string }[];
+  scope?: "task";
+  task_id?: number;
+}
+
+export type ScheduleUnit = "day" | "week" | "month";
+
+export interface ScheduleConfig {
+  unit: ScheduleUnit;
+  every: number;
+  time: string;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  legacyCron?: boolean;
+}
+
+// ─── Batch status / chat-context types(Batch 1.11 chat panel) ─────────────
+
+/** batch-status 单项响应。 */
+export interface BatchStatusItem {
+  id: number;
+  status: TaskStatusType;
+}
+
+export interface BatchStatusResponse {
+  tasks: BatchStatusItem[];
+}
+
+/** 聊天候选项(chat-selector 多选弹窗用,对齐老仓 ChatCandidate)。 */
+export interface ChatCandidate {
+  chat_id: string;
+  chat_type: "group" | "direct" | "thread";
+  name: string;
+  member_count: number | null;
+  parent_group_no?: string;
+  is_bot?: boolean;
+}
+
+/** 成员候选项(member-selector 用,Wave 3+)。 */
+export interface MemberCandidate {
+  user_id: string;
+  name: string;
+  avatar: string;
+  department: string;
+}
+
+// ─── Topic templates(chat-context 创建总结的模板卡片) ───────────────────
+
+export interface TopicTemplatePlaceholder {
+  key: string;
+  label: string;
+  position?: [number, number];
+}
+
+/**
+ * 已本地化的明文 topic template(来自后端 /summary-templates 或前端 resolve 后)。
+ * UI(TemplateCard / ChatSummaryNewModal) 直接消费。
+ */
+export interface TopicTemplate {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  type: "fixed" | "parameterized";
+  pattern: string;
+  placeholders?: TopicTemplatePlaceholder[];
+}
+
+export interface LocalTopicTemplatePlaceholder {
+  key: string;
+  labelKey: string;
+  position?: [number, number];
+}
+
+/**
+ * 前端离线兜底 topic template:字段存 i18n key 而非明文,render() 期由
+ * resolveTemplate 用当前 locale 解析为明文 TopicTemplate,保证切语言即时刷新。
+ */
+export interface LocalTopicTemplate {
+  id: string;
+  icon: string;
+  type: "fixed" | "parameterized";
+  labelKey: string;
+  descriptionKey: string;
+  patternKey: string;
+  placeholders?: LocalTopicTemplatePlaceholder[];
 }

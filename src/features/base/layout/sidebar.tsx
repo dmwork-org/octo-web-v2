@@ -1,22 +1,41 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useMemo, useState } from "react";
-import { Languages } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Languages } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { avatarVersionStore } from "@/features/base/stores/avatar-version";
+import { spaceStore } from "@/features/base/stores/space";
 import { useT } from "@/lib/i18n/use-t";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { userDetailQueryOptions } from "@/features/base/queries/user.query";
+import { summaryBadgeQueryOptions } from "@/features/summary/queries/summary-badge.query";
 import { SpaceSwitcher } from "@/features/base/layout/space-switcher";
 import { SettingsFlyout } from "@/features/base/layout/settings-flyout";
 import { MeInfoModal } from "@/features/user/components/me-info-modal";
 import { SettingsIcon } from "@/components/ui/icons/settings";
 import { collectMenuItems, renderMenuIcon, type MenuItem } from "@/lib/route-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { updateUserLanguage } from "@/features/base/api/endpoints/user.api";
 
 function isActive(item: MenuItem, path: string): boolean {
   return item.to === "/" ? path === "/" : path === item.to || path.startsWith(`${item.to}/`);
+}
+
+/**
+ * 模块 → badge count hook 解析。目前只有 summary 注册(WAITING_CONFIRM 任务数);
+ * 其他模块按需扩 case,sidebar 直接 own 解析避免 route-menu 反向依赖各模块 query。
+ *
+ * 用 path 而不是 staticData badgeKey,绕开 module augmentation 冲突 + 让
+ * NavRail 跟 route 解耦(任何路径在 _auth.summary.* 下都自动取到 badge)。
+ */
+function useNavBadgeCount(itemTo: string): number | undefined {
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const { data } = useQuery(summaryBadgeQueryOptions(itemTo === "/summary" && !!spaceId));
+  if (itemTo !== "/summary") return undefined;
+  return typeof data === "number" && data > 0 ? data : undefined;
 }
 
 /**
@@ -25,10 +44,12 @@ function isActive(item: MenuItem, path: string): boolean {
  *  - 未激活:`text-text-primary/30`(对应老仓 `--wk-icon-muted` 30% 透明)
  *  - hover:`bg-brand-tint/40 + text-text-primary/60`(对应老仓 `brand-tint-04 + icon-default`)
  *  - 激活:`text-brand`(无背景)— 老仓"选中态只有颜色变化,无背景,无指示条"
+ *  - badge:右上小红点 + 数字(>99 显 99+);目前仅 summary 模块用
  */
 function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
   const t = useT();
   const label = t(item.title);
+  const badge = useNavBadgeCount(item.to);
   return (
     <Link
       to={item.to}
@@ -41,30 +62,75 @@ function NavItem({ item, active }: { item: MenuItem; active: boolean }) {
       }`}
     >
       {renderMenuIcon(item.icon, 20)}
+      {badge != null ? (
+        <span className="absolute top-1 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </Link>
   );
 }
 
-/** 语言切换按钮 — 老仓 NavBottom 翻译图标位,点击直接 toggle zh-CN ↔ en-US。 */
-function LanguageToggle() {
+/**
+ * 语言切换菜单 — 1:1 对齐老仓 NavLanguageSwitcher:
+ *   - 下拉菜单展示 [中文, English] 两项,当前 locale 打 ✓
+ *   - 切换 → 立即 setLocale(本地 + localStorage 持久化)
+ *   - 已登录 → silent PUT /v1/user/language 同步后端偏好(失败 console.warn,
+ *     不阻塞前端切换,对齐老仓 NavLanguageSwitcher.tsx:43-50)
+ */
+function LanguageMenu() {
   const t = useT();
   const { locale, setLocale } = useI18n();
-  const tooltipKey =
-    locale === "zh-CN" ? "base.settings.switchToEnglish" : "base.settings.switchToChinese";
+  const isLogined = useStore(authStore, (s) => !!s.token);
+  const [open, setOpen] = useState(false);
+
+  const items = [
+    { value: "zh-CN", label: "中文" },
+    { value: "en-US", label: "English" },
+  ];
+
+  const handleSelect = (next: string) => {
+    setOpen(false);
+    if (next === locale) return;
+    setLocale(next);
+    if (isLogined) {
+      updateUserLanguage(next).catch((err: unknown) => {
+        // 对齐老仓:静默失败,前端 locale 已切,不弹错误 toast
+        console.warn("[i18n] failed to sync user language preference", err);
+      });
+    }
+  };
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={t(tooltipKey)}
-          onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-          className="flex h-11 w-14 cursor-pointer items-center justify-center text-text-primary/30 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40 hover:text-text-primary/60"
-        >
-          <Languages size={20} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{t(tooltipKey)}</TooltipContent>
-    </Tooltip>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("base.settings.language")}
+              className="flex h-11 w-14 cursor-pointer items-center justify-center text-text-primary/30 transition-colors duration-150 ease-(--ease-emphasized) hover:bg-brand-tint/40 hover:text-text-primary/60"
+            >
+              <Languages size={20} />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t("base.settings.language")}</TooltipContent>
+      </Tooltip>
+      <PopoverContent side="right" align="end" className="w-32 p-1">
+        {items.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => handleSelect(item.value)}
+            className="flex w-full items-center justify-between rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+          >
+            <span>{item.label}</span>
+            {locale === item.value ? <Check size={14} className="text-brand" /> : null}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -75,11 +141,24 @@ interface UserAvatarProps {
   onClick: () => void;
 }
 
+function withVersion(url: string, version: number): string {
+  if (!url || version <= 0) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+}
+
+function useResetFailedOnUrlChange(url: string, setFailed: (v: boolean) => void) {
+  useEffect(() => {
+    setFailed(false);
+  }, [url, setFailed]);
+}
+
 function UserAvatar({ uid, initial, isOnline, onClick }: UserAvatarProps) {
   const t = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const avatarVersion = useStore(avatarVersionStore, (s) => (uid ? (s.versions[uid] ?? 0) : 0));
   const [failed, setFailed] = useState(false);
-  const url = uid ? `${baseURL}/users/${uid}/avatar` : "";
+  const url = withVersion(uid ? `${baseURL}/users/${uid}/avatar` : "", avatarVersion);
+  useResetFailedOnUrlChange(url, setFailed);
 
   return (
     <Tooltip>
@@ -181,7 +260,7 @@ export function Sidebar() {
         <div className="my-2 h-px w-[22px] flex-shrink-0 bg-border-subtle" />
 
         <div className="flex flex-shrink-0 flex-col items-center gap-2 pb-4">
-          <LanguageToggle />
+          <LanguageMenu />
           <Tooltip>
             <TooltipTrigger asChild>
               <button

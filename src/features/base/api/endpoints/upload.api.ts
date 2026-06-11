@@ -30,7 +30,10 @@ interface UploadParams {
   fileSize: number;
 }
 
-export async function getUploadCredentials(params: UploadParams): Promise<UploadCredentials> {
+export async function getUploadCredentials(
+  params: UploadParams,
+  opts?: { silent?: boolean },
+): Promise<UploadCredentials> {
   return api<UploadCredentials>("file/upload/credentials", {
     method: "GET",
     params: {
@@ -40,5 +43,6 @@ export async function getUploadCredentials(params: UploadParams): Promise<Upload
       contentType: params.contentType,
       fileSize: params.fileSize,
     },
+    ...(opts?.silent ? ({ silent: true } as Parameters<typeof api<UploadCredentials>>[1]) : {}),
   });
 }

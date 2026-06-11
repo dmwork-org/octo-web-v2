@@ -8,6 +8,7 @@ import { VoiceRenderer } from "@/features/chat/message-renderers/voice-renderer"
 import { GifRenderer } from "@/features/chat/message-renderers/gif-renderer";
 import { VideoRenderer } from "@/features/chat/message-renderers/video-renderer";
 import { MergeforwardRenderer } from "@/features/chat/message-renderers/mergeforward-renderer";
+import { RichTextRenderer } from "@/features/chat/message-renderers/richtext-renderer";
 import { ThreadCreatedRenderer } from "@/features/chat/message-renderers/thread-created-renderer";
 import { RevokedRenderer } from "@/features/chat/message-renderers/revoked-renderer";
 import { CardRenderer } from "@/features/chat/message-renderers/card-renderer";
@@ -22,13 +23,14 @@ import { useT } from "@/lib/i18n/use-t";
  *
  * 优先级:
  * 1. remoteExtra.revoke → RevokedRenderer("xxx 撤回了一条消息",P2-B8)
- * 2. 精确 contentType(text/image/file/voice/gif/video/mergeForward/threadCreated/typing/...)
+ * 2. 精确 contentType(text/image/file/voice/gif/video/mergeForward/richText/threadCreated/typing/...)
  * 3. 1000 ≤ contentType ≤ 2000 → SystemRenderer(displayText 兜底)
  * 4. 兜底 [不支持的消息类型 X]
  *
  * threadCreated(1100)在 system 范围内但有富 payload + 点击进子区,精确匹配
  * 优先于 system fallback。
  * typing(-2)是 transient 状态消息,3 个跳动点占位。
+ * richText(=14)图文混排,blocks 顺序穿插 text/image,对齐上游 b1bb31df。
  */
 export function MessageDispatch({ message }: { message: Message }) {
   const t = useT();
@@ -53,6 +55,8 @@ export function MessageDispatch({ message }: { message: Message }) {
       return <VideoRenderer message={message} />;
     case MessageContentTypeConst.mergeForward:
       return <MergeforwardRenderer message={message} />;
+    case MessageContentTypeConst.richText:
+      return <RichTextRenderer message={message} />;
     case MessageContentTypeConst.card:
       return <CardRenderer message={message} />;
     case MessageContentTypeConst.location:

@@ -17,6 +17,7 @@ export const MessageContentTypeConst = {
   mergeForward: 11,
   lottieSticker: 12,
   lottieEmojiSticker: 13,
+  richText: 14,
   summaryCard: 15,
   joinOrganization: 16,
   screenshot: 20,

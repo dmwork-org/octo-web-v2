@@ -4,11 +4,15 @@ import { authActions, type AuthUser } from "@/features/base/stores/auth";
 import { spaceActions } from "@/features/base/stores/space";
 import { getInviteInfo, getMySpaces, joinSpace } from "@/features/base/api/endpoints/space.api";
 import type { LoginResp } from "@/features/base/api/endpoints/user.api";
+import { getPendingOidcLogin } from "@/features/login/oidc/pending";
+import { i18n } from "@/lib/i18n/instance";
 
 /**
  * 登录成功后的统一收尾(对齐老仓 LoginVM.loginSuccess + AppLayout.onLogin):
  *
  * 1. `authActions.signIn(token, user)` 写入 token + user(localStorage 持久化)
+ *    SSO 登录时 `user.login_provider` 自动从 pending OIDC session 读出,供后续
+ *    signOut 决定走 IdP end_session_url(对齐上游 86c5837b loginProvider)
  * 2. **清残留 spaceId**(关键 — 防止用上次登录的 space 调 API 拿到 "你不是
  *    该空间成员" 错误,对齐老仓 logout 清 currentSpaceId 的语义)
  * 3. 检 effectiveCode(URL `?invite_code=` 优先,fallback `localStorage.pendingInviteCode`
@@ -30,6 +34,9 @@ const INVITE_CODE_REGEX = /^[a-zA-Z0-9_-]+$/;
 const PENDING_INVITE_KEY = "pendingInviteCode";
 
 export function loginRespToAuthUser(resp: LoginResp): AuthUser {
+  // SSO 流程中 pending OIDC session 留着 providerId,登录完成时读出来存到 user
+  // (供 signOut 时决定走 IdP end_session_url 还是直接本地清)
+  const pending = getPendingOidcLogin();
   return {
     uid: resp.uid,
     name: resp.name ?? "",
@@ -38,6 +45,7 @@ export function loginRespToAuthUser(resp: LoginResp): AuthUser {
     short_no: resp.short_no,
     zone: resp.zone,
     phone: resp.phone,
+    login_provider: pending?.providerId,
   };
 }
 
@@ -87,10 +95,16 @@ export function useFinalizeLogin(inviteCode: string | undefined, redirect: strin
       // 1. 写 token + user(localStorage 持久化生效)
       authActions.signIn(resp.token, loginRespToAuthUser(resp));
 
-      // 2. 清残留 spaceId — 新用户/换账号不应继承上次的 space 上下文
+      // 2. 应用用户后端语言偏好(如有) — 对齐老仓 NavLanguageSwitcher 同步语义,
+      //    多端切语言后下次登录在本端自动应用。后端不下发时为 undefined 跳过。
+      if (resp.language) {
+        i18n.setLocale(resp.language);
+      }
+
+      // 3. 清残留 spaceId — 新用户/换账号不应继承上次的 space 上下文
       spaceActions.setSpace(null);
 
-      // 3. 决定要进哪个 space
+      // 4. 决定要进哪个 space
       const effectiveCode =
         inviteCode && INVITE_CODE_REGEX.test(inviteCode) ? inviteCode : readPendingInviteCode();
 

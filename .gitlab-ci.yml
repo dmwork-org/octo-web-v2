@@ -35,11 +35,14 @@ variables:
   tags:
     - nb
   cache:
+    # 相对路径 — 老版 gitlab-runner(12.5.0) 对 $CI_PROJECT_DIR/... 的展开不一致,
+    # 上一版用绝对路径时 archive_cache 报 "no matching files"。
     - key:
         files:
           - pnpm-lock.yaml
       paths:
-        - $CI_PROJECT_DIR/.pnpm-store
+        - .pnpm-store/
+        - .tsbuildinfo/
   artifacts:
     name: "build_${ENV}_dist"
     expire_in: 30 mins
@@ -48,12 +51,29 @@ variables:
   before_script:
     # image 自带 pnpm 10.12.1,但 packageManager 锁定 11.2.2,全局装一份匹配
     - npm config set prefix "$CI_PROJECT_DIR/.npm-global"
-    - npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:install_pnpm[collapsed=true]\r\e[0Knpm install -g pnpm"
+      time npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
+      echo -e "\e[0Ksection_end:`date +%s`:install_pnpm\r\e[0K"
     - export PATH="$CI_PROJECT_DIR/.npm-global/bin:$PATH"
-    - pnpm config set store-dir .pnpm-store
+    # belt+suspenders: .npmrc 里已有 store-dir,这里再强制一次,并打印实际位置便于排查 cache miss
+    - pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm-store"
+    - echo "[diag] pnpm store path => $(pnpm store path 2>&1)"
+    - echo "[diag] .pnpm-store before install => $(du -sh .pnpm-store 2>/dev/null || echo 'EMPTY (cache miss)')"
+    # 探一下 runner cache 挂载点 — SRE 配 PVC 后看是否真挂到这里
+    - echo "[diag] /cache mount => $(ls -la /cache 2>&1 | head -5 || echo 'NOT MOUNTED')"
+    - echo "[diag] cache-related mounts => $(mount | grep -iE 'cache|pvc' || echo 'none')"
   script:
-    - pnpm install --frozen-lockfile --prefer-offline
-    - pnpm build
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pnpm_install[collapsed=true]\r\e[0Kpnpm install"
+      time pnpm install --frozen-lockfile --prefer-offline
+      echo -e "\e[0Ksection_end:`date +%s`:pnpm_install\r\e[0K"
+    - echo "[diag] .pnpm-store after install => $(du -sh .pnpm-store 2>/dev/null || echo 'STILL EMPTY — store-dir not honored!')"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pnpm_build[collapsed=true]\r\e[0Kpnpm build"
+      time pnpm build
+      echo -e "\e[0Ksection_end:`date +%s`:pnpm_build\r\e[0K"
+    - echo "[diag] .tsbuildinfo after build => $(du -sh .tsbuildinfo 2>/dev/null || echo 'EMPTY')"
 
 .package: &package
   stage: package

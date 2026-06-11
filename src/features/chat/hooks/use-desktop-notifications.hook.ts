@@ -2,8 +2,14 @@ import { useEffect } from "react";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { spaceStore } from "@/features/base/stores/space";
+import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
-import { isNotificationSupported, sendNotification } from "@/features/base/lib/notification-util";
+import {
+  isNotificationSupported,
+  playMessageTone,
+  sendNotification,
+} from "@/features/base/lib/notification-util";
 import { t } from "@/lib/i18n/instance";
 
 /** 子区 channelType(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
@@ -35,17 +41,22 @@ function iconForChannel(channel: Channel, baseURL: string): string {
  * 桌面通知钩子 — 在 IMProvider 内挂(已登录全局)。订阅 SDK chatManager onMessage,
  * 命中过滤条件后调 `sendNotification`(单条全局,5s 自动关,点击 focus + 选会话)。
  *
- * **过滤规则**(对齐老仓 NotificationUtil.sendMessageNotification + module.tsx L537):
+ * **过滤规则**(对齐老仓 NotificationUtil.sendMessageNotification + module.tsx L537 + allowNotify):
  *   1. 自己发的(`fromUID === uid`)
  *   2. SDK header.noPersist(瞬态如 typing)
  *   3. SDK header.reddot=false(后端不展角标的消息)
  *   4. 当前正在打开的会话(`chatSelectedStore.channel.isEqual`)
- *   5. channelInfo.mute(免打扰)
- *   6. 子区:父群 mute(parentGroupNo 路径)
- *   7. notification-util 全局 off flag(用户在 settings 关了)
- *   8. document.visibilityState === 'visible'(用户在用,不打扰)
+ *   5. Space 隔离:不属于当前 Space 的消息(走 isMessageOfSpace,覆盖 BotFather
+ *      跨 space + 普通群跨 space + 子区父群跨 space 等所有情况)
+ *   6. channelInfo.mute(免打扰)
+ *   7. 子区:父群 mute(parentGroupNo 路径)
+ *   8. notification-util 全局 off flag(用户在 settings 关了)
+ *   9. document.visibilityState === 'visible'(用户在用,不弹通知;**提示音仍响**,
+ *      对齐老仓 tipsAudio 不查 visibility 的行为)
  *
- * 4 / 7 / 8 由 sendNotification 内部检 / store 即时读;其余在本 hook 拦截。
+ * 4 / 8 / 9 由 sendNotification 内部检 / store 即时读;其余在本 hook 拦截。
+ * 通过过滤的消息会同时触发 sendNotification(可能被 visibility 拦) + playMessageTone
+ * (visibility 时也响)。
  */
 export function useDesktopNotifications(uid: string | null) {
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
@@ -63,10 +74,12 @@ export function useDesktopNotifications(uid: string | null) {
       // 4. 当前会话
       const current = chatSelectedStore.state.channel;
       if (current && current.isEqual(msg.channel)) return;
-      // 5. 频道免打扰
+      // 5. Space 隔离 — 跨 space 的消息不打扰当前 space 的用户
+      if (!isMessageOfSpace(msg, spaceStore.state.spaceId)) return;
+      // 6. 频道免打扰
       const info = WKSDK.shared().channelManager.getChannelInfo(msg.channel);
       if (info?.mute) return;
-      // 6. 子区:父群免打扰
+      // 7. 子区:父群免打扰
       const parentNo = (info?.orgData as { parentGroupNo?: string } | undefined)?.parentGroupNo;
       if (parentNo) {
         const parent = new Channel(parentNo, ChannelTypeGroup);
@@ -88,6 +101,7 @@ export function useDesktopNotifications(uid: string | null) {
         tag: "message",
         onClick: () => chatSelectedActions.select(msg.channel),
       });
+      playMessageTone();
     };
 
     WKSDK.shared().chatManager.addMessageListener(onMessage);

@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.pnpm-store/
+.tsbuildinfo/
 
 # Editor directories and files
 .vscode/*
@@ -41,4 +43,5 @@ src/**/*.preview-tmp-*.tsx
 # scratch — chrome devtools 调研截图等
 .cache/
 .tanstack/tmp/
-".nanobot/"  
+".nanobot/"
+.nanobot/

@@ -9,7 +9,11 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { readMessageMention } from "@/features/chat/lib/read-message-mention";
+import {
+  isFetchableUid,
+  markUidFetchFailed,
+  readMessageMention,
+} from "@/features/chat/lib/read-message-mention";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
@@ -175,8 +179,13 @@ function mentionTokens(
     const names = collectCandidateNames(uid, channel);
     if (names.length === 0) {
       // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
-      // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens
-      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens。
+      // 非法 uid(sentinel / 字面 "uid" / 太短)+ 已失败 uid 跳过,避免 toast 风暴(issue #74)
+      if (isFetchableUid(uid)) {
+        void WKSDK.shared()
+          .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
+          .catch(() => markUidFetchFailed(uid));
+      }
       continue;
     }
     for (const name of names) {

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { isFetchableUid, markUidFetchFailed } from "@/features/chat/lib/read-message-mention";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
@@ -251,9 +252,12 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              void WKSDK.shared().channelManager.fetchChannelInfo(
-                new Channel(uid, ChannelTypePerson),
-              );
+              // 非法 uid + 已失败 uid 跳过,避免 toast 风暴(issue #74)
+              if (isFetchableUid(uid)) {
+                void WKSDK.shared()
+                  .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
+                  .catch(() => markUidFetchFailed(uid));
+              }
               continue;
             }
             let found = false;

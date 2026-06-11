@@ -22,6 +22,10 @@ export const with401Redirect =
 /**
  * 全局错误 toast。调用方在 fetch options 传 `silent: true` 可跳过(自己接管错误提示)。
  *
+ * **key 去重**(issue #74):同一份 message 短时间内只显一条,避免某个 endpoint
+ * 周期失败时 toast 飘满屏幕(典型场景:某 SDK 周期 fetchChannelInfo 命中非法 uid
+ * → 每次 re-render 都触发 → 400 → 默认无 key 时 toast 堆叠几十条)。
+ *
  * 用法:
  *   api('/foo', { ...(silent ? { silent: true } : {}) } as FetchOptions & { silent?: boolean })
  *   或封装的 endpoint 函数透传 silent 选项。
@@ -32,5 +36,6 @@ export const withErrorToast =
     if ((options as { silent?: boolean }).silent) return;
     const data = response._data as { message?: string; msg?: string } | undefined;
     const msg = data?.message ?? data?.msg ?? response.statusText ?? "Request failed";
-    toast.error(msg);
+    // 用 msg + status 当 key:相同错误同时间窗内只显一条
+    toast.error(msg, { key: `err:${response.status}:${msg}` });
   };

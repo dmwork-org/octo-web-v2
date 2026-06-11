@@ -30,6 +30,7 @@ export function AppShell({ children }: AppShellProps) {
       <ChatConfirmDialog />
       <UserInfoModal
         uid={profile.kind === "user" ? profile.uid : null}
+        groupNo={profile.kind === "user" ? profile.groupNo : undefined}
         onClose={chatProfileActions.close}
       />
       <BotDetailModal

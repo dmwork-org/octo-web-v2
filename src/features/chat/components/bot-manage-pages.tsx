@@ -160,7 +160,7 @@ export function MentionFreeListPage({ robotId }: { robotId: string }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-3">
+      <div className="flex-1 overflow-y-auto pb-3">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center text-sm text-text-tertiary">
             {tt("base.common.loading")}

@@ -17,7 +17,7 @@ export function CardRenderer({ message }: { message: Message }) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        openChatProfile(content.uid);
+        openChatProfile(content.uid, message.channel);
       }}
       className="flex w-72 items-center gap-3 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-left transition-colors hover:bg-bg-hover"
     >

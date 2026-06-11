@@ -297,7 +297,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              openChatProfile(senderUid);
+              openChatProfile(senderUid, message.channel);
             }}
             className="cursor-pointer truncate text-[15px] font-semibold text-text-primary hover:underline"
           >

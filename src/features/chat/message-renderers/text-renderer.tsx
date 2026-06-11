@@ -148,18 +148,21 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
 /**
  * mention 字段 → Markdown tokens(供 `<Markdown>` 后处理替换):
  *
- * 双路径(主路径 + 兜底):
- *   1. 正则提取 text 里所有 `@xxx`,按顺序对应 mention.uids — 主路径,
- *      不依赖任何缓存,只要 text 里 @ 模式可识别就能高亮
- *   2. 候选 name token:为每个 uid 收集所有候选 name,作为额外保险
- *      (text 里 mention 后紧接特殊字符,正则边界没覆盖的 case 仍能匹配)
+ * **主路径(candidates)**:每个 uid 用 collectCandidateNames 取真实显示名,
+ * 拼 `@<name>` 在 text 里 `includes` 精确匹配。命中即注册 token。
+ *   - 优点 1:支持带空格 / 特殊字符的真实显示名(如 `@新Octo Bug 收集`),
+ *     正则字符类搞不定的 case 全靠这条
+ *   - 优点 2:**不会误绑文字里的字面 @ 串**(如 `@我点不掉` 不是任何 uid 的
+ *     candidate name → 不渲染),issue #46 真凶
  *
- * - mention.all=true 时额外加 "@所有人" / "@all" token(legacy)
- * - mention.humans=1 时加 "@所有人" broadcast token(新三态,上游 76189c1d)
- * - mention.ais=1 时加 "@所有AI" broadcast token,且 uids 视为 routing
- *   bot uid(不参与 text 主路径/兜底匹配,避免误绑到裸写 @xxx;上游 90556da2
- *   fail-closed guard)
- * - 不解析任意 `@<word>`(避免误识别邮件/字面值),只信任 mention 字段
+ * **兜底(regex)**:candidates 全没匹配到的 uid(缓存 race / 真实显示名跟
+ * text 里写法不一致),用正则按出现顺序对应剩余未匹配 uid。
+ *
+ * **全员/AI 关键字独立**:`@所有人` / `@all` / `@所有AI` 由 mention.all/humans/ais
+ * 字段表达,不消耗 mention.uids 顺位(extractAtSpansFromText 内 SKIP_AT_KEYWORDS
+ * 也会跳)。
+ * - mention.ais=1 时 uids 是 routing bot uid(client expand 给 legacy adapter),
+ *   不参与 candidate / regex,fail-closed 防绑到 @ops 等裸 @text(上游 90556da2)
  */
 function mentionTokens(
   text: string,
@@ -204,27 +207,35 @@ function mentionTokens(
       ),
     });
   }
-  // mention.ais=1 时 uids 是 routing bot uid(client 端 expand 进去给 legacy
-  // adapter bot 收到的,不是用户面 mention),不能绑给文本里的 @xxx —— 否则会
-  // 把 routing uid 绑给 @所有AI 之外的 @ops 等裸 @text。fail-closed guard。
   if (flags.ais) {
     return tokens;
   }
-  // 主路径:正则提取
-  for (const { match, uid } of extractAtSpansFromText(text, mention.uids ?? [])) {
-    tokens.push({
-      match,
-      render: (key) => (
-        <MentionTag key={key} uid={uid}>
-          {match}
-        </MentionTag>
-      ),
-    });
-  }
-  // 兜底:候选 names
-  for (const uid of mention.uids ?? []) {
-    for (const name of collectCandidateNames(uid, channel)) {
+  // 主路径 — candidate names 精确匹配(支持空格 / 特殊字符 / 防文字误绑)
+  const uids = mention.uids ?? [];
+  const matchedUids = new Set<string>();
+  for (const uid of uids) {
+    const names = collectCandidateNames(uid, channel);
+    for (const name of names) {
       const match = `@${name}`;
+      if (text.includes(match)) {
+        tokens.push({
+          match,
+          render: (key) => (
+            <MentionTag key={key} uid={uid}>
+              {match}
+            </MentionTag>
+          ),
+        });
+        matchedUids.add(uid);
+        break;
+      }
+    }
+  }
+  // 兜底 — 仅对 candidate 未匹配上的 uid 走正则按序绑(缓存 race / 用户写
+  // 法跟 candidate 不一致)。正则内已跳 SKIP_AT_KEYWORDS 避免误占。
+  const remainingUids = uids.filter((u) => !matchedUids.has(u));
+  if (remainingUids.length > 0) {
+    for (const { match, uid } of extractAtSpansFromText(text, remainingUids)) {
       tokens.push({
         match,
         render: (key) => (

@@ -61,7 +61,7 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
             key={`${message.clientMsgNo}-text-${i}`}
             className="text-[14px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary"
           >
-            <MentionAwareText text={text} mention={mention} />
+            <MentionAwareText text={text} mention={mention} channel={message.channel} />
           </div>
         );
       })}

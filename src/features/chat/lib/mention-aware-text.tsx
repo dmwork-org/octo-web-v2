@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import type { Mention } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypeGroup,
+  ChannelTypePerson,
+  type Mention,
+} from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
@@ -8,10 +13,40 @@ type MentionWithFlags = Mention & { humans?: number; ais?: number };
 /**
  * @ 关键字集合 — 这些是 mention.all / humans / ais 字段独立表达的全员/AI 标记,
  * **不消耗 mention.uids**(uids 只装具体用户)。
- * 跟 text-renderer.ts SKIP_AT_KEYWORDS 同款,避免 RichText 渲染时同款错位
+ * 跟 text-renderer.tsx SKIP_AT_KEYWORDS 同款,避免 RichText 渲染时同款错位
  * (issue #46 followup)。
  */
 const SKIP_AT_KEYWORDS = new Set(["@所有人", "@all", "@所有AI"]);
+
+/**
+ * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**(跟 text-renderer
+ * collectCandidateNames 同款,本地副本未抽公共)。
+ */
+function collectCandidateNames(uid: string, channel: Channel): string[] {
+  const names: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
+  };
+  if (channel.channelType === ChannelTypeGroup) {
+    const sub = WKSDK.shared()
+      .channelManager.getSubscribes(channel)
+      ?.find((s) => s.uid === uid);
+    push(sub?.remark);
+    push(sub?.name);
+    const subOrg = sub?.orgData as { real_name?: string; displayName?: string } | undefined;
+    push(subOrg?.real_name);
+    push(subOrg?.displayName);
+  }
+  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
+  push(info?.title);
+  const infoOrg = info?.orgData as
+    | { remark?: string; real_name?: string; displayName?: string }
+    | undefined;
+  push(infoOrg?.remark);
+  push(infoOrg?.real_name);
+  push(infoOrg?.displayName);
+  return names;
+}
 
 /**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
@@ -51,16 +86,31 @@ export function MentionTag({
 }
 
 /**
- * Plain text 渲染,把 @ 匹配段替换为 MentionTag(对齐 text-renderer mentionTokens 主路径)。
+ * Plain text 渲染,把 @ 匹配段替换为 MentionTag(对齐 text-renderer mentionTokens)。
  *
  * **使用场景**:RichText=14 text block 需要在不走 markdown 解析的前提下高亮 @,
- * 跟 text-renderer 的 mention 行为保持一致。逻辑:
+ * 跟 text-renderer 的 mention 行为保持一致。
+ *
+ * **匹配策略**(issue #46):
+ *   1. 主路径 — candidate names 精确匹配:每个 uid 用 collectCandidateNames 取
+ *      真实显示名,`@<name>` 在 text 里 indexOf 匹配。支持带空格 / 特殊字符
+ *      的名字(如 `@新Octo Bug 收集`),且不会误绑 text 里字面 @ 串
+ *   2. 兜底 — 正则按序绑剩余未匹配 uid(缓存 race 或用户写法跟 candidate 不一致)
+ *
+ * **全员/AI**:
  *   - mention.all   → @所有人 / @all 高亮
  *   - mention.humans→ @所有人 高亮(broadcast)
- *   - mention.ais   → @所有AI 高亮(broadcast,uids 视为 routing,不绑文本)
- *   - 否则按 uids 一一对应高亮 text 里的 @xxx
+ *   - mention.ais   → @所有AI 高亮(broadcast,uids 视为 routing 不绑文本)
  */
-export function MentionAwareText({ text, mention }: { text: string; mention?: Mention }) {
+export function MentionAwareText({
+  text,
+  mention,
+  channel,
+}: {
+  text: string;
+  mention?: Mention;
+  channel?: Channel;
+}) {
   if (!text) return <>{text}</>;
   if (!mention) return <>{text}</>;
   const flags = mention as MentionWithFlags;
@@ -110,30 +160,69 @@ export function MentionAwareText({ text, mention }: { text: string; mention?: Me
     ));
     // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
   } else {
-    // eslint-disable-next-line no-misleading-character-class
-    const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
     const uids = mention.uids ?? [];
-    let i = 0;
-    for (const m of text.matchAll(re)) {
-      const match = m[0];
-      // 跳过全员/AI 关键字 — 不消耗 uids 顺位(issue #46)
-      if (SKIP_AT_KEYWORDS.has(match)) continue;
-      if (i >= uids.length) break;
-      const start = m.index ?? -1;
-      if (start === -1) {
-        i++;
-        continue;
+    const matchedUids = new Set<string>();
+    // 主路径 — candidate names 精确匹配(需要 channel)
+    if (channel) {
+      for (const uid of uids) {
+        const names = collectCandidateNames(uid, channel);
+        let found = false;
+        for (const name of names) {
+          const needle = `@${name}`;
+          // 找一个未被占用的位置
+          let from = 0;
+          while (from < text.length) {
+            const idx = text.indexOf(needle, from);
+            if (idx === -1) break;
+            const overlap = hits.some((h) => idx < h.end && idx + needle.length > h.start);
+            if (!overlap) {
+              hits.push({
+                start: idx,
+                end: idx + needle.length,
+                node: (
+                  <MentionTag key={`tk-uid-${uid}-${idx}`} uid={uid}>
+                    {needle}
+                  </MentionTag>
+                ),
+              });
+              matchedUids.add(uid);
+              found = true;
+              break;
+            }
+            from = idx + 1;
+          }
+          if (found) break;
+        }
       }
-      const uid = uids[i++];
-      hits.push({
-        start,
-        end: start + match.length,
-        node: (
-          <MentionTag key={`tk-uid-${start}`} uid={uid}>
-            {match}
-          </MentionTag>
-        ),
-      });
+    }
+    // 兜底 — 正则按序绑剩余未匹配 uid
+    const remainingUids = uids.filter((u) => !matchedUids.has(u));
+    if (remainingUids.length > 0) {
+      // eslint-disable-next-line no-misleading-character-class
+      const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
+      let i = 0;
+      for (const m of text.matchAll(re)) {
+        const match = m[0];
+        if (SKIP_AT_KEYWORDS.has(match)) continue;
+        if (i >= remainingUids.length) break;
+        const start = m.index ?? -1;
+        if (start === -1) {
+          i++;
+          continue;
+        }
+        // 跳过已被 candidate 匹配占用的位置
+        if (hits.some((h) => start < h.end && start + match.length > h.start)) continue;
+        const uid = remainingUids[i++];
+        hits.push({
+          start,
+          end: start + match.length,
+          node: (
+            <MentionTag key={`tk-uid-${start}`} uid={uid}>
+              {match}
+            </MentionTag>
+          ),
+        });
+      }
     }
   }
 

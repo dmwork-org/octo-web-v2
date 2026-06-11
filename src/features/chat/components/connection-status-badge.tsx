@@ -153,25 +153,27 @@ export function ConnectionStatusBadge() {
       </span>
 
       {hovered ? (
-        <div className="pointer-events-none absolute top-full right-0 z-50 mt-1 flex w-44 flex-col gap-0.5 rounded-md border border-border-subtle bg-bg-surface px-2.5 py-2 text-[12px] leading-snug text-text-primary shadow-lg">
-          <div>
-            {t("connectionStatus.statusLabel")}
-            <span style={{ color: activeColor }}>{statusText}</span>
-          </div>
-          {connected && latency !== undefined ? (
-            <div>{t("connectionStatus.latencyLabel", { values: { ms: latency } })}</div>
-          ) : null}
-          {connected && connectedSince ? (
+        <div className="absolute top-full right-0 z-50 w-44 pt-1">
+          <div className="flex flex-col gap-0.5 rounded-md border border-border-subtle bg-bg-surface px-2.5 py-2 text-[12px] leading-snug text-text-primary shadow-lg">
             <div>
-              {t("connectionStatus.connectedFor", {
-                values: { duration: formatDuration(connectedSince) },
-              })}
+              {t("connectionStatus.statusLabel")}
+              <span style={{ color: activeColor }}>{statusText}</span>
             </div>
-          ) : null}
-          {!connected && lastError ? <div className="text-text-tertiary">{lastError}</div> : null}
-          {!connected && !connecting ? (
-            <div className="mt-1 text-brand">{t("connectionStatus.clickReconnect")}</div>
-          ) : null}
+            {connected && latency !== undefined ? (
+              <div>{t("connectionStatus.latencyLabel", { values: { ms: latency } })}</div>
+            ) : null}
+            {connected && connectedSince ? (
+              <div>
+                {t("connectionStatus.connectedFor", {
+                  values: { duration: formatDuration(connectedSince) },
+                })}
+              </div>
+            ) : null}
+            {!connected && lastError ? <div className="text-text-tertiary">{lastError}</div> : null}
+            {!connected && !connecting ? (
+              <div className="mt-1 text-brand">{t("connectionStatus.clickReconnect")}</div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>

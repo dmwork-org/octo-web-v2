@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type Mention, type Message } from "wukongimjssdk";
+import { type Message } from "wukongimjssdk";
 import {
   RichTextBlockType,
   type RichTextBlock,
@@ -7,6 +7,7 @@ import {
 } from "@/features/base/im/richtext-content";
 import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import { MentionAwareText } from "@/features/chat/lib/mention-aware-text";
+import { readMessageMention } from "@/features/chat/lib/read-message-mention";
 import { useT } from "@/lib/i18n/use-t";
 
 interface RichTextRendererProps {
@@ -43,7 +44,9 @@ function isSafeUrl(url: string): boolean {
 export function RichTextRenderer({ message }: RichTextRendererProps) {
   const content = message.content as RichTextContent;
   const blocks: RichTextBlock[] = content.content || [];
-  const mention = (content as RichTextContent & { mention?: Mention }).mention;
+  // mention 走 readMessageMention:SDK Mention 类不识别 humans/ais 三态字段,
+  // 必须 fallback 到 contentObj.mention 取 raw,否则刷新后 @所有人/@所有AI 不高亮。
+  const mention = readMessageMention(content);
 
   return (
     <div className="flex flex-col gap-2">
@@ -61,7 +64,7 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
             key={`${message.clientMsgNo}-text-${i}`}
             className="text-[14px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary"
           >
-            <MentionAwareText text={text} mention={mention} linkify />
+            <MentionAwareText text={text} mention={mention} channel={message.channel} linkify />
           </div>
         );
       })}

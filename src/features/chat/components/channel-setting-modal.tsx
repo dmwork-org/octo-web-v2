@@ -43,6 +43,7 @@ import {
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { canManageThread } from "@/features/chat/lib/thread-permission";
+import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 // section-form 共享原语
@@ -418,9 +419,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       }
     },
     onSuccess: async () => {
-      WKSDK.shared().channelManager.deleteChannelInfo(channel);
-      await WKSDK.shared().channelManager.fetchChannelInfo(channel);
+      // 清 SDK channelInfo 缓存 + invalidate(对齐 thread-list-panel 两处归档入口,
+      // 用同款 helper 防止逻辑漂移;issue #72 三入口必须共用)
       if (threadParsed) {
+        refreshThreadChannelInfoCache(threadParsed.groupNo, threadParsed.shortId);
         void qc.invalidateQueries({ queryKey: ["chat", "thread-list", threadParsed.groupNo] });
       }
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });

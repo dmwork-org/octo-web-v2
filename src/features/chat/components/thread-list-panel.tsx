@@ -34,6 +34,7 @@ import { archiveThread, unarchiveThread } from "@/features/base/api/endpoints/gr
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import {
   deriveArchiveAction,
+  refreshThreadChannelInfoCache,
   shouldShowArchiveButton,
 } from "@/features/chat/lib/thread-archive-actions";
 import {
@@ -388,6 +389,9 @@ function DetailView({
       setArchiveConfirmOpen(false);
       onInvalidate();
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      // 清 SDK channelInfo 缓存让 follow-list / sidebar 的 isArchivedThread 判定拿到
+      // 新 thread.status(issue #72:不清缓存关注列表页不刷新)
+      refreshThreadChannelInfoCache(groupNo, thread.short_id);
       const nextStatus =
         archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
       onThreadUpdated?.({ status: nextStatus });
@@ -716,6 +720,9 @@ function ThreadItem({
       }
       void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      // 清 SDK channelInfo 缓存让 follow-list / sidebar 的 isArchivedThread 判定拿到
+      // 新 thread.status(issue #72:不清缓存关注列表页不刷新)
+      refreshThreadChannelInfoCache(groupNo, thread.short_id);
       toast.success(
         action === "archive"
           ? t("threadPanelLocal.toast.archived")

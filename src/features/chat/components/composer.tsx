@@ -326,7 +326,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       r.content = replyingTo.content;
       return r;
     },
-    [replyingTo],
+    [channel, replyingTo],
   );
 
   const send = async () => {

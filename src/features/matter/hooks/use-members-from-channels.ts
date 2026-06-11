@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import WKSDK, { Channel } from "wukongimjssdk";
 
 export interface ChannelRef {
@@ -17,13 +17,9 @@ export interface AssigneeInfo {
  * 使用场景 (PRD §5.1):
  *   Matter 负责人候选应当从所有关联 channel 的成员并集中选择。
  */
-export function useMembersFromChannels(
-  channels: ChannelRef[],
-  enabled = true,
-) {
+export function useMembersFromChannels(channels: ChannelRef[], enabled = true) {
   const [members, setMembers] = useState<AssigneeInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const requestIdRef = useRef(0);
 
   const channelsKey = channels
     .map((c) => `${c.channelId}:${c.channelType}`)
@@ -31,17 +27,24 @@ export function useMembersFromChannels(
     .join("|");
 
   useEffect(() => {
-    if (!enabled || channels.length === 0) {
+    const refs = channelsKey
+      ? channelsKey.split("|").map((key) => {
+          const [channelId, channelType] = key.split(":");
+          return { channelId, channelType: Number(channelType) };
+        })
+      : [];
+
+    if (!enabled || refs.length === 0) {
       setMembers([]);
       setLoading(false);
       return;
     }
 
-    const reqId = ++requestIdRef.current;
+    let aborted = false;
     setLoading(true);
 
-    Promise.all(
-      channels.map(async (ref) => {
+    void Promise.all(
+      refs.map(async (ref) => {
         const ch = new Channel(ref.channelId, ref.channelType);
         try {
           await WKSDK.shared().channelManager.syncSubscribes(ch);
@@ -51,7 +54,7 @@ export function useMembersFromChannels(
         }
       }),
     ).then((allBatches) => {
-      if (reqId !== requestIdRef.current) return;
+      if (aborted) return;
 
       const seen = new Set<string>();
       const merged: AssigneeInfo[] = [];
@@ -70,7 +73,7 @@ export function useMembersFromChannels(
     });
 
     return () => {
-      requestIdRef.current++;
+      aborted = true;
     };
   }, [channelsKey, enabled]);
 

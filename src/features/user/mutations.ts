@@ -33,7 +33,7 @@ export function useUploadAvatarMutation(uid: string | null) {
     },
     onSuccess: () => {
       if (!uid) return;
-      avatarVersionActions.bump(uid);
+      avatarVersionActions.bump(uid, ChannelTypePerson);
       void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
       void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
     },

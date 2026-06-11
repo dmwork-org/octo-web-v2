@@ -1555,7 +1555,9 @@ export function FollowList({
         ) : null}
       </div>
       <DragOverlay dropAnimation={null}>
-        {activeDragId ? renderDragGhost(activeDragId, orderedCategories, sidebarQ.data?.items ?? []) : null}
+        {activeDragId
+          ? renderDragGhost(activeDragId, orderedCategories, sidebarQ.data?.items ?? [])
+          : null}
       </DragOverlay>
     </DndContext>
   );

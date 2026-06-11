@@ -44,7 +44,7 @@ export function useLatestTimelinePerChannel(matterId: string, channels: MatterCh
         }
       },
     );
-    Promise.all(tasks).then((results) => {
+    void Promise.all(tasks).then((results) => {
       if (aborted) return;
       const map = new Map<string, TimelineEntry | null>();
       for (const r of results) map.set(r.channelId, r.entry);
@@ -98,7 +98,7 @@ export function useChannelTimelineOnExpand(matterId: string, expandedTimelines: 
         }
       },
     );
-    Promise.all(tasks)
+    void Promise.all(tasks)
       .then((results) => {
         if (aborted) return;
         setTimelineMap((prev) => {
@@ -113,7 +113,7 @@ export function useChannelTimelineOnExpand(matterId: string, expandedTimelines: 
     return () => {
       aborted = true;
     };
-  }, [expandedTimelines, matterId]);
+  }, [expandedTimelines, matterId, timelineMap]);
 
   return { timelineMap, timelineLoading };
 }

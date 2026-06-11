@@ -97,7 +97,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       // 会走 `${baseURL}/groups/{groupNo}/avatar` fallback URL。主动 bump 一个
       // 非零 version,让 fallback URL 首次就带 `?v={ts}`,后端 ready 后即使是
       // 同一 path,version 变化也强制重 GET,绕过潜在的旧 404 cache。
-      avatarVersionActions.bump(resp.group_no);
+      avatarVersionActions.bump(resp.group_no, ChannelTypeGroup);
       if (categoryId) {
         try {
           await moveGroupToCategory(resp.group_no, categoryId);

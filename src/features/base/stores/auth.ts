@@ -44,8 +44,7 @@ function readPersisted(): AuthState {
             short_no: typeof u.short_no === "string" ? u.short_no : undefined,
             zone: typeof u.zone === "string" ? u.zone : undefined,
             phone: typeof u.phone === "string" ? u.phone : undefined,
-            login_provider:
-              typeof u.login_provider === "string" ? u.login_provider : undefined,
+            login_provider: typeof u.login_provider === "string" ? u.login_provider : undefined,
           }
         : null;
     return { token, user };

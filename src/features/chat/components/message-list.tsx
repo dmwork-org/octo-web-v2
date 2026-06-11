@@ -294,7 +294,6 @@ function useLocateRequestedMessage(channel: Channel, ready: boolean): void {
   ]);
 }
 
-
 /**
  * 把"末尾是 active AI 协作 fold session"的信号写到全局 store(issue #33,对齐老仓
  * vm.ts:451-462)。会话列表行的 `ConversationTypingDigest` 订阅本 store,有 fold

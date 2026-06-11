@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
@@ -37,6 +44,32 @@ function channelForAvatar(c: ChannelOption): Channel {
     return new Channel(c.parentGroupNo, ChannelTypeGroup);
   }
   return new Channel(c.channelId, c.channelType);
+}
+
+function useLoadChannelsOnOpen({
+  open,
+  spaceId,
+  loadChannels,
+  setSearch,
+  setSelected,
+  setThreadLoadErrors,
+}: {
+  open: boolean;
+  spaceId: string | null;
+  loadChannels: () => void;
+  setSearch: Dispatch<SetStateAction<string>>;
+  setSelected: Dispatch<SetStateAction<string[]>>;
+  setThreadLoadErrors: Dispatch<SetStateAction<string[]>>;
+}): void {
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+      setSelected([]);
+      setThreadLoadErrors([]);
+      return;
+    }
+    loadChannels();
+  }, [open, spaceId, loadChannels, setSearch, setSelected, setThreadLoadErrors]);
 }
 
 /**
@@ -93,20 +126,16 @@ export function LinkChannelModal({
         toast.error(t("matter.linkChannels.loadFailedRetry"));
       })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spaceId]);
+  }, [spaceId, t]);
 
-  // modal 打开时重置 + 加载
-  useEffect(() => {
-    if (!open) {
-      setSearch("");
-      setSelected([]);
-      setThreadLoadErrors([]);
-      return;
-    }
-    loadChannels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, spaceId]);
+  useLoadChannelsOnOpen({
+    open,
+    spaceId,
+    loadChannels,
+    setSearch,
+    setSelected,
+    setThreadLoadErrors,
+  });
 
   // 已关联的 channel_id 集合
   const linkedIds = useMemo(
@@ -169,8 +198,7 @@ export function LinkChannelModal({
     } finally {
       setSubmitting(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, submitting, channels, matterId, linkMu, onClose]);
+  }, [selected, submitting, channels, matterId, linkMu, onClose, t]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const selectedChannels = useMemo(
@@ -193,7 +221,10 @@ export function LinkChannelModal({
     >
       <div className="flex h-[560px] flex-col">
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: "1px solid rgba(28,28,35,0.15)" }}>
+        <div
+          className="flex items-center justify-between px-4 py-4"
+          style={{ borderBottom: "1px solid rgba(28,28,35,0.15)" }}
+        >
           <span className="text-[18px] font-semibold leading-[24px] text-text-primary">
             {t("matter.linkChannels.title")}
           </span>
@@ -204,21 +235,43 @@ export function LinkChannelModal({
             aria-label={t("base.common.close")}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </div>
 
         {/* ── Content (双栏) ── */}
-        <div className="flex flex-1 min-h-0 px-4" style={{ borderBottom: "1px solid rgba(28,28,35,0.15)" }}>
+        <div
+          className="flex flex-1 min-h-0 px-4"
+          style={{ borderBottom: "1px solid rgba(28,28,35,0.15)" }}
+        >
           {/* ── 左栏：候选列表 ── */}
-          <div className="flex w-[296px] flex-col gap-1 py-2" style={{ borderRight: "1px solid rgba(28,28,35,0.15)" }}>
+          <div
+            className="flex w-[296px] flex-col gap-1 py-2"
+            style={{ borderRight: "1px solid rgba(28,28,35,0.15)" }}
+          >
             {/* 搜索框 */}
             <div className="pr-4">
               <div className="flex h-9 items-center gap-2 rounded-full bg-bg-item-hover px-3">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-icon-muted">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="shrink-0 text-icon-muted"
+                >
                   <circle cx="7.33" cy="7.33" r="5" stroke="currentColor" strokeWidth="1.33" />
-                  <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" />
+                  <path
+                    d="M11 11l3 3"
+                    stroke="currentColor"
+                    strokeWidth="1.33"
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <input
                   className="flex-1 border-none bg-transparent text-[14px] leading-[20px] text-text-primary outline-none placeholder:text-icon-muted"
@@ -232,9 +285,22 @@ export function LinkChannelModal({
 
             {/* 子区加载警告条 */}
             {!loading && threadLoadErrors.length > 0 && (
-              <div className="mx-4 mb-2 flex items-center gap-2 rounded-sm border px-3 py-2 text-[12px] leading-[18px]" style={{ borderColor: "#f5a623", background: "rgba(245,166,35,0.08)" }}>
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: "#f5a623" }}>!</span>
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: "#f5a623" }}>!</span>
+              <div
+                className="mx-4 mb-2 flex items-center gap-2 rounded-sm border px-3 py-2 text-[12px] leading-[18px]"
+                style={{ borderColor: "#f5a623", background: "rgba(245,166,35,0.08)" }}
+              >
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                  style={{ background: "#f5a623" }}
+                >
+                  !
+                </span>
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                  style={{ background: "#f5a623" }}
+                >
+                  !
+                </span>
                 <span className="min-w-0 flex-1 break-words text-text-primary">
                   {threadLoadErrors.length === 1
                     ? t("matter.linkChannels.threadLoadFailedOne", {
@@ -247,7 +313,10 @@ export function LinkChannelModal({
                       : t("matter.linkChannels.threadLoadFailedMany", {
                           values: {
                             count: threadLoadErrors.length,
-                            names: threadLoadErrors.slice(0, ERROR_NAME_PREVIEW_LIMIT).map((n) => `"${n}"`).join(", "),
+                            names: threadLoadErrors
+                              .slice(0, ERROR_NAME_PREVIEW_LIMIT)
+                              .map((n) => `"${n}"`)
+                              .join(", "),
                           },
                         })}
                 </span>
@@ -301,7 +370,14 @@ export function LinkChannelModal({
                           }`}
                         >
                           {(isLinked || isSelected) && (
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3"
+                            >
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
                           )}
@@ -312,7 +388,12 @@ export function LinkChannelModal({
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
                           <span className="truncate text-[14px] leading-[20px] text-text-primary">
                             {isThread && (
-                              <span className="mr-0.5 font-medium text-text-tertiary" aria-hidden="true">#</span>
+                              <span
+                                className="mr-0.5 font-medium text-text-tertiary"
+                                aria-hidden="true"
+                              >
+                                #
+                              </span>
                             )}
                             {c.name}
                           </span>
@@ -353,7 +434,9 @@ export function LinkChannelModal({
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate text-[14px] leading-[20px] text-text-primary">
                       {isThread && (
-                        <span className="mr-0.5 font-medium text-text-tertiary" aria-hidden="true">#</span>
+                        <span className="mr-0.5 font-medium text-text-tertiary" aria-hidden="true">
+                          #
+                        </span>
                       )}
                       {c.name}
                     </span>
@@ -372,7 +455,12 @@ export function LinkChannelModal({
                     aria-label={t("matter.action.remove")}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <path
+                        d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </button>
                 </div>

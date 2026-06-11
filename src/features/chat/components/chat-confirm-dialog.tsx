@@ -23,8 +23,8 @@ export function ChatConfirmDialog() {
       content={state.message}
       okText={state.okText}
       cancelText={state.cancelText}
-      onOk={chatConfirmDialogActions.confirm}
-      onCancel={chatConfirmDialogActions.hide}
+      onOk={() => chatConfirmDialogActions.confirm()}
+      onCancel={() => chatConfirmDialogActions.hide()}
       onOpenChange={(next) => {
         if (!next) chatConfirmDialogActions.hide();
       }}

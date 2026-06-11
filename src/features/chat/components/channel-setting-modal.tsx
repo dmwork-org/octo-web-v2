@@ -241,9 +241,8 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   // 子区 creator 不能"离开"(后端拒绝),只能"解散"— 对齐老仓 UI 分流(creator 看
   // "解散子区" → DELETE,普通成员看"离开子区" → POST leave)
   const isThreadCreator = isThread && !!threadCreatorUid && threadCreatorUid === myUid;
-  const threadStatus = (
-    channelInfo?.orgData as { thread?: { status?: number } } | undefined
-  )?.thread?.status;
+  const threadStatus = (channelInfo?.orgData as { thread?: { status?: number } } | undefined)
+    ?.thread?.status;
   const isThreadArchived = threadStatus === THREAD_STATUS_ARCHIVED;
   // 子区归档权限:creator / 父群 owner / 父群 manager(对齐 thread-permission.ts
   // 跟 thread-list-panel inline 按钮共用同款判定,避免一处可见一处不可见)
@@ -380,7 +379,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      if (chatSelectedStore.state.channel?.channelID === channel.channelID) {
+      if (
+        chatSelectedStore.state.channel?.channelID === channel.channelID &&
+        chatSelectedStore.state.channel.channelType === channel.channelType
+      ) {
         chatSelectedActions.clear();
       }
       toast.success(
@@ -660,9 +662,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           {isThread && canArchiveThisThread ? (
             <NavRow
               title={
-                isThreadArchived
-                  ? tt("threadPanelLocal.unarchive")
-                  : tt("threadPanelLocal.archive")
+                isThreadArchived ? tt("threadPanelLocal.unarchive") : tt("threadPanelLocal.archive")
               }
               center
               onClick={() => setConfirmArchive(true)}

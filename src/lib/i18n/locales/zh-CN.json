@@ -172,6 +172,7 @@
   "base.userInfo.joinMethod": "进群方式",
   "base.userInfo.joinedGroup": "加入群聊",
   "base.userInfo.nicknameLabel": "昵称",
+  "base.userInfo.groupNicknameLabel": "群昵称",
   "base.userInfo.onlyInGroup": "仅可在群内交流",
   "base.userInfo.releaseFriend": "解除好友关系",
   "base.userInfo.saved": "已保存",

@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Subscriber } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypeGroup,
+  ChannelTypePerson,
+  type Subscriber,
+} from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -76,10 +81,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const myName = useStore(authStore, (s) => s.user?.name ?? s.user?.username ?? "");
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data, isLoading } = useQuery(userDetailQueryOptions(uid, groupNo));
-  const groupChannel = useMemo(
-    () => new Channel(groupNo ?? "", ChannelTypeGroup),
-    [groupNo],
-  );
+  const groupChannel = useMemo(() => new Channel(groupNo ?? "", ChannelTypeGroup), [groupNo]);
   const groupSubscribers = useGroupSubscribers(groupChannel, !!groupNo && !!uid);
   const [friendApplyOpen, setFriendApplyOpen] = useState(false);
   const [remarkEditing, setRemarkEditing] = useState(false);
@@ -147,7 +149,17 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
+  const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
+  // 群昵称(对齐老仓 fromSubscriberOfUser?.remark):
+  // self 在群里 = 自己在该群的群昵称;别人 = 对方在该群的群昵称
+  const groupNickname = groupSubscriber?.remark ?? "";
+  // displayName 优先级(对齐老仓 UserInfoVM.displayName):
+  //   1. data.remark(我对该用户的备注 — self 通常没)
+  //   2. groupNickname(群上下文里的群昵称 — issue #38 焦点:self 在群里看自己应显示群昵称)
+  //   3. real_name(已实名) / name / uid 兜底
   const display =
+    (data?.remark && data.remark.trim()) ||
+    groupNickname ||
     displayName({
       name: data?.name,
       remark: data?.remark,
@@ -169,7 +181,6 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
     realname_verified: data?.realname_verified,
   });
   const hasRemark = !!(data?.remark && data.remark !== "");
-  const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
 
   const groupJoinMethod = (() => {
     if (!groupSubscriber) return "";
@@ -387,6 +398,11 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
                   {hasRemark ? (
                     <li>
                       {t("base.userInfo.nicknameLabel")}: {data?.name ?? "—"}
+                    </li>
+                  ) : null}
+                  {groupNickname && groupNickname !== data?.name ? (
+                    <li>
+                      {t("base.userInfo.groupNicknameLabel")}: {groupNickname}
                     </li>
                   ) : null}
                   {data?.short_no ? (

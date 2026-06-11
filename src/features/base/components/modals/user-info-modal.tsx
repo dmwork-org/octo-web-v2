@@ -364,6 +364,13 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const confirmLoading =
     deleteFriendMu.isPending || blacklistAddMu.isPending || blacklistRemoveMu.isPending;
 
+  // sections / bottom 渲染结果先算出来 — 空时整个 wrapper(含 border-t + 高度占位)
+  // 不渲染,避免 isSelf / 无 vercode 等场景下多余的灰底分隔线 + 60px 留白,
+  // 关闭动画也更平滑(modal 自适应紧凑高度)。
+  const sectionsContent = renderSections();
+  const bottomContent = renderBottom();
+  const hasSections = Array.isArray(sectionsContent) && sectionsContent.length > 0;
+
   return (
     <>
       <BaseDialog
@@ -414,13 +421,17 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-y-auto border-t border-border-subtle py-2">
-              {renderSections()}
-            </div>
+            {hasSections ? (
+              <div className="flex flex-1 flex-col overflow-y-auto border-t border-border-subtle py-2">
+                {sectionsContent}
+              </div>
+            ) : null}
 
-            <div className="flex min-h-[60px] shrink-0 items-center justify-center border-t border-border-subtle px-6 py-3">
-              {renderBottom()}
-            </div>
+            {bottomContent ? (
+              <div className="flex min-h-[60px] shrink-0 items-center justify-center border-t border-border-subtle px-6 py-3">
+                {bottomContent}
+              </div>
+            ) : null}
           </>
         )}
       </BaseDialog>

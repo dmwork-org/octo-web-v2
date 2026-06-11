@@ -11,12 +11,13 @@ import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.ho
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { useScrollToBottomButton } from "@/features/chat/hooks/use-scroll-to-bottom-button.hook";
 import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channel.hook";
+import { chatAiCollabFoldActions } from "@/features/chat/stores/ai-collab-fold";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
-import { buildRenderItems } from "@/features/chat/lib/fold-session";
+import { buildRenderItems, type RenderItem } from "@/features/chat/lib/fold-session";
 import { locateMessageWindow, locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
 import {
   chatLocateMessageActions,
@@ -293,6 +294,44 @@ function useLocateRequestedMessage(channel: Channel, ready: boolean): void {
   ]);
 }
 
+
+/**
+ * 把"末尾是 active AI 协作 fold session"的信号写到全局 store(issue #33,对齐老仓
+ * vm.ts:451-462)。会话列表行的 `ConversationTypingDigest` 订阅本 store,有 fold
+ * preview 时把 "AI协作中 · 参与者 × ··· · N条" 替代普通 lastMessage digest。
+ *
+ * **判定规则**(对齐老仓):忽略末尾 typing item(transient 状态),取真正的"最后一项",
+ * 必须是 `foldSession` **且** `session.isActive`(最后一条 bot 消息距今 < 120s)。
+ * 不 active(超时已死的旧 fold)→ 视为普通历史不显 AI 协作 tag。
+ *
+ * **cleanup**:组件卸载(切 channel / 退会话 / unmount)→ remove,避免旧 channel
+ * 状态残留到会话列表行(否则用户离开会话后还显"AI协作中"是 stale)。
+ */
+function useSyncAiCollabFoldDigest(channel: Channel, renderItems: RenderItem[]): void {
+  useEffect(() => {
+    let lastReal: RenderItem | undefined;
+    for (let i = renderItems.length - 1; i >= 0; i--) {
+      const item = renderItems[i];
+      if (item.type === "message" && item.message.contentType === MessageContentTypeConst.typing) {
+        continue;
+      }
+      lastReal = item;
+      break;
+    }
+    if (lastReal && lastReal.type === "foldSession" && lastReal.session.isActive) {
+      chatAiCollabFoldActions.set(channel, {
+        participants: lastReal.session.participants.map((p) => p.name),
+        count: lastReal.session.messages.length,
+      });
+    } else {
+      chatAiCollabFoldActions.remove(channel);
+    }
+    return () => {
+      chatAiCollabFoldActions.remove(channel);
+    };
+  }, [channel, renderItems]);
+}
+
 export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
@@ -374,6 +413,7 @@ export function MessageList({ channel }: MessageListProps) {
     pendingLocateForChannel,
   );
   useLocateRequestedMessage(channel, !isLoading && !error && !!data);
+  useSyncAiCollabFoldDigest(channel, renderItems);
 
   // 右下角 scroll-to-bottom 按钮 + 未读徽标(对齐旧 ConversationPositionView,
   // issue #31 修复:用末尾消息稳定 id 替代 messages.length,避免向上拉历史时

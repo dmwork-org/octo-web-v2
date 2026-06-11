@@ -256,81 +256,85 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
     : t("base.userInfo.applyFromMe", { values: { name: myName } });
 
   const renderSections = () => {
-    if (isSelf) return null;
     const sections: React.ReactNode[] = [];
 
-    sections.push(
-      <SectionGroup key="remark">
-        <InlineEditRow
-          title={t("base.userInfo.setRemark")}
-          value={data?.remark ?? ""}
-          placeholder={t("base.common.notSet")}
-          canEdit
-          maxLength={20}
-          pending={remarkMu.isPending}
-          editing={remarkEditing}
-          onEnterEdit={() => setRemarkEditing(true)}
-          onCancel={() => setRemarkEditing(false)}
-          onSave={(v) => remarkMu.mutate(v)}
-        />
-      </SectionGroup>,
-    );
-
-    if (isExternal) {
+    // 非 self 才有意义的 sections:备注 / 删好友 / 黑名单 / 来源
+    if (!isSelf) {
       sections.push(
-        <SectionGroup key="others">
-          {isFriend ? (
-            <NavRow
-              title={t("base.userInfo.releaseFriend")}
-              danger
-              onClick={() =>
-                setConfirm({
-                  action: "deleteFriend",
-                  content: t("base.userInfo.deleteFriendContent", { values: { name: display } }),
-                })
-              }
-            />
-          ) : null}
-          {isBlacklisted ? (
-            <NavRow
-              title={t("base.userInfo.blacklistRemoveAction")}
-              onClick={() =>
-                setConfirm({
-                  action: "blacklistRemove",
-                  content: t("base.userInfo.blacklistRemoveContent"),
-                })
-              }
-            />
-          ) : (
-            <NavRow
-              title={t("base.userInfo.blacklistAddAction")}
-              danger
-              onClick={() =>
-                setConfirm({
-                  action: "blacklistAdd",
-                  content: t("base.userInfo.blacklistAddContent"),
-                })
-              }
-            />
-          )}
+        <SectionGroup key="remark">
+          <InlineEditRow
+            title={t("base.userInfo.setRemark")}
+            value={data?.remark ?? ""}
+            placeholder={t("base.common.notSet")}
+            canEdit
+            maxLength={20}
+            pending={remarkMu.isPending}
+            editing={remarkEditing}
+            onEnterEdit={() => setRemarkEditing(true)}
+            onCancel={() => setRemarkEditing(false)}
+            onSave={(v) => remarkMu.mutate(v)}
+          />
         </SectionGroup>,
       );
+
+      if (isExternal) {
+        sections.push(
+          <SectionGroup key="others">
+            {isFriend ? (
+              <NavRow
+                title={t("base.userInfo.releaseFriend")}
+                danger
+                onClick={() =>
+                  setConfirm({
+                    action: "deleteFriend",
+                    content: t("base.userInfo.deleteFriendContent", { values: { name: display } }),
+                  })
+                }
+              />
+            ) : null}
+            {isBlacklisted ? (
+              <NavRow
+                title={t("base.userInfo.blacklistRemoveAction")}
+                onClick={() =>
+                  setConfirm({
+                    action: "blacklistRemove",
+                    content: t("base.userInfo.blacklistRemoveContent"),
+                  })
+                }
+              />
+            ) : (
+              <NavRow
+                title={t("base.userInfo.blacklistAddAction")}
+                danger
+                onClick={() =>
+                  setConfirm({
+                    action: "blacklistAdd",
+                    content: t("base.userInfo.blacklistAddContent"),
+                  })
+                }
+              />
+            )}
+          </SectionGroup>,
+        );
+      }
+
+      if (isExternal && data?.source_space_name) {
+        sections.push(
+          <SectionGroup key="source">
+            <NavRow title={t("base.userInfo.source")} subTitle={data.source_space_name} />
+          </SectionGroup>,
+        );
+      } else if (!isExternal && isFriend && data?.source_desc) {
+        sections.push(
+          <SectionGroup key="source">
+            <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
+          </SectionGroup>,
+        );
+      }
     }
 
-    if (isExternal && data?.source_space_name) {
-      sections.push(
-        <SectionGroup key="source">
-          <NavRow title={t("base.userInfo.source")} subTitle={data.source_space_name} />
-        </SectionGroup>,
-      );
-    } else if (!isExternal && isFriend && data?.source_desc) {
-      sections.push(
-        <SectionGroup key="source">
-          <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
-        </SectionGroup>,
-      );
-    }
-
+    // 进群方式 — self 也保留(用户决策:自己应能看到自己何时入群),
+    // 群上下文 + 拿到 join data 才显
     if (groupJoinMethod) {
       sections.push(
         <SectionGroup key="group-join-method">
@@ -339,7 +343,8 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
       );
     }
 
-    if (isBlacklisted) {
+    // 黑名单提示 — 不会拉黑自己
+    if (!isSelf && isBlacklisted) {
       sections.push(
         <div
           key="blacklist-tip"

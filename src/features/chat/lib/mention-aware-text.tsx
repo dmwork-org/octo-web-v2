@@ -6,6 +6,14 @@ import { openChatProfile } from "@/features/chat/lib/open-profile";
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
 
 /**
+ * @ 关键字集合 — 这些是 mention.all / humans / ais 字段独立表达的全员/AI 标记,
+ * **不消耗 mention.uids**(uids 只装具体用户)。
+ * 跟 text-renderer.ts SKIP_AT_KEYWORDS 同款,避免 RichText 渲染时同款错位
+ * (issue #46 followup)。
+ */
+const SKIP_AT_KEYWORDS = new Set(["@所有人", "@all", "@所有AI"]);
+
+/**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
  * brand 色文本 + 浅 brand 底胶囊,@all 用纯 brand 色无背景。
  * uid 非空时 click 弹 UserInfoModal / BotDetailModal(经 openChatProfile 判 bot)。
@@ -103,12 +111,14 @@ export function MentionAwareText({ text, mention }: { text: string; mention?: Me
     // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
   } else {
     // eslint-disable-next-line no-misleading-character-class
-    const re = /@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}/g;
+    const re = /@[一-龥a-zA-Z][一-龥\w\-·.()()]{0,29}/g;
     const uids = mention.uids ?? [];
     let i = 0;
     for (const m of text.matchAll(re)) {
-      if (i >= uids.length) break;
       const match = m[0];
+      // 跳过全员/AI 关键字 — 不消耗 uids 顺位(issue #46)
+      if (SKIP_AT_KEYWORDS.has(match)) continue;
+      if (i >= uids.length) break;
       const start = m.index ?? -1;
       if (start === -1) {
         i++;

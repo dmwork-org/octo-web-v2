@@ -261,7 +261,9 @@ export function MentionAwareText({
               continue;
             }
             let found = false;
-            for (const name of names) {
+            // 按长度升序 — 短名优先匹配,避免长 candidate 吞掉 mention 后的
+            // 普通文字(issue #73 `@李志伟测试测试测试` 多余高亮)
+            for (const name of names.slice().sort((a, b) => a.length - b.length)) {
               const needle = `@${name}`;
               let from = 0;
               while (from < text.length) {

@@ -188,7 +188,9 @@ function mentionTokens(
       }
       continue;
     }
-    for (const name of names) {
+    // 按长度升序排序 — 短名优先匹配,避免长 candidate(如 displayName 设成
+    // "李志伟测试测试测试")吞掉用户在 mention 后输入的普通文字(issue #73)
+    for (const name of names.slice().sort((a, b) => a.length - b.length)) {
       const match = `@${name}`;
       if (text.includes(match)) {
         tokens.push({

@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 /**
  * 全局语音快捷键(1:1 对齐旧 dmworkbase MessageInput VoiceInputIndicator):
  *
  * 两条启录路径:
  *   1. **Shift + ⌘/Ctrl + Space**:同时按下三键启录;松开任一 modifier 停录+转写
- *   2. **长按 ShiftLeft 500ms**:启录(纯键路径,适合 hands-on-keyboard 用户);
+ *   2. **输入框内长按 ShiftLeft 800ms**:启录(纯键路径,适合 hands-on-keyboard 用户);
  *      期间按其它非 IME 键 → cancel timer(防 Shift+ 字母误触);
  *      松开:timer 未触发 → 取消;已启录 → 停录+转写
  *
@@ -14,12 +14,20 @@ import { useEffect, useRef } from "react";
  * 实现细节:
  *   - effect 只挂一次(empty deps),内部通过 ref 读最新 state / handler
  *   - keyup 监听 window 而非 input(录音中用户可能 blur 输入框)
- *   - shiftRecordingRef 区分本次录音是 long-press 还是 Shift+Cmd+Space 路径,
- *     避免 Shift 松开误停 long-press 之外的录音
+ *   - keyboardRecordingMode 区分本次录音是否由键盘路径触发,
+ *     避免按钮启录后被 modifier keyup 误停
  */
 
-/** ShiftLeft 长按多少 ms 进入实际启录(对齐旧 RECORDING_DELAY_MS=500)。 */
-const RECORDING_DELAY_MS = 500;
+/** ShiftLeft 长按多少 ms 进入实际启录。 */
+const RECORDING_DELAY_MS = 800;
+
+type KeyboardRecordingMode = "chord" | "shift-long-press";
+
+function isWithinShortcutScope(scopeRef: RefObject<HTMLElement | null> | undefined): boolean {
+  if (!scopeRef?.current) return true;
+  const active = document.activeElement;
+  return active instanceof Node && scopeRef.current.contains(active);
+}
 
 export function useVoiceShortcut(
   isRecording: boolean,
@@ -27,16 +35,19 @@ export function useVoiceShortcut(
   start: () => void,
   stopAndTranscribe: () => void,
   cancel: () => void,
+  shortcutScopeRef?: RefObject<HTMLElement | null>,
 ): void {
   const stateRef = useRef({ isRecording, isTranscribing });
   stateRef.current = { isRecording, isTranscribing };
   const handlersRef = useRef({ start, stopAndTranscribe, cancel });
   handlersRef.current = { start, stopAndTranscribe, cancel };
+  const shortcutScopeRefRef = useRef(shortcutScopeRef);
+  shortcutScopeRefRef.current = shortcutScopeRef;
 
   useEffect(() => {
     // 长按 ShiftLeft 的 timer / flag
     let shiftLongPressTimer: ReturnType<typeof setTimeout> | null = null;
-    let shiftRecording = false; // 本次录音是否由 long-press ShiftLeft 触发
+    let keyboardRecordingMode: KeyboardRecordingMode | null = null;
 
     const clearShiftLongPress = () => {
       if (shiftLongPressTimer !== null) {
@@ -53,29 +64,36 @@ export function useVoiceShortcut(
       if (e.code === "Escape" && rec) {
         e.preventDefault();
         clearShiftLongPress();
-        shiftRecording = false;
+        keyboardRecordingMode = null;
         h.cancel();
         return;
       }
 
       // Shift + ⌘/Ctrl + Space 启录(同时按)
-      if (e.shiftKey && (e.metaKey || e.ctrlKey) && e.code === "Space") {
+      if (e.shiftKey && (e.metaKey || e.ctrlKey) && e.code === "Space" && !e.repeat) {
         if (!rec && !tr) {
           e.preventDefault();
-          shiftRecording = false; // 区分:不是 long-press 路径
+          keyboardRecordingMode = "chord";
           h.start();
         }
         return;
       }
 
-      // 长按 ShiftLeft(无 modifier、no-repeat)启 500ms timer
-      if (e.code === "ShiftLeft" && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // 输入框内长按 ShiftLeft(无 modifier、no-repeat)启 timer
+      if (
+        e.code === "ShiftLeft" &&
+        !e.repeat &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        isWithinShortcutScope(shortcutScopeRefRef.current)
+      ) {
         if (!rec && !tr && shiftLongPressTimer === null) {
           shiftLongPressTimer = setTimeout(() => {
             shiftLongPressTimer = null;
             const cur = stateRef.current;
             if (cur.isRecording || cur.isTranscribing) return;
-            shiftRecording = true;
+            keyboardRecordingMode = "shift-long-press";
             handlersRef.current.start();
           }, RECORDING_DELAY_MS);
         }
@@ -109,15 +127,15 @@ export function useVoiceShortcut(
           return;
         }
         // ② long-press 已启录 → 停录 + 转写
-        if (shiftRecording && rec) {
-          shiftRecording = false;
+        if (keyboardRecordingMode === "shift-long-press" && rec) {
+          keyboardRecordingMode = null;
           e.preventDefault();
           h.stopAndTranscribe();
           return;
         }
         // long-press 已发出 start 但 getUserMedia 还没回 → 标记 cancel pending
-        if (shiftRecording && !rec) {
-          shiftRecording = false;
+        if (keyboardRecordingMode === "shift-long-press" && !rec) {
+          keyboardRecordingMode = null;
           h.cancel();
           return;
         }
@@ -127,7 +145,8 @@ export function useVoiceShortcut(
 
       // Shift+Cmd/Ctrl+Space 路径:松开任一 modifier 停录(long-press 已上面处理过)
       if (e.key === "Shift" || e.key === "Meta" || e.key === "Control") {
-        if (shiftRecording) return;
+        if (keyboardRecordingMode !== "chord") return;
+        keyboardRecordingMode = null;
         e.preventDefault();
         h.stopAndTranscribe();
       }

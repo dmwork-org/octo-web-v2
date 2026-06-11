@@ -497,7 +497,7 @@
   "composer.transcribingShort": "Transcribing",
   "composer.upload.fileTooLarge": "\"{{name}}\" exceeds {{max}} limit, cannot upload",
   "composer.upload.totalTooLarge": "Attachments exceed {{max}} limit, please remove some files",
-  "composer.voiceInputHint": "Voice input (hold Shift)",
+  "composer.voiceInputHint": "Voice input (hold Shift in composer)",
   "composerAttachment.defaultName": "Unnamed file",
   "composerAttachment.remove": "Remove",
   "connectionStatus.ariaLabel": "Connection status: {{status}}",

@@ -9,7 +9,11 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isLikelyRealUid, readMessageMention, type MentionWithFlags } from "@/features/chat/lib/read-message-mention";
+import {
+  isLikelyRealUid,
+  readMessageMention,
+  type MentionWithFlags,
+} from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
@@ -326,7 +330,6 @@ export function TextRenderer({ message }: TextRendererProps) {
   // 订阅全局 channelInfo 变化 — mention candidate 来自 channelInfo/subscribers,
   // cache race 时主路径没匹配,主动 fetchChannelInfo 后到位时重渲就能正确高亮
   useChannelInfoTick();
-
 
   // 单独一个 custom emoji → 大图(120×120),跳过 markdown
   const largeCustom = getSingleCustomEmoji(text);

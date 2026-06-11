@@ -181,9 +181,7 @@ export function SmartCreateModal({
               aria-label={tr("matter.create.aiLoadingAria")}
               className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-border-default border-t-brand"
             />
-            <div className="text-[14px] text-text-tertiary">
-              {tr("matter.create.aiExtracting")}
-            </div>
+            <div className="text-[14px] text-text-tertiary">{tr("matter.create.aiExtracting")}</div>
           </div>
         ) : extractMu.error && !draftId ? (
           <div className="flex h-32 flex-col items-center justify-center gap-3">

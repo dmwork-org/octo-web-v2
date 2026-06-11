@@ -58,6 +58,12 @@ interface MatterDetailPanelProps {
   onClose: () => void;
   /** 嵌入模式：显示关闭按钮，标题在 header 内 */
   showClose?: boolean;
+  /**
+   * 来源会话 channelId（嵌入聊天/绘画侧栏时透传）。
+   * 后端据此判断"用户通过该关联群有权访问此事项",非创建人/负责人也能查看,
+   * 否则会 403。对齐旧 dmworktodo MatterDetailPanel `getMatter(id, channelId)`。
+   */
+  sourceChannelId?: string;
 }
 
 type SecondaryTab = "channels" | "outputs" | "changelog";
@@ -106,9 +112,10 @@ export function MatterDetailPanel({
   matterId,
   onClose,
   showClose = false,
+  sourceChannelId,
 }: MatterDetailPanelProps) {
   const t = useT();
-  const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
+  const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId, sourceChannelId));
   const deleteMu = useDeleteMatter();
   const updateMu = useUpdateMatter();
   const transitionMu = useTransitionMatter();
@@ -521,7 +528,7 @@ export function MatterDetailPanel({
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
         <div className="mt-6 mb-4 h-[47px] border-b border-brand-tint px-4">
-          <div className="flex items-stretch gap-6">
+          <div className="flex h-full items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
               onClick={() => setSecondaryTab("channels")}
@@ -543,7 +550,7 @@ export function MatterDetailPanel({
           </div>
         </div>
 
-        <div className="px-4 pt-4">
+        <div className="px-4">
           {secondaryTab === "channels" ? (
             <ChannelsTab
               matterId={matterId}

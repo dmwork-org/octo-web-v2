@@ -86,7 +86,10 @@ export async function listTimeline(
     `/matters/${encodeURIComponent(matterId)}/timeline`,
     {
       query: params,
-    },
+      // 只读子请求:失败由调用方内联空/错误态展示,跳过全局 toast(对齐旧 dmworktodo
+      // 静默 catch)。嵌入场景下非创建人/负责人会拿到 403,不应弹窗打扰。
+      silent: true,
+    } as Parameters<typeof matterApi<PaginatedList<TimelineEntry>>>[1],
   );
 }
 
@@ -133,7 +136,9 @@ export async function listActivities(
     `/matters/${encodeURIComponent(matterId)}/activities`,
     {
       query: params,
-    },
+      // 只读子请求:失败由 ActivityList 内联错误态展示,跳过全局 toast。
+      silent: true,
+    } as Parameters<typeof matterApi<PaginatedList<ActivityEntry>>>[1],
   );
 }
 
@@ -180,6 +185,11 @@ export async function listOutputs(
 ): Promise<PaginatedList<MatterOutput>> {
   return matterApi<PaginatedList<MatterOutput>>(
     `/matters/${encodeURIComponent(matterId)}/outputs`,
-    { query: params },
+    {
+      query: params,
+      // 只读子请求:失败由 OutputsPanel 内联错误态 + 重试按钮展示,跳过全局 toast
+      // (对齐旧 dmworktodo loadOutputs 静默 catch)。
+      silent: true,
+    } as Parameters<typeof matterApi<PaginatedList<MatterOutput>>>[1],
   );
 }

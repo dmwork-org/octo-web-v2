@@ -152,23 +152,26 @@ export function SmartCreateModal({
       className="w-[480px] max-w-full"
       contentClassName="px-4 py-[10px]"
       footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-7 items-center rounded-full border border-brand/10 bg-bg-surface px-3 text-[13px] font-semibold text-text-strong transition-colors hover:bg-bg-hover"
-          >
-            {tr("matter.common.cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={() => saveMu.mutate()}
-            disabled={!canSave}
-            className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saveMu.isPending ? tr("matter.action.saving") : tr("matter.action.save")}
-          </button>
-        </>
+        // 对齐老项目:AI 提取中 / 提取失败态不渲染底部按钮,仅在进入表单阶段后显示
+        draftId ? (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-7 items-center rounded-full border border-brand/10 bg-bg-surface px-3 text-[13px] font-semibold text-text-strong transition-colors hover:bg-bg-hover"
+            >
+              {tr("matter.common.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => saveMu.mutate()}
+              disabled={!canSave}
+              className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saveMu.isPending ? tr("matter.action.saving") : tr("matter.action.save")}
+            </button>
+          </>
+        ) : undefined
       }
     >
       <div className="flex flex-col gap-4" onKeyDown={onKeyDown}>
@@ -179,7 +182,7 @@ export function SmartCreateModal({
               className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-border-default border-t-brand"
             />
             <div className="text-[14px] text-text-tertiary">
-              {tr("matter.create.aiExtractingDesc")}
+              {tr("matter.create.aiExtracting")}
             </div>
           </div>
         ) : extractMu.error && !draftId ? (

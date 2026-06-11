@@ -49,6 +49,8 @@ import type {
 interface MatterDetailPanelProps {
   matterId: string;
   onClose: () => void;
+  /** 嵌入模式：显示关闭按钮，标题在 header 内 */
+  showClose?: boolean;
 }
 
 type SecondaryTab = "channels" | "outputs" | "changelog";
@@ -101,7 +103,7 @@ function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, should
  * Matter 详情面板(1:1 对齐 P3-matter 设计稿 + 原 dmworktodo MatterDetailPanel
  * 独立模式样式)。
  */
-export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps) {
+export function MatterDetailPanel({ matterId, onClose, showClose = false }: MatterDetailPanelProps) {
   const t = useT();
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
   const deleteMu = useDeleteMatter();
@@ -294,48 +296,110 @@ export function MatterDetailPanel({ matterId, onClose }: MatterDetailPanelProps)
 
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
-      {/* ── Header:状态 pill + DDL ── */}
-      <header className="flex shrink-0 items-center gap-2 rounded-t-lg border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
-        <StatusPicker
-          status={data.status}
-          seqNo={data.seq_no}
-          onChange={handleStatusChange}
-          isCreator={currentUid === data.creator_id}
-          canEditStatus={isOwner}
-        />
-        <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+      {/* ── Header ── */}
+      <header className="flex shrink-0 items-start gap-2 border-b px-4 py-3" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
+        {showClose ? (
+          /* 嵌入模式：标题+状态在第一行，日期在第二行，右侧关闭按钮 */
+          <>
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex items-center gap-2">
+                {/* 嵌入模式标题（带 M-xxx 前缀） */}
+                {editingTitle ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <span className="shrink-0 text-[14px] font-medium text-text-primary">M-{data.seq_no}｜</span>
+                    <input
+                      ref={titleInputRef}
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveTitle();
+                        if (e.key === "Escape") cancelEditing();
+                      }}
+                      onBlur={saveTitle}
+                      className="min-w-0 flex-1 bg-transparent text-[14px] font-medium leading-[20px] text-text-primary outline-none"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 text-left text-[14px] font-medium leading-[20px] text-text-primary transition-colors hover:bg-bg-hover"
+                    title={t("matter.detail.clickToEdit")}
+                  >
+                    M-{data.seq_no}｜{data.title}
+                  </button>
+                )}
+                <StatusPicker
+                  status={data.status}
+                  seqNo={data.seq_no}
+                  onChange={handleStatusChange}
+                  isCreator={currentUid === data.creator_id}
+                  canEditStatus={isOwner}
+                />
+              </div>
+              <div className="flex items-center">
+                <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+              </div>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              aria-label={t("matter.action.close")}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          /* 独立模式：状态pill + 日期 */
+          <>
+            <StatusPicker
+              status={data.status}
+              seqNo={data.seq_no}
+              onChange={handleStatusChange}
+              isCreator={currentUid === data.creator_id}
+              canEditStatus={isOwner}
+            />
+            <DeadlinePicker matterId={matterId} deadline={data.deadline} />
+          </>
+        )}
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* ── Title（点击可编辑）── */}
-        {editingTitle ? (
-          <div className="px-4 pt-5">
-            <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
-              <input
-                ref={titleInputRef}
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveTitle();
-                  if (e.key === "Escape") cancelEditing();
-                }}
-                onBlur={saveTitle}
-                className="w-full bg-transparent px-1 py-0.5 text-[24px] leading-[1.25] font-semibold text-text-primary outline-none"
-              />
+        {/* ── Title（独立模式下显示）── */}
+        {!showClose && (
+          editingTitle ? (
+            <div className="px-4 pt-5">
+              <div className="rounded-md border border-[#6366f1] bg-bg-primary shadow-[0_0_0_2px_rgba(99,102,241,0.15)]">
+                <input
+                  ref={titleInputRef}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveTitle();
+                    if (e.key === "Escape") cancelEditing();
+                  }}
+                  onBlur={saveTitle}
+                  className="w-full bg-transparent px-1 py-0.5 text-[24px] leading-[1.25] font-semibold text-text-primary outline-none"
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <h1 className="px-4 pt-5">
-            <button
-              type="button"
-              onClick={startEditing}
-              className="w-full rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
-              title={t("matter.detail.clickToEdit")}
-            >
-              {data.title}
-              {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
-            </button>
-          </h1>
+          ) : (
+            <h1 className="px-4 pt-5">
+              <button
+                type="button"
+                onClick={startEditing}
+                className="w-full rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
+                title={t("matter.detail.clickToEdit")}
+              >
+                {data.title}
+                {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
+              </button>
+            </h1>
+          )
         )}
 
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}

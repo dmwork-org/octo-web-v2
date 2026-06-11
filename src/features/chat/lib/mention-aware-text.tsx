@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import WKSDK, {
-  Channel,
-  ChannelTypeGroup,
-  ChannelTypePerson,
-  type Mention,
-} from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */

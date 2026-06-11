@@ -47,6 +47,7 @@ import { createMentionSuggestion } from "@/features/chat/components/mention-sugg
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
@@ -192,6 +193,9 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const subscribers = useGroupSubscribers(channel, isMentionable);
+  // 订阅 channelInfo 推送 — reply digest 内 lookupNicknameLabel 依赖 SDK 缓存,
+  // fetchChannelInfo 到位后通过 tick 触发重渲拿到 sender 名(issue #76)。
+  useChannelInfoTick();
   const botCommands = useBotCommands(channel);
   const attachments = useComposerAttachments();
 
@@ -315,19 +319,19 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
 
-  const buildReply = useMemo(
-    () => () => {
-      if (!replyingTo) return undefined;
-      const r = new Reply();
-      r.messageID = replyingTo.messageID;
-      r.messageSeq = replyingTo.messageSeq;
-      r.fromUID = replyingTo.fromUID;
-      r.fromName = lookupNicknameLabel(channel, replyingTo.fromUID);
-      r.content = replyingTo.content;
-      return r;
-    },
-    [channel, replyingTo],
-  );
+  // 不 memo — fromName 来自 SDK channelInfo cache,channelInfoListener 推送后
+  // 需重算(issue #76)。useChannelInfoTick 保证 cache 变化触发重渲,这里
+  // 顺便重新构造 Reply。send() 调用时立即拿当前值,不持有跨渲染引用。
+  const buildReply = () => {
+    if (!replyingTo) return undefined;
+    const r = new Reply();
+    r.messageID = replyingTo.messageID;
+    r.messageSeq = replyingTo.messageSeq;
+    r.fromUID = replyingTo.fromUID;
+    r.fromName = lookupNicknameLabel(channel, replyingTo.fromUID);
+    r.content = replyingTo.content;
+    return r;
+  };
 
   const send = async () => {
     if (!editor || sending) return;

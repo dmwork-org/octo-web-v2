@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import {
   DndContext,
+  DragOverlay,
+  type DragStartEvent,
   type DragEndEvent,
   PointerSensor,
   useDroppable,
@@ -185,6 +187,56 @@ function parseDragId(id: string): { targetType: number; targetId: string } | nul
   const parts = id.slice("item::".length).split("::");
   if (parts.length < 2) return null;
   return { targetType: Number(parts[0]), targetId: parts.slice(1).join("::") };
+}
+
+/**
+ * 拖拽 ghost 渲染(对齐老仓 ConversationListGrouped DragOverlay,issue #12):
+ *
+ * dnd-kit 默认行为是把 transform 应用到原 DOM,被 SortableContext 内的
+ * `overflow-y-auto` 滚动容器 / 父 layout cascade 影响 → 拖拽时被拖项视觉
+ * "撕裂 / 变形"。`DragOverlay` 渲染一个 fixed-positioned 的 ghost 跟随
+ * 鼠标,脱离 SortableContext 容器布局,视觉稳定。
+ *
+ * 本仓 ghost 只显 icon + 名字简版(对齐老仓 wk-conv-compact-item--ghost):
+ *   - cat::xxx → 分类名(简洁灰底白字)
+ *   - item::N::id → 频道名(icon + name)
+ *
+ * 不重做完整 row(避免 ghost 太大遮挡 drop zone,老仓也用 ghost 精简版)。
+ */
+function renderDragGhost(
+  dragId: string,
+  categories: CategoryItem[],
+  items: SidebarItem[],
+): React.ReactNode {
+  if (dragId.startsWith("cat::")) {
+    const catIdRaw = dragId.slice("cat::".length);
+    const cat = categories.find((c) => (c.category_id ?? "default") === catIdRaw);
+    if (!cat) return null;
+    return (
+      <div className="pointer-events-none flex items-center gap-2 rounded-md border border-border-default bg-bg-surface px-3 py-2 text-[12px] font-semibold text-text-secondary shadow-lg">
+        <span>{cat.name}</span>
+      </div>
+    );
+  }
+  const parsed = parseDragId(dragId);
+  if (!parsed) return null;
+  const item = items.find(
+    (it) => it.target_type === parsed.targetType && it.target_id === parsed.targetId,
+  );
+  if (!item) return null;
+  let channelType = 0;
+  if (item.target_type === SidebarTargetType.DM) channelType = ChannelTypePerson;
+  else if (item.target_type === SidebarTargetType.CHANNEL) channelType = ChannelTypeGroup;
+  else if (item.target_type === SidebarTargetType.THREAD) channelType = CHANNEL_TYPE_THREAD;
+  const channel = new Channel(item.target_id, channelType);
+  const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
+  const title = channelInfo?.title || item.target_id;
+  return (
+    <div className="pointer-events-none flex items-center gap-2 rounded-md border border-border-default bg-bg-surface px-3 py-1.5 text-[13px] text-text-primary shadow-lg">
+      <ChannelAvatar channel={channel} size={20} title={title} />
+      <span className="truncate">{title}</span>
+    </div>
+  );
 }
 
 interface DragProps {
@@ -817,6 +869,9 @@ export function FollowList({
 
   const { sortCategory } = useSortFollow(spaceId);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const handleDragStart = (e: DragStartEvent) => setActiveDragId(String(e.active.id));
+  const handleDragCancel = () => setActiveDragId(null);
 
   const moveGroupMu = useMutation({
     mutationFn: (args: { groupNo: string; categoryId: string }) =>
@@ -1288,6 +1343,7 @@ export function FollowList({
   }
 
   const handleDragEnd = (e: DragEndEvent) => {
+    setActiveDragId(null);
     const { active, over } = e;
     if (!over || active.id === over.id) return;
 
@@ -1378,7 +1434,12 @@ export function FollowList({
   };
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragCancel={handleDragCancel}
+      onDragEnd={handleDragEnd}
+    >
       <div className="flex flex-1 flex-col overflow-y-auto px-2 py-1">
         <SortableContext
           items={orderedCategories.map((c) => `cat::${c.category_id ?? "default"}`)}
@@ -1493,6 +1554,9 @@ export function FollowList({
           />
         ) : null}
       </div>
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? renderDragGhost(activeDragId, orderedCategories, sidebarQ.data?.items ?? []) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

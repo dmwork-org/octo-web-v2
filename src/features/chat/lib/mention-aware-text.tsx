@@ -2,10 +2,8 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { isLikelyRealUid, type MentionWithFlags } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-
-/** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
-type MentionWithFlags = Mention & { humans?: number; ais?: number };
 
 /** 子区 channel type(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
 const CHANNEL_TYPE_THREAD = 5;
@@ -76,6 +74,29 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
 }
 
 /**
+ * Reverse lookup:从群/子区 subscribers 找 name === target 的真 uid(issue #85
+ * entity 路径配套,详见 text-renderer 同名 helper)。
+ */
+function lookupUidByDisplayName(channel: Channel, name: string): string | undefined {
+  let groupChannel: Channel | null = null;
+  if (channel.channelType === ChannelTypeGroup) {
+    groupChannel = channel;
+  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (parsed) groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
+  }
+  if (!groupChannel) return undefined;
+  const subs = WKSDK.shared().channelManager.getSubscribes(groupChannel);
+  if (!subs) return undefined;
+  for (const s of subs) {
+    if (s.name === name || s.remark === name) return s.uid;
+    const org = s.orgData as { real_name?: string; displayName?: string } | undefined;
+    if (org?.real_name === name || org?.displayName === name) return s.uid;
+  }
+  return undefined;
+}
+
+/**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
  * brand 色文本 + 浅 brand 底胶囊。**@所有人 / @AI 也走同款胶囊样式**
  * (对齐老仓 mentionRenderState 的 mention-entity 类),区别仅在 interactive=false。
@@ -137,13 +158,17 @@ function toSafeExternalHref(raw: string): string | null {
  * **使用场景**:RichText=14 text block 需要在不走 markdown 解析的前提下高亮 @
  * 和外链,跟 text-renderer 的 mention 行为保持一致。
  *
- * **@匹配策略**(issue #46):
- *   1. 主路径 — candidate names 精确匹配:每个 uid 用 collectCandidateNames 取
- *      真实显示名,`@<name>` 在 text 里 indexOf 匹配。支持带空格 / 特殊字符
- *      的名字(如 `@新Octo Bug 收集`),且不会误绑 text 里字面 @ 串
- *   2. 兜底 — 正则按序绑剩余未匹配 uid(缓存 race 或用户写法跟 candidate 不一致)
- *      不绑;cache miss 时主动 fetchChannelInfo 触发拉取,useChannelInfoTick
- *      监听到 channelInfo 变化触发 re-render,本函数重算 hits
+ * **@匹配策略**:
+ *   1. **entity 优先**(issue #85,bot 消息):`mention.contentObj.entities`
+ *      给精确 `{offset,length,uid}` 范围,直接 `text.slice` 圈定 mention chip。
+ *      entity.uid 是占位 "uid" 时反查群成员让 chip 可点击。entity 路径独占,
+ *      不再走 uids candidate。
+ *   2. **candidate names 精确匹配**(用户消息,issue #46):没 entities 时
+ *      每个 uid 用 collectCandidateNames 取真实显示名,`@<name>` 在 text
+ *      `indexOf` 匹配。支持带空格 / 特殊字符的名字(如 `@新Octo Bug 收集`)。
+ *      candidate cache miss 不再 fetch 兜底(issue #84),退化为不高亮。
+ *   3. **无 channel 兜底**:正则按序绑剩余 uid(仅 RichText 无 channel
+ *      调用场景,生产消息都带 channel)。
  *
  * **linkify**(上游 #67):linkify=true 时额外把 http(s) / www URL 渲染为安全
  * 外链 `<a>`,过滤 javascript: / data: 等危险协议;mention 命中位置在 linkRanges
@@ -208,7 +233,11 @@ export function MentionAwareText({
   if (mention) {
     const flags = mention as MentionWithFlags;
     const hasMentionTargets =
-      !!mention.uids?.length || !!mention.all || !!flags.humans || !!flags.ais;
+      !!mention.uids?.length ||
+      !!mention.all ||
+      !!flags.humans ||
+      !!flags.ais ||
+      !!flags.entities?.length;
 
     if (hasMentionTargets) {
       const pushAllOccurrences = (needle: string, render: (key: string) => ReactNode) => {
@@ -255,6 +284,34 @@ export function MentionAwareText({
           </MentionTag>
         ));
         // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
+      } else if (flags.entities && flags.entities.length > 0 && channel) {
+        // entity 优先(issue #85,bot 消息):用 offset/length 直接圈定 mention,
+        // entity.uid 是占位 "uid" 时反查群成员真 uid 让 chip 可点击。
+        const seenNeedles = new Set<string>();
+        for (const ent of flags.entities) {
+          const needle = text.slice(ent.offset, ent.offset + ent.length);
+          if (!needle.startsWith("@")) continue;
+          if (seenNeedles.has(needle)) continue;
+          seenNeedles.add(needle);
+          if (isInsideLink(ent.offset)) continue;
+          const overlap = hits.some(
+            (h) => ent.offset < h.end && ent.offset + needle.length > h.start,
+          );
+          if (overlap) continue;
+          const displayName = needle.slice(1);
+          const realUid = isLikelyRealUid(ent.uid)
+            ? ent.uid
+            : lookupUidByDisplayName(channel, displayName);
+          hits.push({
+            start: ent.offset,
+            end: ent.offset + needle.length,
+            node: (
+              <MentionTag key={`tk-ent-${ent.offset}`} uid={realUid}>
+                {needle}
+              </MentionTag>
+            ),
+          });
+        }
       } else {
         const uids = mention.uids ?? [];
         // 主路径 — candidate names 精确匹配(需要 channel)。生产消息都带 channel,

@@ -9,16 +9,13 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { readMessageMention } from "@/features/chat/lib/read-message-mention";
+import { isLikelyRealUid, readMessageMention, type MentionWithFlags } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
   getSingleCustomEmoji,
 } from "@/features/base/emoji/emoji-data";
-
-/** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
-type MentionWithFlags = Mention & { humans?: number; ais?: number };
 
 interface TextRendererProps {
   message: Message;
@@ -129,19 +126,57 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
 }
 
 /**
+ * Reverse lookup:从群/子区 subscribers 找 `name === target` 的 sub 的真 uid。
+ *
+ * **issue #85** 配套 — bot 消息 mention.entities[i].uid 填占位 "uid",chip
+ * 默认渲染成不可点击形态。这里尝试从 text 里 entity 圈出的 displayName
+ * (`text.slice(offset+1, end)` 去掉前导 @)反查群成员的真 uid,让 chip 可点击
+ * (跳 UserInfoModal / BotDetailModal)。
+ *
+ * 反查命中条件宽:sub.name / sub.remark / orgData.real_name / orgData.displayName
+ * 任一相等即返回。私聊 channel 无 subscribers,直接 undefined。
+ */
+function lookupUidByDisplayName(channel: Channel, name: string): string | undefined {
+  let groupChannel: Channel | null = null;
+  if (channel.channelType === ChannelTypeGroup) {
+    groupChannel = channel;
+  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (parsed) groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
+  }
+  if (!groupChannel) return undefined;
+  const subs = WKSDK.shared().channelManager.getSubscribes(groupChannel);
+  if (!subs) return undefined;
+  for (const s of subs) {
+    if (s.name === name || s.remark === name) return s.uid;
+    const org = s.orgData as { real_name?: string; displayName?: string } | undefined;
+    if (org?.real_name === name || org?.displayName === name) return s.uid;
+  }
+  return undefined;
+}
+
+/**
  * mention 字段 → Markdown tokens(供 `<Markdown>` 后处理替换):
  *
- * **主路径(candidates)**:每个 uid 用 collectCandidateNames 取真实显示名,
- * 拼 `@<name>` 在 text 里 `includes` 精确匹配。命中即注册 token。
+ * **entity 优先**(issue #85,适配 bot 消息):若 mention.contentObj 带
+ * `entities[{offset,length,uid}]`(wukong IM 协议的 mention range,类似
+ * Telegram MessageEntity),直接用 `text.slice(offset, offset+length)` 作 needle
+ * 注册 token。bot 后端通常按规范填 entities 给精确位置,但 entity.uid 可能
+ * 是占位 "uid" — chip 用 lookupUidByDisplayName 反查群成员,反查不到就渲染
+ * 不可点击 chip。**entity 路径独占** — 不再走 uids candidate,避免双重 token。
+ *
+ * **uids candidate 主路径**(用户消息):没 entities 时,每个 uid 用
+ * collectCandidateNames 取真实显示名,拼 `@<name>` 在 text 里 `includes`
+ * 精确匹配。命中即注册 token。
  *   - 优点 1:支持带空格 / 特殊字符的真实显示名(如 `@新Octo Bug 收集`),
  *     正则字符类搞不定的 case 全靠这条
  *   - 优点 2:**不会误绑文字里的字面 @ 串**(如 `@我点不掉` 不是任何 uid 的
  *     candidate name → 不渲染),issue #46 真凶
  *
- * **cache race**:candidates 没拉到时主动 fetchChannelInfo,useChannelInfoTick
- * 监听到 channelInfo 变化触发 re-render,本函数重算 tokens 自动高亮。
- * **不走正则兜底** — 老仓 SDK 给 parts 精确边界,新仓没 parts 必须靠 candidate
- * 真名匹配。正则按文本顺序绑会误绑文字字面 @ 串。
+ * **cache race**:candidates 没拉到就不高亮(退化为普通文本),不再 fetch
+ * 兜底(issue #84 移除,fetch 风暴 + "用户信息不存在" toast)。
+ * **不走正则兜底** — 老仓 SDK 给 parts 精确边界,新仓没 parts 必须靠
+ * candidate 真名 / entity 范围匹配。正则按文本顺序绑会误绑文字字面 @ 串。
  *
  * **全员/AI 关键字独立**:`@所有人` / `@all` / `@所有AI` 由 mention.all/humans/ais
  * 字段表达,不消耗 mention.uids 顺位。
@@ -155,7 +190,13 @@ function mentionTokens(
 ): MarkdownToken[] {
   if (!mention) return [];
   const flags = mention as MentionWithFlags;
-  if (!mention.uids?.length && !mention.all && !flags.humans && !flags.ais) {
+  if (
+    !mention.uids?.length &&
+    !mention.all &&
+    !flags.humans &&
+    !flags.ais &&
+    !flags.entities?.length
+  ) {
     return [];
   }
   const tokens: MarkdownToken[] = [];
@@ -192,6 +233,30 @@ function mentionTokens(
     });
   }
   if (flags.ais) {
+    return tokens;
+  }
+  // entity 优先(bot 消息有 offset/length,无需 candidate 反查)
+  if (flags.entities && flags.entities.length > 0) {
+    const seenNeedles = new Set<string>();
+    for (const ent of flags.entities) {
+      const needle = text.slice(ent.offset, ent.offset + ent.length);
+      if (!needle.startsWith("@")) continue;
+      if (seenNeedles.has(needle)) continue;
+      seenNeedles.add(needle);
+      const displayName = needle.slice(1);
+      // entity.uid 可能是占位 "uid"(bot 后端 #85);先用真 uid,否则反查
+      const realUid = isLikelyRealUid(ent.uid)
+        ? ent.uid
+        : lookupUidByDisplayName(channel, displayName);
+      tokens.push({
+        match: needle,
+        render: (key) => (
+          <MentionTag key={key} sourceChannel={channel} uid={realUid}>
+            {needle}
+          </MentionTag>
+        ),
+      });
+    }
     return tokens;
   }
   // 主路径 — candidate names 精确匹配(支持空格 / 特殊字符 / 防文字误绑)
@@ -261,6 +326,7 @@ export function TextRenderer({ message }: TextRendererProps) {
   // 订阅全局 channelInfo 变化 — mention candidate 来自 channelInfo/subscribers,
   // cache race 时主路径没匹配,主动 fetchChannelInfo 后到位时重渲就能正确高亮
   useChannelInfoTick();
+
 
   // 单独一个 custom emoji → 大图(120×120),跳过 markdown
   const largeCustom = getSingleCustomEmoji(text);

@@ -12,6 +12,8 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
+import { useChannelAvatarUrl } from "@/features/chat/hooks/use-channel-avatar-url.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { authStore } from "@/features/base/stores/auth";
@@ -85,6 +87,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const groupSubscribers = useGroupSubscribers(groupChannel, !!groupNo && !!uid);
   const [friendApplyOpen, setFriendApplyOpen] = useState(false);
   const [remarkEditing, setRemarkEditing] = useState(false);
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | {
     action: "deleteFriend" | "blacklistAdd" | "blacklistRemove";
     content: string;
@@ -149,6 +152,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
+  const avatarUrl = useChannelAvatarUrl(channel);
   const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
   // 群昵称(对齐老仓 fromSubscriberOfUser?.remark):
   // self 在群里 = 自己在该群的群昵称;别人 = 对方在该群的群昵称
@@ -384,6 +388,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
           if (!next) onClose();
         }}
         size="sm"
+        closeOnMask={!avatarPreviewOpen}
         description={
           display
             ? t("base.userInfo.cardOf", { values: { name: display } })
@@ -397,7 +402,17 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
         ) : (
           <>
             <div className="flex shrink-0 items-start gap-4 px-6 pt-2 pb-4">
-              <ChannelAvatar channel={channel} size={54} title={display} />
+              <button
+                type="button"
+                aria-label={t("imageRenderer.viewLargeImage")}
+                disabled={!avatarUrl}
+                onClick={() => {
+                  if (avatarUrl) setAvatarPreviewOpen(true);
+                }}
+                className="shrink-0 cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand/35 disabled:cursor-default"
+              >
+                <ChannelAvatar channel={channel} size={54} title={display} />
+              </button>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <div className="flex flex-wrap items-center gap-1">
                   <span className="truncate text-base font-semibold text-text-primary">
@@ -465,6 +480,10 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
         onOk={onConfirmOk}
         onCancel={() => setConfirm(null)}
       />
+
+      {avatarPreviewOpen && avatarUrl ? (
+        <ImagePreviewModal src={avatarUrl} onClose={() => setAvatarPreviewOpen(false)} />
+      ) : null}
     </>
   );
 }

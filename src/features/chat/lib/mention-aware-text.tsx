@@ -3,9 +3,13 @@ import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } fro
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
+import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
+
+/** 子区 channel type(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
+const CHANNEL_TYPE_THREAD = 5;
 
 const richTextLinkRe = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
 const trailingLinkPunctuation = new Set([
@@ -41,9 +45,19 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
   const push = (v: unknown) => {
     if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
   };
+  // 群 / 子区(走父群)的 subscriber 列表 — 子区本身无 sub 列表,必须解析父群(issue #73 真凶)
+  let groupChannel: Channel | null = null;
   if (channel.channelType === ChannelTypeGroup) {
+    groupChannel = channel;
+  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    const parsed = parseThreadChannelId(channel.channelID);
+    if (parsed) {
+      groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
+    }
+  }
+  if (groupChannel) {
     const sub = WKSDK.shared()
-      .channelManager.getSubscribes(channel)
+      .channelManager.getSubscribes(groupChannel)
       ?.find((s) => s.uid === uid);
     push(sub?.remark);
     push(sub?.name);

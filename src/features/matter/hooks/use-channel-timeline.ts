@@ -85,7 +85,7 @@ export function useChannelTimelineOnExpand(matterId: string, expandedTimelines: 
     return () => {
       aborted = true;
     };
-  }, [expandedTimelines, timelineMap, matterId]);
+  }, [expandedTimelines, matterId]);
 
   return { timelineMap, timelineLoading };
 }

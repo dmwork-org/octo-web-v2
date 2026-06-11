@@ -3,6 +3,7 @@ import { Channel } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { chatPendingAttachmentRegistry } from "@/features/chat/stores/chat-pending-attachment";
 import { chatConfirmDialogActions } from "@/features/chat/stores/chat-confirm-dialog";
+import { chatSidebarTabActions } from "@/features/chat/stores/chat-sidebar-tab";
 import { t } from "@/lib/i18n/instance";
 
 /**
@@ -97,13 +98,30 @@ function isSameChannel(a: Channel | null, b: Channel): boolean {
   return !!a && a.channelID === b.channelID && a.channelType === b.channelType;
 }
 
-function doSelect(channel: Channel): void {
+/**
+ * 选中会话的入口选项。
+ *
+ * **fromSidebarList**(对齐老仓 EndpointCommon.tsx:138 + Pages/Chat:1197):
+ * 外部入口(global search / 通知 / 弹窗 / matter / citation / 新建群 / 子区
+ * 跳转等)默认强切到 recent tab — recent filter='all' 不论目标是否 followed
+ * 都能展示并高亮;留在 follow tab 时未关注的会话**列表里看不到 + 无法高亮**,
+ * 用户不知道当前在哪。sidebar 内点击传 `true` 跳过切 tab,避免点 follow
+ * 列表里的项被强切到 recent。
+ */
+export interface SelectChannelOptions {
+  fromSidebarList?: boolean;
+}
+
+function doSelect(channel: Channel, opts?: SelectChannelOptions): void {
+  if (!opts?.fromSidebarList) {
+    chatSidebarTabActions.setTab("recent");
+  }
   chatSelectedStore.setState(() => ({ channel }));
   writePersistedChannel(channel);
 }
 
 export const chatSelectedActions = {
-  select: (channel: Channel) => {
+  select: (channel: Channel, opts?: SelectChannelOptions) => {
     if (isSameChannel(chatSelectedStore.state.channel, channel)) {
       writePersistedChannel(channel);
       return;
@@ -113,11 +131,11 @@ export const chatSelectedActions = {
         title: t("chatSelected.pendingAttachment.title"),
         message: t("chatSelected.pendingAttachment.message"),
         okText: t("chatSelected.pendingAttachment.ok"),
-        onOk: () => doSelect(channel),
+        onOk: () => doSelect(channel, opts),
       });
       return;
     }
-    doSelect(channel);
+    doSelect(channel, opts);
   },
   clear: () => {
     chatSelectedStore.setState(() => ({ channel: null }));

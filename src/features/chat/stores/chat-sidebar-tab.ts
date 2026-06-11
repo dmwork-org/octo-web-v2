@@ -16,7 +16,12 @@ const STORAGE_KEY = "wk_sidebar_active_tab";
 let persistenceWired = false;
 
 function normalizeTab(value: unknown): ConvTab | null {
-  return value === "follow" || value === "recent" ? value : null;
+  if (value === "follow" || value === "recent") return value;
+  // 老仓迁移兼容(对齐 dmworkbase Pages/Chat/index.tsx:1136):
+  // localStorage 旧值 group/dm 映射到新枚举,首次进站不丢失偏好。
+  if (value === "group") return "follow";
+  if (value === "dm") return "recent";
+  return null;
 }
 
 function readPersisted(): ChatSidebarTabState {

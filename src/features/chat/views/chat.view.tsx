@@ -16,7 +16,7 @@ export function ChatView() {
     <div className="flex flex-1 overflow-hidden">
       <ConversationSidebar
         selectedChannelId={channel?.channelID}
-        onSelect={(c) => chatSelectedActions.select(c.channel)}
+        onSelect={(c) => chatSelectedActions.select(c.channel, { fromSidebarList: true })}
       />
       <ChatMain />
     </div>

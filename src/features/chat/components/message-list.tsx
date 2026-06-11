@@ -375,8 +375,10 @@ export function MessageList({ channel }: MessageListProps) {
   );
   useLocateRequestedMessage(channel, !isLoading && !error && !!data);
 
-  // 右下角 scroll-to-bottom 按钮 + 未读徽标(1:1 对齐旧 ConversationPositionView)
-  const scrollBtn = useScrollToBottomButton(scrollRef, messages.length);
+  // 右下角 scroll-to-bottom 按钮 + 未读徽标(对齐旧 ConversationPositionView,
+  // issue #31 修复:用末尾消息稳定 id 替代 messages.length,避免向上拉历史时
+  // messages.length 增加被误判为新消息)。复用 followKey 的 id + mine 标识。
+  const scrollBtn = useScrollToBottomButton(scrollRef, followKey.id, followKey.mine);
 
   if (isLoading) {
     return (

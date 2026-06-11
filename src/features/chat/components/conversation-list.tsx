@@ -289,7 +289,7 @@ function ConversationRow({
 
         <div className="flex items-center overflow-hidden">
           <span
-            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-none font-normal ${
+            className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[12px] leading-[18px] font-normal ${
               isMuted ? "text-[#1c1c23]/40" : "text-[#1c1c23]/60"
             }`}
           >

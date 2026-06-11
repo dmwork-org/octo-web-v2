@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
-import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
@@ -267,15 +265,12 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              // 非法 uid 跳过(isFetchableUid 长度 / sentinel 白名单);合法 uid
-              // 走 tryFetchChannelInfo(attempted Set 同 channel 整会话期最多 1 次),
-              // 防 mention 多 + re-render 多次同步重发 → "请求过于频繁"(issue #84)。
-              // SDK fetchChannelInfo 只防 in-flight 不查 cache,且 im-callbacks 的
-              // catch 吞 error 返回空 ChannelInfo → 外层 .catch 永远不触发
-              // → markUidFetchFailed 失效 → 风暴。改用 attempted Set 同步闸。
-              if (isFetchableUid(uid)) {
-                tryFetchChannelInfo(new Channel(uid, ChannelTypePerson));
-              }
+              // candidate 拉不到就不高亮(退化为普通文本) — 不再 fetch Person
+              // channelInfo 兜底(issue #84):
+              //   - 真 uid:sender channelInfo 已被 message-row mount 时拉过,
+              //     群友通常在 subscribers cache,兜底命中率极低
+              //   - 脏数据 uid(如 "utility" / 旧版 label-as-uid):fetch 永远 400,
+              //     一点用没有 + 触发"用户信息不存在"toast
               continue;
             }
             let found = false;

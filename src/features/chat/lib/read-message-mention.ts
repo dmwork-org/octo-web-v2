@@ -34,29 +34,3 @@ export function readMessageMention(content: unknown): MentionWithFlags | undefin
   if (ais) merged.ais = ais;
   return merged;
 }
-
-/**
- * 防御 mention.uids 含非法值时主动 fetchChannelInfo 触发"请求过于频繁"
- * (issue #74 / #84):
- *
- * 某些历史消息 mention.uids 含字面 "uid" / sticky sentinel ("-1"/"-2"/"-3")
- * 等非法 uid,fetchChannelInfo 调到 `/v1/channels/{uid}/1` → 后端 400 →
- * 全局 errorToast 飘"用户信息不存在"。
- *
- * **形态白名单**:uid 必须是非空字符串、非 sentinel、长度 ≥ 6(后端真 uid
- * 通常是 32 位 hex 或类似,短的几乎全是错误数据)。
- *
- * **N+1 re-render 同步防御**:caller 必须配合 `tryFetchChannelInfo`(模块级
- * attempted Set,同 channel 整会话期最多 1 次)使用 — 历史 30s TTL 黑名单
- * 依赖 fetchChannelInfo promise 的 reject 才能 mark,但 im-callbacks 的 catch
- * 吞 error 返回空 ChannelInfo → 外层 .catch 永远不触发 → 黑名单不生效。
- * attempted Set 同步 add,根治 re-render 风暴。
- */
-const SENTINEL_UIDS = new Set(["-1", "-2", "-3", "@all", "uid"]);
-
-export function isFetchableUid(uid: string | undefined | null): boolean {
-  if (!uid || typeof uid !== "string") return false;
-  if (SENTINEL_UIDS.has(uid)) return false;
-  if (uid.length < 6) return false;
-  return true;
-}

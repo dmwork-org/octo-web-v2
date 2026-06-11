@@ -9,8 +9,7 @@ import WKSDK, {
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid, readMessageMention } from "@/features/chat/lib/read-message-mention";
-import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import { readMessageMention } from "@/features/chat/lib/read-message-mention";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   findEmojiKeywords,
@@ -200,16 +199,9 @@ function mentionTokens(
   for (const uid of uids) {
     const names = collectCandidateNames(uid, channel);
     if (names.length === 0) {
-      // candidates cache 没拉到 — 主动触发 Person channelInfo fetch,
-      // channelInfo 到位后 useChannelInfoTick 触发 re-render,本函数重算 tokens。
-      // 走 tryFetchChannelInfo(attempted Set 同 channel 整会话期最多 1 次),
-      // 防 mention 多 + re-render 多次同步重发到 backend → "请求过于频繁"
-      // (issue #84)。SDK fetchChannelInfo 只防 in-flight 不查 cache,且
-      // im-callbacks catch 吞 error 返回空 ChannelInfo → 外层 .catch
-      // 永远不触发 → markUidFetchFailed 失效 → 风暴。改用 attempted Set 同步闸。
-      if (isFetchableUid(uid)) {
-        tryFetchChannelInfo(new Channel(uid, ChannelTypePerson));
-      }
+      // candidate 拉不到就不高亮(退化为普通文本) — 不再 fetch Person channelInfo
+      // 兜底(issue #84):真 uid 通常已被 message-row / subscribers cache 覆盖,
+      // 脏数据 uid(如 "utility")fetch 永远 400 反而触发"用户信息不存在"toast。
       continue;
     }
     // 按长度升序排序 — 短名优先匹配,避免长 candidate(如 displayName 设成

@@ -38,6 +38,10 @@ export interface DrilldownDialogPage<K extends string = string> {
   title: ReactNode;
   /** 渲染本页内容,接收 nav 控制器 */
   render: (nav: DrilldownDialogNav<K>) => ReactNode;
+  /** 显式覆盖当前页高度;缺省走 DrilldownDialog 的 height。 */
+  height?: DialogHeight;
+  /** 显式覆盖当前页 body 外层 className;缺省走 DrilldownDialog 的 contentClassName。 */
+  contentClassName?: string;
   /** 显式覆盖返回按钮可见性;缺省 stack 深度 > 1 时显示 */
   showBackButton?: boolean;
   /** 显式覆盖关闭按钮可见性;缺省走 BaseDialog 默认(true) */
@@ -94,14 +98,14 @@ export function DrilldownDialog<K extends string>({
         if (!next) onClose();
       }}
       size={size}
-      height={height}
+      height={page.height ?? height}
       title={page.title}
       description={description}
       showBackButton={showBack}
       onBack={stack.back}
       showCloseButton={showClose}
       footer={page.footer}
-      contentClassName={contentClassName}
+      contentClassName={page.contentClassName ?? contentClassName}
       className={className}
     >
       {page.render(nav)}

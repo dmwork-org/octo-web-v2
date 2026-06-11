@@ -133,7 +133,13 @@ export function ChatMain() {
       ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
       {sidePanelKind === "matter" ? (
-        <Suspense fallback={<div className="flex h-full w-80 shrink-0 items-center justify-center border-l border-border-default bg-bg-base text-sm text-text-tertiary">加载中…</div>}>
+        <Suspense
+          fallback={
+            <div className="flex h-full w-80 shrink-0 items-center justify-center border-l border-border-default bg-bg-base text-sm text-text-tertiary">
+              加载中…
+            </div>
+          }
+        >
           <MatterListPanel />
         </Suspense>
       ) : null}

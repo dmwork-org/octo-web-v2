@@ -108,7 +108,8 @@ function deserializeDraft(text: string): JSONContent {
  *
  * **存储**(经 [chat-draft.ts](../stores/chat-draft.ts) store + localStorage 双写):
  * - composer mount → 从 store 读 → setContent
- * - composer unmount(channel 切换 by key 重建)→ effect cleanup 序列化 editor → 写 store
+ * - editor update → 即时序列化 editor → 写 store(刷新 / 关闭页面不依赖 cleanup)
+ * - composer unmount(channel 切换 by key 重建)→ effect cleanup 再兜底写一次
  *
  * **关键**:Composer 是 `<Composer key={channelKey} />` 重建,所以 channel 切换走
  * unmount → mount 而不是同 hook 跑 deps change。cleanup 函数里 capture 的 editor +
@@ -124,6 +125,7 @@ export function useComposerDraft(
   // capture 当前 channel,cleanup 用(channel 是 prop,deps 变化 cleanup 时仍持有旧值)
   const channelRef = useRef(channel);
   channelRef.current = channel;
+  const lastPersistedRef = useRef<string>("");
 
   useEffect(() => {
     if (!editor) return;
@@ -133,25 +135,41 @@ export function useComposerDraft(
       try {
         const doc = deserializeDraft(draft);
         editor.commands.setContent(doc, { emitUpdate: false });
+        lastPersistedRef.current = draft;
       } catch {
         // 损坏的 draft → 清掉,空 editor
         chatDraftActions.remove(channel);
         editor.commands.clearContent();
+        lastPersistedRef.current = "";
       }
     } else {
       editor.commands.clearContent();
+      lastPersistedRef.current = "";
     }
 
-    // unmount(channel 切走 by key 重建)→ 序列化 editor → 写 store
-    return () => {
-      // editor 在此 closure 中是旧 instance 的引用;destroy 前调 getJSON 仍可用
+    const persistCurrentDraft = () => {
       const text = serializeDraft(editor);
+      if (text === lastPersistedRef.current) return;
+      lastPersistedRef.current = text;
       if (text.trim() === "") chatDraftActions.remove(channel);
       else chatDraftActions.set(channel, text);
+    };
+
+    // 输入过程即时落盘,确保浏览器刷新 / 关闭时不会依赖 React cleanup。
+    editor.on("update", persistCurrentDraft);
+
+    // unmount(channel 切走 by key 重建)→ 再兜底序列化一次。
+    return () => {
+      editor.off("update", persistCurrentDraft);
+      // editor 在此 closure 中是旧 instance 的引用;destroy 前调 getJSON 仍可用
+      persistCurrentDraft();
     };
   }, [editor, channel]);
 
   return {
-    clearDraft: () => chatDraftActions.remove(channelRef.current),
+    clearDraft: () => {
+      lastPersistedRef.current = "";
+      chatDraftActions.remove(channelRef.current);
+    },
   };
 }

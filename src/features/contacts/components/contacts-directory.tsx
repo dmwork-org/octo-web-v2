@@ -35,6 +35,9 @@ type SectionId = "groups" | "myBots" | "allContacts";
 
 /** 联系人列表超过这个阈值,allContacts 段切到虚拟列表(对齐旧 dmworkcontacts 100)。 */
 const VIRTUAL_THRESHOLD = 100;
+const EMPTY_MEMBERS: SpaceMember[] = [];
+const EMPTY_BOTS: RobotBot[] = [];
+const EMPTY_GROUPS: GroupSummary[] = [];
 
 /**
  * 联合 contact 项(人/AI 在主列表里同形渲染),
@@ -297,10 +300,10 @@ export function ContactsDirectory() {
   const spaceBotsQ = useQuery(spaceBotsQueryOptions(currentSpaceId));
   const myGroupsQ = useQuery(myGroupsQueryOptions(currentSpaceId));
 
-  const members = membersQ.data ?? [];
-  const myBots = myBotsQ.data ?? [];
-  const spaceBots = spaceBotsQ.data ?? [];
-  const myGroups = myGroupsQ.data ?? [];
+  const members = membersQ.data ?? EMPTY_MEMBERS;
+  const myBots = myBotsQ.data ?? EMPTY_BOTS;
+  const spaceBots = spaceBotsQ.data ?? EMPTY_BOTS;
+  const myGroups = myGroupsQ.data ?? EMPTY_GROUPS;
 
   const contacts = useMemo(
     () => buildContacts(members, spaceBots, myUid, filter),

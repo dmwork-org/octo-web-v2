@@ -63,9 +63,7 @@ export function show(type: MessageType, content: string, options?: MessageOption
       clearTimerFor(existing.id);
       messageStore.setState((s) => ({
         items: s.items.map((it) =>
-          it.id === existing.id
-            ? { ...it, type, content, duration: finalDuration, action }
-            : it,
+          it.id === existing.id ? { ...it, type, content, duration: finalDuration, action } : it,
         ),
       }));
       scheduleAutoDismiss(existing.id, finalDuration);

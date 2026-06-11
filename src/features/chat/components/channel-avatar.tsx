@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import WKSDK, { type Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { endpointStore } from "@/features/base/stores/endpoint";
-import { avatarVersionStore } from "@/features/base/stores/avatar-version";
+import { avatarVersionFor, avatarVersionStore } from "@/features/base/stores/avatar-version";
+import { spaceStore } from "@/features/base/stores/space";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 
 interface ChannelAvatarProps {
@@ -46,17 +47,34 @@ function useResetFailedOnUrlChange(
 
 function withVersion(url: string, version: number): string {
   if (!url || version <= 0 || url.startsWith("data:")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+  const parsed = new URL(url, window.location.origin);
+  if (!parsed.searchParams.get("v")) {
+    parsed.searchParams.set("v", String(version));
+  }
+  if (url.startsWith("/")) {
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  }
+  return parsed.toString();
 }
 
 /**
- * Group fallback URL — 对齐老仓 App.tsx avatarChannel L959
- * `${baseURL}groups/{channelID}/avatar`。后端服务总是返回头像(自定义图或默认图),
+ * Fallback URL — 对齐老仓 App.tsx avatarChannel。
+ * `${baseURL}/users/{uid}/avatar` / `${baseURL}/groups/{channelID}/avatar`。后端服务总是返回头像(自定义图或默认图),
  * 客户端不需要等 channelInfo.logo 字段就能拿到群头像。
  *
  * 死锁防护:URL 必带 `?v={avatarVersion}` — createGroup onSuccess 主动 bump,
  * 让浏览器视为新 URL 重 GET,绕过潜在的旧 404 cache。
  */
+function personFallbackUrl(baseURL: string, channelID: string, spaceId: string | null): string {
+  if (!baseURL || !channelID) return "";
+  let uid = channelID;
+  if (spaceId && uid.startsWith(`s${spaceId}_`)) {
+    uid = uid.substring(spaceId.length + 2);
+  }
+  if (!uid) uid = channelID;
+  return `${baseURL}/users/${uid}/avatar`;
+}
+
 function groupFallbackUrl(baseURL: string, channelID: string): string {
   if (!baseURL || !channelID) return "";
   return `${baseURL}/groups/${channelID}/avatar`;
@@ -67,7 +85,7 @@ function groupFallbackUrl(baseURL: string, channelID: string): string {
  *
  * **URL 选取**(优先级):
  *   1. `channelInfo.logo` 非空 → 走 logo URL(http/https/data 直接用,相对路径拼 baseURL)
- *   2. Group fallback:`${baseURL}/groups/{channelID}/avatar`(对齐老仓,服务端总返头像)
+ *   2. Person / Group fallback(对齐老仓,服务端总返头像)
  *   3. 否则首字母占位
  *
  * **加载失败 2 段降级**(issue #64 followup):新建群瞬间 fallback URL 可能命中
@@ -90,9 +108,18 @@ function groupFallbackUrl(baseURL: string, channelID: string): string {
  */
 export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps) {
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const avatarVersion = useStore(avatarVersionStore, (s) => {
-    if (channel.channelType === ChannelTypePerson) return s.versions[channel.channelID] ?? 0;
-    if (channel.channelType === ChannelTypeGroup) return s.versions[channel.channelID] ?? 0;
+    if (channel.channelType === ChannelTypePerson) {
+      return (
+        s.versions[channel.channelID] ?? avatarVersionFor(channel.channelID, channel.channelType)
+      );
+    }
+    if (channel.channelType === ChannelTypeGroup) {
+      return (
+        s.versions[channel.channelID] ?? avatarVersionFor(channel.channelID, channel.channelType)
+      );
+    }
     return 0;
   });
   useChannelInfoTick();
@@ -114,9 +141,11 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
     ? logo.startsWith("data:") || logo.startsWith("http://") || logo.startsWith("https://")
       ? logo
       : `${baseURL}/${logo.replace(/^\/+/, "")}`
-    : isGroup
-      ? groupFallbackUrl(baseURL, channel.channelID)
-      : "";
+    : isPerson
+      ? personFallbackUrl(baseURL, channel.channelID, spaceId)
+      : isGroup
+        ? groupFallbackUrl(baseURL, channel.channelID)
+        : "";
   const url = withVersion(rawUrl, avatarVersion);
 
   useResetFailedOnUrlChange(url, setSoftFailed, setHardFailed, graceTimerRef);

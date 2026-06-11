@@ -314,7 +314,7 @@ PreToolUse hook 真触发验证通过:
     - ack key 带版本 `octo-login-migration-notice-v1-ack`(per-browser,后续重提示升 v2)
     - appconfig 加 suppress_login_migration_notice 字段(部署侧强制隐藏)
     - 注册 CTA 派生 provider.accountUrl + AEGIS_REGISTER_PATH "/register",accountUrl 缺失时隐(不写 prod/test fallback)
-    - i18n 26 keys(zh/en 各):title/kicker/summary*/important*/step1-3 + Label/Hint/sameEmail*/differentEmail*/bindWarning*/registerAegis/continueLogin/link
+    - i18n 26 keys(zh/en 各):title/kicker/summary*/important*/step1-3 + Label/Hint/sameEmail*/differentEmail*/bindWarning\*/registerAegis/continueLogin/link
   - `86c5837b` OIDC logout — **搬**:
     - 新增 src/features/login/oidc/logout.ts(requestOidcLogout / safeEndSessionUrl / markOidcPostLogoutCleanup / consumeOidcPostLogoutCleanup / logoutUserInitiated / runPostLogoutCleanupIfNeeded)
     - AuthUser 加 login_provider 字段(post-login-flow 从 pending OIDC session 读出)

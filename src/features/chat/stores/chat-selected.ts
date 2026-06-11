@@ -1,5 +1,5 @@
 import { Store } from "@tanstack/react-store";
-import type { Channel } from "wukongimjssdk";
+import { Channel } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { chatPendingAttachmentRegistry } from "@/features/chat/stores/chat-pending-attachment";
 import { chatConfirmDialogActions } from "@/features/chat/stores/chat-confirm-dialog";
@@ -14,7 +14,8 @@ import { t } from "@/lib/i18n/instance";
  * - sidebar 切换会话 / 联系人详情点击 → chatSelectedActions.select(channel)
  * - chatSelectedActions.clear() — 进入"无选中"占位状态
  *
- * 不持久化(刷新页面后丢失选中);P3 后续如有需要再加 storage。
+ * 同 Space 下持久化到 localStorage,刷新后恢复当前会话。Space 切换 / 退出登录时
+ * clear() 会同步清掉持久化值,避免恢复到错误工作区。
  *
  * **未发送附件守卫**(对齐旧 dmworkbase Pages/Chat `pendingAttachmentGuard` 模式):
  * - `select` 内部检查 [chat-pending-attachment.ts](./chat-pending-attachment.ts)
@@ -29,7 +30,68 @@ interface ChatSelectedState {
   channel: Channel | null;
 }
 
-export const chatSelectedStore = new Store<ChatSelectedState>({ channel: null });
+interface PersistedSelectedChannel {
+  channelID: string;
+  channelType: number;
+  spaceId: string | null;
+}
+
+const STORAGE_KEY = "octo:chat:selected-channel";
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parsePersisted(value: unknown): PersistedSelectedChannel | null {
+  if (!isObject(value)) return null;
+  const { channelID, channelType, spaceId } = value;
+  if (typeof channelID !== "string" || channelID.length === 0) return null;
+  if (typeof channelType !== "number" || !Number.isFinite(channelType)) return null;
+  if (spaceId !== null && typeof spaceId !== "string") return null;
+  return { channelID, channelType, spaceId };
+}
+
+function removePersistedChannel(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore storage quota / private mode errors
+  }
+}
+
+function readPersistedChannel(): Channel | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const payload = parsePersisted(JSON.parse(raw) as unknown);
+    if (!payload || payload.spaceId !== spaceStore.state.spaceId) {
+      removePersistedChannel();
+      return null;
+    }
+    return new Channel(payload.channelID, payload.channelType);
+  } catch {
+    removePersistedChannel();
+    return null;
+  }
+}
+
+function writePersistedChannel(channel: Channel): void {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: PersistedSelectedChannel = {
+      channelID: channel.channelID,
+      channelType: channel.channelType,
+      spaceId: spaceStore.state.spaceId,
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage quota / private mode errors
+  }
+}
+
+export const chatSelectedStore = new Store<ChatSelectedState>({ channel: readPersistedChannel() });
 
 function isSameChannel(a: Channel | null, b: Channel): boolean {
   return !!a && a.channelID === b.channelID && a.channelType === b.channelType;
@@ -37,11 +99,15 @@ function isSameChannel(a: Channel | null, b: Channel): boolean {
 
 function doSelect(channel: Channel): void {
   chatSelectedStore.setState(() => ({ channel }));
+  writePersistedChannel(channel);
 }
 
 export const chatSelectedActions = {
   select: (channel: Channel) => {
-    if (isSameChannel(chatSelectedStore.state.channel, channel)) return;
+    if (isSameChannel(chatSelectedStore.state.channel, channel)) {
+      writePersistedChannel(channel);
+      return;
+    }
     if (chatPendingAttachmentRegistry.hasPending()) {
       chatConfirmDialogActions.show({
         title: t("chatSelected.pendingAttachment.title"),
@@ -53,7 +119,10 @@ export const chatSelectedActions = {
     }
     doSelect(channel);
   },
-  clear: () => chatSelectedStore.setState(() => ({ channel: null })),
+  clear: () => {
+    chatSelectedStore.setState(() => ({ channel: null }));
+    removePersistedChannel();
+  },
 };
 
 /**

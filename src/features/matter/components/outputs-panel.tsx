@@ -71,6 +71,30 @@ function formatOutputDateTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function useSyncSearchValue(
+  query: string,
+  setSearchValue: (updater: (prev: string) => string) => void,
+): void {
+  useEffect(() => {
+    setSearchValue((prev) => (prev.trim() === query ? prev : query));
+  }, [query, setSearchValue]);
+}
+
+function useClearPendingSearchTimer(
+  searchTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+  onSearch: OutputsPanelProps["onSearch"],
+  query: string,
+): void {
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) {
+        clearTimeout(searchTimer.current);
+        searchTimer.current = null;
+      }
+    };
+  }, [searchTimer, onSearch, query]);
+}
+
 // ─── Component ──────────────────────────────────────────
 
 export function OutputsPanel({
@@ -93,22 +117,8 @@ export function OutputsPanel({
   const [searchValue, setSearchValue] = useState(query);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 外部 query 变化时同步回输入框 (matter 切换时 panel 清空 query)
-  // 只在 trimmed 不匹配时才覆盖，保留用户输入的前后空格
-  useEffect(() => {
-    setSearchValue((prev) => (prev.trim() === query ? prev : query));
-  }, [query]);
-
-  // onSearch / query 变化时清理 pending debounce timer，
-  // 防止旧 matter 的搜索词漏给新 matter
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current) {
-        clearTimeout(searchTimer.current);
-        searchTimer.current = null;
-      }
-    };
-  }, [onSearch, query]);
+  useSyncSearchValue(query, setSearchValue);
+  useClearPendingSearchTimer(searchTimer, onSearch, query);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,29 +189,50 @@ export function OutputsPanel({
       <div className="w-full overflow-x-auto pb-1" role="table">
         {/* 表头 */}
         <div className="inline-flex h-8 min-w-full items-stretch bg-bg-elevated" role="row">
-          <div className="flex w-[216px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[216px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.title")}
           </div>
-          <div className="flex w-[312px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[312px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.description")}
           </div>
-          <div className="flex w-[144px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[144px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.sender")}
           </div>
-          <div className="flex w-[148px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[148px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.sourceGroup")}
           </div>
-          <div className="flex w-[172px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[172px] shrink-0 items-center px-3 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.sentAt")}
           </div>
-          <div className="flex w-[88px] shrink-0 items-center px-4 text-[12px] font-medium leading-4 text-text-tertiary" role="columnheader">
+          <div
+            className="flex w-[88px] shrink-0 items-center px-4 text-[12px] font-medium leading-4 text-text-tertiary"
+            role="columnheader"
+          >
             {t("matter.outputs.column.actions")}
           </div>
         </div>
 
         {/* 错误状态 */}
         {error ? (
-          <div className="flex flex-col items-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary" role="alert">
+          <div
+            className="flex flex-col items-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary"
+            role="alert"
+          >
             <FileWarning size={40} className="opacity-40" />
             <span>{error}</span>
             {onRetry && (
@@ -231,7 +262,10 @@ export function OutputsPanel({
                 role="row"
               >
                 {/* 标题列: 缩略图 + 文件名 + 大小 */}
-                <div className="flex w-[216px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary" role="cell">
+                <div
+                  className="flex w-[216px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
+                  role="cell"
+                >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center">
                     <img src={iconUrl} alt="" width={32} height={32} />
                   </div>
@@ -258,7 +292,10 @@ export function OutputsPanel({
                 </div>
 
                 {/* 发送人列: 头像 + 姓名 */}
-                <div className="flex w-[144px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary" role="cell">
+                <div
+                  className="flex w-[144px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
+                  role="cell"
+                >
                   <ChannelAvatar
                     channel={new Channel(item.sender_uid, ChannelTypePerson)}
                     size={20}
@@ -271,7 +308,10 @@ export function OutputsPanel({
                 </div>
 
                 {/* 来源群列 */}
-                <div className="flex w-[148px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary" role="cell">
+                <div
+                  className="flex w-[148px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary"
+                  role="cell"
+                >
                   <ChannelCell
                     item={item}
                     getChannelMembership={getChannelMembership}
@@ -280,7 +320,10 @@ export function OutputsPanel({
                 </div>
 
                 {/* 发送时间列 */}
-                <div className="flex w-[172px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary tabular-nums" role="cell">
+                <div
+                  className="flex w-[172px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary tabular-nums"
+                  role="cell"
+                >
                   {formatOutputDateTime(item.sent_at)}
                 </div>
 

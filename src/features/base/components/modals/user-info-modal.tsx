@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Subscriber } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelTypeGroup,
+  ChannelTypePerson,
+  type Subscriber,
+} from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
@@ -76,10 +81,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const myName = useStore(authStore, (s) => s.user?.name ?? s.user?.username ?? "");
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data, isLoading } = useQuery(userDetailQueryOptions(uid, groupNo));
-  const groupChannel = useMemo(
-    () => new Channel(groupNo ?? "", ChannelTypeGroup),
-    [groupNo],
-  );
+  const groupChannel = useMemo(() => new Channel(groupNo ?? "", ChannelTypeGroup), [groupNo]);
   const groupSubscribers = useGroupSubscribers(groupChannel, !!groupNo && !!uid);
   const [friendApplyOpen, setFriendApplyOpen] = useState(false);
   const [remarkEditing, setRemarkEditing] = useState(false);
@@ -147,7 +149,17 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
+  const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
+  // 群昵称(对齐老仓 fromSubscriberOfUser?.remark):
+  // self 在群里 = 自己在该群的群昵称;别人 = 对方在该群的群昵称
+  const groupNickname = groupSubscriber?.remark ?? "";
+  // displayName 优先级(对齐老仓 UserInfoVM.displayName):
+  //   1. data.remark(我对该用户的备注 — self 通常没)
+  //   2. groupNickname(群上下文里的群昵称 — issue #38 焦点:self 在群里看自己应显示群昵称)
+  //   3. real_name(已实名) / name / uid 兜底
   const display =
+    (data?.remark && data.remark.trim()) ||
+    groupNickname ||
     displayName({
       name: data?.name,
       remark: data?.remark,
@@ -169,7 +181,6 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
     realname_verified: data?.realname_verified,
   });
   const hasRemark = !!(data?.remark && data.remark !== "");
-  const groupSubscriber = findGroupSubscriber(groupSubscribers, uid);
 
   const groupJoinMethod = (() => {
     if (!groupSubscriber) return "";
@@ -245,81 +256,85 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
     : t("base.userInfo.applyFromMe", { values: { name: myName } });
 
   const renderSections = () => {
-    if (isSelf) return null;
     const sections: React.ReactNode[] = [];
 
-    sections.push(
-      <SectionGroup key="remark">
-        <InlineEditRow
-          title={t("base.userInfo.setRemark")}
-          value={data?.remark ?? ""}
-          placeholder={t("base.common.notSet")}
-          canEdit
-          maxLength={20}
-          pending={remarkMu.isPending}
-          editing={remarkEditing}
-          onEnterEdit={() => setRemarkEditing(true)}
-          onCancel={() => setRemarkEditing(false)}
-          onSave={(v) => remarkMu.mutate(v)}
-        />
-      </SectionGroup>,
-    );
-
-    if (isExternal) {
+    // 非 self 才有意义的 sections:备注 / 删好友 / 黑名单 / 来源
+    if (!isSelf) {
       sections.push(
-        <SectionGroup key="others">
-          {isFriend ? (
-            <NavRow
-              title={t("base.userInfo.releaseFriend")}
-              danger
-              onClick={() =>
-                setConfirm({
-                  action: "deleteFriend",
-                  content: t("base.userInfo.deleteFriendContent", { values: { name: display } }),
-                })
-              }
-            />
-          ) : null}
-          {isBlacklisted ? (
-            <NavRow
-              title={t("base.userInfo.blacklistRemoveAction")}
-              onClick={() =>
-                setConfirm({
-                  action: "blacklistRemove",
-                  content: t("base.userInfo.blacklistRemoveContent"),
-                })
-              }
-            />
-          ) : (
-            <NavRow
-              title={t("base.userInfo.blacklistAddAction")}
-              danger
-              onClick={() =>
-                setConfirm({
-                  action: "blacklistAdd",
-                  content: t("base.userInfo.blacklistAddContent"),
-                })
-              }
-            />
-          )}
+        <SectionGroup key="remark">
+          <InlineEditRow
+            title={t("base.userInfo.setRemark")}
+            value={data?.remark ?? ""}
+            placeholder={t("base.common.notSet")}
+            canEdit
+            maxLength={20}
+            pending={remarkMu.isPending}
+            editing={remarkEditing}
+            onEnterEdit={() => setRemarkEditing(true)}
+            onCancel={() => setRemarkEditing(false)}
+            onSave={(v) => remarkMu.mutate(v)}
+          />
         </SectionGroup>,
       );
+
+      if (isExternal) {
+        sections.push(
+          <SectionGroup key="others">
+            {isFriend ? (
+              <NavRow
+                title={t("base.userInfo.releaseFriend")}
+                danger
+                onClick={() =>
+                  setConfirm({
+                    action: "deleteFriend",
+                    content: t("base.userInfo.deleteFriendContent", { values: { name: display } }),
+                  })
+                }
+              />
+            ) : null}
+            {isBlacklisted ? (
+              <NavRow
+                title={t("base.userInfo.blacklistRemoveAction")}
+                onClick={() =>
+                  setConfirm({
+                    action: "blacklistRemove",
+                    content: t("base.userInfo.blacklistRemoveContent"),
+                  })
+                }
+              />
+            ) : (
+              <NavRow
+                title={t("base.userInfo.blacklistAddAction")}
+                danger
+                onClick={() =>
+                  setConfirm({
+                    action: "blacklistAdd",
+                    content: t("base.userInfo.blacklistAddContent"),
+                  })
+                }
+              />
+            )}
+          </SectionGroup>,
+        );
+      }
+
+      if (isExternal && data?.source_space_name) {
+        sections.push(
+          <SectionGroup key="source">
+            <NavRow title={t("base.userInfo.source")} subTitle={data.source_space_name} />
+          </SectionGroup>,
+        );
+      } else if (!isExternal && isFriend && data?.source_desc) {
+        sections.push(
+          <SectionGroup key="source">
+            <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
+          </SectionGroup>,
+        );
+      }
     }
 
-    if (isExternal && data?.source_space_name) {
-      sections.push(
-        <SectionGroup key="source">
-          <NavRow title={t("base.userInfo.source")} subTitle={data.source_space_name} />
-        </SectionGroup>,
-      );
-    } else if (!isExternal && isFriend && data?.source_desc) {
-      sections.push(
-        <SectionGroup key="source">
-          <NavRow title={t("base.userInfo.source")} subTitle={data.source_desc} />
-        </SectionGroup>,
-      );
-    }
-
+    // 进群方式 — self 也保留(用户决策:自己应能看到自己何时入群),
+    // 群上下文 + 拿到 join data 才显
     if (groupJoinMethod) {
       sections.push(
         <SectionGroup key="group-join-method">
@@ -328,7 +343,8 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
       );
     }
 
-    if (isBlacklisted) {
+    // 黑名单提示 — 不会拉黑自己
+    if (!isSelf && isBlacklisted) {
       sections.push(
         <div
           key="blacklist-tip"
@@ -353,6 +369,13 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const confirmLoading =
     deleteFriendMu.isPending || blacklistAddMu.isPending || blacklistRemoveMu.isPending;
 
+  // sections / bottom 渲染结果先算出来 — 空时整个 wrapper(含 border-t + 高度占位)
+  // 不渲染,避免 isSelf / 无 vercode 等场景下多余的灰底分隔线 + 60px 留白,
+  // 关闭动画也更平滑(modal 自适应紧凑高度)。
+  const sectionsContent = renderSections();
+  const bottomContent = renderBottom();
+  const hasSections = Array.isArray(sectionsContent) && sectionsContent.length > 0;
+
   return (
     <>
       <BaseDialog
@@ -361,6 +384,10 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
           if (!next) onClose();
         }}
         size="sm"
+        // 固定高度 480px,覆盖 HEIGHT_CLASS 的 max-h-[85vh]:所有场景(self/非 self
+        // /loading/loaded)modal 高度一致,开/关动画不再有"跳一下"(issue #38)。
+        // content 多于 480 时内部 sections 区会 overflow-auto 滚动,少时下方留白。
+        className="h-[480px]"
         description={
           display
             ? t("base.userInfo.cardOf", { values: { name: display } })
@@ -389,6 +416,11 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
                       {t("base.userInfo.nicknameLabel")}: {data?.name ?? "—"}
                     </li>
                   ) : null}
+                  {groupNickname && groupNickname !== data?.name ? (
+                    <li>
+                      {t("base.userInfo.groupNicknameLabel")}: {groupNickname}
+                    </li>
+                  ) : null}
                   {data?.short_no ? (
                     <li>
                       {APP_NAME}号: {data.short_no}
@@ -398,13 +430,17 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-y-auto border-t border-border-subtle py-2">
-              {renderSections()}
-            </div>
+            {hasSections ? (
+              <div className="flex flex-1 flex-col overflow-y-auto border-t border-border-subtle py-2">
+                {sectionsContent}
+              </div>
+            ) : null}
 
-            <div className="flex min-h-[60px] shrink-0 items-center justify-center border-t border-border-subtle px-6 py-3">
-              {renderBottom()}
-            </div>
+            {bottomContent ? (
+              <div className="flex min-h-[60px] shrink-0 items-center justify-center border-t border-border-subtle px-6 py-3">
+                {bottomContent}
+              </div>
+            ) : null}
           </>
         )}
       </BaseDialog>

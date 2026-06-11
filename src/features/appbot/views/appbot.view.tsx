@@ -1,18 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
-import { Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
+import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
-import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import { ChatMain } from "@/features/chat/components/chat-main";
+import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologram";
 import { applyBot } from "@/features/appbot/api/app-bot.api";
 import { appBotsQueryOptions } from "@/features/appbot/queries/app-bots.query";
 import { BotRow } from "@/features/appbot/components/bot-row";
 import type { AppBotInfo } from "@/features/appbot/types/app-bot.types";
+
+const EMPTY_APP_BOTS: AppBotInfo[] = [];
 
 /**
  * 应用主视图(对应旧 dmworkappbot AppBotPage):
@@ -33,23 +38,37 @@ import type { AppBotInfo } from "@/features/appbot/types/app-bot.types";
  * Space 切换:useResetOnSpaceChange 清选中(同 matter/summary);bots query 自身按
  * spaceId 维度也会自动 invalidate(main.tsx clear)。
  */
+function useIsolateAppbotChatSelection(): void {
+  useEffect(() => {
+    chatSelectedActions.clear();
+    return () => {
+      chatSelectedActions.clear();
+    };
+  }, []);
+}
+
 export function AppbotView() {
   const t = useT();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const selectedChannel = useStore(chatSelectedStore, (s) => s.channel);
   const [keyword, setKeyword] = useState("");
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const selectingRef = useRef(false);
+
+  useIsolateAppbotChatSelection();
 
   useResetOnSpaceChange(() => {
     setSelectedUid(null);
     setKeyword("");
   });
 
-  const { data, isLoading, error } = useQuery({
-    ...appBotsQueryOptions(spaceId),
+  const { data, isFetching, isLoading, error, refetch } = useQuery(appBotsQueryOptions(spaceId));
+  const { data: spaces } = useQuery({
+    ...mySpacesQueryOptions(),
     enabled: !!spaceId,
   });
 
-  const bots = data ?? [];
+  const bots = data ?? EMPTY_APP_BOTS;
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     if (!kw) return bots;
@@ -62,6 +81,16 @@ export function AppbotView() {
 
   const platformBots = useMemo(() => filtered.filter((b) => b.scope === "platform"), [filtered]);
   const spaceBots = useMemo(() => filtered.filter((b) => b.scope === "space"), [filtered]);
+  const spaceName = useMemo(
+    () => (spaceId ? ((spaces ?? []).find((s) => s.space_id === spaceId)?.name ?? "") : ""),
+    [spaceId, spaces],
+  );
+  const activeSelectedUid =
+    selectedUid &&
+    selectedChannel?.channelType === ChannelTypePerson &&
+    selectedChannel.channelID === selectedUid
+      ? selectedUid
+      : null;
 
   const applyMu = useMutation({
     mutationFn: (bot: AppBotInfo) => applyBot(bot.uid),
@@ -86,15 +115,20 @@ export function AppbotView() {
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("appbot.error.connectFailed")),
+    onSettled: () => {
+      selectingRef.current = false;
+    },
   });
 
-  if (!spaceId) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-text-tertiary">
-        {t("appbot.state.noSpace")}
-      </div>
-    );
-  }
+  const handleBotClick = (bot: AppBotInfo) => {
+    if (selectingRef.current) return;
+    selectingRef.current = true;
+    applyMu.mutate(bot);
+  };
+
+  const handleRetry = () => {
+    void refetch();
+  };
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -107,6 +141,7 @@ export function AppbotView() {
           <div className="flex items-center gap-2 rounded-md border border-border-default bg-bg-surface px-3 py-1.5 focus-within:border-brand">
             <Search size={14} className="text-text-tertiary" />
             <input
+              type="search"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder={t("appbot.page.searchPlaceholder")}
@@ -116,13 +151,18 @@ export function AppbotView() {
         </div>
 
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-          {isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+          {isLoading || (isFetching && bots.length === 0) ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-text-tertiary">
+              <RefreshCw size={18} className="animate-spin" />
               {t("appbot.state.loading")}
             </div>
           ) : error ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-error">
-              {t("appbot.state.loadFailed")}
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-text-tertiary">
+              <span className="text-error">{t("appbot.state.loadFailed")}</span>
+              <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
+                <RefreshCw className={isFetching ? "animate-spin" : ""} />
+                {t("appbot.action.retry")}
+              </Button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
@@ -139,8 +179,9 @@ export function AppbotView() {
                     <BotRow
                       key={b.id}
                       bot={b}
-                      selected={selectedUid === b.uid}
-                      onClick={() => applyMu.mutate(b)}
+                      selected={activeSelectedUid === b.uid}
+                      disabled={applyMu.isPending}
+                      onClick={() => handleBotClick(b)}
                     />
                   ))}
                 </section>
@@ -148,14 +189,17 @@ export function AppbotView() {
               {spaceBots.length > 0 ? (
                 <section className="flex flex-col gap-0.5">
                   <header className="px-3 py-1 text-[11px] font-semibold text-text-tertiary">
-                    {t("appbot.section.space")}
+                    {spaceName
+                      ? t("appbot.section.spaceWithName", { values: { name: spaceName } })
+                      : t("appbot.section.space")}
                   </header>
                   {spaceBots.map((b) => (
                     <BotRow
                       key={b.id}
                       bot={b}
-                      selected={selectedUid === b.uid}
-                      onClick={() => applyMu.mutate(b)}
+                      selected={activeSelectedUid === b.uid}
+                      disabled={applyMu.isPending}
+                      onClick={() => handleBotClick(b)}
                     />
                   ))}
                 </section>
@@ -165,7 +209,7 @@ export function AppbotView() {
         </div>
       </aside>
 
-      <ChatMain />
+      {activeSelectedUid ? <ChatMain /> : <ChatEmptyHologram />}
     </div>
   );
 }

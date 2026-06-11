@@ -191,7 +191,11 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
       const added = (detail.added as string[]) || [];
       const removed = (detail.removed as string[]) || [];
       if (added.length === 0 && removed.length === 0) {
-        return <span>{stripHtml((detail.summary as string) || "") || t("matter.activity.updatedDescription")}</span>;
+        return (
+          <span>
+            {stripHtml((detail.summary as string) || "") || t("matter.activity.updatedDescription")}
+          </span>
+        );
       }
       return (
         <div className="flex flex-col gap-0.5">

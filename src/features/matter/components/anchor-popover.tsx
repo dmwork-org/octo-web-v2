@@ -24,8 +24,6 @@ export interface AnchorPopoverProps {
   onJumpToMessage?: (messageSeq: number) => void;
 }
 
-// ─── Types ──────────────────────────────────────────────
-
 // ─── Helpers ────────────────────────────────────────────
 
 function formatTime(ts: number): string {
@@ -62,36 +60,15 @@ function extractDisplayText(msg: IMMessageResp): string {
   return "";
 }
 
-/**
- * 根据触发按钮的 rect 算 AnchorPopover 锚定位置 (对齐原型 v19 onShowAnchor)。
- * 水平: 左对齐按钮, 防止弹框太靠右。
- * 垂直: 优先按钮下方 8px (top 锚点); 下方空间不足时贴按钮上方 (bottom 锚点)。
- */
-export function computeAnchorPosition(rect: DOMRect): {
-  x: number;
-  top?: number;
-  bottom?: number;
-} {
-  const POP_WIDTH = 424;
-  const POP_MIN_HEIGHT = 120;
-  const SAFE = 16;
-  const GAP = 8;
-
-  const x = Math.max(
-    SAFE,
-    Math.min(rect.left, window.innerWidth - POP_WIDTH - SAFE),
-  );
-
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const spaceAbove = rect.top;
-
-  if (spaceBelow >= POP_MIN_HEIGHT + GAP) {
-    return { x, top: rect.bottom + GAP };
-  }
-  if (spaceAbove >= POP_MIN_HEIGHT + GAP) {
-    return { x, bottom: window.innerHeight - rect.top + GAP };
-  }
-  return { x, top: SAFE };
+function useCloseOnEscape(open: boolean, onClose: () => void): void {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 }
 
 // ─── Component ──────────────────────────────────────────
@@ -116,24 +93,14 @@ export function AnchorPopover({
     isError,
   } = useQuery(anchorMessagesQueryOptions(channelId, channelType, messageIds, open));
 
-  // ESC 关闭
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useCloseOnEscape(open, onClose);
 
   if (!open) return null;
 
   const displayChannelName = channelName || channelId.slice(0, 8);
 
   // 有 x + top/bottom 时锚定到指定 viewport 坐标, 无则居中
-  const anchored =
-    typeof x === "number" &&
-    (typeof top === "number" || typeof bottom === "number");
+  const anchored = typeof x === "number" && (typeof top === "number" || typeof bottom === "number");
 
   const popStyle: React.CSSProperties | undefined = anchored
     ? {
@@ -159,11 +126,7 @@ export function AnchorPopover({
   return (
     <>
       {/* 遮罩: 透明, 点击关闭 */}
-      <div
-        className="fixed inset-0 z-[400] cursor-default"
-        onClick={onClose}
-        aria-hidden
-      />
+      <div className="fixed inset-0 z-[400] cursor-default" onClick={onClose} aria-hidden />
       {/* Popover */}
       <div
         className={`fixed z-[401] flex w-[424px] max-h-[370px] flex-col gap-3 overflow-hidden rounded-md bg-bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.06)] ${anchored ? "animate-[wk-anchor-fade-in_0.12s_ease-out_both]" : "animate-[wk-anchor-pop-in_0.12s_ease-out_both]"}`}
@@ -204,10 +167,14 @@ export function AnchorPopover({
                 <MessageRow
                   key={msg.message_idstr}
                   msg={msg}
-                  onJump={onJumpToMessage && msg.message_seq != null ? () => {
-                    onClose();
-                    onJumpToMessage(msg.message_seq!);
-                  } : undefined}
+                  onJump={
+                    onJumpToMessage && msg.message_seq != null
+                      ? () => {
+                          onClose();
+                          onJumpToMessage(msg.message_seq!);
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </ul>
@@ -232,13 +199,7 @@ export function AnchorPopover({
 
 // ─── 单条消息行 ──────────────────────────────────────────
 
-function MessageRow({
-  msg,
-  onJump,
-}: {
-  msg: IMMessageResp;
-  onJump?: () => void;
-}) {
+function MessageRow({ msg, onJump }: { msg: IMMessageResp; onJump?: () => void }) {
   const t = useT();
   const content = extractDisplayText(msg);
   const ch = new Channel(msg.from_uid, ChannelTypePerson);
@@ -248,7 +209,16 @@ function MessageRow({
     <li
       className={`flex flex-col gap-1 ${clickable ? "cursor-pointer rounded-md p-1 -m-1 transition-colors hover:bg-brand-tint-04" : ""}`}
       onClick={clickable ? onJump : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onJump?.(); } } : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onJump?.();
+              }
+            }
+          : undefined
+      }
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
     >
@@ -258,7 +228,10 @@ function MessageRow({
           <span className="inline-flex shrink-0">
             <ChannelAvatar channel={ch} size={20} title={msg.from_uid} />
           </span>
-          <UserName uid={msg.from_uid} className="text-sm font-medium leading-5 text-text-primary" />
+          <UserName
+            uid={msg.from_uid}
+            className="text-sm font-medium leading-5 text-text-primary"
+          />
         </span>
         <span className="shrink-0 font-sans text-sm leading-5 text-icon-muted">
           {formatTime(msg.timestamp)}

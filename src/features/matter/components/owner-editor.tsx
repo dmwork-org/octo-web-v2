@@ -49,7 +49,13 @@ function useClickOutside(open: boolean, onClose: () => void) {
  * 权限:仅创建人或已有负责人可编辑。
  * 移除权限:creator 能移除任何人,非 creator 只能移除自己。
  */
-export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidates }: OwnerEditorProps) {
+export function OwnerEditor({
+  matterId,
+  assignees,
+  canEdit,
+  isCreator,
+  candidates,
+}: OwnerEditorProps) {
   const tr = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -58,12 +64,9 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
 
   const ref = useClickOutside(open, () => setOpen(false));
 
-  const safeAssignees = assignees ?? [];
+  const safeAssignees = useMemo(() => assignees ?? [], [assignees]);
 
-  const assignedUids = useMemo(
-    () => new Set(safeAssignees.map((a) => a.user_id)),
-    [safeAssignees],
-  );
+  const assignedUids = useMemo(() => new Set(safeAssignees.map((a) => a.user_id)), [safeAssignees]);
 
   // 合并候选列表：当前负责人 + 外部传入 candidates（去重）
   const mergedCandidates = useMemo(() => {
@@ -80,7 +83,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
       list.push(c);
     }
     return list;
-  }, [assignees, candidates]);
+  }, [safeAssignees, candidates]);
 
   const mu = useMutation({
     mutationFn: async (uid: string) => {
@@ -216,12 +219,7 @@ export function OwnerEditor({ matterId, assignees, canEdit, isCreator, candidate
                   >
                     <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
                       {picked && (
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                        >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                           <path
                             d="M2 6l3 3 5-5"
                             stroke="currentColor"

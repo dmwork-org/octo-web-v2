@@ -258,10 +258,8 @@ export function MentionAwareText({
         // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
       } else {
         const uids = mention.uids ?? [];
-        // 主路径 — candidate names 精确匹配(需要 channel)。
-        // 不走正则兜底:正则按文本顺序绑会把"@我点不掉"等文字字面 @ 串误绑给
-        // uids[0](issue #46 真凶)。cache race 时主动 fetchChannelInfo 触发拉取,
-        // useChannelInfoTick 监听 channelInfo 变化后 re-render,本函数重算 hits。
+        // 主路径 — candidate names 精确匹配(需要 channel)。生产消息都带 channel,
+        // 避免把普通 @ 文本误绑给 uids[0](issue #46 真凶)。
         if (channel) {
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
@@ -306,6 +304,28 @@ export function MentionAwareText({
               }
               if (found) break;
             }
+          }
+        } else {
+          // 无 channel 的调用无法查候选名,只能按文本顺序兜底;链接内的 @ 不消耗 uid。
+          const re = /@[\p{Script=Han}A-Za-z][\p{Script=Han}\w.()（）-]{0,29}/gu;
+          let i = 0;
+          for (const m of text.matchAll(re)) {
+            if (i >= uids.length) break;
+            const match = m[0];
+            const start = m.index ?? -1;
+            if (start === -1 || isInsideLink(start)) continue;
+            const overlap = hits.some((h) => start < h.end && start + match.length > h.start);
+            if (overlap) continue;
+            const uid = uids[i++];
+            hits.push({
+              start,
+              end: start + match.length,
+              node: (
+                <MentionTag key={`tk-uid-${uid}-${start}`} uid={uid}>
+                  {match}
+                </MentionTag>
+              ),
+            });
           }
         }
       }

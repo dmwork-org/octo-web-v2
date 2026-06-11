@@ -78,6 +78,10 @@ function safeWriteStored(key: string, width: number): void {
   }
 }
 
+function readRef<T>(ref: React.RefObject<T>): T | null {
+  return ref.current;
+}
+
 function useCleanupDragListeners(
   handlerRef: React.RefObject<{
     move: ((e: MouseEvent) => void) | null;
@@ -86,7 +90,7 @@ function useCleanupDragListeners(
 ): void {
   useEffect(() => {
     return () => {
-      const h = handlerRef.current;
+      const h = readRef(handlerRef);
       if (h?.move) document.removeEventListener("mousemove", h.move);
       if (h?.up) document.removeEventListener("mouseup", h.up);
       document.body.style.cursor = "";

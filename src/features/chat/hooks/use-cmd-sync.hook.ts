@@ -86,7 +86,7 @@ export function useCmdSync() {
         case "groupAvatarUpdate": {
           const groupNo = param.group_no as string | undefined;
           if (!groupNo) return;
-          avatarVersionActions.bump(groupNo);
+          avatarVersionActions.bump(groupNo, ChannelTypeGroup);
           void chm.fetchChannelInfo(new Channel(groupNo, ChannelTypeGroup));
           return;
         }
@@ -94,7 +94,7 @@ export function useCmdSync() {
         case "userAvatarUpdate": {
           const uid = param.uid as string | undefined;
           if (!uid) return;
-          avatarVersionActions.bump(uid);
+          avatarVersionActions.bump(uid, ChannelTypePerson);
           invalidateContacts();
           return;
         }

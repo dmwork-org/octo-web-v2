@@ -20,7 +20,7 @@ interface ChannelNameLabelProps {
  * - loading: shimmer 骨架动画
  * - blur: 模糊 + 固定占位 ████（保护隐私）
  * - clear: 实时群名（SDK 反查 > fallback > channelId 前 8 位）
- * 
+ *
  * 子区 (channel_type=5): 额外反查父群名, 渲染成 "父群名/子区名"
  */
 export function ChannelNameLabel({
@@ -31,7 +31,7 @@ export function ChannelNameLabel({
   loading,
 }: ChannelNameLabelProps) {
   const live = useChannelName(channelId, channelType);
-  
+
   // 子区: 额外反查父群名
   const isThread = channelType === CHANNEL_TYPE_COMMUNITY_TOPIC;
   const parentGroupNo = isThread ? toParentGroupNo(channelId, channelType) : "";

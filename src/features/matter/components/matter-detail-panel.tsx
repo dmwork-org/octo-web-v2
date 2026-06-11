@@ -45,6 +45,9 @@ import { toParentGroupNo } from "@/features/matter/utils/channel-id";
 import { computeAnchorPosition } from "@/features/matter/utils/anchor-position";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
+import { getExtension } from "@/features/chat/file-preview/types";
+import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
 import type {
   MatterChannel,
   MatterOutput,
@@ -187,6 +190,33 @@ export function MatterDetailPanel({
     [t],
   );
 
+  // 预览附件（对齐老项目 handlePreviewAttachment — WKApp.mittBus.emit wk:file-preview）
+  const handleAttachmentPreview = useCallback(
+    (att: TimelineAttachment, entry: TimelineEntry) => {
+      const url = resolveFileUrl(att.file_url);
+      if (!url) return;
+      const ext = getExtension(undefined, att.file_name);
+      if (!fileRendererRegistry.canPreview(ext)) {
+        // 不可预览的文件类型，直接下载
+        void downloadFile(url, att.file_name || "file");
+        return;
+      }
+      const sourceChannelId = entry.source_channel_id;
+      const matchedCh = (data.channels ?? []).find(
+        (ch) => ch.channel_id === sourceChannelId,
+      );
+      chatSidePanelActions.openFilePreview({
+        url,
+        name: att.file_name || t("matter.outputs.unnamedFile"),
+        ext,
+        size: att.file_size,
+        sourceChannelId,
+        sourceChannelType: matchedCh?.channel_type ?? entry.channel_type,
+      });
+    },
+    [data.channels, t],
+  );
+
   // ── Outputs (产出文件) ──
   const myGroupsQ = useMyGroups();
   const myGroupNos = useMemo(
@@ -266,6 +296,32 @@ export function MatterDetailPanel({
       }
     },
     [t],
+  );
+
+  // 预览产出文件（对齐老项目 handleOutputPreview — WKApp.mittBus.emit wk:file-preview）
+  const handleOutputPreview = useCallback(
+    (item: MatterOutput) => {
+      const url = resolveFileUrl(item.file_url);
+      if (!url) return;
+      const ext = getExtension(undefined, item.file_name);
+      if (!fileRendererRegistry.canPreview(ext)) {
+        // 不可预览的文件类型，直接下载
+        void downloadFile(url, item.file_name || "file");
+        return;
+      }
+      const matchedCh = (data.channels ?? []).find(
+        (ch) => ch.channel_id === item.source_channel_id,
+      );
+      chatSidePanelActions.openFilePreview({
+        url,
+        name: item.file_name || t("matter.outputs.unnamedFile"),
+        ext,
+        size: item.file_size,
+        sourceChannelId: item.source_channel_id,
+        sourceChannelType: matchedCh?.channel_type,
+      });
+    },
+    [data.channels, t],
   );
 
   // 来源群成员判断
@@ -559,6 +615,7 @@ export function MatterDetailPanel({
               onOpenLinkModal={() => setLinkModalOpen(true)}
               onCloseLinkModal={() => setLinkModalOpen(false)}
               onDownloadAttachment={handleDownloadAttachment}
+              onPreviewAttachment={handleAttachmentPreview}
             />
           ) : secondaryTab === "outputs" ? (
             <OutputsPanel
@@ -570,6 +627,7 @@ export function MatterDetailPanel({
               onSearch={handleOutputsSearch}
               onLoadMore={handleOutputsLoadMore}
               onRetry={handleOutputsRetry}
+              onPreview={handleOutputPreview}
               onDownload={handleOutputDownload}
               getChannelMembership={getOutputChannelMembership}
               resolveChannelName={resolveOutputChannelName}
@@ -725,6 +783,7 @@ function ChannelsTab({
   onOpenLinkModal,
   onCloseLinkModal,
   onDownloadAttachment,
+  onPreviewAttachment,
 }: {
   matterId: string;
   channels: MatterChannel[];
@@ -732,6 +791,7 @@ function ChannelsTab({
   onOpenLinkModal: () => void;
   onCloseLinkModal: () => void;
   onDownloadAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
+  onPreviewAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
@@ -930,6 +990,7 @@ function ChannelsTab({
                           });
                         }}
                         onDownloadAttachment={onDownloadAttachment}
+                        onPreviewAttachment={onPreviewAttachment}
                       />
                     )}
                   </div>

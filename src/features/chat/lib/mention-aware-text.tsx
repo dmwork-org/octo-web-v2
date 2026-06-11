@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
-import { isFetchableUid, markUidFetchFailed } from "@/features/chat/lib/read-message-mention";
+import { isFetchableUid } from "@/features/chat/lib/read-message-mention";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
@@ -266,12 +267,14 @@ export function MentionAwareText({
           for (const uid of uids) {
             const names = collectCandidateNames(uid, channel);
             if (names.length === 0) {
-              // 非法 uid + 30s 内失败的 uid 跳过(issue #84 防风暴);SDK in-flight
-              // 去重 + 30s TTL blacklist 双保险,失败 30s 后允许下次重试。
+              // 非法 uid 跳过(isFetchableUid 长度 / sentinel 白名单);合法 uid
+              // 走 tryFetchChannelInfo(attempted Set 同 channel 整会话期最多 1 次),
+              // 防 mention 多 + re-render 多次同步重发 → "请求过于频繁"(issue #84)。
+              // SDK fetchChannelInfo 只防 in-flight 不查 cache,且 im-callbacks 的
+              // catch 吞 error 返回空 ChannelInfo → 外层 .catch 永远不触发
+              // → markUidFetchFailed 失效 → 风暴。改用 attempted Set 同步闸。
               if (isFetchableUid(uid)) {
-                void WKSDK.shared()
-                  .channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson))
-                  .catch(() => markUidFetchFailed(uid));
+                tryFetchChannelInfo(new Channel(uid, ChannelTypePerson));
               }
               continue;
             }

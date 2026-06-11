@@ -36,7 +36,8 @@ export function readMessageMention(content: unknown): MentionWithFlags | undefin
 }
 
 /**
- * 防御 mention.uids 含非法值时主动 fetchChannelInfo 触发 toast 风暴(issue #74):
+ * 防御 mention.uids 含非法值时主动 fetchChannelInfo 触发"请求过于频繁"
+ * (issue #74 / #84):
  *
  * 某些历史消息 mention.uids 含字面 "uid" / sticky sentinel ("-1"/"-2"/"-3")
  * 等非法 uid,fetchChannelInfo 调到 `/v1/channels/{uid}/1` → 后端 400 →
@@ -45,27 +46,17 @@ export function readMessageMention(content: unknown): MentionWithFlags | undefin
  * **形态白名单**:uid 必须是非空字符串、非 sentinel、长度 ≥ 6(后端真 uid
  * 通常是 32 位 hex 或类似,短的几乎全是错误数据)。
  *
- * **失败短期 blacklist (TTL 30s, issue #84)**:某些合法 uid 后端持续 4xx /
- * 5xx,React re-render 多次就会触发 N 次 fetch 风暴 → 后端"请求过于频繁"。
- * issue #73 曾完全移除 blacklist 解决"一次失败永久误拒",但带来 #84 的
- * 频繁触发问题。折衷:失败后 30s 内 isFetchableUid 返 false → 不 fetch,
- * 30s 后允许下一次重试。
- *   - 一次失败的合法 uid 不会永久误拒(用户切走再切回 / 等 30s 都能重试)
- *   - 持续失败的 uid 30s 内不会洪流
+ * **N+1 re-render 同步防御**:caller 必须配合 `tryFetchChannelInfo`(模块级
+ * attempted Set,同 channel 整会话期最多 1 次)使用 — 历史 30s TTL 黑名单
+ * 依赖 fetchChannelInfo promise 的 reject 才能 mark,但 im-callbacks 的 catch
+ * 吞 error 返回空 ChannelInfo → 外层 .catch 永远不触发 → 黑名单不生效。
+ * attempted Set 同步 add,根治 re-render 风暴。
  */
 const SENTINEL_UIDS = new Set(["-1", "-2", "-3", "@all", "uid"]);
-const FAILED_TTL_MS = 30_000;
-const failedUidAtMap = new Map<string, number>();
 
 export function isFetchableUid(uid: string | undefined | null): boolean {
   if (!uid || typeof uid !== "string") return false;
   if (SENTINEL_UIDS.has(uid)) return false;
   if (uid.length < 6) return false;
-  const failedAt = failedUidAtMap.get(uid);
-  if (failedAt && Date.now() - failedAt < FAILED_TTL_MS) return false;
   return true;
-}
-
-export function markUidFetchFailed(uid: string): void {
-  failedUidAtMap.set(uid, Date.now());
 }

@@ -38,7 +38,8 @@ function collectCandidateNames(uid: string, channel: Channel): string[] {
 
 /**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
- * brand 色文本 + 浅 brand 底胶囊,@all 用纯 brand 色无背景。
+ * brand 色文本 + 浅 brand 底胶囊。**@所有人 / @AI 也走同款胶囊样式**
+ * (对齐老仓 mentionRenderState 的 mention-entity 类),区别仅在 interactive=false。
  * uid 非空时 click 弹 UserInfoModal / BotDetailModal(经 openChatProfile 判 bot)。
  */
 export function MentionTag({
@@ -53,11 +54,7 @@ export function MentionTag({
   const clickable = !isAll && !!uid;
   const base = "inline-flex items-center rounded-[4px] px-2 py-[2px] font-medium text-[#6B3DD8]";
   if (!clickable) {
-    return (
-      <span className={isAll ? "font-medium text-[#6B3DD8]" : `${base} bg-[rgba(107,61,216,0.08)]`}>
-        {children}
-      </span>
-    );
+    return <span className={`${base} bg-[rgba(107,61,216,0.08)]`}>{children}</span>;
   }
   return (
     <button

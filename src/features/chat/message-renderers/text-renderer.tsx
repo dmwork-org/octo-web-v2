@@ -31,13 +31,11 @@ function MentionTag({ children, isAll, uid }: { children: string; isAll?: boolea
   const clickable = !isAll && !!uid;
   // 旧 mention-entity CSS:#6B3DD8 紫 + rgba(107,61,216,0.08) bg + 4px 圆角 + 2px/8px padding + 500
   // brand 主题色实际是 #1c1c23 黑灰,mention 紫色固定不随主题,inline 紫色值。
+  // **@所有人 / @AI 也走同款胶囊样式**(对齐老仓 mentionRenderState 的 mention-entity 类),
+  // 区别仅在 interactive=false(不可点击 → 渲染 span 而非 button)。
   const base = "inline-flex items-center rounded-[4px] px-2 py-[2px] font-medium text-[#6B3DD8]";
   if (!clickable) {
-    return (
-      <span className={isAll ? "font-medium text-[#6B3DD8]" : `${base} bg-[rgba(107,61,216,0.08)]`}>
-        {children}
-      </span>
-    );
+    return <span className={`${base} bg-[rgba(107,61,216,0.08)]`}>{children}</span>;
   }
   return (
     <button

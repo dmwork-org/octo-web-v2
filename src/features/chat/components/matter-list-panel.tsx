@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { useStore } from "@tanstack/react-store";
 import { X } from "lucide-react";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -27,13 +28,24 @@ export function MatterListPanel() {
       className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
     >
       {matterId ? (
-        /* 详情态: MatterDetailPanel 自带 header (标题+状态+关闭按钮) */
+        /* 详情态: MatterDetailPanel 自带 header (标题+状态+关闭按钮)。
+           Suspense 边界只包详情内部,不卸载外层 <aside>(宽度容器)+ 拖拽手柄,
+           fallback 撑满当前宽度,避免首次点开时面板"变窄→变宽"的闪烁。 */
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <MatterDetailInner
-            matterId={matterId}
-            onClose={() => chatSidePanelActions.selectMatter(null)}
-            showClose
-          />
+          <Suspense
+            fallback={
+              <div className="flex h-full w-full items-center justify-center text-sm text-text-tertiary">
+                {t("matter.state.loadingDetail")}
+              </div>
+            }
+          >
+            <MatterDetailInner
+              matterId={matterId}
+              onClose={() => chatSidePanelActions.selectMatter(null)}
+              showClose
+              sourceChannelId={channel?.channelID}
+            />
+          </Suspense>
         </div>
       ) : (
         /* 列表态: 外层 header + MatterList */

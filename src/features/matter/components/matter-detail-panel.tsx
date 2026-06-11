@@ -323,7 +323,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                   <button
                     type="button"
                     onClick={startEditing}
-                    className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 text-left text-[14px] font-medium leading-[20px] text-text-primary transition-colors hover:bg-bg-hover"
+                    className="min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 text-left text-[14px] font-medium leading-[20px] text-text-primary transition-colors hover:bg-bg-hover"
                     title={t("matter.detail.clickToEdit")}
                   >
                     M-{data.seq_no}｜{data.title}
@@ -345,7 +345,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
             <button
               type="button"
               onClick={onClose}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
               aria-label={t("matter.action.close")}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -392,7 +392,7 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
               <button
                 type="button"
                 onClick={startEditing}
-                className="w-full rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
+                className="w-full cursor-pointer rounded border border-transparent px-1 py-0.5 text-left text-[24px] leading-[1.25] font-semibold text-text-primary transition-colors hover:bg-bg-hover"
                 title={t("matter.detail.clickToEdit")}
               >
                 {data.title}

@@ -35,12 +35,12 @@ import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
  * | memberUpdate           | channelManager.syncSubscribes | 群成员变更 |
  * | onlineStatus           | 改 channelInfo.online + notifyListeners | 好友上下线 |
  * | syncConversationExtra  | conversationManager.syncExtra | 会话扩展同步 |
+ * | syncReminders          | reminderManager.sync | @我 / 入群申请等 reminder 增量拉 |
  * | friendAccept           | fetchChannelInfo(对方) + invalidate contacts | 通讯录刷 |
  * | friendDeleted          | invalidate contacts | 通讯录刷 |
  * | typing                 | (use-messages-sync 已处理) | 绑 channel 合理 |
  * | messageRevoke          | (use-messages-sync 已处理) | 绑 channel 合理 |
  * | friendRequest          | **skip** — 新仓 FriendApply state 模块未搬 | 后续 issue 跟进 |
- * | syncReminders          | **skip** — 新仓 reminderManager 未搬 | 后续 issue 跟进 |
  */
 export function useCmdSync() {
   const qc = useQueryClient();
@@ -135,6 +135,16 @@ export function useCmdSync() {
           return;
         }
 
+        case "syncReminders": {
+          // 触发 SDK reminderManager 增量拉取(对齐老仓 module.tsx:485
+          // `WKSDK.shared().reminderManager.sync()`)。server 推 syncReminders CMD
+          // 通常发生在新 @我 / 入群申请等场景,客户端不主动拉就漏接:
+          // - "老仓 @所有人会有@我,新仓没有"的真凶 —— server 给 broadcast 推了
+          //   reminder,新仓没 sync 拿不到 → conv.reminders 空 → isMentionMe false
+          void WKSDK.shared().reminderManager.sync();
+          return;
+        }
+
         case "friendAccept": {
           const toUID = param.to_uid as string | undefined;
           const fromUID = param.from_uid as string | undefined;
@@ -151,7 +161,7 @@ export function useCmdSync() {
           return;
         }
 
-        // friendRequest / syncReminders 见上方对照表 — 新仓对应模块未搬,留空。
+        // friendRequest 见上方对照表 — 新仓 FriendApply state 模块未搬,留空。
         // typing / messageRevoke 在 use-messages-sync 处理,这里不重复。
         default:
           return;

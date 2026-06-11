@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, useMemo, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -9,6 +9,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import "highlight.js/styles/github-dark.css";
 import "katex/dist/katex.min.css";
 import "./markdown.css";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 
 /**
  * 通用 Markdown 渲染器(1:1 对齐旧 dmworkbase Messages/Text/MarkdownContent.tsx + markdown.css)。
@@ -206,8 +207,56 @@ function processChildren(children: ReactNode, tokens: MarkdownToken[]): ReactNod
 }
 
 /**
+ * 仅允许 http(s) / data 协议的图片(防 javascript:/blob: 等)。
+ */
+function isSafeImageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.protocol === "http:" || u.protocol === "https:" || u.protocol === "data:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Markdown 内联图(`![alt](url)`)— 对齐老仓 MarkdownContent MarkdownImage L279:
+ *   - URL 安全过滤(http/https/data)— 不安全降级为 `[图片]` 文本占位
+ *   - 缩略图最大 400×300 内联,object-contain 保比例
+ *   - 点击复用项目共用 `<ImagePreviewModal>` 全屏 lightbox 预览
+ */
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [preview, setPreview] = useState(false);
+  if (!isSafeImageUrl(src) || !src) {
+    return (
+      <span className="inline-block rounded bg-bg-elevated px-2 py-1 text-[12px] text-text-tertiary">
+        [图片]
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setPreview(true)}
+        className="inline-block max-w-full overflow-hidden rounded-lg align-middle transition-opacity hover:opacity-90"
+      >
+        <img
+          src={src}
+          alt={alt || ""}
+          className="block max-h-[300px] max-w-[400px] object-contain"
+          draggable={false}
+        />
+      </button>
+      {preview ? <ImagePreviewModal src={src} onClose={() => setPreview(false)} /> : null}
+    </>
+  );
+}
+
+/**
  * components:
  * - `a` 强制 `target=_blank rel=noopener`,沿用 .wk-markdown a 的样式
+ * - `img` 复用 `<MarkdownImage>`:安全 URL 过滤 + lightbox 预览(issue #46 followup)
  * - `pre` 包一层 `.wk-markdown-pre-wrapper`(对齐旧仓 — wrapper 带 border/radius/overflow,
  *   pre 自身只负责 padding/overflow-x,避免 highlight.js dark 主题 bg 把 wrapper border 盖掉)
  * - 其他高频块级标签:有 tokens 时套 wrap 走 process 做 token 替换
@@ -227,6 +276,7 @@ function buildComponents(tokens: MarkdownToken[]): Components {
         {tokens.length > 0 ? process(children) : children}
       </a>
     ),
+    img: ({ src, alt }) => <MarkdownImage src={src as string | undefined} alt={alt} />,
     pre: ({ children, node: _node, ...rest }) => (
       <div className="wk-markdown-pre-wrapper">
         <pre {...rest}>{children}</pre>

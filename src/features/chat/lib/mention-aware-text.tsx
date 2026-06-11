@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import type { Mention } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 
 /** SDK Mention 缺 humans/ais 三态字段类型,本地补;运行时由 send-content-proxy 注入。 */
 type MentionWithFlags = Mention & { humans?: number; ais?: number };
@@ -31,8 +32,39 @@ const trailingLinkPunctuation = new Set([
 ]);
 
 /**
+ * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**(跟 text-renderer
+ * collectCandidateNames 同款,本地副本未抽公共)。
+ */
+function collectCandidateNames(uid: string, channel: Channel): string[] {
+  const names: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
+  };
+  if (channel.channelType === ChannelTypeGroup) {
+    const sub = WKSDK.shared()
+      .channelManager.getSubscribes(channel)
+      ?.find((s) => s.uid === uid);
+    push(sub?.remark);
+    push(sub?.name);
+    const subOrg = sub?.orgData as { real_name?: string; displayName?: string } | undefined;
+    push(subOrg?.real_name);
+    push(subOrg?.displayName);
+  }
+  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
+  push(info?.title);
+  const infoOrg = info?.orgData as
+    | { remark?: string; real_name?: string; displayName?: string }
+    | undefined;
+  push(infoOrg?.remark);
+  push(infoOrg?.real_name);
+  push(infoOrg?.displayName);
+  return names;
+}
+
+/**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
- * brand 色文本 + 浅 brand 底胶囊,@all 用纯 brand 色无背景。
+ * brand 色文本 + 浅 brand 底胶囊。**@所有人 / @AI 也走同款胶囊样式**
+ * (对齐老仓 mentionRenderState 的 mention-entity 类),区别仅在 interactive=false。
  * uid 非空时 click 弹 UserInfoModal / BotDetailModal(经 openChatProfile 判 bot)。
  */
 export function MentionTag({
@@ -47,11 +79,7 @@ export function MentionTag({
   const clickable = !isAll && !!uid;
   const base = "inline-flex items-center rounded-[4px] px-2 py-[2px] font-medium text-[#6B3DD8]";
   if (!clickable) {
-    return (
-      <span className={isAll ? "font-medium text-[#6B3DD8]" : `${base} bg-[rgba(107,61,216,0.08)]`}>
-        {children}
-      </span>
-    );
+    return <span className={`${base} bg-[rgba(107,61,216,0.08)]`}>{children}</span>;
   }
   return (
     <button
@@ -89,25 +117,43 @@ function toSafeExternalHref(raw: string): string | null {
 }
 
 /**
- * Plain text 渲染,把 @ 匹配段替换为 MentionTag(对齐 text-renderer mentionTokens 主路径)。
- * linkify=true 时额外把 http(s) / www URL 渲染为安全外链,但仍不启用 Markdown。
+ * Plain text 渲染,把 @ 匹配段 + 安全外链替换为对应节点(对齐 text-renderer
+ * mentionTokens 主路径)。
  *
- * **使用场景**:RichText=14 text block 需要在不走 markdown 解析的前提下高亮 @,
- * 跟 text-renderer 的 mention 行为保持一致。逻辑:
+ * **使用场景**:RichText=14 text block 需要在不走 markdown 解析的前提下高亮 @
+ * 和外链,跟 text-renderer 的 mention 行为保持一致。
+ *
+ * **@匹配策略**(issue #46):
+ *   1. 主路径 — candidate names 精确匹配:每个 uid 用 collectCandidateNames 取
+ *      真实显示名,`@<name>` 在 text 里 indexOf 匹配。支持带空格 / 特殊字符
+ *      的名字(如 `@新Octo Bug 收集`),且不会误绑 text 里字面 @ 串
+ *   2. 兜底 — 正则按序绑剩余未匹配 uid(缓存 race 或用户写法跟 candidate 不一致)
+ *      不绑;cache miss 时主动 fetchChannelInfo 触发拉取,useChannelInfoTick
+ *      监听到 channelInfo 变化触发 re-render,本函数重算 hits
+ *
+ * **linkify**(上游 #67):linkify=true 时额外把 http(s) / www URL 渲染为安全
+ * 外链 `<a>`,过滤 javascript: / data: 等危险协议;mention 命中位置在 linkRanges
+ * 内时跳过(避免链接里的 `@` 字符当 mention)。
+ *
+ * **全员/AI**:
  *   - mention.all   → @所有人 / @all 高亮
  *   - mention.humans→ @所有人 高亮(broadcast)
- *   - mention.ais   → @所有AI 高亮(broadcast,uids 视为 routing,不绑文本)
- *   - 否则按 uids 一一对应高亮 text 里的 @xxx
+ *   - mention.ais   → @所有AI 高亮(broadcast,uids 视为 routing 不绑文本)
  */
 export function MentionAwareText({
   text,
   mention,
+  channel,
   linkify = false,
 }: {
   text: string;
   mention?: Mention;
+  channel?: Channel;
   linkify?: boolean;
 }) {
+  // 订阅全局 channelInfo 变化 — cache race 时主路径会触发 fetch,到位后重渲。
+  // 必须在所有早返回之前调,遵守 React Rules of Hooks。
+  useChannelInfoTick();
   if (!text) return <>{text}</>;
 
   type Hit = { start: number; end: number; node: ReactNode };
@@ -145,9 +191,7 @@ export function MentionAwareText({
     }
   }
 
-  if (!mention) {
-    if (hits.length === 0) return <>{text}</>;
-  } else {
+  if (mention) {
     const flags = mention as MentionWithFlags;
     const hasMentionTargets =
       !!mention.uids?.length || !!mention.all || !!flags.humans || !!flags.ais;
@@ -198,29 +242,50 @@ export function MentionAwareText({
         ));
         // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
       } else {
-        // eslint-disable-next-line no-misleading-character-class
-        const re = /@[一-龥a-zA-Z][一-龥\w\-.()()]{0,29}/g;
         const uids = mention.uids ?? [];
-        let i = 0;
-        for (const m of text.matchAll(re)) {
-          if (i >= uids.length) break;
-          const match = m[0];
-          const start = m.index ?? -1;
-          if (start === -1) {
-            i++;
-            continue;
+        // 主路径 — candidate names 精确匹配(需要 channel)。
+        // 不走正则兜底:正则按文本顺序绑会把"@我点不掉"等文字字面 @ 串误绑给
+        // uids[0](issue #46 真凶)。cache race 时主动 fetchChannelInfo 触发拉取,
+        // useChannelInfoTick 监听 channelInfo 变化后 re-render,本函数重算 hits。
+        if (channel) {
+          for (const uid of uids) {
+            const names = collectCandidateNames(uid, channel);
+            if (names.length === 0) {
+              void WKSDK.shared().channelManager.fetchChannelInfo(
+                new Channel(uid, ChannelTypePerson),
+              );
+              continue;
+            }
+            let found = false;
+            for (const name of names) {
+              const needle = `@${name}`;
+              let from = 0;
+              while (from < text.length) {
+                const idx = text.indexOf(needle, from);
+                if (idx === -1) break;
+                if (isInsideLink(idx)) {
+                  from = idx + 1;
+                  continue;
+                }
+                const overlap = hits.some((h) => idx < h.end && idx + needle.length > h.start);
+                if (!overlap) {
+                  hits.push({
+                    start: idx,
+                    end: idx + needle.length,
+                    node: (
+                      <MentionTag key={`tk-uid-${uid}-${idx}`} uid={uid}>
+                        {needle}
+                      </MentionTag>
+                    ),
+                  });
+                  found = true;
+                  break;
+                }
+                from = idx + 1;
+              }
+              if (found) break;
+            }
           }
-          if (isInsideLink(start)) continue;
-          const uid = uids[i++];
-          hits.push({
-            start,
-            end: start + match.length,
-            node: (
-              <MentionTag key={`tk-uid-${start}`} uid={uid}>
-                {match}
-              </MentionTag>
-            ),
-          });
         }
       }
     }

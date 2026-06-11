@@ -5,8 +5,10 @@ import {
   createMatter,
   deleteMatter,
   deleteTimelineEntry,
+  linkChannel,
   removeAssignee,
   transitionMatter,
+  unlinkChannel,
   updateMatter,
 } from "@/features/matter/api/matter.api";
 import {
@@ -16,6 +18,7 @@ import {
 import type {
   AddTimelineReq,
   CreateMatterReq,
+  LinkChannelReq,
   MatterDetail,
   MatterStatus,
   UpdateMatterReq,
@@ -34,6 +37,7 @@ import type {
  */
 
 const MATTER_LIST_KEY_PREFIX = ["matter", "list"] as const;
+const OUTPUTS_KEY_PREFIX = ["matter", "outputs"] as const;
 
 export function useCreateMatter() {
   const qc = useQueryClient();
@@ -51,8 +55,12 @@ export function useUpdateMatter() {
     mutationFn: (args: { matterId: string; req: UpdateMatterReq }) =>
       updateMatter(args.matterId, args.req),
     onSuccess: (updated, args) => {
-      qc.setQueryData<MatterDetail>(matterDetailQueryKey(args.matterId), updated);
+      qc.setQueryData<MatterDetail>(
+        matterDetailQueryKey(args.matterId),
+        (old) => (old ? { ...old, ...updated } : updated),
+      );
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: ["matter", "activities", args.matterId] });
     },
   });
 }
@@ -63,7 +71,10 @@ export function useTransitionMatter() {
     mutationFn: (args: { matterId: string; status: MatterStatus }) =>
       transitionMatter(args.matterId, args.status),
     onSuccess: (updated, args) => {
-      qc.setQueryData<MatterDetail>(matterDetailQueryKey(args.matterId), updated);
+      qc.setQueryData<MatterDetail>(
+        matterDetailQueryKey(args.matterId),
+        (old) => (old ? { ...old, ...updated } : updated),
+      );
       void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
     },
   });
@@ -112,6 +123,7 @@ export function useAddTimelineEntry(matterId: string) {
     mutationFn: (req: AddTimelineReq) => addTimelineEntry(matterId, req),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
     },
   });
 }
@@ -122,6 +134,37 @@ export function useDeleteTimelineEntry(matterId: string) {
     mutationFn: (entryId: string) => deleteTimelineEntry(matterId, entryId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: timelineInfiniteQueryKey(matterId) });
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(matterId) });
+    },
+  });
+}
+
+// ─── Channel 关联 mutations ────────────────────────────
+
+/** 关联新群聊:POST /matters/{id}/channels,成功后失效 detail + list query。 */
+export function useLinkChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { matterId: string; req: LinkChannelReq }) =>
+      linkChannel(args.matterId, args.req),
+    onSuccess: (_data, args) => {
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
+      void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: [...OUTPUTS_KEY_PREFIX, args.matterId] });
+    },
+  });
+}
+
+/** 解除关联群聊:DELETE /matters/{id}/channels/{channel_id},成功后失效 detail + list query。 */
+export function useUnlinkChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { matterId: string; channelId: string }) =>
+      unlinkChannel(args.matterId, args.channelId),
+    onSuccess: (_data, args) => {
+      void qc.invalidateQueries({ queryKey: matterDetailQueryKey(args.matterId) });
+      void qc.invalidateQueries({ queryKey: MATTER_LIST_KEY_PREFIX });
+      void qc.invalidateQueries({ queryKey: [...OUTPUTS_KEY_PREFIX, args.matterId] });
     },
   });
 }

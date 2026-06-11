@@ -18,14 +18,14 @@ const STATUS_KEY: Record<MatterStatus, string> = {
 
 /**
  * 状态 pill 颜色,对齐原 dmworktodo:
- * - open:brand 浅蓝
- * - done:online 浅绿
+ * - open:浅蓝 bg #ebf9ff + text #005694
+ * - done:浅绿 bg #ecf9ec + text #176221
  * - archived:灰
  */
 const STATUS_CLASS: Record<MatterStatus, string> = {
-  open: "bg-brand-tint text-brand",
-  done: "bg-online/10 text-online",
-  archived: "bg-bg-elevated text-text-tertiary",
+  open: "bg-[#ebf9ff] text-[#005694]",
+  done: "bg-[#ecf9ec] text-[#176221]",
+  archived: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
 };
 
 function formatDeadline(deadline: string): string {
@@ -58,7 +58,7 @@ interface MetaRowProps {
 
 function MetaRow({ label, children }: MetaRowProps) {
   return (
-    <div className="flex items-center gap-1 text-[13px] leading-4 text-text-tertiary">
+    <div className="flex items-center gap-1 text-xs leading-4 text-icon-default">
       <span className="shrink-0">{label}</span>
       <span className="inline-flex items-center gap-1">{children}</span>
     </div>
@@ -94,22 +94,22 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-all duration-150 ease-(--ease-emphasized) ${
+      className={`animate-[cardFadeIn_0.2s_ease-out_both] flex w-full cursor-pointer flex-col gap-2 rounded-md border p-3 text-left transition-[background,border-color,box-shadow] duration-150 ease-(--ease-emphasized) ${
         selected
-          ? "border-brand bg-bg-surface shadow-[0_4px_12px_rgba(28,28,35,0.04),0_0_10px_1px_rgba(28,28,35,0.04)]"
-          : "border-transparent bg-bg-surface/80 hover:bg-bg-surface hover:shadow-[0_2px_8px_rgba(28,28,35,0.04)]"
+          ? "border-accent bg-bg-surface shadow-[0_4px_12px_rgba(28,28,35,0.04),0_0_10px_1px_rgba(28,28,35,0.04)]"
+          : "border-transparent bg-white/80 hover:bg-bg-surface hover:shadow-[0_2px_8px_rgba(28,28,35,0.04)]"
       }`}
     >
       {/* 第一行:状态 pill + DDL */}
       <div className="flex items-center justify-between">
         <span
-          className={`inline-flex h-5 items-center rounded-full px-2 text-[13px] leading-5 ${statusClass}`}
+          className={`inline-flex h-5 items-center rounded-full px-2 text-xs leading-5 ${statusClass}`}
         >
           <span className="font-semibold">{statusLabel}</span>
           {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}
         </span>
         {matter.deadline ? (
-          <span className="flex items-center gap-0.5 text-[13px] leading-[18px] text-text-tertiary">
+          <span className="flex items-center gap-0.5 text-xs leading-[18px] text-icon-default">
             <CalendarIcon />
             {formatDeadline(matter.deadline)}
           </span>

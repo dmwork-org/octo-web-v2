@@ -1,0 +1,1174 @@
+module.tsx:372
+  367|     const handler = (data: OpenCreateTaskPayload) => {
+  368|       // Parse mention placeholders in prefillTitle if not already parsed
+  369|       if (data.prefillTitle && data.prefillTitle.includes("@[")) {
+  370|         const { title, uids } = parseMentionText(data.prefillTitle);
+  371|         data = {
+> 372|           ...data,
+  373|           prefillTitle: title.slice(0, 200),
+  374|           prefillAssigneeUids: uids,
+  375|         };
+  376|       } else if (data.prefillTitle) {
+  377|         data = { ...data, prefillTitle: data.prefillTitle.slice(0, 200) };
+
+module.tsx:377
+  372|           ...data,
+  373|           prefillTitle: title.slice(0, 200),
+  374|           prefillAssigneeUids: uids,
+  375|         };
+  376|       } else if (data.prefillTitle) {
+> 377|         data = { ...data, prefillTitle: data.prefillTitle.slice(0, 200) };
+  378|       }
+  379|       setPayload(data);
+  380|       setOpen(true);
+  381|     };
+  382|     WKApp.mittBus.on("wk:open-create-matter-modal", handler);
+
+module.tsx:807
+  802|             });
+  803|             // 负责人 reconcile：对比当前 assignees，计算 add/remove
+  804|             const detail = await getMatter(matterId);
+  805|             const currentUids = new Set((detail.assignees || []).map(a => a.user_id));
+  806|             const desiredUids = new Set(req.assignee_ids || []);
+> 807|             const toAdd = [...desiredUids].filter(uid => !currentUids.has(uid));
+  808|             const toRemove = [...currentUids].filter(uid => !desiredUids.has(uid));
+  809|             // 使用 Promise.all + catch 模式（兼容 es2019 target）
+  810|             const ops = [
+  811|               ...toAdd.map(uid => addAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  812|               ...toRemove.map(uid => removeAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+
+module.tsx:808
+  803|             // 负责人 reconcile：对比当前 assignees，计算 add/remove
+  804|             const detail = await getMatter(matterId);
+  805|             const currentUids = new Set((detail.assignees || []).map(a => a.user_id));
+  806|             const desiredUids = new Set(req.assignee_ids || []);
+  807|             const toAdd = [...desiredUids].filter(uid => !currentUids.has(uid));
+> 808|             const toRemove = [...currentUids].filter(uid => !desiredUids.has(uid));
+  809|             // 使用 Promise.all + catch 模式（兼容 es2019 target）
+  810|             const ops = [
+  811|               ...toAdd.map(uid => addAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  812|               ...toRemove.map(uid => removeAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  813|             ];
+
+module.tsx:811
+  806|             const desiredUids = new Set(req.assignee_ids || []);
+  807|             const toAdd = [...desiredUids].filter(uid => !currentUids.has(uid));
+  808|             const toRemove = [...currentUids].filter(uid => !desiredUids.has(uid));
+  809|             // 使用 Promise.all + catch 模式（兼容 es2019 target）
+  810|             const ops = [
+> 811|               ...toAdd.map(uid => addAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  812|               ...toRemove.map(uid => removeAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  813|             ];
+  814|             const results = await Promise.all(ops);
+  815|             const failed = results.filter(r => r !== null);
+  816|             if (failed.length > 0) {
+
+module.tsx:812
+  807|             const toAdd = [...desiredUids].filter(uid => !currentUids.has(uid));
+  808|             const toRemove = [...currentUids].filter(uid => !desiredUids.has(uid));
+  809|             // 使用 Promise.all + catch 模式（兼容 es2019 target）
+  810|             const ops = [
+  811|               ...toAdd.map(uid => addAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+> 812|               ...toRemove.map(uid => removeAssignee(matterId, uid).then(() => null).catch((e: any) => e)),
+  813|             ];
+  814|             const results = await Promise.all(ops);
+  815|             const failed = results.filter(r => r !== null);
+  816|             if (failed.length > 0) {
+  817|               Toast.error(t("todo.toast.assigneeUpdateFailed"));
+
+api/__tests__/todoApi.test.ts:19
+  14|     },
+  15|   };
+  16|   return {
+  17|     default: {
+  18|       create: vi.fn(() => mockInstance),
+> 19|       ...mockInstance,
+  20|     },
+  21|     __mockInstance: mockInstance,
+  22|   };
+  23| });
+  24| 
+
+hooks/useChannelName.ts:57
+  52|         WKSDK.shared().channelManager.addListener(listener);
+  53| 
+  54|         // 缓存未命中时触发异步 fetch
+  55|         if (!cached?.title) {
+  56|             WKSDK.shared().channelManager.fetchChannelInfo(channel).catch(() => {
+> 57|                 // fetch 失败不 fallback 到 channelId; 调用方视觉上 "#{xxx...}" 不友好,
+  58|                 // 保持空串让上层决定显示 "未知群聊" 或隐藏整块
+  59|             });
+  60|         }
+  61| 
+  62|         return () => {
+
+hooks/useMemberList.ts:62
+  57|     let page = 1;
+  58|     const all: SpaceMember[] = [];
+  59|     while (page <= MAX_PAGES) {
+  60|       const batch = await SpaceService.shared.getMembers(spaceId, page, PAGE_LIMIT);
+  61|       if (!batch || batch.length === 0) break;
+> 62|       all.push(...batch);
+  63|       if (batch.length < PAGE_LIMIT) break; // 最后一页
+  64|       page++;
+  65|     }
+  66| 
+  67|     return all
+
+hooks/useMemberList.ts:140
+  135|               )
+  136|             : allMembers;
+  137|           setHasMore(false);
+  138|         }
+  139| 
+> 140|         setMembers((prev) => (append ? [...prev, ...result] : result));
+  141|       } catch (error) {
+  142|         if (reqId !== requestIdRef.current) return;
+  143|         console.error('Failed to load members:', error);
+  144|         setMembers([]);
+  145|         setHasMore(false);
+
+hooks/useMyGroups.ts:8
+  3| 
+  4| /**
+  5|  * useMyGroups — 拉取当前用户在当前 Space 下加入的所有群, 返回 group_no 集合。
+  6|  *
+  7|  * 接口: GET /api/v1/group/my?space_id={spaceId}
+> 8|  * 响应: Array<{ group_no: string; name: string; ... }>
+  9|  *
+  10|  * 用于判断 Matter 关联群聊里哪些是 "我没加入的群", 从而:
+  11|  *   1. 把未加入群的名字模糊展示
+  12|  *   2. 不给未加入群的时间线条目展示 "↗ 原消息" 按钮 (权限不允许查原消息)
+  13|  *
+
+hooks/useTodoList.ts:64
+  59|     // silent 模式: 后台刷新 (如 matter-updated 广播触发), 不显示 loading,
+  60|     // 避免列表刷新时闪一下 "加载中" 破坏阅读体验。只在首次/过滤器变更时
+  61|     // 显示 loading。
+  62|     if (!append && !silent) setLoading(true);
+  63|     try {
+> 64|       const params: MatterListParams = { ...filters, limit: pageSize };
+  65|       if (append && cursorRef.current) params.cursor = cursorRef.current;
+  66| 
+  67|       const res = await api.listMatters(params, ctrl.signal);
+  68|       // 若当前 controller 已被后续请求替换, 丢弃过期结果
+  69|       if (ctrl.signal.aborted) return;
+
+hooks/useTodoList.ts:70
+  65|       if (append && cursorRef.current) params.cursor = cursorRef.current;
+  66| 
+  67|       const res = await api.listMatters(params, ctrl.signal);
+  68|       // 若当前 controller 已被后续请求替换, 丢弃过期结果
+  69|       if (ctrl.signal.aborted) return;
+> 70|       setMatters(append ? (prev) => [...prev, ...res.data] : res.data);
+  71|       setHasMore(res.pagination.has_more);
+  72|       cursorRef.current = res.pagination.next_cursor;
+  73|     } catch (err: unknown) {
+  74|       // AbortError 是主动取消, 不报错; 其余才提示用户
+  75|       if ((err as Error)?.name === 'AbortError') return;
+
+hooks/useTodoList.ts:93
+  88|       abortCtrlRef.current?.abort();
+  89|     };
+  90|   }, [load]);
+  91| 
+  92|   const setFilters = useCallback((patch: Partial<MatterListParams>) => {
+> 93|     setFiltersState((prev) => ({ ...prev, ...patch }));
+  94|   }, []);
+  95| 
+  96|   const reload = useCallback(() => {
+  97|     cursorRef.current = undefined;
+  98|     // silent 模式: 事件驱动的后台刷新, 不触发 loading 态, 避免列表闪烁
+
+hooks/useTodoList.ts:112
+  107|     if (currentStatus === 'archived') return; // archived cannot be toggled directly
+  108|     const newStatus: MatterStatus = currentStatus === 'open' ? 'done' : 'open';
+  109|     try {
+  110|       await api.transitionMatter(matterId, newStatus);
+  111|       setMatters((prev) =>
+> 112|         prev.map((t) => (t.id === matterId ? { ...t, status: newStatus } : t))
+  113|       );
+  114|     } catch {
+  115|       Toast.error(t('todo.toast.statusUpdateFailed'));
+  116|     }
+  117|   }, []);
+
+hooks/useTodoList.ts:120
+  115|       Toast.error(t('todo.toast.statusUpdateFailed'));
+  116|     }
+  117|   }, []);
+  118| 
+  119|   const optimisticUpdate = useCallback((matterId: string, patch: Partial<Matter>) => {
+> 120|     setMatters((prev) => prev.map((t) => (t.id === matterId ? { ...t, ...patch } : t)));
+  121|   }, []);
+  122| 
+  123|   const addOptimistic = useCallback((matter: Matter) => {
+  124|     setMatters((prev) => [matter, ...prev]);
+  125|   }, []);
+
+hooks/useTodoList.ts:124
+  119|   const optimisticUpdate = useCallback((matterId: string, patch: Partial<Matter>) => {
+  120|     setMatters((prev) => prev.map((t) => (t.id === matterId ? { ...t, ...patch } : t)));
+  121|   }, []);
+  122| 
+  123|   const addOptimistic = useCallback((matter: Matter) => {
+> 124|     setMatters((prev) => [matter, ...prev]);
+  125|   }, []);
+  126| 
+  127|   /** 移除乐观条目：精确匹配 id，或前缀匹配（传入前缀字符串） */
+  128|   const removeOptimistic = useCallback((matterIdOrPrefix: string) => {
+  129|     setMatters((prev) => prev.filter((t) => !t.id.startsWith(matterIdOrPrefix) && t.id !== matterIdOrPrefix));
+
+i18n/en-US.json:52
+  47|     },
+  48|     "updatedDescription": "Updated the main goal"
+  49|   },
+  50|   "anchor": {
+  51|     "loadFailed": "Failed to load",
+> 52|     "loadingMessages": "Loading source messages...",
+  53|     "messageUnavailable": "Message unavailable",
+  54|     "noSourceMessages": "No source message context",
+  55|     "sourceMessage": "Source message",
+  56|     "viewContext": "View source context"
+  57|   },
+
+i18n/en-US.json:65
+  60|     "moreSuffix": "+{{count}} more"
+  61|   },
+  62|   "channel": {
+  63|     "hiddenName": "Hidden group name",
+  64|     "hiddenTitle": "You are not in this group. The group name is hidden.",
+> 65|     "loadingInfo": "Loading group info...",
+  66|     "notMember": "Not in group",
+  67|     "notMemberTitle": "You are not in this group and cannot view source messages.",
+  68|     "unknownGroup": "Unknown group"
+  69|   },
+  70|   "comment": {
+
+i18n/en-US.json:71
+  66|     "notMember": "Not in group",
+  67|     "notMemberTitle": "You are not in this group and cannot view source messages.",
+  68|     "unknownGroup": "Unknown group"
+  69|   },
+  70|   "comment": {
+> 71|     "placeholder": "Add progress or a comment..."
+  72|   },
+  73|   "common": {
+  74|     "cancel": "Cancel",
+  75|     "close": "Close",
+  76|     "confirm": "Confirm",
+
+i18n/en-US.json:90
+  85|     "deleteMatter": "Delete task \"{{title}}\"?",
+  86|     "discardUnsaved": "You have unsaved content. Close anyway?",
+  87|     "unlinkChannel": "Unlink this group?"
+  88|   },
+  89|   "create": {
+> 90|     "aiExtracting": "AI is extracting the task...",
+  91|     "sendAndCreate": "Send and create task",
+  92|     "smartTitle": "Smart task creation",
+  93|     "title": "New task"
+  94|   },
+  95|   "day": {
+
+i18n/en-US.json:191
+  186|   },
+  187|   "state": {
+  188|     "empty": "No tasks yet",
+  189|     "loadFailed": "Failed to load",
+  190|     "loadFailedRetry": "Failed to load. Please try again later.",
+> 191|     "loading": "Loading...",
+  192|     "selectMatter": "Select a task",
+  193|     "submitting": "Submitting...",
+  194|     "syncing": "Syncing..."
+  195|   },
+  196|   "status": {
+
+i18n/en-US.json:193
+  188|     "empty": "No tasks yet",
+  189|     "loadFailed": "Failed to load",
+  190|     "loadFailedRetry": "Failed to load. Please try again later.",
+  191|     "loading": "Loading...",
+  192|     "selectMatter": "Select a task",
+> 193|     "submitting": "Submitting...",
+  194|     "syncing": "Syncing..."
+  195|   },
+  196|   "status": {
+  197|     "archived": "Archived",
+  198|     "archivedCount": "Archived {{count}}",
+
+i18n/en-US.json:194
+  189|     "loadFailed": "Failed to load",
+  190|     "loadFailedRetry": "Failed to load. Please try again later.",
+  191|     "loading": "Loading...",
+  192|     "selectMatter": "Select a task",
+  193|     "submitting": "Submitting...",
+> 194|     "syncing": "Syncing..."
+  195|   },
+  196|   "status": {
+  197|     "archived": "Archived",
+  198|     "archivedCount": "Archived {{count}}",
+  199|     "cannotChangeArchived": "Archived tasks cannot change status",
+
+i18n/en-US.json:229
+  224|     "emptySearch": "No matching output files",
+  225|     "groupNameHidden": "Group name hidden",
+  226|     "loadFailed": "Loading failed, please retry",
+  227|     "loadMore": "Load More",
+  228|     "loadMoreFailed": "Load more failed, please retry",
+> 229|     "loading": "Loading...",
+  230|     "loadingMembership": "Loading membership...",
+  231|     "notInGroup": "Not in group",
+  232|     "notInGroupTitle": "You are not in this group",
+  233|     "retry": "Retry",
+  234|     "searchAriaLabel": "Search output files",
+
+i18n/en-US.json:230
+  225|     "groupNameHidden": "Group name hidden",
+  226|     "loadFailed": "Loading failed, please retry",
+  227|     "loadMore": "Load More",
+  228|     "loadMoreFailed": "Load more failed, please retry",
+  229|     "loading": "Loading...",
+> 230|     "loadingMembership": "Loading membership...",
+  231|     "notInGroup": "Not in group",
+  232|     "notInGroupTitle": "You are not in this group",
+  233|     "retry": "Retry",
+  234|     "searchAriaLabel": "Search output files",
+  235|     "searchPlaceholder": "Search by file name, description or creator",
+
+i18n/en-US.json:253
+  248|     "downloadFile": "Download {{name}}",
+  249|     "empty": "No progress yet",
+  250|     "emptyInGroup": "No timeline records in this group yet",
+  251|     "expand": "Expand group timeline",
+  252|     "groupTitle": "Group progress",
+> 253|     "loading": "Loading timeline...",
+  254|     "noText": "No text content",
+  255|     "previewFile": "Preview {{name}}",
+  256|     "unnamedFile": "Unnamed file"
+  257|   },
+  258|   "toast": {
+
+i18n/zh-CN.json:52
+  47|     },
+  48|     "updatedDescription": "更新了主要目标"
+  49|   },
+  50|   "anchor": {
+  51|     "loadFailed": "加载失败",
+> 52|     "loadingMessages": "加载原消息中...",
+  53|     "messageUnavailable": "消息不可用",
+  54|     "noSourceMessages": "无原消息上下文",
+  55|     "sourceMessage": "原消息",
+  56|     "viewContext": "查看原消息上下文"
+  57|   },
+
+i18n/zh-CN.json:65
+  60|     "moreSuffix": "等 {{count}} 人"
+  61|   },
+  62|   "channel": {
+  63|     "hiddenName": "隐藏的群聊名称",
+  64|     "hiddenTitle": "你不在该群，群名已隐藏",
+> 65|     "loadingInfo": "正在加载群聊信息...",
+  66|     "notMember": "不在群",
+  67|     "notMemberTitle": "你不在该群，无法查看原消息",
+  68|     "unknownGroup": "未知群聊"
+  69|   },
+  70|   "comment": {
+
+i18n/zh-CN.json:71
+  66|     "notMember": "不在群",
+  67|     "notMemberTitle": "你不在该群，无法查看原消息",
+  68|     "unknownGroup": "未知群聊"
+  69|   },
+  70|   "comment": {
+> 71|     "placeholder": "添加进展或评论..."
+  72|   },
+  73|   "common": {
+  74|     "cancel": "取消",
+  75|     "close": "关闭",
+  76|     "confirm": "确定",
+
+i18n/zh-CN.json:90
+  85|     "deleteMatter": "确定删除事项「{{title}}」吗？",
+  86|     "discardUnsaved": "还有未保存的内容，确定关闭吗？",
+  87|     "unlinkChannel": "确定取消关联该群聊吗？"
+  88|   },
+  89|   "create": {
+> 90|     "aiExtracting": "AI 正在提取事项...",
+  91|     "sendAndCreate": "发送并创建事项",
+  92|     "smartTitle": "智能创建事项",
+  93|     "title": "新建事项"
+  94|   },
+  95|   "day": {
+
+i18n/zh-CN.json:191
+  186|   },
+  187|   "state": {
+  188|     "empty": "暂无事项",
+  189|     "loadFailed": "加载失败",
+  190|     "loadFailedRetry": "加载失败，请稍后重试",
+> 191|     "loading": "加载中...",
+  192|     "selectMatter": "请选择事项",
+  193|     "submitting": "提交中...",
+  194|     "syncing": "同步中..."
+  195|   },
+  196|   "status": {
+
+i18n/zh-CN.json:193
+  188|     "empty": "暂无事项",
+  189|     "loadFailed": "加载失败",
+  190|     "loadFailedRetry": "加载失败，请稍后重试",
+  191|     "loading": "加载中...",
+  192|     "selectMatter": "请选择事项",
+> 193|     "submitting": "提交中...",
+  194|     "syncing": "同步中..."
+  195|   },
+  196|   "status": {
+  197|     "archived": "已归档",
+  198|     "archivedCount": "已归档 {{count}}",
+
+i18n/zh-CN.json:194
+  189|     "loadFailed": "加载失败",
+  190|     "loadFailedRetry": "加载失败，请稍后重试",
+  191|     "loading": "加载中...",
+  192|     "selectMatter": "请选择事项",
+  193|     "submitting": "提交中...",
+> 194|     "syncing": "同步中..."
+  195|   },
+  196|   "status": {
+  197|     "archived": "已归档",
+  198|     "archivedCount": "已归档 {{count}}",
+  199|     "cannotChangeArchived": "已归档事项不可修改状态",
+
+i18n/zh-CN.json:253
+  248|     "downloadFile": "下载 {{name}}",
+  249|     "empty": "暂无进展",
+  250|     "emptyInGroup": "本群暂无时间线记录",
+  251|     "expand": "展开群内时间线",
+  252|     "groupTitle": "群内进展",
+> 253|     "loading": "正在加载时间线...",
+  254|     "noText": "无文本内容",
+  255|     "previewFile": "预览 {{name}}",
+  256|     "unnamedFile": "未命名文件"
+  257|   },
+  258|   "toast": {
+
+pages/TodoPage.tsx:8
+  3| 
+  4| /**
+  5|  * MatterPage — 事项全屏页面（NavRail "事项" 入口）。
+  6|  *
+  7|  * 已统一到 ui/MatterList（mode="page"）。本文件保留为薄封装，
+> 8|  * 维持路由注册（WKApp.route.register("/matter", ...)）不变。
+  9|  */
+  10| 
+  11| export default function MatterPage() {
+  12|   return <MatterList mode="page" />;
+  13| }
+
+panel/MatterDetailPanel/TimelinePanel.stories.tsx:74
+  69| 
+  70| export const LongWrappedWithoutAnchor: Story = {
+  71|   args: {
+  72|     entries: [
+  73|       {
+> 74|         ...baseEntry,
+  75|         id: 'tl-2',
+  76|         source_msgs: [],
+  77|       },
+  78|     ],
+  79|     onShowAnchor: () => {},
+
+panel/MatterDetailPanel/TimelinePanel.stories.tsx:88
+  83| // 嵌入聊天侧边栏: 预览 + 下载两个按钮都可用
+  84| export const WithAttachmentsPreviewable: Story = {
+  85|   args: {
+  86|     entries: [
+  87|       {
+> 88|         ...baseEntry,
+  89|         id: 'tl-3',
+  90|         content: '上传了本周的产品策略和指标文件，请评审',
+  91|         attachments: sampleAttachments,
+  92|       },
+  93|     ],
+
+panel/MatterDetailPanel/TimelinePanel.stories.tsx:105
+  100| // 独立 matter 页面: 没有预览, 只有下载
+  101| export const WithAttachmentsDownloadOnly: Story = {
+  102|   args: {
+  103|     entries: [
+  104|       {
+> 105|         ...baseEntry,
+  106|         id: 'tl-4',
+  107|         content: '附件随便看看',
+  108|         attachments: sampleAttachments,
+  109|       },
+  110|     ],
+
+panel/MatterDetailPanel/index.css:69
+  64|   font-size: var(--wk-text-size-md);
+  65|   font-weight: var(--wk-font-medium);
+  66|   line-height: 20px;
+  67|   color: var(--wk-text-primary);
+  68|   overflow: hidden;
+> 69|   text-overflow: ellipsis;
+  70|   white-space: nowrap;
+  71|   cursor: pointer;
+  72|   transition: opacity var(--wk-dur-fast);
+  73| }
+  74| 
+
+panel/MatterDetailPanel/index.css:642
+  637|   font-size: var(--wk-text-size-xl);
+  638|   font-weight: var(--wk-font-medium);
+  639|   line-height: 20px;
+  640|   color: var(--wk-text-primary);
+  641|   overflow: hidden;
+> 642|   text-overflow: ellipsis;
+  643|   white-space: nowrap;
+  644| }
+  645| 
+  646| .wk-mp-channels__card-name--blur {
+  647|   display: inline-block;
+
+panel/MatterDetailPanel/index.css:1134
+  1129| .wk-mp-tl__att-name {
+  1130|   font-size: var(--wk-text-size-sm);
+  1131|   line-height: 18px;
+  1132|   color: var(--wk-text-primary);
+  1133|   overflow: hidden;
+> 1134|   text-overflow: ellipsis;
+  1135|   white-space: nowrap;
+  1136| }
+  1137| 
+  1138| .wk-mp-tl__att-size {
+  1139|   font-size: var(--wk-text-size-xs);
+
+panel/MatterDetailPanel/index.css:1469
+  1464|   gap: var(--wk-sp-1);
+  1465|   font-size: var(--wk-text-size-md);
+  1466|   font-weight: var(--wk-font-regular);
+  1467|   color: var(--wk-text-primary);
+  1468|   overflow: hidden;
+> 1469|   text-overflow: ellipsis;
+  1470|   white-space: nowrap;
+  1471|   max-width: 100%;
+  1472| }
+  1473| 
+  1474| .wk-mp-activity__actor .wk-avatar {
+
+panel/MatterDetailPanel/index.tsx:141
+  136|           // 子集响应: 保留 state 里其他群的条目, 用 fresh 替换本群的
+  137|           setTimeline((prev) => {
+  138|             const keep = prev.filter(
+  139|               (e) => e.source_channel_id !== sourceChannelId,
+  140|             );
+> 141|             return [...keep, ...fresh];
+  142|           });
+  143|         } else {
+  144|           // 全量响应: 直接覆盖
+  145|           setTimeline(fresh);
+  146|         }
+
+panel/MatterDetailPanel/index.tsx:260
+  255|         ) {
+  256|           return;
+  257|         }
+  258|         if (cursor) {
+  259|           // Append for pagination
+> 260|           setOutputs((prev) => [...prev, ...(res.data || [])]);
+  261|         } else {
+  262|           setOutputs(res.data || []);
+  263|         }
+  264|         setOutputsHasMore(res.pagination?.has_more ?? false);
+  265|         setOutputsCursor(res.pagination?.next_cursor);
+
+panel/MatterDetailPanel/index.tsx:457
+  452|   // updated 字段优先; updated 缺失时保留 prev, 避免丢失。
+  453|   const applyMatterUpdate = useCallback((updated: MatterDetail) => {
+  454|     setMatter((prev) => {
+  455|       if (!prev) return updated;
+  456|       return {
+> 457|         ...prev,
+  458|         ...updated,
+  459|         // 关联数据优先取 updated 里的 (如果有), 否则保留 prev
+  460|         channels: updated.channels ?? prev.channels,
+  461|         assignees: updated.assignees ?? prev.assignees,
+  462|         participants: updated.participants ?? prev.participants,
+
+panel/MatterDetailPanel/index.tsx:458
+  453|   const applyMatterUpdate = useCallback((updated: MatterDetail) => {
+  454|     setMatter((prev) => {
+  455|       if (!prev) return updated;
+  456|       return {
+  457|         ...prev,
+> 458|         ...updated,
+  459|         // 关联数据优先取 updated 里的 (如果有), 否则保留 prev
+  460|         channels: updated.channels ?? prev.channels,
+  461|         assignees: updated.assignees ?? prev.assignees,
+  462|         participants: updated.participants ?? prev.participants,
+  463|       };
+
+panel/MatterDetailPanel/index.tsx:500
+  495| 
+  496|   const handleStatusChange = useCallback(
+  497|     async (newStatus: MatterStatus) => {
+  498|       if (!matter) return;
+  499|       const oldStatus = matter.status;
+> 500|       setMatter((prev) => (prev ? { ...prev, status: newStatus } : prev));
+  501|       try {
+  502|         const updated = await transitionMatter(matter.id, newStatus);
+  503|         applyMatterUpdate(updated);
+  504|       } catch (err: any) {
+  505|         setMatter((prev) => (prev ? { ...prev, status: oldStatus } : prev));
+
+panel/MatterDetailPanel/index.tsx:505
+  500|       setMatter((prev) => (prev ? { ...prev, status: newStatus } : prev));
+  501|       try {
+  502|         const updated = await transitionMatter(matter.id, newStatus);
+  503|         applyMatterUpdate(updated);
+  504|       } catch (err: any) {
+> 505|         setMatter((prev) => (prev ? { ...prev, status: oldStatus } : prev));
+  506|         const msg = err?.message || t("todo.toast.statusChangeFailed");
+  507|         if (msg.includes("only creator")) {
+  508|           Toast.error(t("todo.toast.onlyCreatorArchive"));
+  509|         } else {
+  510|           Toast.error(msg);
+
+panel/MatterDetailPanel/index.tsx:579
+  574|       if (!matter || !content.trim()) return;
+  575|       try {
+  576|         const entry = await addTimelineEntry(matter.id, {
+  577|           content: content.trim(),
+  578|         });
+> 579|         setTimeline((prev) => [entry, ...prev]);
+  580|       } catch (e: any) {
+  581|         const code = e?.code;
+  582|         if (code === "LLM_UPSTREAM_ERROR") {
+  583|           Toast.error(t("todo.toast.aiUnavailable"));
+  584|         } else {
+
+panel/MatterDetailPanel/index.tsx:1063
+  1058|                   setAnchor({
+  1059|                     channelId: matter.source_channel_id!,
+  1060|                     channelType: matter.source_channel_type || 0,
+  1061|                     channelName: displaySourceName,
+  1062|                     messageIds: matter.source_msgs,
+> 1063|                     ...computeAnchorPosition(rect),
+  1064|                   });
+  1065|                 }
+  1066|               }}
+  1067|               title={
+  1068|                 myGroupsLoading
+
+panel/MatterDetailPanel/index.tsx:1264
+  1259|                         setAnchor({
+  1260|                           channelId: ch.channel_id,
+  1261|                           channelType: ch.channel_type,
+  1262|                           channelName,
+  1263|                           messageIds: entry.source_msgs || [],
+> 1264|                           ...computeAnchorPosition(rect),
+  1265|                         });
+  1266|                       }}
+  1267|                       onPreviewAttachment={
+  1268|                         showClose ? handlePreviewAttachment : undefined
+  1269|                       }
+
+panel/MatterDetailPanel/index.tsx:1721
+  1716| }) {
+  1717|   const { t } = useI18n();
+  1718|   const [sortNewest, setSortNewest] = useState(true);
+  1719| 
+  1720|   // 排序
+> 1721|   const sorted = [...entries].sort((a, b) => {
+  1722|     const ta = new Date(a.created_at).getTime();
+  1723|     const tb = new Date(b.created_at).getTime();
+  1724|     return sortNewest ? tb - ta : ta - tb;
+  1725|   });
+  1726|   const grouped = groupByDate(sorted);
+
+panel/MatterDetailPanel/index.tsx:2255
+  2250|     filter === "all"
+  2251|       ? activities
+  2252|       : filter === "channel_changed"
+  2253|         ? activities.filter((a) => a.action === "channel_linked" || a.action === "channel_unlinked")
+  2254|         : activities.filter((a) => a.action === filter);
+> 2255|   const sorted = [...filtered].sort((a, b) => {
+  2256|     const ta = new Date(a.created_at).getTime();
+  2257|     const tb = new Date(b.created_at).getTime();
+  2258|     return sortNewest ? tb - ta : ta - tb;
+  2259|   });
+  2260| 
+
+ui/AnchorPopover/index.css:62
+  57|   font-size: var(--wk-text-size-md);
+  58|   font-weight: var(--wk-font-regular);
+  59|   line-height: 18px;
+  60|   color: var(--wk-icon-default);
+  61|   overflow: hidden;
+> 62|   text-overflow: ellipsis;
+  63|   white-space: nowrap;
+  64|   max-width: 325px;
+  65| }
+  66| 
+  67| .wk-anchor-pop__head-time {
+
+ui/AnchorPopover/index.tsx:314
+  309|     );
+  310| }
+  311| 
+  312| /**
+  313|  * 从 payload 里提取可展示文本。payload 结构取决于消息类型 (type 字段):
+> 314|  *   - 1/文本: { type:1, content:"..." }
+  315|  *   - 其它 (图片/文件/语音/系统消息...): 退化到一个类型标签 "[图片]" 等
+  316|  *
+  317|  * 这里只处理最常见的文本/AI富文本场景。其它类型后续可以补, 当前用类型描述
+  318|  * 占位, 足以让用户看到"确实是这条消息"。
+  319|  */
+
+ui/AnchorPopover/index.tsx:315
+  310| }
+  311| 
+  312| /**
+  313|  * 从 payload 里提取可展示文本。payload 结构取决于消息类型 (type 字段):
+  314|  *   - 1/文本: { type:1, content:"..." }
+> 315|  *   - 其它 (图片/文件/语音/系统消息...): 退化到一个类型标签 "[图片]" 等
+  316|  *
+  317|  * 这里只处理最常见的文本/AI富文本场景。其它类型后续可以补, 当前用类型描述
+  318|  * 占位, 足以让用户看到"确实是这条消息"。
+  319|  */
+  320| function extractDisplayText(msg: IMMessageResp): string {
+
+ui/AnchorPopover/index.tsx:330
+  325|     if (typeof content === 'string' && content.trim()) {
+  326|         // 限制文本长度，超过 200 字符时截断并添加省略号
+  327|         const MAX_LENGTH = 200;
+  328|         const text = content.trim();
+  329|         if (text.length > MAX_LENGTH) {
+> 330|             return text.slice(0, MAX_LENGTH) + '...';
+  331|         }
+  332|         return text;
+  333|     }
+  334|     // 类型降级: 展示一个占位, 方便用户识别
+  335|     const type = p.type;
+
+ui/AssigneeEditor/index.css:23
+  18| }
+  19| 
+  20| .wk-assignee-chip__name {
+  21|   max-width: 120px;
+  22|   overflow: hidden;
+> 23|   text-overflow: ellipsis;
+  24|   white-space: nowrap;
+  25| }
+  26| 
+  27| .wk-assignee-chip__remove {
+  28|   display: none;
+
+ui/AssigneeEditor/index.css:168
+  163|   flex: 1;
+  164|   font-size: 13px;
+  165|   font-weight: 500;
+  166|   color: var(--wk-text-primary, #1a1a1a);
+  167|   overflow: hidden;
+> 168|   text-overflow: ellipsis;
+  169|   white-space: nowrap;
+  170| }
+  171| 
+  172| .wk-assignee-search__uid {
+  173|   font-size: 11px;
+
+ui/AssigneeEditor/index.css:196
+  191|     font-size: 12px;
+  192|     font-weight: 400;
+  193|     color: var(--wk-text-secondary, rgba(9, 30, 66, 0.6));
+  194|     line-height: 1.3;
+  195|     overflow: hidden;
+> 196|     text-overflow: ellipsis;
+  197|     white-space: nowrap;
+  198|     max-width: 10rem;
+  199|     flex-shrink: 1;
+  200| }
+
+ui/AssigneeEditor/index.tsx:296
+  291|       {showSearch && (
+  292|         <div className="wk-assignee-search" ref={searchRef}>
+  293|           <input
+  294|             type="text"
+  295|             className="wk-assignee-search__input"
+> 296|             placeholder="Search by name..."
+  297|             value={query}
+  298|             onChange={(e) => setQuery(e.target.value)}
+  299|             onKeyDown={(e) => {
+  300|               if (e.key === 'Escape') { setShowSearch(false); setQuery(''); }
+  301|             }}
+
+ui/DetailPanel/index.tsx:68
+  63|         source_channel_id: channel?.channelId,
+  64|         limit: 50,
+  65|         cursor: append ? commentsCursorRef.current : undefined,
+  66|       });
+  67|       const items = res?.data ?? [];
+> 68|       setComments(append ? (prev) => [...prev, ...items] : items);
+  69|       setCommentsHasMore(res?.pagination?.has_more ?? false);
+  70|       commentsCursorRef.current = res?.pagination?.next_cursor;
+  71|     } catch {
+  72|       if (!append) { setComments([]); Toast.error(t('todo.toast.loadCommentsFailed')); }
+  73|       else Toast.error(t('todo.toast.loadCommentsFailed'));
+
+ui/DetailPanel/index.tsx:102
+  97| 
+  98|   const handleToggleStatus = useCallback(async () => {
+  99|     if (!matter || matter.status === 'archived') return;
+  100|     const oldStatus = matter.status;
+  101|     const newStatus = oldStatus === 'open' ? 'done' : 'open';
+> 102|     setMatter((prev) => prev ? { ...prev, status: newStatus } : prev);
+  103|     try {
+  104|       await api.transitionMatter(matter.id, newStatus);
+  105|       onStatusChanged?.();
+  106|     } catch {
+  107|       setMatter((prev) => prev ? { ...prev, status: oldStatus } : prev);
+
+ui/DetailPanel/index.tsx:107
+  102|     setMatter((prev) => prev ? { ...prev, status: newStatus } : prev);
+  103|     try {
+  104|       await api.transitionMatter(matter.id, newStatus);
+  105|       onStatusChanged?.();
+  106|     } catch {
+> 107|       setMatter((prev) => prev ? { ...prev, status: oldStatus } : prev);
+  108|       Toast.error(t('todo.toast.statusUpdateFailed'));
+  109|     }
+  110|   }, [matter, onStatusChanged, t]);
+  111| 
+  112|   const handleStartEditTitle = useCallback(() => {
+
+ui/LinkChannelsModal/LinkChannelsModal.css:262
+  257|   font-size: var(--wk-text-size-md);
+  258|   font-weight: var(--wk-font-regular);
+  259|   line-height: 20px;
+  260|   color: var(--wk-text-primary);
+  261|   overflow: hidden;
+> 262|   text-overflow: ellipsis;
+  263|   white-space: nowrap;
+  264| }
+  265| 
+  266| .wk-lcm__item-info {
+  267|   display: flex;
+
+ui/LinkChannelsModal/LinkChannelsModal.css:297
+  292| .wk-lcm__item-context {
+  293|   font-size: var(--wk-text-size-xs);
+  294|   color: var(--wk-text-tertiary);
+  295|   line-height: 16px;
+  296|   overflow: hidden;
+> 297|   text-overflow: ellipsis;
+  298|   white-space: nowrap;
+  299| }
+  300| 
+  301| /* ─── 列表过长时的提示 ─── */
+  302| .wk-lcm__overflow-hint {
+
+ui/LinkChannelsModal/LinkChannelsModal.stories.tsx:196
+  191|   },
+  192| }
+  193| 
+  194| /**
+  195|  * 多群失败折叠 — 超过 ERROR_NAME_PREVIEW_LIMIT 时, 警告文案折叠成
+> 196|  * "X、Y、Z 等 N 个群..." 避免横向溢出。
+  197|  */
+  198| export const ManyThreadLoadFailures: Story = {
+  199|   args: {
+  200|     visible: true,
+  201|     matterId: '8575cfce-e60a-4ee6-a3c5-7121cd46490d',
+
+ui/LinkChannelsModal/index.tsx:164
+  159|     : filtered;
+  160| 
+  161|   const toggle = (channelId: string) => {
+  162|     if (linkedIds.has(channelId)) return;
+  163|     setSelected((prev) =>
+> 164|       prev.includes(channelId) ? prev.filter((id) => id !== channelId) : [...prev, channelId],
+  165|     );
+  166|   };
+  167| 
+  168|   const removeSelected = (channelId: string) => {
+  169|     setSelected((prev) => prev.filter((id) => id !== channelId));
+
+ui/MatterLinkMenu/index.css:92
+  87| .wk-matter-link-menu__title {
+  88|   flex: 1;
+  89|   font-size: var(--wk-text-size-sm);
+  90|   white-space: nowrap;
+  91|   overflow: hidden;
+> 92|   text-overflow: ellipsis;
+  93| }
+
+ui/MemberPicker/index.css:88
+  83| }
+  84| 
+  85| .wk-member-picker__tag-name {
+  86|   max-width: 120px;
+  87|   overflow: hidden;
+> 88|   text-overflow: ellipsis;
+  89|   white-space: nowrap;
+  90| }
+  91| 
+  92| .wk-member-picker__tag-remove {
+  93|   display: inline-flex;
+
+ui/MemberPicker/index.css:192
+  187|   flex: 1;
+  188|   font-size: 13px;
+  189|   font-weight: 500;
+  190|   color: var(--wk-text-primary, #1a1a1a);
+  191|   overflow: hidden;
+> 192|   text-overflow: ellipsis;
+  193|   white-space: nowrap;
+  194| }
+  195| 
+  196| /* ─── Loading & Empty States ─────────────────────────── */
+  197| 
+
+ui/MemberPicker/index.tsx:238
+  233|   const handleAddMember = useCallback(
+  234|     (uid: string) => {
+  235|       if (selectedUids.includes(uid)) return;
+  236| 
+  237|       if (props.mode === 'controlled') {
+> 238|         updateControlled([...selectedUids, uid]);
+  239|       } else {
+  240|         updateDirect(uid, 'add');
+  241|       }
+  242| 
+  243|       // 选中后不关闭下拉，继续展示
+
+ui/OutputsPanel/index.css:182
+  177| }
+  178| 
+  179| .wk-outputs__file-name {
+  180|   display: block;
+  181|   overflow: hidden;
+> 182|   text-overflow: ellipsis;
+  183|   white-space: nowrap;
+  184| }
+  185| 
+  186| .wk-outputs__file-size {
+  187|   display: block;
+
+ui/OutputsPanel/index.css:201
+  196|   /* stylelint-disable-next-line property-no-vendor-prefix */
+  197|   -webkit-line-clamp: 2;
+  198|   line-clamp: 2;
+  199|   -webkit-box-orient: vertical;
+  200|   overflow: hidden;
+> 201|   text-overflow: ellipsis;
+  202|   word-break: break-word;
+  203| }
+  204| 
+  205| /* ─── 发送人列: 头像 + 姓名 ─────────────────────────── */
+  206| .wk-outputs__user {
+
+ui/OutputsPanel/index.css:239
+  234| }
+  235| 
+  236| .wk-outputs__user-name {
+  237|   white-space: nowrap;
+  238|   overflow: hidden;
+> 239|   text-overflow: ellipsis;
+  240|   min-width: 0;
+  241| }
+  242| 
+  243| /* ─── 来源群列 ───────────────────────────────────────── */
+  244| .wk-outputs__channel-name {
+
+ui/OutputsPanel/index.css:247
+  242| 
+  243| /* ─── 来源群列 ───────────────────────────────────────── */
+  244| .wk-outputs__channel-name {
+  245|   white-space: nowrap;
+  246|   overflow: hidden;
+> 247|   text-overflow: ellipsis;
+  248| }
+  249| 
+  250| /* 不在群: 群名 blur 遮罩 + 灰底 "不在群" 徽章 (跟关联群聊 tab 一致) */
+  251| .wk-outputs__channel-blocked {
+  252|   display: inline-flex;
+
+ui/OwnerEditor/index.css:204
+  199| .wk-owner-editor__option-name {
+  200|   flex: 1;
+  201|   min-width: 0;
+  202|   white-space: nowrap;
+  203|   overflow: hidden;
+> 204|   text-overflow: ellipsis;
+  205| }
+  206| 
+  207| .wk-owner-editor__option-check {
+  208|   color: var(--wk-text-primary, #18181b);
+  209|   font-weight: 600;
+
+ui/OwnerEditor/index.tsx:182
+  177|     <span className="wk-owner-editor" ref={ref}>
+  178|       <span className="wk-owner-editor__tags">
+  179|         {assignees.slice(0, 2).map((a) => (
+  180|           <button
+  181|             key={a.user_id}
+> 182|             {...triggerProps}
+  183|             className={triggerClass}
+  184|           >
+  185|             {renderAvatar(a.user_id, 16)}
+  186|             <OwnerNameInline uid={a.user_id} resolveName={resolveName} />
+  187|           </button>
+
+ui/QuickAddBar/index.tsx:68
+  63|       // 用真实数据替换乐观数据
+  64|       onCreated(real);
+  65|     } catch {
+  66|       Toast.error(t("todo.toast.createFailed"));
+  67|       // 回滚：通知父组件移除乐观条目（通过特殊 id 标识）
+> 68|       onCreated({ ...optimisticMatter, id: `__rollback__${optimisticMatter.id}` });
+  69|     } finally {
+  70|       setCreating(false);
+  71|     }
+  72|   }, [title, creating, channelId, channelType, channelName, onCreated, t]);
+  73| 
+
+ui/SidebarCard/SidebarCard.stories.tsx:97
+  92| /**
+  93|  * 已完成状态
+  94|  */
+  95| export const Done: Story = {
+  96|   args: {
+> 97|     matter: { ...baseMatter, status: 'done' },
+  98|     selected: false,
+  99|     onClick: () => {},
+  100|     renderAvatar: mockRenderAvatar,
+  101|     renderUserName: mockRenderUserName,
+  102|   },
+
+ui/SidebarCard/SidebarCard.stories.tsx:110
+  105| /**
+  106|  * 已归档状态
+  107|  */
+  108| export const Archived: Story = {
+  109|   args: {
+> 110|     matter: { ...baseMatter, status: 'archived' },
+  111|     selected: false,
+  112|     onClick: () => {},
+  113|     renderAvatar: mockRenderAvatar,
+  114|     renderUserName: mockRenderUserName,
+  115|   },
+
+ui/SidebarCard/SidebarCard.stories.tsx:123
+  118| /**
+  119|  * 无 deadline
+  120|  */
+  121| export const NoDeadline: Story = {
+  122|   args: {
+> 123|     matter: { ...baseMatter, deadline: undefined },
+  124|     selected: false,
+  125|     onClick: () => {},
+  126|     renderAvatar: mockRenderAvatar,
+  127|     renderUserName: mockRenderUserName,
+  128|   },
+
+ui/SidebarCard/SidebarCard.stories.tsx:137
+  132|  * 长标题 — 测试文本截断
+  133|  */
+  134| export const LongTitle: Story = {
+  135|   args: {
+  136|     matter: {
+> 137|       ...baseMatter,
+  138|       title: '这是一个非常非常长的事项标题用来测试在卡片中文本是否能正确截断和换行显示不会溢出容器',
+  139|     },
+  140|     selected: false,
+  141|     onClick: () => {},
+  142|     renderAvatar: mockRenderAvatar,
+
+ui/SidebarCard/SidebarCard.stories.tsx:153
+  148|  * 多负责人 — 超过 3 人显示"等 N 人"
+  149|  */
+  150| export const ManyAssignees: Story = {
+  151|   args: {
+  152|     matter: {
+> 153|       ...baseMatter,
+  154|       assignees: [
+  155|         { id: 'a1', matter_id: '8575cfce', user_id: 'uid1', created_at: '' },
+  156|         { id: 'a2', matter_id: '8575cfce', user_id: 'uid2', created_at: '' },
+  157|         { id: 'a3', matter_id: '8575cfce', user_id: 'uid3', created_at: '' },
+  158|         { id: 'a4', matter_id: '8575cfce', user_id: 'uid4', created_at: '' },
+
+ui/SidebarCard/SidebarCard.stories.tsx:174
+  169| /**
+  170|  * 无负责人
+  171|  */
+  172| export const NoAssignees: Story = {
+  173|   args: {
+> 174|     matter: { ...baseMatter, assignees: [] },
+  175|     selected: false,
+  176|     onClick: () => {},
+  177|     renderAvatar: mockRenderAvatar,
+  178|     renderUserName: mockRenderUserName,
+  179|   },
+
+ui/TodoCard/index.css:100
+  95|   font-size: var(--wk-text-size-md);
+  96|   font-weight: var(--wk-font-medium);
+  97|   line-height: 20px;
+  98|   color: var(--wk-text-primary);
+  99|   overflow: hidden;
+> 100|   text-overflow: ellipsis;
+  101|   display: -webkit-box;
+  102|   -webkit-line-clamp: 2;
+  103|   -webkit-box-orient: vertical;
+  104| }
+  105| 
+
+utils/fileUrl.ts:10
+  5|  *
+  6|  * 跟 dmworkbase Messages/File 的 getFileURL + isSafeUrl 保持一致的两步:
+  7|  *   1. WKApp.dataSource.commonDataSource.getFileURL(rawUrl)
+  8|  *      把后端可能给的相对路径 (/files/foo.pdf) 拼上 baseURL 变成绝对 URL,
+  9|  *      或者把 oss / cdn 路径拼上对应域名。
+> 10|  *   2. 拿到的 URL 还可能不是 http(s):// 开头, 比如 ['/oss/...'] 这种,
+  11|  *      用 window.location.origin 拼一下兜底成绝对 URL。
+  12|  *   3. isSafeUrl 拒绝 javascript:/data:/file:/ftp: 等危险协议。
+  13|  *
+  14|  * 用在 OutputsPanel + MatterDetailPanel 时间线附件预览 / 下载, 避免代码漂移。
+  15|  *
+
+utils/mention.ts:83
+  78|         } else {
+  79|             result += raw[i];
+  80|             i++;
+  81|         }
+  82|     }
+> 83|     return { title: result.trim(), uids: [...new Set(uids)] };
+  84| }
+  85| import { t } from "@octo/base";
+
+utils/__tests__/fileUrl.test.ts:14
+  9|   beforeEach(() => {
+  10|     // 每个 case 重置成默认行为 (恒等函数), 避免污染
+  11|     WKApp.dataSource.commonDataSource.getFileURL = originalGetFileURL;
+  12|     // 把 window.location.origin 固定到 https://example.com, 方便断言绝对路径
+  13|     vi.spyOn(window, "location", "get").mockReturnValue({
+> 14|       ...window.location,
+  15|       origin: "https://example.com",
+  16|       href: "https://example.com/",
+  17|     } as Location);
+  18|   });
+  19| 
+
+utils/__tests__/fileUrl.test.ts:37
+  32|     expect(resolveAndGuardUrl("http://cdn.example.com/a.pdf")).toBe(
+  33|       "http://cdn.example.com/a.pdf",
+  34|     );
+  35|   });
+  36| 
+> 37|   it("相对路径(/oss/...)应当被拼上 origin 变成绝对路径", () => {
+  38|     expect(resolveAndGuardUrl("/oss/storage/foo.pdf")).toBe(
+  39|       "https://example.com/oss/storage/foo.pdf",
+  40|     );
+  41|   });
+  42| 

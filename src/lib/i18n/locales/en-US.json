@@ -172,6 +172,7 @@
   "base.userInfo.joinMethod": "Join method",
   "base.userInfo.joinedGroup": "Joined group chat",
   "base.userInfo.nicknameLabel": "Nickname",
+  "base.userInfo.groupNicknameLabel": "Group nickname",
   "base.userInfo.onlyInGroup": "Only available in group",
   "base.userInfo.releaseFriend": "Remove friend",
   "base.userInfo.saved": "Saved",

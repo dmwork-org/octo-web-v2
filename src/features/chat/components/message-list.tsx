@@ -14,6 +14,8 @@ import { useTypingForChannel } from "@/features/chat/hooks/use-typing-for-channe
 import { chatAiCollabFoldActions } from "@/features/chat/stores/ai-collab-fold";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
+import { HistoryDivider } from "@/features/chat/components/history-divider";
+import { useHistorySplitAnchor } from "@/features/chat/hooks/use-history-split.hook";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
@@ -335,6 +337,8 @@ export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
   useClearUnreadOnEnter(channel);
+  // issue #32:进会话时锁定历史/新消息分割线锚点(unread > 0 时返回最后已读 seq)
+  const historySplitAfterSeq = useHistorySplitAnchor(channel);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery(messagesInfiniteQueryOptions(channel));
@@ -475,10 +479,14 @@ export function MessageList({ channel }: MessageListProps) {
           // foldSession 后的 message 强制不 continue(显示完整 header)
           const prevMessage = prev?.type === "message" ? prev.message : undefined;
           const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
+          // issue #32:此消息是"最后已读"时,渲染完后追加历史分割线
+          const isHistorySplitAnchor =
+            historySplitAfterSeq > 0 && m.messageSeq === historySplitAfterSeq;
           return (
             <div key={m.clientMsgNo || m.messageID}>
               {showDivider ? <TimeDivider timestamp={currTs} /> : null}
               <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
+              {isHistorySplitAnchor ? <HistoryDivider /> : null}
             </div>
           );
         })}

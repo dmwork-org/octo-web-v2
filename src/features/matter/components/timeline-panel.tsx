@@ -14,6 +14,8 @@ interface TimelinePanelProps {
   onShowAnchor?: (entry: TimelineEntry, event: React.MouseEvent) => void;
   /** 下载附件回调 */
   onDownloadAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
+  /** 预览附件回调 — 传入时附件卡片显示眼睛预览按钮 */
+  onPreviewAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }
 
 /** 按日期分组 timeline entries */
@@ -57,6 +59,7 @@ export function TimelinePanel({
   canShowAnchor,
   onShowAnchor,
   onDownloadAttachment,
+  onPreviewAttachment,
 }: TimelinePanelProps) {
   const [sortNewest, setSortNewest] = useState(true);
 
@@ -200,6 +203,28 @@ export function TimelinePanel({
                                           </span>
                                         )}
                                       </span>
+                                      {onPreviewAttachment && (
+                                        <span className="inline-flex shrink-0 items-center">
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-xs border-0 bg-transparent text-icon-default transition-colors hover:bg-bg-item-hover hover:text-text-primary"
+                                            title={`预览 ${name}`}
+                                            aria-label={`预览 ${name}`}
+                                            onClick={() => onPreviewAttachment(att, entry)}
+                                          >
+                                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                              <path
+                                                d="M1.33 8s2.4-4.67 6.67-4.67S14.67 8 14.67 8 12.27 12.67 8 12.67 1.33 8 1.33 8z"
+                                                stroke="currentColor"
+                                                strokeWidth="1.33"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              />
+                                              <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.33" />
+                                            </svg>
+                                          </button>
+                                        </span>
+                                      )}
                                       {onDownloadAttachment && (
                                         <span className="inline-flex shrink-0 items-center">
                                           <button

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -61,6 +62,15 @@ function useLoadChannelsOnOpen({
   setSelected: Dispatch<SetStateAction<string[]>>;
   setThreadLoadErrors: Dispatch<SetStateAction<string[]>>;
 }): void {
+  // loadChannels 依赖 useT() 的 t —— t 每次 render 都是新引用,导致 loadChannels
+  // 引用每次都变。若把它列入 effect 依赖,effect 会每次 render 重跑,而 effect 内的
+  // setSelected([]) / setThreadLoadErrors([]) 每次都产生新数组引用触发重渲染 →
+  // 无限循环(Maximum update depth exceeded)。
+  // 用 ref 持有最新 loadChannels,effect 只依赖 [open, spaceId],仅在开关/Space
+  // 变化时执行。
+  const loadChannelsRef = useRef(loadChannels);
+  loadChannelsRef.current = loadChannels;
+
   useEffect(() => {
     if (!open) {
       setSearch("");
@@ -68,8 +78,11 @@ function useLoadChannelsOnOpen({
       setThreadLoadErrors([]);
       return;
     }
-    loadChannels();
-  }, [open, spaceId, loadChannels, setSearch, setSelected, setThreadLoadErrors]);
+    loadChannelsRef.current();
+    // setSearch/setSelected/setThreadLoadErrors 是 useState 的 dispatch,引用稳定,
+    // 无需列入依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, spaceId]);
 }
 
 /**

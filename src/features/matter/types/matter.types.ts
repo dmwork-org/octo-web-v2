@@ -158,6 +158,13 @@ export interface AddTimelineReq {
   channel_id?: string;
   channel_type?: number;
   channel_name?: string;
+  /**
+   * 同步进展者 uid。与 msgs 一起传时,后端走 LLM 抽取进展摘要写入 timeline
+   * (对齐旧 dmworktodo:多选消息"同步到事项"不写原文,而是 LLM 提炼摘要)。
+   */
+  participant_uid?: string;
+  /** 原始消息列表,交给后端 LLM 抽取进展摘要(而非前端拼接原文)。 */
+  msgs?: ExtractMessage[];
 }
 
 // ─── Activities(变更记录,字段对齐后端 model.MatterActivity)──────

@@ -20,6 +20,7 @@
 - **风格**:`vp check --fix` 是硬规则底座,一切自动化修复以它为准
 - **TanStack**:写 TanStack 代码前必须 `tanstack doc <topic>` 查官方文档
 - **Commit**:commit 前跑 `vp check`,hook 会自动拦截
+- **CI/CD 提交前必跑 `tsc -b`**:`vp build`(Vite)不做类型检查,本地能过但 CI 跑 `tsc -b && vp build` 会因类型错误 exit code 2 挂掉。常见坑:未使用的 import/变量(TS6133)、访问不存在的属性(TS2339)、类型不兼容(TS2345)。提交前务必 `npx tsc -b` 确认零错误
 
 ## Commands
 
@@ -27,6 +28,7 @@
 | ------------------------ | ----------------------------------------------------- |
 | 装依赖                   | `pnpm install`                                        |
 | 加依赖                   | `pnpm add <pkg>` / `pnpm add -D <pkg>`                |
+| 类型检查(CI 前必跑)      | `npx tsc -b`                                          |
 | build + lint + typecheck | `vp check --fix`                                      |
 | 查 TanStack 文档         | `tanstack doc <topic>` / `tanstack search-docs "<q>"` |
 | 加 shadcn 组件           | `pnpm dlx shadcn@latest add <component>`              |
@@ -110,6 +112,7 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 ## Review Checklist
 
 - [ ] Run `vp install` after pulling remote changes and before getting started.
+- [ ] Run `npx tsc -b` to type-check — CI runs `tsc -b && vp build`, local `vp build` skips type checks.
 - [ ] Run `vp check` and `vp test` to format, lint, type check and test changes.
 - [ ] Check if there are `vite.config.ts` tasks or `package.json` scripts necessary for validation, run via `vp run <script>`.
 

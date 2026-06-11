@@ -9,6 +9,8 @@ import { useT } from "@/lib/i18n/use-t";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
+import { useChannelAvatarUrl } from "@/features/chat/hooks/use-channel-avatar-url.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { applyFriend, setUserRemark } from "@/features/contacts/api/friends.api";
@@ -48,14 +50,21 @@ interface BotDetailModalProps {
 type BotDetailPage = "detail" | "manage" | "mention-free";
 
 export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
+  const handleClose = () => {
+    setAvatarPreviewOpen(false);
+    onClose();
+  };
+
   return (
     <DrilldownDialog<BotDetailPage>
       open={!!uid}
-      onClose={onClose}
+      onClose={handleClose}
       size="md"
+      closeOnMask={!avatarPreviewOpen}
       rootKey="detail"
       resetKey={uid}
-      pages={buildPages(uid, onClose)}
+      pages={buildPages(uid, handleClose, avatarPreviewOpen, setAvatarPreviewOpen)}
     />
   );
 }
@@ -63,12 +72,20 @@ export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
 function buildPages(
   uid: string | null,
   onClose: () => void,
+  avatarPreviewOpen: boolean,
+  setAvatarPreviewOpen: (open: boolean) => void,
 ): Record<BotDetailPage, DrilldownDialogPage<BotDetailPage>> {
   return {
     detail: {
       title: <BotDetailTitle uid={uid} />,
       render: (nav) => (
-        <BotDetailContent uid={uid} onClose={onClose} onOpenManage={() => nav.push("manage")} />
+        <BotDetailContent
+          uid={uid}
+          onClose={onClose}
+          onOpenManage={() => nav.push("manage")}
+          avatarPreviewOpen={avatarPreviewOpen}
+          setAvatarPreviewOpen={setAvatarPreviewOpen}
+        />
       ),
     },
     manage: {
@@ -104,9 +121,17 @@ interface BotDetailContentProps {
   uid: string | null;
   onClose: () => void;
   onOpenManage: () => void;
+  avatarPreviewOpen: boolean;
+  setAvatarPreviewOpen: (open: boolean) => void;
 }
 
-function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps) {
+function BotDetailContent({
+  uid,
+  onClose,
+  onOpenManage,
+  avatarPreviewOpen,
+  setAvatarPreviewOpen,
+}: BotDetailContentProps) {
   const t = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -192,6 +217,7 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
   const noDescription = t("base.botDetail.noDescription");
   const description = data?.bot_description || data?.description || data?.bio || noDescription;
   const isFriend = data?.follow === 1;
+  const avatarUrl = useChannelAvatarUrl(channel);
 
   void currentSpaceId;
 
@@ -203,35 +229,43 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
     );
   }
 
-  const handleAvatarClick = () => {
-    if (!isOwner || uploadAvatarMu.isPending) return;
+  const handleAvatarUploadClick = () => {
+    if (uploadAvatarMu.isPending) return;
     fileInputRef.current?.click();
   };
 
   return (
     <>
       <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-4">
-        <div
-          role={isOwner ? "button" : undefined}
-          tabIndex={isOwner ? 0 : undefined}
-          onClick={handleAvatarClick}
-          onKeyDown={(e) => {
-            if (isOwner && (e.key === "Enter" || e.key === " ")) {
-              e.preventDefault();
-              handleAvatarClick();
-            }
-          }}
-          className={`group relative ${isOwner ? "cursor-pointer" : ""}`}
-        >
-          <ChannelAvatar channel={channel} size={64} title={name} />
+        <div className="relative">
+          <button
+            type="button"
+            aria-label={t("imageRenderer.viewLargeImage")}
+            disabled={!avatarUrl}
+            onClick={() => {
+              if (avatarUrl) setAvatarPreviewOpen(true);
+            }}
+            className="block cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand/35 disabled:cursor-default"
+          >
+            <ChannelAvatar channel={channel} size={64} title={name} />
+          </button>
           {isOwner ? (
-            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
+            <button
+              type="button"
+              aria-label={t("base.botDetail.editAvatar")}
+              title={t("base.botDetail.editAvatar")}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAvatarUploadClick();
+              }}
+              className="absolute right-[-2px] bottom-[-2px] flex h-6 w-6 items-center justify-center rounded-full border border-bg-surface bg-black/65 text-white shadow-sm transition-colors hover:bg-black/80"
+            >
               {uploadAvatarMu.isPending ? (
-                <span className="text-xs text-white">{t("base.botDetail.uploading")}</span>
+                <span className="text-[9px] leading-none">{t("base.botDetail.uploading")}</span>
               ) : (
-                <Camera size={20} className="text-white" />
+                <Camera size={13} />
               )}
-            </div>
+            </button>
           ) : null}
         </div>
         <input
@@ -445,6 +479,10 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
           </div>
         )}
       </div>
+
+      {avatarPreviewOpen && avatarUrl ? (
+        <ImagePreviewModal src={avatarUrl} onClose={() => setAvatarPreviewOpen(false)} />
+      ) : null}
     </>
   );
 }

@@ -63,6 +63,7 @@ interface DrilldownDialogProps<K extends string> {
    */
   resetKey?: string | number | null;
   description?: ReactNode;
+  closeOnMask?: boolean;
   /** body 区外层 className 覆盖(透传 BaseDialog) */
   contentClassName?: string;
   className?: string;
@@ -77,6 +78,7 @@ export function DrilldownDialog<K extends string>({
   pages,
   resetKey,
   description,
+  closeOnMask = true,
   contentClassName,
   className,
 }: DrilldownDialogProps<K>) {
@@ -101,6 +103,7 @@ export function DrilldownDialog<K extends string>({
       height={page.height ?? height}
       title={page.title}
       description={description}
+      closeOnMask={closeOnMask}
       showBackButton={showBack}
       onBack={stack.back}
       showCloseButton={showClose}

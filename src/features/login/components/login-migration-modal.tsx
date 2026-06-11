@@ -98,11 +98,25 @@ export function LoginMigrationModal({
           <div className="text-[13px] font-semibold text-text-primary">
             {t("login.migration.stepsTitle")}
           </div>
-          <StepRow index={1} label={t("login.migration.step1Label")} body={t("login.migration.step1")}>
-            <div className="mt-1 text-[12px] text-text-tertiary">{t("login.migration.step1Hint")}</div>
+          <StepRow
+            index={1}
+            label={t("login.migration.step1Label")}
+            body={t("login.migration.step1")}
+          >
+            <div className="mt-1 text-[12px] text-text-tertiary">
+              {t("login.migration.step1Hint")}
+            </div>
           </StepRow>
-          <StepRow index={2} label={t("login.migration.step2Label")} body={t("login.migration.step2")} />
-          <StepRow index={3} label={t("login.migration.step3Label")} body={t("login.migration.step3")}>
+          <StepRow
+            index={2}
+            label={t("login.migration.step2Label")}
+            body={t("login.migration.step2")}
+          />
+          <StepRow
+            index={3}
+            label={t("login.migration.step3Label")}
+            body={t("login.migration.step3")}
+          >
             <div className="mt-2 flex flex-col gap-2">
               <CaseRow
                 variant="success"
@@ -170,7 +184,9 @@ function CaseRow({ variant, badge, label, body }: CaseRowProps) {
   return (
     <div className={`flex flex-col gap-1 rounded-md border ${tone} px-3 py-2`}>
       <div className="flex items-center gap-2">
-        <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${badgeTone}`}>
+        <span
+          className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${badgeTone}`}
+        >
           {badge}
         </span>
         <span className="text-[13px] font-semibold text-text-primary">{label}</span>

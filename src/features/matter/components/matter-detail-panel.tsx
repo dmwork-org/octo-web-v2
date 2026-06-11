@@ -8,7 +8,10 @@ import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { authStore } from "@/features/base/stores/auth";
-import { matterDetailQueryOptions, activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
+import {
+  matterDetailQueryOptions,
+  activitiesInfiniteQueryOptions,
+} from "@/features/matter/queries/matters.query";
 import {
   useDeleteMatter,
   useTransitionMatter,
@@ -22,20 +25,24 @@ import { MainGoalEditor } from "@/features/matter/components/main-goal-editor";
 import { ActivityList } from "@/features/matter/components/activity-list";
 import { OutputsPanel } from "@/features/matter/components/outputs-panel";
 import { LinkChannelModal } from "@/features/matter/components/link-channel-modal";
-import { AnchorPopover, computeAnchorPosition } from "@/features/matter/components/anchor-popover";
+import { AnchorPopover } from "@/features/matter/components/anchor-popover";
 import { ChannelNameLabel } from "@/features/matter/components/channel-name-label";
 import { NotMemberBadge } from "@/features/matter/components/not-member-badge";
 import { ChannelMoreMenu } from "@/features/matter/components/channel-more-menu";
 import { TimelinePanel } from "@/features/matter/components/timeline-panel";
 import { useMyGroups } from "@/features/matter/hooks/use-my-groups";
 import { useMatterOutputs } from "@/features/matter/hooks/use-matter-outputs";
-import { useMembersFromChannels, type ChannelRef } from "@/features/matter/hooks/use-members-from-channels";
+import {
+  useMembersFromChannels,
+  type ChannelRef,
+} from "@/features/matter/hooks/use-members-from-channels";
 import { useChannelName } from "@/features/matter/hooks/use-channel-name";
 import {
   useLatestTimelinePerChannel,
   useChannelTimelineOnExpand,
 } from "@/features/matter/hooks/use-channel-timeline";
 import { toParentGroupNo } from "@/features/matter/utils/channel-id";
+import { computeAnchorPosition } from "@/features/matter/utils/anchor-position";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import type {
@@ -65,7 +72,10 @@ function formatDateTime(iso: string): string {
 }
 
 /** 相对时间格式化（需要 t 函数） */
-function formatRelativeTime(iso: string, t: (key: string, params?: Record<string, unknown>) => string): string {
+function formatRelativeTime(
+  iso: string,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
   const now = Date.now();
   const then = new Date(iso).getTime();
   const diffMs = now - then;
@@ -73,7 +83,8 @@ function formatRelativeTime(iso: string, t: (key: string, params?: Record<string
   if (diffDays === 0) return t("matter.day.today");
   if (diffDays === 1) return t("matter.day.yesterday");
   if (diffDays < 30) return t("matter.time.daysAgo", { values: { count: diffDays } });
-  if (diffDays < 365) return t("matter.time.monthsAgo", { values: { count: Math.floor(diffDays / 30) } });
+  if (diffDays < 365)
+    return t("matter.time.monthsAgo", { values: { count: Math.floor(diffDays / 30) } });
   return t("matter.time.yearsAgo", { values: { count: Math.floor(diffDays / 365) } });
 }
 
@@ -91,7 +102,11 @@ function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, should
  * Matter 详情面板(1:1 对齐 P3-matter 设计稿 + 原 dmworktodo MatterDetailPanel
  * 独立模式样式)。
  */
-export function MatterDetailPanel({ matterId, onClose, showClose = false }: MatterDetailPanelProps) {
+export function MatterDetailPanel({
+  matterId,
+  onClose,
+  showClose = false,
+}: MatterDetailPanelProps) {
   const t = useT();
   const { data } = useSuspenseQuery(matterDetailQueryOptions(matterId));
   const deleteMu = useDeleteMatter();
@@ -256,7 +271,11 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
   const hasSourceMsgs = (data.source_msgs ?? []).length > 0;
 
   // 来源 AnchorPopover 状态 (null = 关闭, 对象 = 锚定位置)
-  const [sourceAnchor, setSourceAnchor] = useState<{ x: number; top?: number; bottom?: number } | null>(null);
+  const [sourceAnchor, setSourceAnchor] = useState<{
+    x: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
 
   // 状态切换 handler
   const handleStatusChange = useCallback(
@@ -285,7 +304,10 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
   return (
     <section className="relative flex flex-1 flex-col overflow-hidden bg-bg-surface">
       {/* ── Header ── */}
-      <header className="flex shrink-0 items-center justify-between border-b px-4 py-2 rounded-t-lg" style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}>
+      <header
+        className="flex shrink-0 items-center justify-between rounded-t-lg border-b px-4 py-2"
+        style={{ minHeight: 48, borderColor: "rgba(28, 28, 35, 0.08)" }}
+      >
         {showClose ? (
           /* 嵌入模式：标题+状态在第一行，日期在第二行，右侧关闭按钮 */
           <>
@@ -294,7 +316,9 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                 {/* 嵌入模式标题（带 M-xxx 前缀） */}
                 {editingTitle ? (
                   <div className="flex min-w-0 flex-1 items-center gap-1">
-                    <span className="shrink-0 text-[14px] font-medium text-text-primary">M-{data.seq_no}｜</span>
+                    <span className="shrink-0 text-[14px] font-medium text-text-primary">
+                      M-{data.seq_no}｜
+                    </span>
                     <input
                       ref={titleInputRef}
                       value={titleDraft}
@@ -337,7 +361,12 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
               aria-label={t("matter.action.close")}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path
+                  d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
           </>
@@ -358,8 +387,8 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
 
       <div className="flex flex-1 flex-col overflow-y-auto">
         {/* ── Title（独立模式下显示）── */}
-        {!showClose && (
-          editingTitle ? (
+        {!showClose &&
+          (editingTitle ? (
             <div className="px-4 pt-4">
               <div className="rounded-sm border border-accent bg-bg-surface shadow-[0_0_0_2px_rgba(127,59,245,0.1)]">
                 <input
@@ -384,78 +413,94 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
                 title={t("matter.detail.clickToEdit")}
               >
                 {data.title}
-                {data.seq_no ? <span className="font-normal text-text-tertiary text-[18px]"> M-{data.seq_no}</span> : null}
+                {data.seq_no ? (
+                  <span className="font-normal text-text-tertiary text-[18px]">
+                    {" "}
+                    M-{data.seq_no}
+                  </span>
+                ) : null}
               </button>
             </h1>
-          )
-        )}
+          ))}
 
         {/* ── 主要目标(渐变 chip 标签 + 来自行 + description 紧跟)── */}
         <div className="mt-4 px-4">
           <MainGoalEditor matterId={matterId} description={data.description}>
-            {data.source_channel_id ? (<div className="relative">
-              <div
-                className={`inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] transition-opacity ${
-                  !myGroupsQ.isLoading && isSourceMember && hasSourceMsgs
-                    ? "cursor-pointer hover:opacity-80"
-                    : ""
-                } text-text-primary`}
-                title={
-                  myGroupsQ.isLoading
-                    ? t("matter.channel.loadingInfo")
-                    : isSourceMember && hasSourceMsgs
-                      ? t("matter.anchor.viewContext")
-                      : !isSourceMember
-                        ? t("matter.channel.notMemberTitle")
-                        : undefined
-                }
-                onClick={(e) => {
-                  if (!myGroupsQ.isLoading && isSourceMember && hasSourceMsgs) {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pos = computeAnchorPosition(rect);
-                    setSourceAnchor((prev) => prev ? null : pos);
+            {data.source_channel_id ? (
+              <div className="relative">
+                <div
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[14px] leading-[18px] transition-opacity ${
+                    !myGroupsQ.isLoading && isSourceMember && hasSourceMsgs
+                      ? "cursor-pointer hover:opacity-80"
+                      : ""
+                  } text-text-primary`}
+                  title={
+                    myGroupsQ.isLoading
+                      ? t("matter.channel.loadingInfo")
+                      : isSourceMember && hasSourceMsgs
+                        ? t("matter.anchor.viewContext")
+                        : !isSourceMember
+                          ? t("matter.channel.notMemberTitle")
+                          : undefined
                   }
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 text-icon-muted">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z" fill="currentColor" />
-                </svg>
-                {myGroupsQ.isLoading ? (
-                  <span
-                    className="inline-block h-4 w-24 animate-pulse rounded bg-bg-elevated"
-                    aria-label={t("matter.state.loading")}
+                  onClick={(e) => {
+                    if (!myGroupsQ.isLoading && isSourceMember && hasSourceMsgs) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const pos = computeAnchorPosition(rect);
+                      setSourceAnchor((prev) => (prev ? null : pos));
+                    }
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="shrink-0 text-icon-muted"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M14.0004 1.33301H8.94326C8.76645 1.33301 8.59688 1.40325 8.47185 1.52827L0.943259 9.05686C0.42256 9.57756 0.422559 10.4218 0.943258 10.9425L5.05764 15.0569C5.57834 15.5776 6.42256 15.5776 6.94326 15.0569L14.4719 7.52827C14.5969 7.40325 14.6671 7.23368 14.6671 7.05687V1.99967C14.6671 1.63148 14.3686 1.33301 14.0004 1.33301ZM10.3338 7.33301C11.2543 7.33301 12.0004 6.58682 12.0004 5.66634C12.0004 4.74587 11.2543 3.99967 10.3338 3.99967C9.41331 3.99967 8.66712 4.74587 8.66712 5.66634C8.66712 6.58682 9.41331 7.33301 10.3338 7.33301Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  {myGroupsQ.isLoading ? (
+                    <span
+                      className="inline-block h-4 w-24 animate-pulse rounded bg-bg-elevated"
+                      aria-label={t("matter.state.loading")}
+                    />
+                  ) : isSourceMember ? (
+                    <span>
+                      {t("matter.label.fromChannel", {
+                        values: { name: displaySourceName },
+                      })}{" "}
+                      · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
+                      {formatDateTime(data.created_at)}
+                    </span>
+                  ) : (
+                    <span className="select-none blur-[2.5px] opacity-35">
+                      {t("matter.label.fromHiddenChannel")}
+                    </span>
+                  )}
+                </div>
+                {sourceAnchor && (
+                  <AnchorPopover
+                    open
+                    channelId={data.source_channel_id ?? ""}
+                    channelType={data.source_channel_type ?? 2}
+                    channelName={displaySourceName}
+                    messageIds={data.source_msgs ?? []}
+                    onClose={() => setSourceAnchor(null)}
+                    x={sourceAnchor.x}
+                    top={sourceAnchor.top}
+                    bottom={sourceAnchor.bottom}
+                    onJumpToMessage={handleJumpToMessage}
                   />
-                ) : isSourceMember ? (
-                  <span>
-                    {t("matter.label.fromChannel", {
-                      values: { name: displaySourceName },
-                    })}{" "}
-                    · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                    {formatDateTime(data.created_at)}
-                  </span>
-                ) : (
-                  <span className="select-none blur-[2.5px] opacity-35">
-                    {t("matter.label.fromHiddenChannel")}
-                  </span>
                 )}
               </div>
-              {sourceAnchor && (
-                <AnchorPopover
-                  open
-                  channelId={data.source_channel_id ?? ""}
-                  channelType={data.source_channel_type ?? 2}
-                  channelName={displaySourceName}
-                  messageIds={data.source_msgs ?? []}
-                  onClose={() => setSourceAnchor(null)}
-                  x={sourceAnchor.x}
-                  top={sourceAnchor.top}
-                  bottom={sourceAnchor.bottom}
-                  onJumpToMessage={handleJumpToMessage}
-                />
-              )}
-            </div>
-          ) : null}
-        </MainGoalEditor>
+            ) : null}
+          </MainGoalEditor>
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
@@ -545,8 +590,27 @@ export function MatterDetailPanel({ matterId, onClose, showClose = false }: Matt
 const STATUS_OPTIONS: { value: MatterStatus; labelKey: string; cls: string }[] = [
   { value: "open", labelKey: "matter.status.open", cls: "bg-[#ebf9ff] text-[#005694]" },
   { value: "done", labelKey: "matter.status.done", cls: "bg-[#ecf9ec] text-[#176221]" },
-  { value: "archived", labelKey: "matter.status.archived", cls: "bg-[rgba(28,28,35,0.04)] text-text-tertiary" },
+  {
+    value: "archived",
+    labelKey: "matter.status.archived",
+    cls: "bg-[rgba(28,28,35,0.04)] text-text-tertiary",
+  },
 ];
+
+function useCloseStatusPickerOnOutside(
+  open: boolean,
+  ref: React.RefObject<HTMLSpanElement | null>,
+  onClose: () => void,
+): void {
+  useEffect(() => {
+    if (!open) return;
+    const c = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", c);
+    return () => document.removeEventListener("mousedown", c);
+  }, [open, ref, onClose]);
+}
 
 function StatusPicker({
   status,
@@ -564,15 +628,7 @@ function StatusPicker({
   const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const c = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", c);
-    return () => document.removeEventListener("mousedown", c);
-  }, [open]);
+  useCloseStatusPickerOnOutside(open, ref, () => setOpen(false));
 
   const visibleOptions = isCreator
     ? STATUS_OPTIONS
@@ -787,7 +843,8 @@ function ChannelsTab({
                     </span>
                     {!myGroupsLoading && !isMember && <NotMemberBadge />}
                     <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
-                      {formatRelativeTime(mc.created_at, t)}{t("matter.sync.syncSuffix")}
+                      {formatRelativeTime(mc.created_at, t)}
+                      {t("matter.sync.syncSuffix")}
                     </span>
                   </div>
                   {isMember && (
@@ -808,8 +865,13 @@ function ChannelsTab({
                         size={20}
                         title={latestEntry.user_id}
                       />
-                      <UserName uid={latestEntry.user_id} className="font-normal text-[rgba(28,28,35,0.8)]" />
-                      <span className="text-icon-muted">{formatDateTime(latestEntry.created_at)}</span>
+                      <UserName
+                        uid={latestEntry.user_id}
+                        className="font-normal text-[rgba(28,28,35,0.8)]"
+                      />
+                      <span className="text-icon-muted">
+                        {formatDateTime(latestEntry.created_at)}
+                      </span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">
                       {latestEntry.content || t("matter.timeline.noText")}
@@ -825,7 +887,9 @@ function ChannelsTab({
                       onClick={() => toggleTimeline(mc.channel_id)}
                       className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[12px] font-semibold leading-[20px] text-accent transition-opacity hover:opacity-80"
                     >
-                      {expandedTimelines.has(mc.channel_id) ? t("matter.timeline.collapse") : t("matter.timeline.expand")}
+                      {expandedTimelines.has(mc.channel_id)
+                        ? t("matter.timeline.collapse")
+                        : t("matter.timeline.expand")}
                     </button>
                   </div>
                 )}
@@ -933,4 +997,3 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
     </button>
   );
 }
-

@@ -13,16 +13,32 @@ interface ChatSidebarTabState {
 }
 
 const STORAGE_KEY = "wk_sidebar_active_tab";
+let persistenceWired = false;
+
+function normalizeTab(value: unknown): ConvTab | null {
+  return value === "follow" || value === "recent" ? value : null;
+}
 
 function readPersisted(): ChatSidebarTabState {
   if (typeof window === "undefined") return { activeTab: "follow" };
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { activeTab: "follow" };
-    const tab = JSON.parse(raw) as unknown;
-    return tab === "follow" || tab === "recent" ? { activeTab: tab } : { activeTab: "follow" };
+    const rawTab = normalizeTab(raw);
+    if (rawTab) return { activeTab: rawTab };
+    const parsedTab = normalizeTab(JSON.parse(raw) as unknown);
+    return parsedTab ? { activeTab: parsedTab } : { activeTab: "follow" };
   } catch {
     return { activeTab: "follow" };
+  }
+}
+
+function writePersisted(tab: ConvTab): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, tab);
+  } catch {
+    // ignore storage quota / private mode errors
   }
 }
 
@@ -31,17 +47,15 @@ export const chatSidebarTabStore = new Store<ChatSidebarTabState>(readPersisted(
 export const chatSidebarTabActions = {
   setTab: (tab: ConvTab) => {
     chatSidebarTabStore.setState(() => ({ activeTab: tab }));
+    writePersisted(tab);
   },
 };
 
 export function persistChatSidebarTab(): void {
   if (typeof window === "undefined") return;
+  if (persistenceWired) return;
+  persistenceWired = true;
   chatSidebarTabStore.subscribe(() => {
-    try {
-      const { activeTab } = chatSidebarTabStore.state;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(activeTab));
-    } catch {
-      // ignore storage quota / private mode errors
-    }
+    writePersisted(chatSidebarTabStore.state.activeTab);
   });
 }

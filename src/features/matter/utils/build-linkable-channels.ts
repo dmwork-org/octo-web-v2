@@ -103,9 +103,7 @@ export async function buildLinkableChannels(
       }
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, groupNos.length) }, worker),
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, groupNos.length) }, worker));
 
   // 3. 摊平：群在前，该群的活跃子区紧跟在后
   const result: ChannelOption[] = [];

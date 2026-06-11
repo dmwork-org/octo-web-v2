@@ -465,7 +465,10 @@ export function ConversationList({
       WKSDK.shared().conversationManager.removeConversation(conv.channel);
       const snapshot = [...WKSDK.shared().conversationManager.conversations];
       qc.setQueryData(["chat", "conversations", spaceId ?? "_"], snapshot);
-      if (chatSelectedStore.state.channel?.channelID === conv.channel.channelID) {
+      if (
+        chatSelectedStore.state.channel?.channelID === conv.channel.channelID &&
+        chatSelectedStore.state.channel.channelType === conv.channel.channelType
+      ) {
         chatSelectedActions.clear();
       }
       toast.success(t("convList.toast.closed"));

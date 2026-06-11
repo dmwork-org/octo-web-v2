@@ -80,7 +80,9 @@ export class MergeforwardContent extends MessageContent {
  */
 function mapToMessage(raw: Record<string, unknown>): Message {
   const m = new Message();
-  m.messageID = raw.message_id != null ? String(raw.message_id) : "";
+  const messageId = raw.message_id;
+  m.messageID =
+    typeof messageId === "string" || typeof messageId === "number" ? `${messageId}` : "";
   m.timestamp = typeof raw.timestamp === "number" ? raw.timestamp : 0;
   m.fromUID = typeof raw.from_uid === "string" ? raw.from_uid : "";
   const payloadObj = (raw.payload as Record<string, unknown> | undefined) ?? {};

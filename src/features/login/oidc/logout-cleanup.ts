@@ -51,6 +51,7 @@ export function clearLocalAuthStorage(): void {
   try {
     window.localStorage.removeItem("octo:auth");
     window.localStorage.removeItem("currentSpaceId");
+    window.localStorage.removeItem("octo:chat:selected-channel");
   } catch {
     // ignore storage errors
   }

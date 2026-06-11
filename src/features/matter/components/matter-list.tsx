@@ -115,10 +115,7 @@ export function MatterList({
   const all = useMemo<Matter[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
 
   // 所有模式都本地按 tab 过滤（一次拉全量，所有 tab 计数都准确）
-  const filtered = useMemo<Matter[]>(
-    () => filterByTab(all, tab, myUid),
-    [all, tab, myUid],
-  );
+  const filtered = useMemo<Matter[]>(() => filterByTab(all, tab, myUid), [all, tab, myUid]);
 
   // 搜索过滤（本地过滤，不重新请求 API）
   const searched = useMemo<Matter[]>(() => {
@@ -150,7 +147,10 @@ export function MatterList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1" style={{ background: "rgba(28, 28, 35, 0.04)" }}>
+      <nav
+        className="mx-3 my-3 flex shrink-0 items-center rounded-full p-1"
+        style={{ background: "rgba(28, 28, 35, 0.04)" }}
+      >
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
           // 所有模式都一次拉全量 → 每个 tab 计数都准确
@@ -205,7 +205,9 @@ export function MatterList({
               onClick={() => setActiveOpen((v) => !v)}
               className="flex w-full items-center justify-between border-0 bg-transparent px-0 py-1 text-left transition-colors hover:[&>span:first-child]:text-text-primary"
             >
-              <SegmentLabel text={t("matter.sidebar.unarchivedWithCount", { values: { count: active.length } })} />
+              <SegmentLabel
+                text={t("matter.sidebar.unarchivedWithCount", { values: { count: active.length } })}
+              />
               <ChevronRight
                 size={14}
                 className={`text-icon-muted transition-transform ${activeOpen ? "rotate-90" : ""}`}

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { Mention } from "wukongimjssdk";
 import { describe, expect, it } from "vitest";
-import { MentionAwareText } from "@/features/chat/lib/mention-aware-text";
+import { MentionAwareText } from "./mention-aware-text";
 
 function renderText(text: string, mention?: Mention): string {
   return renderToStaticMarkup(<MentionAwareText text={text} mention={mention} linkify />);

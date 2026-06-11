@@ -83,5 +83,10 @@ export function countJsonlLines(content: string): number {
 export function renderCell(value: unknown): string {
   if (value === null || value === undefined) return "-";
   if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return `${value}`;
+  }
+  if (typeof value === "symbol") return value.description ?? "";
+  return "-";
 }

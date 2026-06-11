@@ -156,7 +156,9 @@ export function TimelinePanel({
                         </span>
                         {/* content-wrap: 冒号 + 内容列 */}
                         <div className="flex min-w-0 flex-1 items-start">
-                          <span className="shrink-0 text-[14px] leading-[20px] text-text-primary">：</span>
+                          <span className="shrink-0 text-[14px] leading-[20px] text-text-primary">
+                            ：
+                          </span>
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="whitespace-pre-wrap break-words text-[14px] leading-[20px] text-text-primary">
                               {entry.content || ""}

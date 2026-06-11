@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -74,6 +74,10 @@ function unreadBadge(unread: number): string {
   return unread > 99 ? "99+" : String(unread);
 }
 
+function conversationDomKey(conversation: Conversation): string {
+  return `${conversation.channel.channelType}-${conversation.channel.channelID}`;
+}
+
 const WEEKDAY_KEYS = [
   "convList.weekday.sun",
   "convList.weekday.mon",
@@ -133,6 +137,8 @@ function ConversationRow({
   myUid,
   onClick,
   onContextMenu,
+  rowRef,
+  unreadPulseToken,
 }: {
   conversation: Conversation;
   /**
@@ -144,6 +150,8 @@ function ConversationRow({
   myUid: string;
   onClick: () => void;
   onContextMenu: (e: MouseEvent) => void;
+  rowRef?: (node: HTMLButtonElement | null) => void;
+  unreadPulseToken?: number;
 }) {
   const tt = useT();
   const channel = conversation.channel;
@@ -154,6 +162,7 @@ function ConversationRow({
   const isMuted = effectiveMute(conversation);
   const hasUnread = conversation.unread > 0;
   const unread = unreadBadge(conversation.unread);
+  const shouldShakeUnread = !!unreadPulseToken;
   const mentionMe = isMentionMe(conversation, myUid);
 
   const orgData = info?.orgData as
@@ -199,6 +208,7 @@ function ConversationRow({
 
   return (
     <button
+      ref={rowRef}
       type="button"
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -223,13 +233,19 @@ function ConversationRow({
         {hasUnread &&
           (isMuted ? (
             <span
+              key={shouldShakeUnread ? `muted-unread-${unreadPulseToken}` : "muted-unread"}
               aria-hidden
-              className="absolute -top-[2px] -right-[2px] box-border h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error"
+              className={`absolute -top-[2px] -right-[2px] box-border h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error ${
+                shouldShakeUnread ? "wk-unread-badge-shake" : ""
+              }`}
             />
           ) : (
             <span
+              key={shouldShakeUnread ? `unread-${unreadPulseToken}` : "unread"}
               aria-label={tt("convList.unreadAria", { values: { count: conversation.unread } })}
-              className="absolute -top-[6px] -right-[6px] box-border inline-flex h-4 min-w-4 items-center justify-center rounded-[9px] border-2 border-bg-base bg-error px-1 text-[10px] leading-none font-semibold text-white"
+              className={`absolute -top-[6px] -right-[6px] box-border inline-flex h-4 min-w-4 items-center justify-center rounded-[9px] border-2 border-bg-base bg-error px-1 text-[10px] leading-none font-semibold text-white ${
+                shouldShakeUnread ? "wk-unread-badge-shake" : ""
+              }`}
             >
               {unread}
             </span>
@@ -314,6 +330,18 @@ function ConversationRow({
 const TOP_BOOST = 1_000_000_000_000;
 
 const LIST_SKELETON_STYLE = `
+.wk-unread-badge-shake {
+  animation: wk-unread-badge-shake 420ms ease-in-out both;
+  transform-origin: center;
+}
+@keyframes wk-unread-badge-shake {
+  0% { transform: translateX(0); }
+  18% { transform: translateX(-3px); }
+  36% { transform: translateX(3px); }
+  54% { transform: translateX(-2px); }
+  72% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
 .conv-list-skeleton {
   background: linear-gradient(90deg,
     rgba(28,28,35,0.10) 25%,
@@ -327,14 +355,40 @@ const LIST_SKELETON_STYLE = `
   100% { background-position: -200% 0; }
 }
 `;
+
+function latestUnreadConversation(list: Conversation[]): Conversation | undefined {
+  return list.reduce<Conversation | undefined>((best, current) => {
+    if (current.unread <= 0 || effectiveMute(current)) return best;
+    if (!best) return current;
+
+    const currentTimestamp = current.timestamp || 0;
+    const bestTimestamp = best.timestamp || 0;
+    if (currentTimestamp !== bestTimestamp) {
+      return currentTimestamp > bestTimestamp ? current : best;
+    }
+
+    const currentSeq = current.lastMessage?.messageSeq ?? 0;
+    const bestSeq = best.lastMessage?.messageSeq ?? 0;
+    return currentSeq > bestSeq ? current : best;
+  }, undefined);
+}
+
+function scrollRowToListTop(container: HTMLDivElement, row: HTMLButtonElement) {
+  const top =
+    container.scrollTop + row.getBoundingClientRect().top - container.getBoundingClientRect().top;
+  container.scrollTo({ top, behavior: "smooth" });
+}
+
 /**
- * 监听 recent tab 重复点击 token,变化时找第一条 unread+visible+unmuted 会话调 onSelect。
- * 对齐上游 1f8c40a2:角标 N 时点 recent tab 直接定位到第一条未读。
+ * 监听 recent tab 点击 token,变化时找最新 unread+visible+unmuted 会话,
+ * 只把对应 row 滚到最近列表顶部并触发未读角标动效,不切换当前会话。
  */
 function useRecentUnreadJump(
   filter: ConvTab,
   list: Conversation[],
-  onSelect: ((c: Conversation) => void) | undefined,
+  listRef: RefObject<HTMLDivElement | null>,
+  rowRefs: RefObject<Map<string, HTMLButtonElement>>,
+  onPulseUnread: (key: string) => void,
 ) {
   const token = useStore(chatRecentJumpStore, (s) => s.token);
   const lastTokenRef = useRef(token);
@@ -342,9 +396,18 @@ function useRecentUnreadJump(
     if (token === lastTokenRef.current) return;
     lastTokenRef.current = token;
     if (filter === "follow") return;
-    const target = list.find((c) => c.unread > 0 && !effectiveMute(c));
-    if (target && onSelect) onSelect(target);
-  }, [token, filter, list, onSelect]);
+    const target = latestUnreadConversation(list);
+    if (!target) return;
+    const targetKey = conversationDomKey(target);
+    onPulseUnread(targetKey);
+
+    window.requestAnimationFrame(() => {
+      const container = listRef.current;
+      const row = rowRefs.current.get(targetKey);
+      if (!container || !row) return;
+      scrollRowToListTop(container, row);
+    });
+  }, [token, filter, list, listRef, rowRefs, onPulseUnread]);
 }
 
 function sortConversations(list: Conversation[]): Conversation[] {
@@ -380,6 +443,11 @@ export function ConversationList({
   const [confirmClose, setConfirmClose] = useState<Conversation | null>(null);
   const [confirmCloseAndClear, setConfirmCloseAndClear] = useState<Conversation | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [recentJumpPulse, setRecentJumpPulse] = useState<{ key: string; token: number } | null>(
+    null,
+  );
+  const listRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const filtered = useMemo(() => {
     const all = data ?? [];
@@ -389,7 +457,9 @@ export function ConversationList({
     return sortConversations(all);
   }, [data, filter]);
 
-  useRecentUnreadJump(filter, filtered, onSelect);
+  useRecentUnreadJump(filter, filtered, listRef, rowRefs, (key) => {
+    setRecentJumpPulse((prev) => ({ key, token: (prev?.token ?? 0) + 1 }));
+  });
 
   const refreshChannelInfo = (conv: Conversation) => {
     void WKSDK.shared().channelManager.fetchChannelInfo(conv.channel);
@@ -738,11 +808,11 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
+    <div ref={listRef} className="flex flex-1 flex-col gap-[1px] overflow-y-auto px-2 py-1">
       <style>{LIST_SKELETON_STYLE}</style>
       {filtered.map((c) => (
         <ConversationRow
-          key={`${c.channel.channelType}-${c.channel.channelID}`}
+          key={conversationDomKey(c)}
           conversation={c}
           active={
             c.channel.channelID === selectedChannelId || c.channel.channelID === ctxMenuRowKey
@@ -750,6 +820,14 @@ export function ConversationList({
           myUid={myUid}
           onClick={() => onSelect?.(c)}
           onContextMenu={onRowContextMenu(c)}
+          unreadPulseToken={
+            recentJumpPulse?.key === conversationDomKey(c) ? recentJumpPulse.token : 0
+          }
+          rowRef={(node) => {
+            const key = conversationDomKey(c);
+            if (node) rowRefs.current.set(key, node);
+            else rowRefs.current.delete(key);
+          }}
         />
       ))}
 

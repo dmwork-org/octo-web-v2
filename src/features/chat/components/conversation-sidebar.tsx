@@ -198,7 +198,6 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
                 key={tabDef.id}
                 type="button"
                 onClick={() => {
-                  // 重复点击 recent tab 且有未读 → 跳第一条未读(对齐上游 1f8c40a2)
                   if (isActive && tabDef.id === "recent" && recentUnread > 0) {
                     chatRecentJumpActions.trigger();
                     return;
@@ -213,7 +212,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
               >
                 <span className="shrink-0">{tt(tabDef.labelKey)}</span>
                 {unread > 0 ? (
-                  <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-md bg-error/15 px-1 text-[10px] font-semibold leading-none text-error">
+                  <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-md bg-error/15 px-1 text-[10px] leading-none font-semibold text-error">
                     {unread > 99 ? "99+" : unread}
                   </span>
                 ) : null}

@@ -54,6 +54,7 @@
   "base.botDetail.editIntro": "编辑简介",
   "base.botDetail.intro": "简介",
   "base.botDetail.introPlaceholder": "为这个 bot 写一段简介",
+  "base.botDetail.nickname": "昵称",
   "base.botDetail.noDescription": "暂无简介",
   "base.botDetail.notReported": "未上报 Agent 信息",
   "base.botDetail.remark": "备注名",

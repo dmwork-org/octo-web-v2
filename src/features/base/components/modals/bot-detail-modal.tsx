@@ -185,7 +185,9 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;
-  const name = data?.name || uid || "";
+  const botName = data?.name || uid || "";
+  const remark = data?.remark?.trim() ?? "";
+  const name = remark || botName;
   const username = data?.username;
   const noDescription = t("base.botDetail.noDescription");
   const description = data?.bot_description || data?.description || data?.bio || noDescription;
@@ -254,6 +256,33 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
         {isOwner ? <ReportChip reported={reported} /> : null}
       </div>
 
+      <div className="px-4 py-3">
+        <SectionGroup>
+          <InlineEditRow
+            title={t("base.botDetail.remark")}
+            value={data?.remark ?? ""}
+            placeholder={t("base.botDetail.remarkPlaceholder")}
+            canEdit
+            maxLength={30}
+            pending={remarkMu.isPending}
+            editing={remarkEditing}
+            onEnterEdit={() => setRemarkEditing(true)}
+            onCancel={() => setRemarkEditing(false)}
+            onSave={(v) => remarkMu.mutate(v)}
+          />
+          {remark ? (
+            <div className="flex w-full items-center gap-2 px-4 py-2.5">
+              <span className="flex-1 truncate text-[13px] text-text-primary">
+                {t("base.botDetail.nickname")}
+              </span>
+              <span className="shrink-0 max-w-[60%] truncate text-[12px] text-text-tertiary">
+                {botName}
+              </span>
+            </div>
+          ) : null}
+        </SectionGroup>
+      </div>
+
       <div className="border-t border-border-subtle px-6 py-4">
         <div className="mb-1 flex items-center justify-between">
           <h3 className="text-xs font-medium text-text-tertiary">{t("base.botDetail.intro")}</h3>
@@ -310,25 +339,6 @@ function BotDetailContent({ uid, onClose, onOpenManage }: BotDetailContentProps)
           </p>
         )}
       </div>
-
-      {isFriend ? (
-        <div className="px-4 py-3">
-          <SectionGroup>
-            <InlineEditRow
-              title={t("base.botDetail.remark")}
-              value={data?.remark ?? ""}
-              placeholder={t("base.botDetail.remarkPlaceholder")}
-              canEdit
-              maxLength={20}
-              pending={remarkMu.isPending}
-              editing={remarkEditing}
-              onEnterEdit={() => setRemarkEditing(true)}
-              onCancel={() => setRemarkEditing(false)}
-              onSave={(v) => remarkMu.mutate(v)}
-            />
-          </SectionGroup>
-        </div>
-      ) : null}
 
       {data?.bot_creator_name || data?.bot_commands ? (
         <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 border-t border-border-subtle px-6 py-4 text-xs">

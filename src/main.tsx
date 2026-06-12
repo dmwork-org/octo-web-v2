@@ -15,6 +15,18 @@ import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/ch
 import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout-cleanup";
 import "./index.css";
 
+const PRELOAD_ERROR_RELOAD_KEY = "octo:preload-error-reload-at";
+
+window.addEventListener("vite:preloadError", (event) => {
+  const lastReloadAt = Number(sessionStorage.getItem(PRELOAD_ERROR_RELOAD_KEY) ?? 0);
+  const now = Date.now();
+  if (now - lastReloadAt < 10_000) return;
+
+  event.preventDefault();
+  sessionStorage.setItem(PRELOAD_ERROR_RELOAD_KEY, String(now));
+  window.location.reload();
+});
+
 // IdP 回源到本站时兜底清:如果 sessionStorage 含 OIDC post-logout 标志,
 // 启动时再清一次本地 auth/space/pending,避免残留 token 让登录页直接重定向回主页。
 // 必须在 persistAuth 之前调,否则下一行 readPersisted 会先读到旧 token。

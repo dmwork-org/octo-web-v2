@@ -129,7 +129,7 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
         </header>
 
         <div className="overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-sm">
-          <div className="relative">
+          <div>
             <textarea
               ref={inputRef}
               autoFocus
@@ -142,11 +142,11 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
               rows={3}
               maxLength={1000}
               placeholder={tr("summary.create.topicPlaceholder")}
-              className="block min-h-24 w-full resize-none border-0 bg-bg-surface px-4 py-3 pr-12 text-sm leading-6 text-text-primary outline-none placeholder:text-text-tertiary"
+              className="block min-h-24 w-full resize-none border-0 bg-bg-surface px-4 py-3 text-sm leading-6 text-text-primary outline-none placeholder:text-text-tertiary"
             />
-            <span className="pointer-events-none absolute right-4 top-3 text-[11px] text-text-tertiary">
+            <div className="px-4 pb-2 text-right text-[11px] text-text-tertiary">
               {topic.length}/1000
-            </span>
+            </div>
           </div>
 
           {topic.length >= 1000 ? (

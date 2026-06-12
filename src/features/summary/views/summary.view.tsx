@@ -62,6 +62,7 @@ export function SummaryView() {
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createKey, setCreateKey] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatusType | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -76,6 +77,7 @@ export function SummaryView() {
     setStatusFilter(undefined);
     setPage(1);
     setManualRefreshing(false);
+    setCreateKey((key) => key + 1);
   });
 
   useResetSummaryPageOnFilters(keyword, statusFilter, setPage);
@@ -161,6 +163,7 @@ export function SummaryView() {
             onClick={() => {
               setCreateOpen(true);
               setSelectedId(null);
+              setCreateKey((key) => key + 1);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
@@ -301,6 +304,7 @@ export function SummaryView() {
 
       {createOpen || selectedId === null ? (
         <SummaryCreateWorkbench
+          key={createKey}
           onCreated={(id) => {
             setCreateOpen(false);
             void qc.invalidateQueries({ queryKey: ["summary", "list"] });

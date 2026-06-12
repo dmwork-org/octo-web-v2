@@ -180,7 +180,6 @@ export function AppbotView() {
                       key={b.id}
                       bot={b}
                       selected={activeSelectedUid === b.uid}
-                      disabled={applyMu.isPending}
                       onClick={() => handleBotClick(b)}
                     />
                   ))}
@@ -198,7 +197,6 @@ export function AppbotView() {
                       key={b.id}
                       bot={b}
                       selected={activeSelectedUid === b.uid}
-                      disabled={applyMu.isPending}
                       onClick={() => handleBotClick(b)}
                     />
                   ))}

@@ -85,11 +85,11 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
     enabled: !!currentSpaceId,
   });
 
-  const currentSpaceName = (() => {
-    if (!currentSpaceId) return tt("convSidebar.allMessages");
-    const found = spaces?.find((s) => s.space_id === currentSpaceId);
-    return found?.name ?? tt("convSidebar.allMessages");
-  })();
+  const currentSpace = spaces?.find((s) => s.space_id === currentSpaceId);
+  const spaceTitleLoading =
+    !spaces || (spaces.length > 0 && !currentSpaceId) || (!!currentSpaceId && !currentSpace);
+  const currentSpaceName =
+    currentSpace?.name ?? (spaces && spaces.length === 0 ? tt("convSidebar.allMessages") : "");
 
   const recentUnread = useMemo(() => {
     // 信任后端最近会话列表(对齐上游 f85ba4d0):删除 3 天不活跃过滤,
@@ -141,9 +141,16 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       className="relative flex shrink-0 flex-col border-r border-border-subtle bg-bg-base"
     >
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 p-3">
-        <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
-          {currentSpaceName}
-        </span>
+        {spaceTitleLoading ? (
+          <span
+            aria-hidden
+            className="h-5 w-28 max-w-[55%] shrink-0 animate-pulse rounded bg-bg-elevated"
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-base font-semibold text-text-primary">
+            {currentSpaceName}
+          </span>
+        )}
         <div className="flex shrink-0 items-center gap-2">
           <ConnectionStatusBadge />
           <Tooltip>

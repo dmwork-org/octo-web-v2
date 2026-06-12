@@ -45,11 +45,8 @@ export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscri
       return;
     }
     const cm = WKSDK.shared().channelManager;
-    // 立刻读一次缓存(可能 channel-setting 提前同步过)
-    setMembers(cm.getSubscribes(effectiveChannel) ?? []);
-    // 主动触发同步;syncSubscribes 完成时 SDK 自己会 notifySubscriberChange
-    void cm.syncSubscribes(effectiveChannel);
-
+    // 先注册 listener 再触发 sync — 防御 sync 完成早于 listener 注册的窄窗口竞争
+    // (issue #117 真凶是 main.tsx 之前没 register provider callback,顺序也调对避免叠加问题)
     const listener = (ch: Channel) => {
       if (
         ch.channelID === effectiveChannel.channelID &&
@@ -59,6 +56,10 @@ export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscri
       }
     };
     cm.addSubscriberChangeListener(listener);
+    // 立刻读一次缓存(可能 channel-setting 提前同步过)
+    setMembers(cm.getSubscribes(effectiveChannel) ?? []);
+    // 主动触发同步;syncSubscribes 完成时 SDK 会 notifySubscribeChange 触发 listener
+    void cm.syncSubscribes(effectiveChannel);
     return () => {
       cm.removeSubscriberChangeListener(listener);
     };

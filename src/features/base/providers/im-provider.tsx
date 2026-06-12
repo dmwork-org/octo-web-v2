@@ -4,8 +4,6 @@ import WKSDK, { ConnectStatus, type ConnectAddrCallback } from "wukongimjssdk";
 import { authActions, authStore } from "@/features/base/stores/auth";
 import { imConnectionActions, type ImConnectionStatus } from "@/features/base/stores/im-connection";
 import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
-import { registerImCallbacks } from "@/features/base/providers/im-callbacks";
-import { registerContentTypes } from "@/features/base/im/register-content";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
 import { useCmdSync } from "@/features/chat/hooks/use-cmd-sync.hook";
 import { TypingManager } from "@/features/chat/services/typing-manager";
@@ -63,9 +61,6 @@ function useImConnection(uid: string | null, token: string | null) {
   useEffect(() => {
     if (!uid || !token) return;
     const sdk = WKSDK.shared();
-
-    registerImCallbacks();
-    registerContentTypes();
 
     sdk.config.uid = uid;
     sdk.config.token = token;

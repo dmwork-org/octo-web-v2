@@ -4,13 +4,18 @@ import { authStore } from "@/features/base/stores/auth";
  * Agent Card 接口 + 类型(对齐老仓 dmworkbase/Service/AgentCardService.ts +
  * dmworkbase/Types/AgentCard.ts)。
  *
- * Agent-card-server 是独立服务,测试环境通常没部署 → 静默失败返 null(同
- * `getAgentReportStatus` 思路),不弹 toast。**故意绕过 base/api/client**
- * 的全局 withErrorToast 拦截器,用裸 fetch + 手动注入 token。
+ * Agent-card-server 是独立服务,endpoint 路径带 `/api/v1/` 前缀(线上
+ * `/api/v1/agent-cards/...`,不是主 wukong server 的 `/v1/`)。本地 vite proxy
+ * 必须有 `/api/v1/agent-cards` 不 rewrite 的 rule(见 vite.config.ts),
+ * 否则会被通用 `/api → /v1` rewrite 抹掉前缀变 `/v1/v1/...` → 404。
+ *
+ * 测试环境可能没部署 → 静默失败返 null(同 `getAgentReportStatus` 思路),
+ * 不弹 toast。**故意绕过 base/api/client** 的全局 withErrorToast 拦截器,
+ * 用裸 fetch + 手动注入 token。
  *
  * Endpoint(envelope: `{ code, message, data }`):
- * - GET `/v1/agent-cards/{botId}`              → AgentCardData(概览 / Session / Files)
- * - GET `/v1/agent-cards/{botId}/files/{name}` → FileContentData(单文件完整内容)
+ * - GET `/api/v1/agent-cards/{botId}`              → AgentCardData(概览 / Session / Files)
+ * - GET `/api/v1/agent-cards/{botId}/files/{name}` → FileContentData(单文件完整内容)
  */
 
 export type SessionStatus = "running" | "done" | "failed" | "killed" | "timeout";
@@ -119,7 +124,7 @@ async function fetchEnvelope<T>(path: string): Promise<T | null> {
  * 失败(404 / 网络错 / code !== 0)返 null,UI 显空态。
  */
 export async function getAgentCard(botId: string): Promise<AgentCardData | null> {
-  return fetchEnvelope<AgentCardData>(`/v1/agent-cards/${encodeURIComponent(botId)}`);
+  return fetchEnvelope<AgentCardData>(`/api/v1/agent-cards/${encodeURIComponent(botId)}`);
 }
 
 /**
@@ -133,6 +138,6 @@ export async function getAgentFileContent(
   fileName: string,
 ): Promise<FileContentData | null> {
   return fetchEnvelope<FileContentData>(
-    `/v1/agent-cards/${encodeURIComponent(botId)}/files/${encodeURIComponent(fileName)}`,
+    `/api/v1/agent-cards/${encodeURIComponent(botId)}/files/${encodeURIComponent(fileName)}`,
   );
 }

@@ -61,6 +61,7 @@ import { useEditorMultiline } from "@/features/chat/hooks/use-editor-multiline.h
 import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attachments.hook";
 import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
+import { quotedReplyPreviewText } from "@/features/chat/lib/quoted-reply-preview";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import {
@@ -736,6 +737,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     : "";
   const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(tt, replyingTo?.content);
+  const replyPreviewText = quotedReplyPreviewText(replyTypeMeta.hint, replyDigest);
 
   const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing
     ? "transcribing"
@@ -787,10 +789,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
               <span className="shrink-0">{tt("composer.replyLabel")}</span>
               <span className="shrink-0 font-medium text-text-primary">{replySender}:</span>
               {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
-              <span className="truncate">
-                {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
-                {replyDigest}
-              </span>
+              <span className="truncate">{replyPreviewText}</span>
             </div>
           </div>
         ) : null}

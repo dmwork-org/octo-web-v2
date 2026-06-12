@@ -8,6 +8,7 @@ import { ChatHeader } from "@/features/chat/components/chat-header";
 import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologram";
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
+import { useArchivedThreadInputNotice } from "@/features/chat/hooks/use-archived-thread-input-notice.hook";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
 import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
@@ -95,6 +96,9 @@ export function ChatMain() {
   useResetSummaryCreateModalOnChannelChange(channelKey, setSummaryCreateChannel);
   // 进入群/子区时预热 subscribers,供 message-row 撤回菜单同步读 myRole/targetRole
   useEnsureRoleSubscribersForRevoke(channel);
+  // issue #113:子区在主区域(完整视图)打开时,归档状态也要给 composer 顶部 notice
+  // — thread-list-panel 内嵌 detail view 早已支持,主区域同步对齐
+  const archivedInputNotice = useArchivedThreadInputNotice(channel);
   // 预热 appConfig → message-row 同步读 revoke_second
   useEnsureAppConfigLoaded();
 
@@ -121,7 +125,11 @@ export function ChatMain() {
         {selectionActive ? (
           <SelectionToolbar channel={channel} />
         ) : (
-          <Composer key={`${channel.channelID}_${channel.channelType}`} channel={channel} />
+          <Composer
+            key={`${channel.channelID}_${channel.channelType}`}
+            channel={channel}
+            inputNotice={archivedInputNotice}
+          />
         )}
       </section>
       {sidePanelKind === "threads" && showThreadIcon ? (

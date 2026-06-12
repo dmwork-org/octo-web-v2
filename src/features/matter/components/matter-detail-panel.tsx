@@ -584,7 +584,9 @@ export function MatterDetailPanel({
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 mb-4 h-[47px] border-b border-brand-tint px-4">
+        {/* shrink-0:外层是 flex-col + overflow-y-auto,内容多时(如变更记录 16 条)
+            固定 h-[47px] 的 tab 行会被 flex 默认收缩压扁,导致下边框线被"挤"上去。 */}
+        <div className="mt-6 mb-4 h-[47px] shrink-0 border-b border-brand-tint px-4">
           <div className="flex h-full items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}

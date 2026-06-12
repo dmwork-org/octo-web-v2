@@ -7,7 +7,7 @@ import type { Channel } from "wukongimjssdk";
  * POST /v1/message/revoke?channel_id=...&channel_type=...&message_id=...&client_msg_no=...
  *
  * 服务端处理后通过 IM CMD `messageRevoke` 推送给各端,
- * use-messages-sync hook 内 cmdListener 接收后把对应 message.remoteExtra.revoke=true。
+ * use-cmd-sync hook 内 cmdListener 接收后把对应 message.remoteExtra.revoke=true。
  */
 export async function revokeMessage(args: {
   channel: Channel;

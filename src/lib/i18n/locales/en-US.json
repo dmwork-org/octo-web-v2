@@ -1436,7 +1436,6 @@
   "matter.create.retry": "Retry",
   "matter.create.sendAndCreate": "Send and create task",
   "matter.create.smartTitle": "Smart task creation",
-  "matter.create.smartTitleWithCount": "AI Smart Create ({{count}} messages)",
   "matter.create.title": "New task",
   "matter.create.titleFieldLabel": "Task name",
   "matter.day.today": "Today",

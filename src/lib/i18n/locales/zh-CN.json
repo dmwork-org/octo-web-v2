@@ -1437,7 +1437,6 @@
   "matter.create.retry": "重试",
   "matter.create.sendAndCreate": "发送并创建事项",
   "matter.create.smartTitle": "智能创建事项",
-  "matter.create.smartTitleWithCount": "AI 智能创建事项 ({{count}} 条消息)",
   "matter.create.title": "新建事项",
   "matter.create.titleFieldLabel": "事项名称",
   "matter.day.today": "今天",

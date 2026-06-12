@@ -203,9 +203,7 @@ export function MatterDetailPanel({
         return;
       }
       const sourceChannelId = entry.source_channel_id;
-      const matchedCh = (data.channels ?? []).find(
-        (ch) => ch.channel_id === sourceChannelId,
-      );
+      const matchedCh = (data.channels ?? []).find((ch) => ch.channel_id === sourceChannelId);
       chatSidePanelActions.openFilePreview({
         url,
         name: att.file_name || t("matter.outputs.unnamedFile"),

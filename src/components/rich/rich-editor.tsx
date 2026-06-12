@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { useEffect, useRef } from "react";
@@ -15,6 +15,21 @@ interface RichEditorProps {
   readOnly?: boolean;
   className?: string;
   autoFocus?: boolean;
+}
+
+function useSyncExternalValueToEditor(
+  editor: Editor | null,
+  value: string,
+  internalSnapshot: { current: string },
+) {
+  // 外部 value 同步到 editor(仅当 value 来自外部如 refetch 时)
+  useEffect(() => {
+    if (!editor) return;
+    if (value !== internalSnapshot.current) {
+      internalSnapshot.current = value;
+      editor.commands.setContent(value || "", { emitUpdate: false });
+    }
+  }, [editor, value, internalSnapshot]);
 }
 
 /**
@@ -73,14 +88,7 @@ export function RichEditor({
     },
   });
 
-  // 外部 value 同步到 editor(仅当 value 来自外部如 refetch 时)
-  useEffect(() => {
-    if (!editor) return;
-    if (value !== internalSnapshot.current) {
-      internalSnapshot.current = value;
-      editor.commands.setContent(value || "", { emitUpdate: false });
-    }
-  }, [editor, value]);
+  useSyncExternalValueToEditor(editor, value, internalSnapshot);
 
   return <EditorContent editor={editor} />;
 }

@@ -67,5 +67,8 @@ export function useChannelAvatarUrl(channel: Channel | null): string {
   useChannelInfoTick();
   if (!channel) return "";
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
-  return withVersion(channelAvatarRawUrl(channel, baseURL, spaceId, channelInfo?.logo), avatarVersion);
+  return withVersion(
+    channelAvatarRawUrl(channel, baseURL, spaceId, channelInfo?.logo),
+    avatarVersion,
+  );
 }

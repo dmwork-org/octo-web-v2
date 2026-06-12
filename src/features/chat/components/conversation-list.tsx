@@ -55,6 +55,7 @@ import {
   isMentionMe,
   lastMessageDigest,
 } from "@/features/chat/lib/conversation-last-content";
+import { isConversationTop } from "@/features/chat/lib/conversation-top";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -415,8 +416,8 @@ function useRecentUnreadJump(
 
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
-    const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
-    const bTop = b.extra?.top === 1 ? TOP_BOOST : 0;
+    const aTop = isConversationTop(a) ? TOP_BOOST : 0;
+    const bTop = isConversationTop(b) ? TOP_BOOST : 0;
     return (b.timestamp || 0) + bTop - ((a.timestamp || 0) + aTop);
   });
 }
@@ -688,7 +689,7 @@ export function ConversationList({
   const buildMenuItems = (conv: Conversation): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const isMuted = !!conv.channelInfo?.mute;
-    const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
+    const isTop = isConversationTop(conv);
     const isThread = conv.channel.channelType === CHANNEL_TYPE_THREAD;
 
     if (conv.unread > 0) {

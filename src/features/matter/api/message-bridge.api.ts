@@ -1,5 +1,6 @@
 import { api } from "@/features/base/api/client";
 import { CHANNEL_TYPE_GROUP, CHANNEL_TYPE_THREAD } from "@/features/matter/types/matter.types";
+import { parseThreadChannelId } from "@/features/matter/utils/channel-id";
 
 /** 单条 IM 消息响应 */
 export interface IMMessageResp {
@@ -17,7 +18,9 @@ export interface IMMessageResp {
 /**
  * 从 channel_id 解析父群 groupNo 和子区 threadId。
  * - 普通群(channelType= CHANNEL_TYPE_GROUP):channel_id 即 groupNo。
- * - 子区(channelType=CHANNEL_TYPE_THREAD):channel_id 格式为 "parentGroupNo__threadId"。
+ * - 子区(channelType=CHANNEL_TYPE_THREAD):channel_id 格式为
+ *   "{父群 group_no}____{子区 short_id}"(分隔符是 **4 个下划线**,
+ *   见 dmworkim modules/thread/const.go ChannelIDSeparator)。
  * - 非群/非子区返回 null（不支持查看上下文）。
  */
 function parseChannelForMessage(
@@ -28,9 +31,9 @@ function parseChannelForMessage(
     return { groupNo: channelId };
   }
   if (channelType === CHANNEL_TYPE_THREAD) {
-    const parts = channelId.split("__");
-    if (parts.length >= 2) {
-      return { groupNo: parts[0], threadId: parts.slice(1).join("__") };
+    const parsed = parseThreadChannelId(channelId);
+    if (parsed) {
+      return { groupNo: parsed.groupNo, threadId: parsed.shortId };
     }
   }
   return null;

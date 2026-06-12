@@ -7,19 +7,17 @@ import type { AppBotInfo } from "@/features/appbot/types/app-bot.types";
 interface BotRowProps {
   bot: AppBotInfo;
   selected: boolean;
-  disabled?: boolean;
   onClick: () => void;
 }
 
-export function BotRow({ bot, selected, disabled = false, onClick }: BotRowProps) {
+export function BotRow({ bot, selected, onClick }: BotRowProps) {
   const t = useT();
   const channel = useMemo(() => new Channel(bot.uid, ChannelTypePerson), [bot.uid]);
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors duration-150 ease-(--ease-emphasized) disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors duration-150 ease-(--ease-emphasized) ${
         selected ? "bg-brand-tint" : "hover:bg-bg-hover"
       }`}
     >

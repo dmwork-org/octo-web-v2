@@ -13,6 +13,8 @@ import { persistChatSidebarTab } from "./features/chat/stores/chat-sidebar-tab";
 import { clearFetchedTitleCache } from "./features/chat/lib/live-channel-title";
 import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/chat-selection";
 import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout-cleanup";
+import { registerImCallbacks } from "./features/base/providers/im-callbacks";
+import { registerContentTypes } from "./features/base/im/register-content";
 import "./index.css";
 
 const PRELOAD_ERROR_RELOAD_KEY = "octo:preload-error-reload-at";
@@ -39,6 +41,14 @@ persistChatSidebarTab();
 wireChatSelectedResetOnSpaceChange();
 // reply 已改为 per-channel 自然隔离,不再需要切换时 reset
 wireChatSelectionResetOnChannelChange();
+
+// SDK provider callbacks 必须在任何组件 useEffect 调 channelManager.syncSubscribes /
+// syncMessages 等之前注册;否则 child component(如 composer)useEffect 跑得早于
+// IMProvider 父组件 useEffect → provider.syncSubscribersCallback === undefined →
+// syncSubscribes 抛 TypeError(issue #117)。register 是 idempotent,login 流程
+// 仍可重复调,无副作用。同 registerContentTypes(自定义 MessageContent 类型)。
+registerImCallbacks();
+registerContentTypes();
 
 spaceStore.subscribe(() => {
   queryClient.clear();

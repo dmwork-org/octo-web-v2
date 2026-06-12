@@ -18,12 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  Channel,
-  ChannelTypeGroup,
-  ChannelTypePerson,
-  type Conversation,
-} from "wukongimjssdk";
+import { Channel, ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
 import {
   ArrowDown,

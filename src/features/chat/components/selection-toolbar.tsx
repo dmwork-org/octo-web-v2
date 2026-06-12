@@ -15,7 +15,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
-import type { ExtractMessage, ExtractMessageAttachment } from "@/features/matter/types/matter.types";
+import type {
+  ExtractMessage,
+  ExtractMessageAttachment,
+} from "@/features/matter/types/matter.types";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 

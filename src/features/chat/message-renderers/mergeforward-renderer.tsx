@@ -314,7 +314,9 @@ function InnerContent({
             style={{ maxWidth: 360, maxHeight: 240, objectFit: "contain" }}
           />
         </button>
-        {imagePreview ? <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} /> : null}
+        {imagePreview ? (
+          <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} />
+        ) : null}
       </>
     ) : (
       <span>{t("message.digest.image")}</span>
@@ -394,7 +396,9 @@ function InnerContent({
             return null;
           })}
         </div>
-        {imagePreview ? <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} /> : null}
+        {imagePreview ? (
+          <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} />
+        ) : null}
       </>
     );
   }

@@ -124,10 +124,7 @@ export function MatterFormBody({
       </Field>
 
       <Field label="Deadline" required>
-        <DeadlineField
-          value={values.deadline}
-          onChange={(deadline) => onChange({ deadline })}
-        />
+        <DeadlineField value={values.deadline} onChange={(deadline) => onChange({ deadline })} />
       </Field>
     </>
   );

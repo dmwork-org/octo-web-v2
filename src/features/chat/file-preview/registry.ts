@@ -105,7 +105,7 @@ class FileRendererRegistry {
     });
     this.register({
       type: "excel",
-      extensions: ["csv"],
+      extensions: ["csv", "xlsx", "xls", "xlsb", "xlsm"],
       renderer: ExcelRenderer,
       needsFetch: true,
     });

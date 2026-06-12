@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Code, Table as TableIcon } from "lucide-react";
+import { TableVirtuoso } from "react-virtuoso";
 import { useCodeRenderer } from "@/features/chat/file-preview/hooks/use-code-renderer";
 import {
   countJsonlLines,
@@ -17,13 +18,11 @@ import { useT } from "@/lib/i18n/use-t";
  * JSONL renderer(对齐旧 JsonlRenderer):
  *   - viewMode toggle:**表格**(默认) | **代码**
  *   - 表格视图:union keys 做列,行渲染所有键(对象→ JSON.stringify),
- *     **简化**(不用 react-virtuoso 虚拟滚动):>1000 行截断显示前 1000 行,
- *     加底部"共 N 行,显示前 1000 行"提示
+ *     **虚拟滚动**(react-virtuoso TableVirtuoso)全量高效渲染,不截断(对齐老仓)
  *   - 代码视图:格式化每条 JSON(`// ---` 分隔)走 CommonCodeView highlight
  *   - too-large / loading / error 走 CommonCodeView 通用态
  *   - 单一 `value` 列(纯 scalar 数组)禁用表格视图,自动切代码视图
  */
-const MAX_ROWS = 1000;
 
 export function JsonlRenderer({ file }: BaseRendererProps) {
   const t = useT();
@@ -176,47 +175,51 @@ function JsonlTable({
   columns: { key: string; title: string }[];
 }) {
   const t = useT();
-  const truncated = rows.length > MAX_ROWS;
-  const visible = truncated ? rows.slice(0, MAX_ROWS) : rows;
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-bg-elevated">
-            <tr>
-              {columns.map((c) => (
-                <th
-                  key={c.key}
-                  className="border-b border-border-default px-3 py-2 text-left font-medium text-text-secondary"
-                >
-                  {c.title}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row, i) => (
-              <tr key={i} className="border-b border-border-subtle hover:bg-bg-hover">
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    className="max-w-[280px] truncate px-3 py-1.5 text-text-primary"
-                    title={renderCell(row[c.key])}
-                  >
-                    {renderCell(row[c.key])}
-                  </td>
-                ))}
-              </tr>
+      {/* 虚拟滚动表格(对齐老仓 TableVirtuoso):全量数据高效渲染,不截断 */}
+      <TableVirtuoso
+        data={rows}
+        className="flex-1"
+        components={{
+          Table: (props) => (
+            <table {...props} className="w-full table-auto border-collapse text-xs" />
+          ),
+          TableRow: ({ ...props }) => (
+            <tr
+              {...props}
+              className="bg-bg-surface transition-colors odd:bg-bg-base hover:bg-bg-hover"
+            />
+          ),
+        }}
+        fixedHeaderContent={() => (
+          <tr className="bg-bg-elevated">
+            {columns.map((c) => (
+              <th
+                key={c.key}
+                className="border-b border-border-default bg-bg-elevated px-3 py-2 text-left text-xs font-semibold text-text-primary"
+              >
+                {c.title}
+              </th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        )}
+        itemContent={(_index, row) => (
+          <>
+            {columns.map((c) => (
+              <td
+                key={c.key}
+                className="max-w-[280px] truncate border-b border-border-subtle px-3 py-1.5 text-xs text-text-primary"
+                title={renderCell(row[c.key])}
+              >
+                {renderCell(row[c.key])}
+              </td>
+            ))}
+          </>
+        )}
+      />
       <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-3 py-1 text-[11px] text-text-tertiary">
-        {truncated
-          ? t("filePreview.rowsCountTruncated", {
-              values: { total: rows.length, shown: MAX_ROWS },
-            })
-          : t("filePreview.rowsCount", { values: { count: rows.length } })}
+        {t("filePreview.rowsCount", { values: { count: rows.length } })}
       </div>
     </div>
   );

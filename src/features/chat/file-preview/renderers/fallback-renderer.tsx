@@ -1,4 +1,5 @@
-import { Download, File, FileAudio, FileImage, FileText, FileVideo, Info } from "lucide-react";
+import { useState } from "react";
+import { Download, File, FileAudio, FileImage, FileText, FileVideo, Info, Loader2 } from "lucide-react";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { formatFileSize } from "@/features/chat/file-preview/config";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";
@@ -44,6 +45,17 @@ export function FallbackRenderer({ file }: BaseRendererProps) {
   const t = useT();
   const Icon = pickIcon(file.ext);
   const size = formatFileSize(file.size);
+  // 下载点击反馈:对齐老仓 500ms loading 指示(避免连续点 + 给用户即时反馈)
+  const [downloading, setDownloading] = useState(false);
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await triggerDownload(file.url, file.name);
+    } finally {
+      setTimeout(() => setDownloading(false), 500);
+    }
+  };
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 px-6">
       <div className="flex w-full max-w-[320px] items-center gap-3 rounded-lg border border-border-default bg-bg-surface px-4 py-3">
@@ -58,11 +70,11 @@ export function FallbackRenderer({ file }: BaseRendererProps) {
         </div>
         <button
           type="button"
-          onClick={() => void triggerDownload(file.url, file.name)}
-          disabled={!file.url}
+          onClick={handleDownload}
+          disabled={!file.url || downloading}
           className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-default disabled:opacity-40"
         >
-          <Download size={14} />
+          {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           <span>{t("filePreview.download")}</span>
         </button>
       </div>

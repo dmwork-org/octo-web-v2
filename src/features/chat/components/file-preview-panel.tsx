@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import {
   Code as CodeIcon,
@@ -114,10 +114,15 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
     setTocItems(items);
   }, []);
 
-  const tocAvailable = supportsToc && tocItems.length > 0;
+  // TOC 显示条件:对齐老仓 —— 预览模式 + h2 标题 ≥ 3 条(避免短文档也弹目录)
+  const h2Count = tocItems.filter((it) => it.level === 2).length;
+  const tocAvailable = supportsToc && h2Count >= 3;
 
   // 回复按钮:hook 返回 null 即条件不齐全(messageId/seq/fromUID/sourceChannel*),按钮隐藏
   const onReply = useReplyToFileMessage(file);
+
+  // scroll spy:监听 toc 标题进入视口,高亮当前章节(对齐老仓 activeId 滚动高亮)
+  const activeTocId = useTocScrollSpy(tocItems, tocOpen);
 
   const onTocPick = (id: string) => {
     setTocOpen(false);
@@ -197,7 +202,9 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
           }}
         />
       </div>
-      {tocOpen && tocAvailable ? <TocPopup items={tocItems} onPick={onTocPick} /> : null}
+      {tocOpen && tocAvailable ? (
+        <TocPopup items={tocItems} activeId={activeTocId} onPick={onTocPick} />
+      ) : null}
 
       {/* 左边缘 splitter:hover/drag 显紫色细线;双击重置默认 432 */}
       <PanelSplitter
@@ -309,23 +316,79 @@ function IconBtn({
 
 /**
  * TOC popup — absolute 浮于 panel header 下方右侧,不挤压内容区。
- * 缩进按 level:h1 8px / h2 20px / h3 32px。
+ * 缩进按 level(h2/h3);activeId 命中项高亮(scroll spy 驱动,对齐老仓)。
  */
-function TocPopup({ items, onPick }: { items: TocItem[]; onPick: (id: string) => void }) {
+function TocPopup({
+  items,
+  activeId,
+  onPick,
+}: {
+  items: TocItem[];
+  activeId?: string;
+  onPick: (id: string) => void;
+}) {
   return (
     <div className="absolute top-12 right-2 z-20 max-h-[60vh] w-[240px] overflow-auto rounded-md border border-border-default bg-bg-surface py-1 shadow-lg">
-      {items.map((it) => (
-        <button
-          key={it.id}
-          type="button"
-          onClick={() => onPick(it.id)}
-          title={it.text}
-          className="block w-full cursor-pointer truncate px-2 py-1 text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-          style={{ paddingLeft: 8 + (it.level - 1) * 12 }}
-        >
-          {it.text}
-        </button>
-      ))}
+      {items.map((it) => {
+        const active = it.id === activeId;
+        return (
+          <button
+            key={it.id}
+            type="button"
+            onClick={() => onPick(it.id)}
+            title={it.text}
+            className={`block w-full cursor-pointer truncate px-2 py-1 text-left text-[12px] transition-colors ${
+              active
+                ? "bg-bg-elevated font-medium text-text-primary"
+                : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            }`}
+            style={{ paddingLeft: 8 + (it.level - 1) * 12 }}
+          >
+            {it.text}
+          </button>
+        );
+      })}
     </div>
   );
+}
+
+/**
+ * TOC scroll spy(对齐老仓 activeTocId 滚动高亮):
+ * 用 IntersectionObserver 监听各 toc 标题节点(id 由 markdown-renderer 注入),
+ * 取当前视口顶部最近的可见标题为 active。tocOpen=false 或无 items 时不监听。
+ */
+function useTocScrollSpy(items: TocItem[], enabled: boolean): string | undefined {
+  const [activeId, setActiveId] = useState<string | undefined>(undefined);
+  const idsKey = items.map((it) => it.id).join("|");
+
+  useEffect(() => {
+    if (!enabled || !idsKey) {
+      setActiveId(undefined);
+      return;
+    }
+    const ids = idsKey.split("|");
+    const els = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (els.length === 0) return;
+
+    // 记录每个标题当前是否在视口内,取最靠上的可见标题作 active。
+    const visible = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        // 按 DOM 顺序取第一个可见的
+        const firstVisible = ids.find((id) => visible.has(id));
+        if (firstVisible) setActiveId(firstVisible);
+      },
+      { rootMargin: "0px 0px -70% 0px", threshold: 0 },
+    );
+    for (const el of els) observer.observe(el);
+    return () => observer.disconnect();
+  }, [idsKey, enabled]);
+
+  return activeId;
 }

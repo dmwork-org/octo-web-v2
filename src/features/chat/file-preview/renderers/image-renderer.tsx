@@ -43,7 +43,7 @@ export function ImageRenderer({ file, onError }: BaseRendererProps) {
   }
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-auto bg-bg-base p-4">
+    <div className="relative flex h-full w-full items-center justify-center overflow-auto bg-bg-base p-6">
       {loading ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <RendererLoading />
@@ -55,7 +55,7 @@ export function ImageRenderer({ file, onError }: BaseRendererProps) {
         alt={file.name}
         onLoad={onLoad}
         onError={onLoadError}
-        className={`max-h-full max-w-full rounded object-contain transition-opacity duration-150 ${
+        className={`max-h-full max-w-full rounded-md object-contain transition-opacity duration-150 ${
           loading ? "opacity-0" : "opacity-100"
         }`}
         draggable={false}

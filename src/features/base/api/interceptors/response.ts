@@ -2,22 +2,25 @@ import type { FetchContext, FetchResponse } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
-import { router } from "@/lib/router";
 
 type ResponseCtx = FetchContext & { response: FetchResponse<unknown> };
 
 export const with401Redirect =
   (store: Store<AuthState>) =>
-  ({ response }: ResponseCtx) => {
-    if (response.status !== 401) return;
-    store.setState(() => ({ token: null, user: null }));
-    // 已经在 /login 路径(用户主动登出 / 登录页匿名请求 401)就不再 navigate —
-    // 避免给 /login 加 ?redirect=<刚才的页面>:这是 token 过期场景才需要的行为,
-    // 用户主动登出后残留 refetch 拿 401 不应被当成过期处理。
-    if (typeof window !== "undefined" && window.location.pathname === "/login") return;
-    const redirectTo = encodeURIComponent(window.location.href);
-    void router.navigate({ href: `/login?redirect=${redirectTo}` });
-  };
+    ({ response }: ResponseCtx) => {
+      if (response.status !== 401) return;
+      store.setState(() => ({ token: null, user: null }));
+      // 已经在 /login 路径(用户主动登出 / 登录页匿名请求 401)就不再 navigate —
+      // 避免给 /login 加 ?redirect=<刚才的页面>:这是 token 过期场景才需要的行为,
+      // 用户主动登出后残留 refetch 拿 401 不应被当成过期处理。
+      if (typeof window !== "undefined" && window.location.pathname === "/login") return;
+      const redirectTo = encodeURIComponent(window.location.href);
+      // 惰性 import 断开循环依赖:response → router → routeTree → matter-client → factory → response。
+      // router 只在真正发生 401 重定向时才用到,无需在模块顶层静态引入。
+      void import("@/lib/router").then(({ router }) => {
+        void router.navigate({ href: `/login?redirect=${redirectTo}` });
+      });
+    };
 
 /**
  * 全局错误 toast。调用方在 fetch options 传 `silent: true` 可跳过(自己接管错误提示)。
@@ -32,10 +35,10 @@ export const with401Redirect =
  */
 export const withErrorToast =
   () =>
-  ({ response, options }: ResponseCtx) => {
-    if ((options as { silent?: boolean }).silent) return;
-    const data = response._data as { message?: string; msg?: string } | undefined;
-    const msg = data?.message ?? data?.msg ?? response.statusText ?? "Request failed";
-    // 用 msg + status 当 key:相同错误同时间窗内只显一条
-    toast.error(msg, { key: `err:${response.status}:${msg}` });
-  };
+    ({ response, options }: ResponseCtx) => {
+      if ((options as { silent?: boolean }).silent) return;
+      const data = response._data as { message?: string; msg?: string } | undefined;
+      const msg = data?.message ?? data?.msg ?? response.statusText ?? "Request failed";
+      // 用 msg + status 当 key:相同错误同时间窗内只显一条
+      toast.error(msg, { key: `err:${response.status}:${msg}` });
+    };

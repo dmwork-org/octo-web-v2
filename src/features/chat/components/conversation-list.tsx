@@ -46,7 +46,7 @@ import { MuteIcon } from "@/components/ui/mute-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
-import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
+import { conversationsQueryOptions, conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 import { chatRecentJumpStore } from "@/features/chat/stores/chat-recent-jump";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -478,6 +478,7 @@ export function ConversationList({
       setChannelTop(args.conv.channel, args.top),
     onSuccess: (_void, args) => {
       refreshChannelInfo(args.conv);
+      void qc.invalidateQueries({ queryKey: conversationsQueryKey(spaceId) });
       toast.success(args.top ? t("convList.toast.pinned") : t("convList.toast.unpinned"));
     },
     onError: (err) =>

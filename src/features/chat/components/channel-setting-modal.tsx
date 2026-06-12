@@ -46,6 +46,7 @@ import { canManageThread } from "@/features/chat/lib/thread-permission";
 import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 // section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -264,7 +265,14 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
 
   const topMu = useMutation({
     mutationFn: (top: boolean) => setChannelTop(channel, top),
-    onSuccess: refreshChannelInfo,
+    onSuccess: () => {
+      refreshChannelInfo();
+      const currentSpaceId = spaceStore.state.spaceId;
+      if (currentSpaceId) {
+        void qc.invalidateQueries({ queryKey: conversationsQueryKey(currentSpaceId) });
+      }
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(currentSpaceId) });
+    },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
@@ -629,6 +637,17 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onChange={(v) => saveMu.mutate(v)}
               />
             ) : null}
+          </SectionGroup>
+        ) : null}
+
+        {isThread ? (
+          <SectionGroup>
+            <ToggleRow
+              title={tt("channelSetting.mute")}
+              checked={isMuted}
+              loading={muteMu.isPending}
+              onChange={(v) => muteMu.mutate(v)}
+            />
           </SectionGroup>
         ) : null}
 

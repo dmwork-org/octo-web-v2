@@ -80,6 +80,7 @@ export function MarkdownRenderer({
             onReload={reload}
             fileSize={file.size || 0}
             contentSize={contentBytes}
+            hidePlainHint={isLargeMarkdown}
           />
         </div>
       </div>

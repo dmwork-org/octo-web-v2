@@ -62,6 +62,7 @@ import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attac
 import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
+import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
@@ -377,8 +378,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     };
 
     const sendImageFile = async (file: File): Promise<boolean> => {
-      const { precheckUploadCredentials } =
-        await import("@/features/chat/services/upload-preflight");
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {
@@ -392,8 +391,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       return true;
     };
     const sendRegularFile = async (file: File): Promise<boolean> => {
-      const { precheckUploadCredentials } =
-        await import("@/features/chat/services/upload-preflight");
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {

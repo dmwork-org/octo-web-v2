@@ -9,6 +9,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { ArrowLeft } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
@@ -285,6 +286,8 @@ function InnerContent({
   onClose: () => void;
 }) {
   const t = useT();
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
   if (msg.contentType === MessageContentType.text) {
     const text = (msg.content as MessageText).text ?? "";
     return <Markdown content={text} />;
@@ -295,14 +298,24 @@ function InnerContent({
     const w = Math.round((img.width || 200) * ratio);
     const h = Math.round((img.height || 200) * ratio);
     return img.url ? (
-      <img
-        src={img.url}
-        alt=""
-        width={w}
-        height={h}
-        className="rounded-md"
-        style={{ maxWidth: 360, maxHeight: 240, objectFit: "contain" }}
-      />
+      <>
+        <button
+          type="button"
+          onClick={() => setImagePreview(img.url)}
+          className="block rounded-md hover:opacity-90 transition-opacity"
+          aria-label={t("imageRenderer.viewLargeImage") || "View image"}
+        >
+          <img
+            src={img.url}
+            alt=""
+            width={w}
+            height={h}
+            className="rounded-md"
+            style={{ maxWidth: 360, maxHeight: 240, objectFit: "contain" }}
+          />
+        </button>
+        {imagePreview ? <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} /> : null}
+      </>
     ) : (
       <span>{t("message.digest.image")}</span>
     );
@@ -325,54 +338,64 @@ function InnerContent({
     };
     const blocks = rtc.content || [];
     return (
-      <div className="flex flex-col items-start gap-1.5">
-        {blocks.map((blk, i) => {
-          if (blk.type === "image" && blk.url) {
-            try {
-              const u = new URL(blk.url, window.location.href);
-              if (u.protocol !== "http:" && u.protocol !== "https:") {
+      <>
+        <div className="flex flex-col items-start gap-1.5">
+          {blocks.map((blk, i) => {
+            if (blk.type === "image" && blk.url) {
+              try {
+                const u = new URL(blk.url, window.location.href);
+                if (u.protocol !== "http:" && u.protocol !== "https:") {
+                  return (
+                    <span key={i} className="text-[12px] text-text-tertiary">
+                      {t("message.digest.image")}
+                    </span>
+                  );
+                }
+              } catch {
                 return (
                   <span key={i} className="text-[12px] text-text-tertiary">
                     {t("message.digest.image")}
                   </span>
                 );
               }
-            } catch {
               return (
-                <span key={i} className="text-[12px] text-text-tertiary">
-                  {t("message.digest.image")}
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setImagePreview(blk.url!)}
+                  className="block rounded-md hover:opacity-90 transition-opacity"
+                  aria-label={t("imageRenderer.viewLargeImage") || "View image"}
+                >
+                  <img
+                    src={blk.url}
+                    alt={blk.name || ""}
+                    className="block max-h-[200px] max-w-[320px] rounded-md object-contain"
+                  />
+                </button>
+              );
+            }
+            if (blk.type === "file") {
+              return (
+                <span key={i} className="text-[13px] text-text-secondary">
+                  📎 {blk.name || t("message.digest.file")}
                 </span>
               );
             }
-            return (
-              <img
-                key={i}
-                src={blk.url}
-                alt={blk.name || ""}
-                className="block max-h-[200px] max-w-[320px] rounded-md object-contain"
-              />
-            );
-          }
-          if (blk.type === "file") {
-            return (
-              <span key={i} className="text-[13px] text-text-secondary">
-                📎 {blk.name || t("message.digest.file")}
-              </span>
-            );
-          }
-          if (blk.text) {
-            return (
-              <span
-                key={i}
-                className="text-[14px] leading-[1.5] whitespace-pre-wrap text-text-primary"
-              >
-                {blk.text}
-              </span>
-            );
-          }
-          return null;
-        })}
-      </div>
+            if (blk.text) {
+              return (
+                <span
+                  key={i}
+                  className="text-[14px] leading-[1.5] whitespace-pre-wrap text-text-primary"
+                >
+                  {blk.text}
+                </span>
+              );
+            }
+            return null;
+          })}
+        </div>
+        {imagePreview ? <ImagePreviewModal src={imagePreview} onClose={() => setImagePreview(null)} /> : null}
+      </>
     );
   }
   if (msg.contentType === MessageContentTypeConst.file) {

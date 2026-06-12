@@ -196,6 +196,10 @@ export interface ActivityEntry {
 export interface ExtractMessageAttachment {
   file_name: string;
   file_url: string;
+  /** 文件大小(字节)。后端据此填充产出文件的大小列,缺失则展示横杠。 */
+  file_size?: number;
+  /** 文件 MIME / 扩展名,后端用于图标与类型判断。 */
+  mime_type?: string;
 }
 
 export interface ExtractMessage {

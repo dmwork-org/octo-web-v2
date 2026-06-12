@@ -16,6 +16,8 @@ interface UseMatterOutputsReturn {
   handleSearch: (q: string) => void;
   handleLoadMore: () => void;
   handleRetry: () => void;
+  /** 强制拉最新(用于切到 "产出文件" Tab 时刷新)。 */
+  refetch: () => void;
 }
 
 /**
@@ -99,6 +101,11 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
     void refetch();
   }, [refetch]);
 
+  // 强制刷新(切 Tab 等场景)。包一层稳定的 () => void 避免外部依赖泄漏 refetch。
+  const refetchOutputs = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
   // 从 query 数据同步 hasMore(初次加载 / 搜索后)
   const effectiveHasMore = isFetching ? hasMore : (queryData?.pagination?.has_more ?? false);
 
@@ -113,5 +120,6 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
     handleSearch,
     handleLoadMore,
     handleRetry,
+    refetch: refetchOutputs,
   };
 }

@@ -45,6 +45,7 @@ import { toParentGroupNo } from "@/features/matter/utils/channel-id";
 import { computeAnchorPosition } from "@/features/matter/utils/anchor-position";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { chatLocateMessageActions } from "@/features/chat/stores/chat-locate-message";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
 import { fileRendererRegistry } from "@/features/chat/file-preview/registry";
@@ -253,6 +254,7 @@ export function MatterDetailPanel({
     handleSearch: handleOutputsSearch,
     handleLoadMore: handleOutputsLoadMore,
     handleRetry: handleOutputsRetry,
+    refetch: refetchOutputs,
   } = useMatterOutputs(matterId);
 
   // 变更记录计数
@@ -351,15 +353,14 @@ export function MatterDetailPanel({
   // 跳转到聊天并定位消息 (对齐老项目 showConversation + initLocateMessageSeq)
   const router = useRouter();
   const handleJumpToMessage = useCallback(
-    (_messageSeq: number) => {
-      // 跳转到聊天页面
+    (messageSeq: number) => {
+      if (!data.source_channel_id) return;
+      const ch = new Channel(data.source_channel_id, data.source_channel_type ?? 2);
+      // 先发定位请求(message-list 订阅 chatLocateMessageStore 滚动到目标 seq),
+      // 再切群 + 跳路由。strategy "window":按 seq 拉取目标附近窗口再定位。
+      chatLocateMessageActions.request(ch, messageSeq, { strategy: "window" });
+      chatSelectedActions.select(ch);
       void router.navigate({ to: "/" });
-      // 切换到来源群
-      if (data.source_channel_id) {
-        const ch = new Channel(data.source_channel_id, data.source_channel_type ?? 2);
-        chatSelectedActions.select(ch);
-      }
-      // TODO: 传递 messageSeq 给聊天组件实现消息定位滚动
     },
     [router, data.source_channel_id, data.source_channel_type],
   );
@@ -593,7 +594,12 @@ export function MatterDetailPanel({
             />
             <SecondaryTabBtn
               active={secondaryTab === "outputs"}
-              onClick={() => setSecondaryTab("outputs")}
+              onClick={() => {
+                setSecondaryTab("outputs");
+                // 每次点"产出文件" Tab 都拉一遍最新文件列表(对齐用户期望:
+                // 详情面板可能开了一会,刚有新产出时点 Tab 立刻看到)。
+                refetchOutputs();
+              }}
               label={t("matter.outputs.tabLabel")}
               count={outputs.length}
             />
@@ -838,12 +844,12 @@ function ChannelsTab({
   // 跳转到聊天并定位消息
   const router = useRouter();
   const handleJumpToMessage = useCallback(
-    (_messageSeq: number) => {
+    (messageSeq: number) => {
       if (!anchor) return;
-      void router.navigate({ to: "/" });
       const ch = new Channel(anchor.channelId, anchor.channelType);
+      chatLocateMessageActions.request(ch, messageSeq, { strategy: "window" });
       chatSelectedActions.select(ch);
-      // TODO: 传递 messageSeq 给聊天组件实现消息定位滚动
+      void router.navigate({ to: "/" });
     },
     [router, anchor],
   );

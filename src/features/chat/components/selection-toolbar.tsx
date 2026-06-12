@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
-import type { ExtractMessage } from "@/features/matter/types/matter.types";
+import type { ExtractMessage, ExtractMessageAttachment } from "@/features/matter/types/matter.types";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -120,9 +120,37 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
   });
 
   /**
+   * 从一条消息提取附件(file/image/video/voice 等媒体消息携带 url)。
+   * 产出文件由后端从这些 attachments 提取,**漏传则事项产出文件为空**(对齐旧
+   * dmworktodo:同步时传 m.attachments)。
+   */
+  const extractAttachments = (m: Message): ExtractMessageAttachment[] => {
+    const c = m.content as unknown as {
+      url?: string;
+      remoteUrl?: string;
+      name?: string;
+      size?: number;
+      ext?: string;
+    } | null;
+    if (!c) return [];
+    const fileUrl = c.url || c.remoteUrl || "";
+    if (!fileUrl) return [];
+    return [
+      {
+        file_url: fileUrl,
+        file_name: c.name || "",
+        // 文件大小一并带上,后端据此填充产出文件大小列(否则展示横杠)。
+        ...(typeof c.size === "number" && c.size > 0 ? { file_size: c.size } : {}),
+        ...(c.ext ? { mime_type: c.ext } : {}),
+      },
+    ];
+  };
+
+  /**
    * 同步到已有 matter:对齐旧 dmworktodo —— 不在前端拼接消息原文,而是把原始
    * 消息列表(msgs)+ participant_uid 传给后端,由后端 LLM 抽取进展**摘要**写入
    * timeline。这样事项时间线里看到的是提炼后的进展,而非聊天原文。
+   * 附件(attachments)也一并传,后端据此生成事项的"产出文件"。
    */
   const toExtractMsgs = (msgs: Message[]): ExtractMessage[] =>
     msgs.map((m) => {
@@ -135,6 +163,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         from_uname: info?.title,
         timestamp: m.timestamp,
         content: m.content?.conversationDigest ?? "",
+        attachments: extractAttachments(m),
       };
     });
 

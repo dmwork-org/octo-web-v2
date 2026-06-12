@@ -846,7 +846,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                     type="button"
                     onClick={onClickMention}
                     aria-label={tt("composer.mentionAria")}
-                    className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                    className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                   >
                     <AtSign size={20} />
                   </button>
@@ -860,7 +860,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={tt("composer.sendFileAria")}
-                  className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                 >
                   <Paperclip size={20} />
                 </button>
@@ -882,7 +882,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                 }
                 aria-label={tt("composer.createTaskAria")}
                 title={tt("composer.createTaskTitle", { values: { alt: ALT_KEY } })}
-                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
               >
                 <CheckSquare size={20} />
               </button>
@@ -899,7 +899,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? tt("composer.collapse") : tt("composer.expand")}
               title={expanded ? tt("composer.collapse") : tt("composer.expand")}
-              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
               {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>

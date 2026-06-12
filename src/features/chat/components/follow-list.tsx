@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import {
@@ -23,7 +23,6 @@ import {
   ChannelTypeGroup,
   ChannelTypePerson,
   type Conversation,
-  type ConversationAction,
 } from "wukongimjssdk";
 import WKSDK from "wukongimjssdk";
 import {
@@ -96,17 +95,6 @@ interface FollowListProps {
 }
 
 const CHANNEL_TYPE_THREAD = 5;
-
-function useSyncOnConversationChange(invalidate: () => void) {
-  useEffect(() => {
-    const cm = WKSDK.shared().conversationManager;
-    const listener = (_c: Conversation, _a: ConversationAction) => {
-      invalidate();
-    };
-    cm.addConversationListener(listener);
-    return () => cm.removeConversationListener(listener);
-  }, [invalidate]);
-}
 
 function buildFollowedThreadsByParent(
   conversations: Conversation[],
@@ -937,11 +925,18 @@ export function FollowList({
   // 顶部 "+ 新建分组"入口仍是 null(只建空分类)
   const [pendingFollowAction, setPendingFollowAction] = useState<Conversation | null>(null);
 
+  /**
+   * 用户主动操作(follow CRUD / 排序 / 移动)后失效 categories + sidebar 两个
+   * query。**不再**订阅 WK conversationListener 触发失效(issue #103):每条
+   * 消息/未读变化都打 invalidate 会让两个端点在 server 初始化 burst 时被
+   * 打多次 → 后端 rate limit 触发 429。categories 数据只由 mutation 改变,
+   * sidebar item.unread 字段没有 UI 消费(unread 徽标来自 SDK conv 本地缓存),
+   * listener 全量监听 100% 浪费 + 触发 429。
+   */
   const invalidateAll = () => {
     void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
     void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
   };
-  useSyncOnConversationChange(invalidateAll);
 
   const renameMu = useMutation({
     mutationFn: (args: { catId: string; name: string }) => {

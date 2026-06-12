@@ -621,7 +621,7 @@ export function MatterDetailPanel({
               onOpenLinkModal={() => setLinkModalOpen(true)}
               onCloseLinkModal={() => setLinkModalOpen(false)}
               onDownloadAttachment={handleDownloadAttachment}
-              onPreviewAttachment={handleAttachmentPreview}
+              onPreviewAttachment={showClose ? handleAttachmentPreview : undefined}
             />
           ) : secondaryTab === "outputs" ? (
             <OutputsPanel
@@ -633,7 +633,10 @@ export function MatterDetailPanel({
               onSearch={handleOutputsSearch}
               onLoadMore={handleOutputsLoadMore}
               onRetry={handleOutputsRetry}
-              onPreview={handleOutputPreview}
+              // onPreview 用 showClose 作为"嵌入会话侧边栏"信号(对齐老项目):
+              // 预览走 chatSidePanelActions.openFilePreview,只有聊天页右侧
+              // FilePreviewPanel 能接收;独立事项页面没有该面板,故不显示预览按钮。
+              onPreview={showClose ? handleOutputPreview : undefined}
               onDownload={handleOutputDownload}
               getChannelMembership={getOutputChannelMembership}
               resolveChannelName={resolveOutputChannelName}
@@ -797,7 +800,7 @@ function ChannelsTab({
   onOpenLinkModal: () => void;
   onCloseLinkModal: () => void;
   onDownloadAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
-  onPreviewAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
+  onPreviewAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);

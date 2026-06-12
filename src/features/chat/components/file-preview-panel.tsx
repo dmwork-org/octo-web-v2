@@ -2,11 +2,9 @@ import { useCallback, useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import {
   Code as CodeIcon,
-  Download,
   Eye,
   ExternalLink,
   List,
-  MessageSquare,
   X,
 } from "lucide-react";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
@@ -19,6 +17,50 @@ import { useReplyToFileMessage } from "@/features/chat/hooks/use-reply-to-file-m
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { useT } from "@/lib/i18n/use-t";
+
+// ─── 自定义 SVG 图标(对齐旧 dmworkbase Components/FilePreviewPanel/icons) ───
+
+/** 回复消息(带尾巴的对话气泡,对齐旧 IconMessage) */
+function IconMessage({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="1.5 1 13.5 14"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M2 7.99996C2 4.50216 4.83553 1.66663 8.33333 1.66663C11.8311 1.66663 14.6667 4.50216 14.6667 7.99996V8.20984C14.6667 11.5917 11.9251 14.3333 8.54321 14.3333H2V7.99996ZM8.33333 2.99996C5.57191 2.99996 3.33333 5.23854 3.33333 7.99996V13H8.54321C11.1887 13 13.3333 10.8553 13.3333 8.20984V7.99996C13.3333 5.23854 11.0948 2.99996 8.33333 2.99996ZM11.3333 5.99996V7.33329H5.33333V5.99996H11.3333ZM8.33333 10.3333H5.33333V8.99996H8.33333V10.3333Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+/** 下载(向下箭头 + 底部横线,对齐旧 IconDownload) */
+function IconDownload({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="1.5 1 13 14"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M7.33333 8.77084V1.66663H8.66667V8.77155L10.5526 6.88558L11.4955 7.82839L8.00036 11.3235L4.50526 7.82839L5.44807 6.88558L7.33333 8.77084ZM3.33333 13V11.6666H2V14.3333H14V11.6666H12.6667V13H3.33333Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 /**
  * 文件预览面板(1:1 对齐旧 dmworkbase Components/FilePreviewPanel + FilePreviewHeader)。
@@ -125,7 +167,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
           ) : null}
           {onReply ? (
             <IconBtn label={t("filePreview.reply")} onClick={onReply}>
-              <MessageSquare size={16} />
+              <IconMessage size={16} />
             </IconBtn>
           ) : null}
           <IconBtn
@@ -133,7 +175,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
             onClick={() => void triggerDownload(file.url, file.name)}
             disabled={!file.url}
           >
-            <Download size={16} />
+            <IconDownload size={16} />
           </IconBtn>
           <Sep />
           <IconBtn

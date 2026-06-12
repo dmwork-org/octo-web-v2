@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 import { useFileContent } from "@/features/chat/file-preview/hooks/use-file-content";
 import { isFileTooLarge } from "@/features/chat/file-preview/config";
@@ -129,28 +129,32 @@ export function ExcelRenderer({ file, onError }: BaseRendererProps) {
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
 
-  const parse = useCallback(
-    async (buffer: ArrayBuffer) => {
-      setParsing(true);
-      setParseError(null);
-      setSheets([]);
-      setActiveSheet(0);
-      try {
-        const parsed = await parseWorkbook(buffer);
-        if (parsed.length === 0) throw new Error(t("filePreview.excel.emptySheet"));
-        setSheets(parsed);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : t("filePreview.excel.parseFailed");
-        setParseError(msg);
-        onError?.(msg);
-      } finally {
-        setParsing(false);
-      }
-    },
-    [onError, t],
-  );
+  // 用 ref 持有最新 onError/t,parse 不再依赖它们,从而 useParseOnContent 的
+  // effect 可以只依赖 [content],避免依赖链脆弱(若 useT 实现回退到每次 render
+  // 新引用就会无限循环;参考 link-channel-modal 同款隐患修复)。
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const tRef = useRef(t);
+  tRef.current = t;
 
-  useParseOnContent(content, parse);
+  useParseOnContent(content, async (buffer) => {
+    setParsing(true);
+    setParseError(null);
+    setSheets([]);
+    setActiveSheet(0);
+    try {
+      const parsed = await parseWorkbook(buffer);
+      if (parsed.length === 0) throw new Error(tRef.current("filePreview.excel.emptySheet"));
+      setSheets(parsed);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : tRef.current("filePreview.excel.parseFailed");
+      setParseError(msg);
+      onErrorRef.current?.(msg);
+    } finally {
+      setParsing(false);
+    }
+  });
 
   if (isTooLarge) {
     return <FileTooLarge name={file.name} size={file.size} url={file.url} />;
@@ -269,12 +273,17 @@ function SheetTable({ sheet }: { sheet: SheetData }) {
 
 /**
  * content(arraybuffer)就绪后触发解析。抽到命名 hook 满足 no-useeffect-in-component。
+ *
+ * 用 parseRef 持有最新 parse,effect 只依赖 [content]:调用方传的是匿名函数
+ * (每次 render 新引用),若 deps 含 parse 会无限循环。
  */
 function useParseOnContent(
   content: ArrayBuffer | null,
   parse: (buf: ArrayBuffer) => Promise<void>,
 ): void {
+  const parseRef = useRef(parse);
+  parseRef.current = parse;
   useEffect(() => {
-    if (content) void parse(content);
-  }, [content, parse]);
+    if (content) void parseRef.current(content);
+  }, [content]);
 }

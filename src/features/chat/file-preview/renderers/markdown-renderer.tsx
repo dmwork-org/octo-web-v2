@@ -18,13 +18,14 @@ import { useT } from "@/lib/i18n/use-t";
 
 /**
  * Markdown 文件 renderer(对齐旧 MarkdownRenderer):
- *   - **预览模式**(默认):复用项目通用 `<Markdown>` 组件
+ *   - **预览模式**(默认):复用项目通用 `<Markdown>` 组件,enableMath 渲染数学公式
  *   - **源码模式**(viewMode='source'):走 CommonCodeView language='markdown' 高亮
- *   - TOC:渲染后 DOM 扫 h1/h2/h3,注入 id + 上报 items 给 panel
- *     (不实现 scroll spy,只支持 click 跳转)
+ *   - **大文件**(>200KB,对齐老仓 MARKDOWN_PREVIEW 阈值):强制切源码模式 +
+ *     顶部"已自动切换到源码模式"提示条
+ *   - TOC:渲染后 DOM 扫 **h2/h3**,注入 id 上报 panel;panel 按 h2≥3 显示 TOC,
+ *     scroll spy 用 IntersectionObserver 高亮当前章节
+ *   - 空文件(content === ""):显示 RendererEmpty(避免空串当 falsy 一直转圈)
  *   - 超大文件(>20MB)走 FileTooLarge 兜底
- *
- * **简化**(不实现):512KB 阈值自动切源码模式 — 由用户手动 toggle。
  */
 export function MarkdownRenderer({
   file,

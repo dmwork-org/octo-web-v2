@@ -52,6 +52,7 @@ export function HtmlRenderer({
   file,
   onError,
   viewMode = "preview",
+  onViewModeChange,
 }: BaseRendererProps) {
   const t = useT();
   const enabled = shouldFetchContent(file.size || 0);
@@ -59,12 +60,13 @@ export function HtmlRenderer({
 
   const [iframeLoading, setIframeLoading] = useState(true);
   const [renderError, setRenderError] = useState<string | null>(null);
-  // 默认允许脚本;命中 CSP 后降级为禁用(显示安全模式提示页)
-  const [scriptEnabled, setScriptEnabled] = useState(true);
+  // CSP 命中后切到"安全模式"提示页(不再渲染 iframe)。
+  // 注:不再用 scriptEnabled 状态,因为 cspFallback=true 时已提前 return,
+  // 渲染 iframe 的分支永远走 allow-scripts。
   const [cspFallback, setCspFallback] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  useResetOnFileChange(file.url, setScriptEnabled, setCspFallback, setRenderError);
+  useResetOnFileChange(file.url, setCspFallback, setRenderError);
   useResetIframeLoadingOnPreview(content, viewMode, setIframeLoading);
 
   const handleDownload = useCallback(
@@ -78,7 +80,6 @@ export function HtmlRenderer({
     iframeRef,
     onCspViolation: (directive) => {
       console.warn("[HtmlRenderer] CSP violation inside iframe, disable HTML preview.", directive);
-      setScriptEnabled(false);
       setCspFallback(true);
       setIframeLoading(false);
     },
@@ -141,14 +142,25 @@ export function HtmlRenderer({
             {t("filePreview.html.safePreviewBlockedSubmessage")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleDownload}
-          className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-brand px-3 text-xs text-text-inverse transition-opacity hover:opacity-90"
-        >
-          <Download size={14} />
-          <span>{t("filePreview.downloadFile")}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onViewModeChange ? (
+            <button
+              type="button"
+              onClick={() => onViewModeChange("source")}
+              className="inline-flex h-7 cursor-pointer items-center rounded-md border border-border-default bg-bg-surface px-3 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              {t("filePreview.html.viewSource")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-brand px-3 text-xs text-text-inverse transition-opacity hover:opacity-90"
+          >
+            <Download size={14} />
+            <span>{t("filePreview.downloadFile")}</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -166,9 +178,10 @@ export function HtmlRenderer({
         ref={iframeRef}
         title={file.name}
         srcDoc={srcdocContent}
-        // 安全策略:默认 allow-scripts,不给 allow-same-origin(防 iframe 读 parent
-        // storage / cookie);命中 CSP 后 scriptEnabled=false,降级为无脚本沙箱。
-        sandbox={scriptEnabled ? "allow-scripts" : ""}
+        // 安全策略:allow-scripts 允许 HTML 内嵌 JS 跑;不给 allow-same-origin
+        // (防 iframe 读 parent storage / cookie)。命中 CSP 时由 cspFallback
+        // 切到"安全模式"提示页(分支提前 return),不再走到这里。
+        sandbox="allow-scripts"
         onLoad={() => setIframeLoading(false)}
         onError={() => {
           setIframeLoading(false);
@@ -187,15 +200,13 @@ export function HtmlRenderer({
   );
 }
 
-/** 文件 url 变化时重置脚本策略与 render error(对齐老仓 file-url 重置)。 */
+/** 文件 url 变化时重置 CSP fallback 与 render error(对齐老仓 file-url 重置)。 */
 function useResetOnFileChange(
   url: string,
-  setScriptEnabled: (v: boolean) => void,
   setCspFallback: (v: boolean) => void,
   setRenderError: (v: string | null) => void,
 ): void {
   useEffect(() => {
-    setScriptEnabled(true);
     setCspFallback(false);
     setRenderError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

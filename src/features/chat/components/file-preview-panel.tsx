@@ -196,6 +196,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
         <Renderer
           file={file}
           viewMode={viewMode}
+          onViewModeChange={setViewMode}
           onTocChange={onTocChange}
           onError={(msg) => {
             console.error("[FilePreviewPanel] renderer error:", msg, file);

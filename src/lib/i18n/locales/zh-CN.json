@@ -815,7 +815,6 @@
   "filePreview.reply": "回复",
   "filePreview.retry": "重试",
   "filePreview.rowsCount": "共 {{count}} 行",
-  "filePreview.rowsCountTruncated": "共 {{total}} 行,显示前 {{shown}} 行",
   "filePreview.source": "源码",
   "filePreview.toc.title": "目录",
   "filePreview.tooLargeNotPreviewable": "文件过大,无法在线预览",

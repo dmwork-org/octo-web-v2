@@ -815,7 +815,6 @@
   "filePreview.reply": "Reply",
   "filePreview.retry": "Retry",
   "filePreview.rowsCount": "{{count}} rows",
-  "filePreview.rowsCountTruncated": "{{total}} rows total, showing first {{shown}}",
   "filePreview.source": "Source",
   "filePreview.toc.title": "Outline",
   "filePreview.tooLargeNotPreviewable": "File too large to preview online",

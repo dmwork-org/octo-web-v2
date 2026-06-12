@@ -16,7 +16,6 @@ import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
-import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 
 /**
@@ -26,7 +25,7 @@ import { TypingManager } from "@/features/chat/services/typing-manager";
  *   (sendack 是 message.status 的唯一权威 — 对齐旧 dmworkbase/Components/Conversation/index.tsx
  *    `taskListener + ackListener` 双源 done 协议:task fail 仅影响该 send 操作的 retry 决策,
  *    不写 message.status;UI 层 image/file/video renderer 自行 subscribe task 显示进度 overlay)
- * - CMD messageRevoke / typing(chatManager.addCMDListener)
+ * - CMD typing(chatManager.addCMDListener)
  * - WebSocket 重连(connectStatusListener)— Connected 时 invalidate 当前 channel
  *   的 messages query 补刷首屏(对齐上游 7a42c23a / #187):staleTime=Infinity 不会
  *   自动 refetch,断连期间 bot 回复经 HTTP sync 落库但当前会话拿不到,5s 去抖避免
@@ -145,22 +144,8 @@ export function useMessagesSync(channel: Channel | null) {
         return;
       }
 
-      if (cmd.cmd !== "messageRevoke") return;
-      const param = cmd.param as { message_id?: string };
-      if (!param?.message_id) return;
-      if (!cmdMessage.channel.isEqual(channel)) return;
-      // 旧项目 module.tsx::cmdListener:撤回 CMD 推送时,fromUID 是撤回操作者
-      updateInPlace(
-        (m) => m.messageID === param.message_id,
-        (m) => {
-          m.remoteExtra.revoke = true;
-          m.remoteExtra.revoker = cmdMessage.fromUID;
-        },
-      );
-      // 侧栏 conversation 预览的 lastMessage 摘要由 sidebar query 派生,撤回最后一条
-      // 后 digest 应跟随刷新(对齐老仓 Conversation/vm.ts:630-632);refetch 频次极低
-      // (撤回事件本身就少),全量 invalidate 同 spaceId 下 follow 列表即可。
-      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      // messageRevoke 由全局 use-cmd-sync 处理:它不依赖当前 channel 是否打开,
+      // 同时更新 message cache 与 conversation lastMessage,保证 recent 列表摘要同步。
     };
 
     // 重连补刷当前会话首屏(对齐上游 7a42c23a / #187 第二层):

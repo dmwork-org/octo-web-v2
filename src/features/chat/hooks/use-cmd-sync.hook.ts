@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
@@ -11,6 +11,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { avatarVersionActions } from "@/features/base/stores/avatar-version";
 import { spaceStore } from "@/features/base/stores/space";
+import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 
 /**
@@ -21,7 +22,7 @@ import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
  *
  * **全局挂**:IMProvider 内 mount 一次,不依赖任何 channel 打开。老仓 module.tsx
  * 在 register 阶段全局挂同款机制;新仓 use-messages-sync 里也有 cmdListener
- * 但绑当前 channel,只覆盖 typing/messageRevoke,其他 cmd 在没打开会话时漏接。
+ * 但绑当前 channel,只覆盖 typing,其他 cmd 在没打开会话时漏接。
  *
  * **cmd 对照表**(对齐老仓 module.tsx L361-505):
  *
@@ -39,7 +40,7 @@ import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
  * | friendAccept           | fetchChannelInfo(对方) + invalidate contacts | 通讯录刷 |
  * | friendDeleted          | invalidate contacts | 通讯录刷 |
  * | typing                 | (use-messages-sync 已处理) | 绑 channel 合理 |
- * | messageRevoke          | (use-messages-sync 已处理) | 绑 channel 合理 |
+ * | messageRevoke          | 标记消息缓存 + conversation lastMessage + invalidate sidebar | 撤回后 recent 摘要同步 |
  * | friendRequest          | **skip** — 新仓 FriendApply state 模块未搬 | 后续 issue 跟进 |
  */
 export function useCmdSync() {
@@ -49,6 +50,32 @@ export function useCmdSync() {
   useEffect(() => {
     const invalidateContacts = () => {
       void qc.invalidateQueries({ queryKey: ["contacts"] });
+    };
+
+    const markCachedMessageRevoked = (
+      channelId: string,
+      channelType: number,
+      messageId: string,
+      revoker: string,
+    ) => {
+      qc.setQueryData<InfiniteData<Message[], number>>(
+        messagesQueryKey(channelId, channelType),
+        (prev) => {
+          if (!prev) return prev;
+          let touched = false;
+          for (const page of prev.pages) {
+            for (const message of page) {
+              if (message.messageID === messageId) {
+                message.remoteExtra.revoke = true;
+                message.remoteExtra.revoker = revoker;
+                touched = true;
+              }
+            }
+          }
+          if (!touched) return prev;
+          return { ...prev, pages: prev.pages.map((page) => [...page]) };
+        },
+      );
     };
 
     const cmdListener = (cmdMessage: Message) => {
@@ -153,6 +180,35 @@ export function useCmdSync() {
           return;
         }
 
+        case "messageRevoke": {
+          const channelId =
+            (param.channel_id as string | undefined) ?? cmdMessage.channel.channelID;
+          const channelType =
+            typeof param.channel_type === "number"
+              ? param.channel_type
+              : cmdMessage.channel.channelType;
+          const rawMessageId = param.message_id;
+          const messageId =
+            typeof rawMessageId === "string"
+              ? rawMessageId
+              : typeof rawMessageId === "number"
+                ? String(rawMessageId)
+                : undefined;
+          if (!channelId || channelType == null || !messageId) return;
+
+          const revoker = cmdMessage.fromUID;
+          markCachedMessageRevoked(channelId, channelType, messageId, revoker);
+
+          const conv = cm.findConversation(new Channel(channelId, channelType));
+          if (conv?.lastMessage?.messageID === messageId) {
+            conv.lastMessage.remoteExtra.revoke = true;
+            conv.lastMessage.remoteExtra.revoker = revoker;
+            cm.notifyConversationListeners(conv, ConversationAction.update);
+            void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+          }
+          return;
+        }
+
         case "friendAccept": {
           const toUID = param.to_uid as string | undefined;
           const fromUID = param.from_uid as string | undefined;
@@ -170,7 +226,7 @@ export function useCmdSync() {
         }
 
         // friendRequest 见上方对照表 — 新仓 FriendApply state 模块未搬,留空。
-        // typing / messageRevoke 在 use-messages-sync 处理,这里不重复。
+        // typing 在 use-messages-sync 处理,这里不重复。
         default:
           return;
       }

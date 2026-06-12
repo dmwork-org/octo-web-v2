@@ -272,12 +272,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                 // 私聊不显 sticky 广播项(对齐上游 ff46fa58:私聊里 @所有人/@所有AI 无意义)
                 const stickyForChannel =
                   channel.channelType === ChannelTypePerson ? [] : STICKY_MENTIONS;
-                if (!kw) return [...stickyForChannel, ...list.slice(0, 8)];
-                return list
-                  .filter(
-                    (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
-                  )
-                  .slice(0, 8);
+                // **不截断列表**(issue #92):MentionList 自身 max-h-[220px] overflow-y-auto
+                // 可滚动展示全部候选,对齐老仓 buildMentionDropdownItems(不 slice)。
+                // 此前 `.slice(0, 8)` 会把排序靠后的 bot 切掉(成员排序按 role,bot 通常
+                // 不是 owner 会被排到后段),空 @ 触发列表里 bot 不全;输入关键字 filter
+                // 命中仍能搜到,符合用户描述"@搜索能搜到"。
+                if (!kw) return [...stickyForChannel, ...list];
+                return list.filter(
+                  (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
+                );
               }) as never,
             }),
           ]

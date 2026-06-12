@@ -101,7 +101,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
 
-  const supportsViewToggle = type === "markdown";
+  const supportsViewToggle = type === "markdown" || type === "html";
   const supportsToc = type === "markdown";
 
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");

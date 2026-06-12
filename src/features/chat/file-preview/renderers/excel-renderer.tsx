@@ -162,9 +162,26 @@ export function ExcelRenderer({ file, onError }: BaseRendererProps) {
   if (sheets.length === 0) return <RendererEmpty />;
 
   const sheet = sheets[activeSheet] ?? sheets[0];
+  // 文件类型徽标:csv 显 "CSV",其它(xlsx/xls/...)显 "EXCEL"
+  const isCsv = (file.ext || "").toLowerCase() === "csv" || file.name.toLowerCase().endsWith(".csv");
+  const badge = isCsv ? "CSV" : "EXCEL";
+  const colsCount = sheet.columns.length;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-base">
+      {/* 顶部 toolbar:类型徽标 + 列/行统计(对齐 jsonl renderer 风格) */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border-subtle bg-bg-surface px-3 py-1.5">
+        <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+          <span className="rounded-sm bg-bg-elevated px-1.5 py-0.5 font-medium text-text-secondary">
+            {badge}
+          </span>
+          <span>
+            {t("filePreview.excel.colsRows", {
+              values: { cols: colsCount, rows: sheet.rows.length },
+            })}
+          </span>
+        </div>
+      </div>
       <div className="min-h-0 flex-1">
         <SheetTable sheet={sheet} />
       </div>
@@ -206,12 +223,24 @@ function SheetTable({ sheet }: { sheet: SheetData }) {
     <TableVirtuoso
       data={rows}
       className="h-full"
+      // 让内部 <table> 撑满容器宽度,避免列宽被内容挤在左侧、右侧大量留白。
+      components={{
+        Table: (props) => (
+          <table {...props} className="w-full table-auto border-collapse text-xs" />
+        ),
+        TableRow: ({ ...props }) => (
+          <tr
+            {...props}
+            className="bg-bg-surface transition-colors odd:bg-bg-base hover:bg-bg-hover"
+          />
+        ),
+      }}
       fixedHeaderContent={() => (
         <tr className="bg-bg-elevated">
           {columns.map((col, i) => (
             <th
               key={i}
-              className="border-b border-border-default px-3 py-2 text-left text-xs font-medium text-text-secondary"
+              className="border-b border-border-default bg-bg-elevated px-3 py-2 text-left text-xs font-semibold text-text-primary"
             >
               {col.title}
             </th>

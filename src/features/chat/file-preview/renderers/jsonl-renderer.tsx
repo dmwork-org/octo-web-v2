@@ -181,12 +181,23 @@ function JsonlTable({
       <TableVirtuoso
         data={rows}
         className="flex-1"
+        components={{
+          Table: (props) => (
+            <table {...props} className="w-full table-auto border-collapse text-xs" />
+          ),
+          TableRow: ({ ...props }) => (
+            <tr
+              {...props}
+              className="bg-bg-surface transition-colors odd:bg-bg-base hover:bg-bg-hover"
+            />
+          ),
+        }}
         fixedHeaderContent={() => (
           <tr className="bg-bg-elevated">
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="border-b border-border-default px-3 py-2 text-left text-xs font-medium text-text-secondary"
+                className="border-b border-border-default bg-bg-elevated px-3 py-2 text-left text-xs font-semibold text-text-primary"
               >
                 {c.title}
               </th>

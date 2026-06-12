@@ -253,6 +253,7 @@ export function MatterDetailPanel({
     handleSearch: handleOutputsSearch,
     handleLoadMore: handleOutputsLoadMore,
     handleRetry: handleOutputsRetry,
+    refetch: refetchOutputs,
   } = useMatterOutputs(matterId);
 
   // 变更记录计数
@@ -593,7 +594,12 @@ export function MatterDetailPanel({
             />
             <SecondaryTabBtn
               active={secondaryTab === "outputs"}
-              onClick={() => setSecondaryTab("outputs")}
+              onClick={() => {
+                setSecondaryTab("outputs");
+                // 每次点"产出文件" Tab 都拉一遍最新文件列表(对齐用户期望:
+                // 详情面板可能开了一会,刚有新产出时点 Tab 立刻看到)。
+                refetchOutputs();
+              }}
               label={t("matter.outputs.tabLabel")}
               count={outputs.length}
             />

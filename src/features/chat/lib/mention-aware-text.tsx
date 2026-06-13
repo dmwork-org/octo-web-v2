@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
@@ -193,6 +193,10 @@ export function MentionAwareText({
   // 订阅全局 channelInfo 变化 — cache race 时主路径会触发 fetch,到位后重渲。
   // 必须在所有早返回之前调,遵守 React Rules of Hooks。
   useChannelInfoTick();
+  // #124: 当 mention.uids 存在但 candidate names 为空时,主动 fetch Person channelInfo。
+  // SDK cache race(首次进入/刷新)时 subscribers 可能还没到位,getSubscribes 返回空。
+  // fetchChannelInfo 成功后 SDK 触发 channelInfoListener → useChannelInfoTick → 重渲 → candidate 到位 → 高亮。
+  useFetchMissingMentionCandidates(mention, channel);
   if (!text) return <>{text}</>;
 
   type Hit = { start: number; end: number; node: ReactNode };
@@ -407,4 +411,42 @@ export function MentionAwareText({
   }
   if (pos < text.length) out.push(text.slice(pos));
   return <>{out}</>;
+}
+
+/**
+ * #124: 主动为 mention.uids 中 candidate 为空的 uid fetch Person channelInfo。
+ *
+ * 首次进入/刷新时 SDK subscribers cache 可能还没到位,getSubscribes 返回空。
+ * 这导致 collectCandidateNames 返回空 → @不高亮 → 等 useChannelInfoTick 重渲。
+ * 但如果 channelManager 没发出通知(已到位但未通知),tick 永远不触发。
+ *
+ * 本 hook 遍历 mention.uids,对 candidate 为空但 uid 看起来合法的,主动调
+ * fetchChannelInfo。fetch 成功后 SDK 触发 listener → tick → 重渲 → candidate
+ * 到位 → @高亮。每个 uid 只 fetch 一次(ref 追踪)。
+ */
+function useFetchMissingMentionCandidates(
+  mention: Mention | undefined,
+  channel: Channel | undefined,
+): void {
+  const fetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!mention?.uids?.length || !channel) return;
+    const flags = mention as MentionWithFlags;
+    // entity 路径不需要 candidate;ais 路径 uids 是 routing 不绑文本
+    if (flags.entities?.length || flags.ais) return;
+
+    for (const uid of mention.uids) {
+      if (!isLikelyRealUid(uid)) continue;
+      if (fetchedRef.current.has(uid)) continue;
+      const names = collectCandidateNames(uid, channel);
+      if (names.length > 0) continue; // candidate 已有,无需 fetch
+      // 标记为已 fetch,避免重复
+      fetchedRef.current.add(uid);
+      // 主动 fetch Person channelInfo — 成功后 SDK 触发 listener → tick → 重渲
+      void WKSDK.shared().channelManager.fetchChannelInfo(
+        new Channel(uid, ChannelTypePerson),
+      );
+    }
+  });
 }

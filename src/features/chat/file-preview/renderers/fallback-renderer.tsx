@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Download, File, FileAudio, FileImage, FileText, FileVideo, Info, Loader2 } from "lucide-react";
+import {
+  Download,
+  File,
+  FileAudio,
+  FileImage,
+  FileText,
+  FileVideo,
+  Info,
+  Loader2,
+} from "lucide-react";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { formatFileSize } from "@/features/chat/file-preview/config";
 import type { BaseRendererProps } from "@/features/chat/file-preview/types";

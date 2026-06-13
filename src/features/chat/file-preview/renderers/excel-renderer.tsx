@@ -167,7 +167,8 @@ export function ExcelRenderer({ file, onError }: BaseRendererProps) {
 
   const sheet = sheets[activeSheet] ?? sheets[0];
   // 文件类型徽标:csv 显 "CSV",其它(xlsx/xls/...)显 "EXCEL"
-  const isCsv = (file.ext || "").toLowerCase() === "csv" || file.name.toLowerCase().endsWith(".csv");
+  const isCsv =
+    (file.ext || "").toLowerCase() === "csv" || file.name.toLowerCase().endsWith(".csv");
   const badge = isCsv ? "CSV" : "EXCEL";
   const colsCount = sheet.columns.length;
 

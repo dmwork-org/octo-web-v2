@@ -33,8 +33,7 @@ export function useReopenMentionPopupOnSubscribersReady(
     const { state, dispatch } = editor.view;
     const orig = state.selection;
     // 选个保证不同的位置:能往前就往前一格,否则往后(@ 在文档开头的极端情况)
-    const tempPos =
-      orig.from > 0 ? orig.from - 1 : Math.min(orig.from + 1, state.doc.content.size);
+    const tempPos = orig.from > 0 ? orig.from - 1 : Math.min(orig.from + 1, state.doc.content.size);
     if (tempPos === orig.from) return;
     // 离开触发位置 → plugin onExit 关 popup;再回原位 → plugin onStart 用
     // 当前 candidatesRef 重建 popup

@@ -267,7 +267,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
       sections.push(
         <SectionGroup key="remark">
           <InlineEditRow
-            title={t("base.userInfo.setRemark")}
+            title={t("base.botDetail.remark")}
             value={data?.remark ?? ""}
             placeholder={t("base.common.notSet")}
             canEdit
@@ -401,7 +401,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
           </div>
         ) : (
           <>
-            <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-4">
+            <div className="flex shrink-0 items-start gap-4 px-6 pt-2 pb-4">
               <button
                 type="button"
                 aria-label={t("imageRenderer.viewLargeImage")}
@@ -409,19 +409,19 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
                 onClick={() => {
                   if (avatarUrl) setAvatarPreviewOpen(true);
                 }}
-                className="cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand/35 disabled:cursor-default"
+                className="shrink-0 cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand/35 disabled:cursor-default"
               >
                 <ChannelAvatar channel={channel} size={54} title={display} />
               </button>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-1">
-                  <span className="text-base font-semibold text-text-primary">
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="truncate text-base font-semibold text-text-primary">
                     {display}
                   </span>
                   {isBot ? <AiBadge size="small" /> : null}
                   {showRealname ? <RealnameVerifiedBadge variant="full" /> : null}
                 </div>
-                <ul className="flex flex-col items-center gap-0.5 text-[12px] text-text-tertiary">
+                <ul className="flex flex-col gap-0.5 text-[12px] text-text-tertiary">
                   {hasRemark ? (
                     <li>
                       {t("base.userInfo.nicknameLabel")}: {data?.name ?? "—"}
@@ -442,7 +442,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
             </div>
 
             {hasSections ? (
-              <div className="flex flex-col border-t border-border-subtle py-2">
+              <div className="flex flex-col py-2">
                 {sectionsContent}
               </div>
             ) : null}

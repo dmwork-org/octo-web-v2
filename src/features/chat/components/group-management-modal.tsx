@@ -34,7 +34,7 @@ interface GroupManagementModalProps {
   channel: Channel;
   /** 群 channelInfo,用于读 orgData.allow_no_mention 等设置态(可选,缺省时 toggle 走默认值)。 */
   channelInfo?: ChannelInfo;
-  /** owner=1 / manager=2 / 其他=只读。本组件需要 isOwner 才能加/删管理员;manager 只能看。 */
+  /** owner=1 时可加/删管理员;manager 只能管理 Bot 管理员和群级开关。 */
   isOwner: boolean;
   /** owner 或 manager 都可控制群级 toggle(allow-no-mention 等);只读用户不显示 toggle section。 */
   canManage: boolean;
@@ -300,7 +300,7 @@ export function GroupManagementModal({
             <ManagerSection
               title={tt("groupMgmt.ownerManagers")}
               members={managers}
-              isOwner={isOwner}
+              canEdit={isOwner}
               onAdd={() => setMode("addManager")}
               onRemove={(s) =>
                 setConfirmRemove({
@@ -315,7 +315,7 @@ export function GroupManagementModal({
             <ManagerSection
               title={tt("groupMgmt.botAdmins")}
               members={botAdmins}
-              isOwner={isOwner}
+              canEdit={canManage}
               onAdd={() => setMode("addBotAdmin")}
               onRemove={(s) =>
                 setConfirmRemove({
@@ -388,7 +388,7 @@ export function GroupManagementModal({
 function ManagerSection({
   title,
   members,
-  isOwner,
+  canEdit,
   onAdd,
   onRemove,
   addLabel,
@@ -397,7 +397,7 @@ function ManagerSection({
 }: {
   title: string;
   members: Subscriber[];
-  isOwner: boolean;
+  canEdit: boolean;
   onAdd: () => void;
   onRemove: (s: Subscriber) => void;
   addLabel: string;
@@ -409,7 +409,7 @@ function ManagerSection({
     <section className="mx-4 mb-3 flex shrink-0 flex-col overflow-hidden rounded-md border border-border-subtle bg-bg-base">
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
         <span className="text-[12px] font-semibold text-text-secondary">{title}</span>
-        {isOwner ? (
+        {canEdit ? (
           <Button size="small" type="tertiary" onClick={onAdd}>
             {addLabel}
           </Button>
@@ -423,7 +423,7 @@ function ManagerSection({
         <ul>
           {members.map((m) => {
             const display = m.remark || m.name || m.uid;
-            const canRemove = isOwner && (showRoleBadge ? m.role === ROLE_MANAGER : true);
+            const canRemove = canEdit && (showRoleBadge ? m.role === ROLE_MANAGER : true);
             return (
               <li
                 key={m.uid}

@@ -34,6 +34,10 @@ function isThread(c: Channel): boolean {
   return c.channelType === CHANNEL_TYPE_THREAD;
 }
 
+function HeaderTitleSkeleton({ className }: { className: string }) {
+  return <span aria-hidden className={`animate-pulse rounded bg-bg-elevated ${className}`} />;
+}
+
 /**
  * channelInfo 不在 conversation 上时(从 contacts 直接选人进 chat),
  * 主动 fetch + 订阅 channelManager 变化,info 到位后强制重渲。
@@ -88,10 +92,12 @@ export function ChatHeader({
   const displayName =
     (channelInfo?.orgData as { displayName?: string } | undefined)?.displayName ||
     channelInfo?.title ||
-    channel.channelID;
+    "";
 
   const parentChannel = parsed ? new Channel(parsed.groupNo, ChannelTypeGroup) : null;
   const parentGroupTitle = useParentGroupTitle(parsed?.groupNo ?? null);
+  const titleLoading = !displayName;
+  const parentTitleLoading = !!parsed && !parentGroupTitle;
   const [settingOpen, setSettingOpen] = useState(false);
   const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
 
@@ -111,29 +117,39 @@ export function ChatHeader({
         <ChannelAvatar
           channel={parentChannel ?? channel}
           size={28}
-          title={parentGroupTitle || displayName}
+          title={parentGroupTitle || displayName || undefined}
         />
         <h2 className="flex min-w-0 flex-1 items-center gap-1 truncate text-base font-semibold leading-tight text-text-primary">
           {isThreadCh && parsed ? (
             <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={goParentGroup}
-                    aria-label={t("chatHeader.backToParent")}
-                    className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
-                  >
-                    {parentGroupTitle || parsed.groupNo}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{t("chatHeader.backToParent")}</TooltipContent>
-              </Tooltip>
+              {parentTitleLoading ? (
+                <HeaderTitleSkeleton className="h-4 w-24 shrink-0" />
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={goParentGroup}
+                      aria-label={t("chatHeader.backToParent")}
+                      className="shrink cursor-pointer truncate text-[13px] font-normal text-text-tertiary transition-colors hover:text-text-secondary"
+                    >
+                      {parentGroupTitle}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("chatHeader.backToParent")}</TooltipContent>
+                </Tooltip>
+              )}
               <span className="shrink-0 text-[11px] font-light text-text-disabled">›</span>
-              <span className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
-                {displayName}
-              </span>
+              {titleLoading ? (
+                <HeaderTitleSkeleton className="h-4 w-36 min-w-0" />
+              ) : (
+                <span className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
+                  {displayName}
+                </span>
+              )}
             </>
+          ) : titleLoading ? (
+            <HeaderTitleSkeleton className="h-5 w-40 max-w-[50%]" />
           ) : (
             displayName
           )}

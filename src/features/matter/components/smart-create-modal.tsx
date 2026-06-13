@@ -148,7 +148,12 @@ export function SmartCreateModal({
         if (!next) onClose();
       }}
       size="fit"
-      title={tr("matter.create.smartTitleWithCount", { values: { count: messages.length } })}
+      title={tr("matter.create.smartTitle")}
+      // 对齐老项目:AI 提取中禁止关闭(无 X / 不响应 Esc / 不响应点击遮罩),
+      // 进入表单阶段(draftId 有了)再恢复正常关闭交互。
+      showCloseButton={!isExtracting}
+      closeOnEsc={!isExtracting}
+      closeOnMask={!isExtracting}
       className="w-[480px] max-w-full"
       contentClassName="px-4 py-[10px]"
       footer={
@@ -168,7 +173,7 @@ export function SmartCreateModal({
               disabled={!canSave}
               className="inline-flex h-7 items-center rounded-full bg-brand px-3 text-[13px] font-semibold text-text-inverse transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {saveMu.isPending ? tr("matter.action.saving") : tr("matter.action.save")}
+              {saveMu.isPending ? tr("matter.action.creating") : tr("matter.common.confirm")}
             </button>
           </>
         ) : undefined

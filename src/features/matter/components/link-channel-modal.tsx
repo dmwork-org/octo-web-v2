@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -244,17 +245,10 @@ export function LinkChannelModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded-sm text-text-tertiary transition-colors hover:bg-bg-item-hover hover:text-text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
             aria-label={t("base.common.close")}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
+            <X size={16} />
           </button>
         </div>
 

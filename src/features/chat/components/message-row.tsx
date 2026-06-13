@@ -13,6 +13,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { AvatarMenuButton } from "@/features/chat/components/avatar-menu-button";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
@@ -253,7 +254,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         <div className="w-9 shrink-0 text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
         </div>
-        <div className="relative min-w-0 flex-1">
+        <div className={`relative min-w-0 flex-1${selectionActive ? " pointer-events-none" : ""}`}>
           {(message.content as { reply?: Reply }).reply ? (
             <div className="mb-1">
               <ReplyBlock
@@ -279,6 +280,15 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const senderChannel = new Channel(senderUid, ChannelTypePerson);
   const isBot = isBotSender(senderUid);
   const isVerified = isSenderVerified(senderUid, isBot);
+
+  const showOnline = (() => {
+    const senderInfo = WKSDK.shared().channelManager.getChannelInfo(senderChannel);
+    if (!senderInfo) return false;
+    if (senderInfo.online) return true;
+    const now = Date.now() / 1000;
+    const btw = now - (senderInfo.lastOffline ?? 0);
+    return btw > 0 && btw < 60 * 60;
+  })();
   return (
     <div
       className={wrapperClass}
@@ -287,14 +297,19 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       onClick={onRowClick}
     >
       {checkbox}
-      <AvatarMenuButton
-        messageChannel={message.channel}
-        senderUid={senderUid}
-        senderTitle={senderTitle}
+      <div className={`relative h-9 w-9 shrink-0 ${selectionActive ? "pointer-events-none" : ""}`}>
+        <AvatarMenuButton
+          messageChannel={message.channel}
+          senderUid={senderUid}
+          senderTitle={senderTitle}
+        >
+          <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+        </AvatarMenuButton>
+        {showOnline ? <ConversationOnlineBadge /> : null}
+      </div>
+      <div
+        className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}
       >
-        <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
-      </AvatarMenuButton>
-      <div className="relative flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
           <button
             type="button"

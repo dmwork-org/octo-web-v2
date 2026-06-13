@@ -46,7 +46,10 @@ import { MuteIcon } from "@/components/ui/mute-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { ConversationTypingDigest } from "@/features/chat/components/conversation-typing-digest";
-import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
+import {
+  conversationsQueryOptions,
+  conversationsQueryKey,
+} from "@/features/chat/queries/conversations.query";
 import { chatRecentJumpStore } from "@/features/chat/stores/chat-recent-jump";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -55,6 +58,7 @@ import {
   isMentionMe,
   lastMessageDigest,
 } from "@/features/chat/lib/conversation-last-content";
+import { isConversationTop } from "@/features/chat/lib/conversation-top";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -415,8 +419,8 @@ function useRecentUnreadJump(
 
 function sortConversations(list: Conversation[]): Conversation[] {
   return [...list].sort((a, b) => {
-    const aTop = a.extra?.top === 1 ? TOP_BOOST : 0;
-    const bTop = b.extra?.top === 1 ? TOP_BOOST : 0;
+    const aTop = isConversationTop(a) ? TOP_BOOST : 0;
+    const bTop = isConversationTop(b) ? TOP_BOOST : 0;
     return (b.timestamp || 0) + bTop - ((a.timestamp || 0) + aTop);
   });
 }
@@ -478,6 +482,7 @@ export function ConversationList({
       setChannelTop(args.conv.channel, args.top),
     onSuccess: (_void, args) => {
       refreshChannelInfo(args.conv);
+      void qc.invalidateQueries({ queryKey: conversationsQueryKey(spaceId) });
       toast.success(args.top ? t("convList.toast.pinned") : t("convList.toast.unpinned"));
     },
     onError: (err) =>
@@ -688,7 +693,7 @@ export function ConversationList({
   const buildMenuItems = (conv: Conversation): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const isMuted = !!conv.channelInfo?.mute;
-    const isTop = !!conv.channelInfo?.top || conv.extra?.top === 1;
+    const isTop = isConversationTop(conv);
     const isThread = conv.channel.channelType === CHANNEL_TYPE_THREAD;
 
     if (conv.unread > 0) {

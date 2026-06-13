@@ -51,6 +51,7 @@ import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { useReopenMentionPopupOnSubscribersReady } from "@/features/chat/hooks/use-reopen-mention-popup.hook";
 import { useDispatchOnPlaceholderChange } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
 import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
@@ -61,6 +62,7 @@ import { useEditorMultiline } from "@/features/chat/hooks/use-editor-multiline.h
 import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attachments.hook";
 import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
+import { quotedReplyPreviewText } from "@/features/chat/lib/quoted-reply-preview";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import {
@@ -319,6 +321,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
+  // issue #117:subs 拉到位时让仍开着的 sticky-only mention popup 重开拿全 list
+  useReopenMentionPopupOnSubscribersReady(editor, subscribers.length);
   useDispatchOnPlaceholderChange(editor, placeholder);
 
   usePendingAttachmentGuard(editor, attachments.hasAnyAttachment);
@@ -736,6 +740,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     : "";
   const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(tt, replyingTo?.content);
+  const replyPreviewText = quotedReplyPreviewText(replyTypeMeta.hint, replyDigest);
 
   const voiceState: "idle" | "preparing" | "recording" | "transcribing" = transcribing
     ? "transcribing"
@@ -787,10 +792,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
               <span className="shrink-0">{tt("composer.replyLabel")}</span>
               <span className="shrink-0 font-medium text-text-primary">{replySender}:</span>
               {replyTypeMeta.Icon ? <replyTypeMeta.Icon size={12} className="shrink-0" /> : null}
-              <span className="truncate">
-                {replyTypeMeta.hint ? `${replyTypeMeta.hint} ` : ""}
-                {replyDigest}
-              </span>
+              <span className="truncate">{replyPreviewText}</span>
             </div>
           </div>
         ) : null}
@@ -847,7 +849,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                     type="button"
                     onClick={onClickMention}
                     aria-label={tt("composer.mentionAria")}
-                    className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                    className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                   >
                     <AtSign size={20} />
                   </button>
@@ -861,7 +863,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={tt("composer.sendFileAria")}
-                  className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                  className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
                 >
                   <Paperclip size={20} />
                 </button>
@@ -883,7 +885,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                 }
                 aria-label={tt("composer.createTaskAria")}
                 title={tt("composer.createTaskTitle", { values: { alt: ALT_KEY } })}
-                className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+                className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
               >
                 <CheckSquare size={20} />
               </button>
@@ -900,7 +902,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? tt("composer.collapse") : tt("composer.expand")}
               title={expanded ? tt("composer.collapse") : tt("composer.expand")}
-              className="flex h-6 w-6 items-center justify-center text-[#1c1c23]/40 transition-colors hover:text-[#1c1c23]"
+              className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
             >
               {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>

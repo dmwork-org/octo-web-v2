@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
+import { TableVirtuoso } from "react-virtuoso";
 import { useFileContent } from "@/features/chat/file-preview/hooks/use-file-content";
-import { shouldFetchContent } from "@/features/chat/file-preview/config";
+import { isFileTooLarge } from "@/features/chat/file-preview/config";
 import {
   FileTooLarge,
   RendererEmpty,
@@ -11,131 +12,279 @@ import type { BaseRendererProps } from "@/features/chat/file-preview/types";
 import { useT } from "@/lib/i18n/use-t";
 
 /**
- * Excel renderer — **仅支持 CSV**(对齐旧 registry.ts:`excel` type extensions=["csv"]):
- *   - 简版 CSV 解析:支持引号 `"..."` 包裹 + 双引号转义(`""` → `"`)
- *   - **不支持**跨行单元(99% 业务 case 不用,简化避免 state machine 复杂度)
- *   - 不引入 papaparse / xlsx(旧仓用 xlsx 是为了 xlsx/xls,但 registry 只
- *     注册了 csv;.xlsx/.xls 直接走 Fallback)
- *   - 表格视图:union 列 + 行,**>1000 行截断**(简化,不引虚拟滚动)
+ * Excel renderer(1:1 对齐旧 dmworkbase ExcelRenderer):
+ *   - 支持 **xlsx / xls / xlsb / xlsm / csv**(SheetJS `xlsx` 解析二进制工作簿)
+ *   - 多工作表:底部 sheet tabs 切换
+ *   - 虚拟滚动(react-virtuoso TableVirtuoso)高效渲染大表
+ *   - 解析前裁剪尾部空行 + 右侧空列;重复列名用 Symbol key 去重
+ *   - too-large(>20MB)/ loading / error / empty 兜底
+ *
+ * 注:arraybuffer 读取 → XLSX.read,csv 也走同一路径(SheetJS 原生支持 csv)。
  */
-const MAX_ROWS = 1000;
 
-export function ExcelRenderer({ file }: BaseRendererProps) {
+interface ColumnConfig {
+  key: string | symbol;
+  title: string;
+}
+
+interface SheetData {
+  name: string;
+  rows: Record<string | symbol, unknown>[];
+  columns: ColumnConfig[];
+}
+
+/** 裁剪尾部空行 + 右侧空列(对齐老仓 trimEmptyRowsAndColumns)。 */
+function trimEmptyRowsAndColumns(data: unknown[][]): unknown[][] {
+  if (!data || data.length === 0) return data;
+  const isEmpty = (cell: unknown) => cell === null || cell === undefined || cell === "";
+
+  let lastRow = -1;
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i].some((c) => !isEmpty(c))) {
+      lastRow = i;
+      break;
+    }
+  }
+  if (lastRow < 0) return [];
+  const trimmedRows = data.slice(0, lastRow + 1);
+
+  let lastCol = 0;
+  for (const row of trimmedRows) {
+    for (let i = row.length - 1; i >= 0; i--) {
+      if (!isEmpty(row[i])) {
+        lastCol = Math.max(lastCol, i);
+        break;
+      }
+    }
+  }
+  return trimmedRows.map((row) => row.slice(0, lastCol + 1));
+}
+
+/** 解析工作簿为 SheetData[](对齐老仓 parseWorkbook:重复列名 Symbol 去重)。
+ *  xlsx 库动态 import,不打进主 chunk(对齐老仓 lazy load,该库较大)。 */
+async function parseWorkbook(buffer: ArrayBuffer): Promise<SheetData[]> {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(new Uint8Array(buffer), {
+    type: "array",
+    codepage: 65001,
+    raw: true,
+  });
+
+  return workbook.SheetNames.map((name) => {
+    const sheet = workbook.Sheets[name];
+    const json = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+      blankrows: true,
+    }) as unknown[][];
+
+    const trimmed = trimEmptyRowsAndColumns(json);
+    const headers = trimmed.length > 0 ? (trimmed[0] as string[]) : [];
+
+    const nameCount = new Map<string, number>();
+    const columns: ColumnConfig[] = [];
+    const keyByIndex = new Map<number, string | symbol>();
+    headers.forEach((h, idx) => {
+      const title = (h as string) || "-";
+      const count = nameCount.get(title) ?? 0;
+      nameCount.set(title, count + 1);
+      // 重复列名用 Symbol 区分,避免对象 key 覆盖
+      const key = count > 0 ? Symbol(title) : title;
+      columns.push({ key, title });
+      keyByIndex.set(idx, key);
+    });
+
+    const rows = trimmed.slice(1).map((row) => {
+      const obj: Record<string | symbol, unknown> = {};
+      (row as unknown[]).forEach((cell, idx) => {
+        const key = keyByIndex.get(idx);
+        if (key !== undefined) obj[key] = cell;
+      });
+      return obj;
+    });
+
+    return { name, rows, columns };
+  });
+}
+
+function renderCell(value: unknown): string {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+export function ExcelRenderer({ file, onError }: BaseRendererProps) {
   const t = useT();
-  const enabled = shouldFetchContent(file.size || 0);
-  const { content, loading, error, reload } = useFileContent({ url: file.url, enabled });
+  const isTooLarge = file.size != null && isFileTooLarge(file.size);
 
-  const rows = useMemo(() => parseCsv(content ?? ""), [content]);
-  const oversize = !enabled;
+  const { content, loading, error, reload } = useFileContent({
+    url: file.url,
+    responseType: "arraybuffer",
+    enabled: !isTooLarge,
+  });
 
-  if (oversize) return <FileTooLarge name={file.name} size={file.size} url={file.url} />;
-  if (loading) return <RendererLoading />;
-  if (error) return <RendererError message={error} onRetry={reload} />;
-  if (rows.length === 0)
-    return <RendererEmpty message={t("filePreview.excel.csvEmptyOrInvalid")} />;
+  const [sheets, setSheets] = useState<SheetData[]>([]);
+  const [activeSheet, setActiveSheet] = useState(0);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
 
-  // 第一行视为表头(CSV 常规约定)
-  const header = rows[0];
-  const dataRows = rows.slice(1);
-  const truncated = dataRows.length > MAX_ROWS;
-  const visible = truncated ? dataRows.slice(0, MAX_ROWS) : dataRows;
+  // 用 ref 持有最新 onError/t,parse 不再依赖它们,从而 useParseOnContent 的
+  // effect 可以只依赖 [content],避免依赖链脆弱(若 useT 实现回退到每次 render
+  // 新引用就会无限循环;参考 link-channel-modal 同款隐患修复)。
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  useParseOnContent(content, async (buffer) => {
+    setParsing(true);
+    setParseError(null);
+    setSheets([]);
+    setActiveSheet(0);
+    try {
+      const parsed = await parseWorkbook(buffer);
+      if (parsed.length === 0) throw new Error(tRef.current("filePreview.excel.emptySheet"));
+      setSheets(parsed);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : tRef.current("filePreview.excel.parseFailed");
+      setParseError(msg);
+      onErrorRef.current?.(msg);
+    } finally {
+      setParsing(false);
+    }
+  });
+
+  if (isTooLarge) {
+    return <FileTooLarge name={file.name} size={file.size} url={file.url} />;
+  }
+  if (loading || parsing) return <RendererLoading />;
+  if (error || parseError) {
+    return <RendererError message={error ?? parseError ?? ""} onRetry={reload} />;
+  }
+  if (sheets.length === 0) return <RendererEmpty />;
+
+  const sheet = sheets[activeSheet] ?? sheets[0];
+  // 文件类型徽标:csv 显 "CSV",其它(xlsx/xls/...)显 "EXCEL"
+  const isCsv =
+    (file.ext || "").toLowerCase() === "csv" || file.name.toLowerCase().endsWith(".csv");
+  const badge = isCsv ? "CSV" : "EXCEL";
+  const colsCount = sheet.columns.length;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-base">
+      {/* 顶部 toolbar:类型徽标 + 列/行统计(对齐 jsonl renderer 风格) */}
       <div className="flex shrink-0 items-center justify-between border-b border-border-subtle bg-bg-surface px-3 py-1.5">
         <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
           <span className="rounded-sm bg-bg-elevated px-1.5 py-0.5 font-medium text-text-secondary">
-            CSV
+            {badge}
           </span>
           <span>
             {t("filePreview.excel.colsRows", {
-              values: { cols: header.length, rows: dataRows.length },
+              values: { cols: colsCount, rows: sheet.rows.length },
             })}
           </span>
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-bg-elevated">
-            <tr>
-              {header.map((h, i) => (
-                <th
-                  key={i}
-                  className="border-b border-border-default px-3 py-2 text-left font-medium text-text-secondary"
-                >
-                  {h || t("filePreview.excel.columnIndex", { values: { index: i + 1 } })}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row, i) => (
-              <tr key={i} className="border-b border-border-subtle hover:bg-bg-hover">
-                {header.map((_, j) => (
-                  <td
-                    key={j}
-                    className="max-w-[280px] truncate px-3 py-1.5 text-text-primary"
-                    title={row[j] ?? ""}
-                  >
-                    {row[j] ?? ""}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="min-h-0 flex-1">
+        <SheetTable sheet={sheet} />
       </div>
-      <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-3 py-1 text-[11px] text-text-tertiary">
-        {truncated
-          ? t("filePreview.rowsCountTruncated", {
-              values: { total: dataRows.length, shown: MAX_ROWS },
-            })
-          : t("filePreview.rowsCount", { values: { count: dataRows.length } })}
+      <div className="flex shrink-0 items-center gap-3 border-t border-border-subtle bg-bg-surface px-3 py-1">
+        <span className="shrink-0 text-[11px] text-text-tertiary">
+          {t("filePreview.rowsCount", { values: { count: sheet.rows.length } })}
+        </span>
+        {sheets.length > 1 ? (
+          <div className="flex items-center gap-0.5 overflow-x-auto">
+            {sheets.map((s, i) => (
+              <button
+                key={`${s.name}-${i}`}
+                type="button"
+                onClick={() => setActiveSheet(i)}
+                title={s.name}
+                className={`max-w-[120px] shrink-0 cursor-pointer truncate rounded-sm px-2 py-0.5 text-[11px] transition-colors ${
+                  i === activeSheet
+                    ? "bg-bg-elevated font-medium text-text-primary"
+                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-/**
- * 简版 CSV parser:逐字符 state machine 处理引号转义。
- * - `"a,b"` → 单元 `a,b`
- * - `""` 在引号内 → 转义为字面 `"`
- * - 不支持单元内换行(`"a\nb"` 这种 99% 业务 case 不用)。
- */
-function parseCsv(text: string): string[][] {
-  if (!text) return [];
-  const rows: string[][] = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (line === "") continue;
-    const cells: string[] = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQuotes) {
-        if (ch === '"') {
-          if (line[i + 1] === '"') {
-            cur += '"';
-            i++;
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          cur += ch;
-        }
-      } else {
-        if (ch === '"') {
-          inQuotes = true;
-        } else if (ch === ",") {
-          cells.push(cur);
-          cur = "";
-        } else {
-          cur += ch;
-        }
-      }
-    }
-    cells.push(cur);
-    rows.push(cells);
+function SheetTable({ sheet }: { sheet: SheetData }) {
+  const t = useT();
+  const { rows, columns } = sheet;
+  if (rows.length === 0 || columns.length === 0) {
+    return <RendererEmpty message={t("filePreview.empty")} />;
   }
-  return rows;
+  return (
+    <TableVirtuoso
+      data={rows}
+      className="h-full"
+      // 让内部 <table> 撑满容器宽度,避免列宽被内容挤在左侧、右侧大量留白。
+      components={{
+        Table: (props) => (
+          <table {...props} className="w-full table-auto border-collapse text-xs" />
+        ),
+        TableRow: ({ ...props }) => (
+          <tr
+            {...props}
+            className="bg-bg-surface transition-colors odd:bg-bg-base hover:bg-bg-hover"
+          />
+        ),
+      }}
+      fixedHeaderContent={() => (
+        <tr className="bg-bg-elevated">
+          {columns.map((col, i) => (
+            <th
+              key={i}
+              className="border-b border-border-default bg-bg-elevated px-3 py-2 text-left text-xs font-semibold text-text-primary"
+            >
+              {col.title}
+            </th>
+          ))}
+        </tr>
+      )}
+      itemContent={(_index, row) => (
+        <>
+          {columns.map((col, i) => {
+            const text = renderCell(row[col.key]);
+            return (
+              <td
+                key={i}
+                className="max-w-[280px] truncate border-b border-border-subtle px-3 py-1.5 text-xs text-text-primary"
+                title={text}
+              >
+                {text}
+              </td>
+            );
+          })}
+        </>
+      )}
+    />
+  );
+}
+
+/**
+ * content(arraybuffer)就绪后触发解析。抽到命名 hook 满足 no-useeffect-in-component。
+ *
+ * 用 parseRef 持有最新 parse,effect 只依赖 [content]:调用方传的是匿名函数
+ * (每次 render 新引用),若 deps 含 parse 会无限循环。
+ */
+function useParseOnContent(
+  content: ArrayBuffer | null,
+  parse: (buf: ArrayBuffer) => Promise<void>,
+): void {
+  const parseRef = useRef(parse);
+  parseRef.current = parse;
+  useEffect(() => {
+    if (content) void parseRef.current(content);
+  }, [content]);
 }

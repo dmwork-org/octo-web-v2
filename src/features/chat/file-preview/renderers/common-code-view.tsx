@@ -49,6 +49,8 @@ interface CommonCodeViewProps {
   contentSize: number;
   /** 是否强制纯文本(TextRenderer 走此分支不进高亮)。 */
   forcePlain?: boolean;
+  /** 隐藏 plain 模式自带的"已禁用语法高亮"提示(调用方已有自己的大文件提示,避免重复)。 */
+  hidePlainHint?: boolean;
 }
 
 /**
@@ -71,6 +73,7 @@ export function CommonCodeView({
   fileSize,
   contentSize,
   forcePlain,
+  hidePlainHint,
 }: CommonCodeViewProps) {
   const t = useT();
   if (renderMode === "too-large") {
@@ -124,7 +127,7 @@ export function CommonCodeView({
   // plain / forcePlain — 大文件降级或纯文本
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-base">
-      {renderMode === "plain" && !forcePlain ? (
+      {renderMode === "plain" && !forcePlain && !hidePlainHint ? (
         <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-3 py-1.5 text-[11px] text-text-tertiary">
           {t("filePreview.largeFilePlainHint", { values: { size: formatFileSize(contentSize) } })}
         </div>

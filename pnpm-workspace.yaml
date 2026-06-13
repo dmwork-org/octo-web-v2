@@ -1,4 +1,5 @@
 allowBuilds:
+  canvas: false
   esbuild: true
   msw: true
 catalog:

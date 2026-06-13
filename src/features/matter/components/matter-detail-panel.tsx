@@ -203,9 +203,7 @@ export function MatterDetailPanel({
         return;
       }
       const sourceChannelId = entry.source_channel_id;
-      const matchedCh = (data.channels ?? []).find(
-        (ch) => ch.channel_id === sourceChannelId,
-      );
+      const matchedCh = (data.channels ?? []).find((ch) => ch.channel_id === sourceChannelId);
       chatSidePanelActions.openFilePreview({
         url,
         name: att.file_name || t("matter.outputs.unnamedFile"),
@@ -584,7 +582,9 @@ export function MatterDetailPanel({
         </div>
 
         {/* ── 二级 tabs(关联群聊 / 产出文件 / 变更记录)── */}
-        <div className="mt-6 mb-4 h-[47px] border-b border-brand-tint px-4">
+        {/* shrink-0:外层是 flex-col + overflow-y-auto,内容多时(如变更记录 16 条)
+            固定 h-[47px] 的 tab 行会被 flex 默认收缩压扁,导致下边框线被"挤"上去。 */}
+        <div className="mt-6 mb-4 h-[47px] shrink-0 border-b border-brand-tint px-4">
           <div className="flex h-full items-stretch gap-6">
             <SecondaryTabBtn
               active={secondaryTab === "channels"}
@@ -621,7 +621,7 @@ export function MatterDetailPanel({
               onOpenLinkModal={() => setLinkModalOpen(true)}
               onCloseLinkModal={() => setLinkModalOpen(false)}
               onDownloadAttachment={handleDownloadAttachment}
-              onPreviewAttachment={handleAttachmentPreview}
+              onPreviewAttachment={showClose ? handleAttachmentPreview : undefined}
             />
           ) : secondaryTab === "outputs" ? (
             <OutputsPanel
@@ -633,7 +633,10 @@ export function MatterDetailPanel({
               onSearch={handleOutputsSearch}
               onLoadMore={handleOutputsLoadMore}
               onRetry={handleOutputsRetry}
-              onPreview={handleOutputPreview}
+              // onPreview 用 showClose 作为"嵌入会话侧边栏"信号(对齐老项目):
+              // 预览走 chatSidePanelActions.openFilePreview,只有聊天页右侧
+              // FilePreviewPanel 能接收;独立事项页面没有该面板,故不显示预览按钮。
+              onPreview={showClose ? handleOutputPreview : undefined}
               onDownload={handleOutputDownload}
               getChannelMembership={getOutputChannelMembership}
               resolveChannelName={resolveOutputChannelName}
@@ -797,7 +800,7 @@ function ChannelsTab({
   onOpenLinkModal: () => void;
   onCloseLinkModal: () => void;
   onDownloadAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
-  onPreviewAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
+  onPreviewAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);

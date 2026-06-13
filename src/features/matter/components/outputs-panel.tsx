@@ -276,9 +276,13 @@ export function OutputsPanel({
                     >
                       {item.file_name || t("matter.outputs.unnamedFile")}
                     </div>
-                    <div className="text-[12px] leading-[18px] text-text-tertiary">
-                      {item.file_size != null ? formatFileSize(item.file_size) : "—"}
-                    </div>
+                    {/* 文件大小:后端返回 file_size 才显示(0 字节是合法值);
+                        缺失时整行不渲染,避免难看的占位横杠。后端补数据后自动恢复。 */}
+                    {item.file_size != null ? (
+                      <div className="text-[12px] leading-[18px] text-text-tertiary">
+                        {formatFileSize(item.file_size)}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

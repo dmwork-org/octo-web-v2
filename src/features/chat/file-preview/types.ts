@@ -52,6 +52,11 @@ export interface BaseRendererProps {
    */
   viewMode?: "preview" | "source";
   /**
+   * Renderer 反向请求 panel 切换 viewMode(html cspFallback 时让用户一键切源码)。
+   * panel 持有 viewMode,renderer 内部触发要回调 panel。
+   */
+  onViewModeChange?: (mode: "preview" | "source") => void;
+  /**
    * Markdown 上报 toc 大纲(h1/h2/h3),panel 根据此判定是否显示 TOC 按钮 + 渲染
    * popup 列表。其他 renderer 不调用。
    *

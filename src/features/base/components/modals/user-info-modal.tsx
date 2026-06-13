@@ -267,7 +267,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
       sections.push(
         <SectionGroup key="remark">
           <InlineEditRow
-            title={t("base.userInfo.setRemark")}
+            title={t("base.botDetail.remark")}
             value={data?.remark ?? ""}
             placeholder={t("base.common.notSet")}
             canEdit
@@ -441,11 +441,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
               </div>
             </div>
 
-            {hasSections ? (
-              <div className="flex flex-col border-t border-border-subtle py-2">
-                {sectionsContent}
-              </div>
-            ) : null}
+            {hasSections ? <div className="flex flex-col py-2">{sectionsContent}</div> : null}
 
             {bottomContent ? (
               <div className="flex min-h-[60px] shrink-0 items-center justify-center border-t border-border-subtle px-6 py-3">

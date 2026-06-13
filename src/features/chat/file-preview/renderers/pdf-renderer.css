@@ -1,0 +1,58 @@
+/*
+ * PdfRenderer — 仅用于覆盖 react-pdf-viewer 内部 class(rpv-*)。
+ * 其它布局/工具栏/侧栏样式走 Tailwind,见 pdf-renderer.tsx。
+ *
+ * 老仓 PdfRenderer.css 同样用 .rpv-* 作用域覆盖,这里 1:1 对齐(把 wk- token
+ * 替换为本仓 var(--color-*) token)。
+ */
+
+.wk-pdf-renderer .rpv-core__viewer {
+  height: 100%;
+}
+
+.wk-pdf-renderer .rpv-core__inner-pages {
+  background: var(--color-bg-base);
+}
+
+/* 缩略图容器 */
+.wk-pdf-renderer .rpv-thumbnail__container {
+  padding: 8px;
+}
+
+.wk-pdf-renderer .rpv-thumbnail__item {
+  margin-bottom: 8px;
+}
+
+/* 缩略图选中态 — 黑色 brand 边框(对齐老仓 brand-primary 实际值 = brand-black) */
+.wk-pdf-renderer .rpv-thumbnail__item--selected {
+  border-color: var(--color-brand);
+}
+
+.wk-pdf-renderer .rpv-thumbnail__item--selected .rpv-thumbnail__label {
+  color: var(--color-brand);
+}
+
+/* 书签列表 */
+.wk-pdf-renderer .rpv-bookmark__container {
+  padding: 0;
+}
+
+.wk-pdf-renderer .rpv-bookmark__title {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.wk-pdf-renderer .rpv-bookmark__title:hover {
+  background: var(--color-bg-hover);
+}
+
+.wk-pdf-renderer .rpv-bookmark__toggle {
+  color: var(--color-text-secondary);
+}
+
+.wk-pdf-renderer .rpv-bookmark__list {
+  padding-left: 12px;
+}

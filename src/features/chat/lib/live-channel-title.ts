@@ -33,7 +33,9 @@ export function getLiveTitle(channel: Channel): { title: string; loading: boolea
   }
   const display = (info.orgData as { displayName?: string } | undefined)?.displayName;
   const t = display || info.title || "";
-  return { title: t, loading: !t };
+  // 已有 cache 但 title 为空(如 channelInfoCallback 返回空 title):
+  // 不再 loading — 用 channelID 兜底显示,避免永久 skeleton(Issue #116)
+  return { title: t || channel.channelID, loading: false };
 }
 
 /**

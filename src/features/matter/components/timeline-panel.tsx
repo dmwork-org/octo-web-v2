@@ -212,7 +212,13 @@ export function TimelinePanel({
                                             aria-label={`预览 ${name}`}
                                             onClick={() => onPreviewAttachment(att, entry)}
                                           >
-                                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                            <svg
+                                              width="14"
+                                              height="14"
+                                              viewBox="0 0 16 16"
+                                              fill="none"
+                                              aria-hidden="true"
+                                            >
                                               <path
                                                 d="M1.33 8s2.4-4.67 6.67-4.67S14.67 8 14.67 8 12.27 12.67 8 12.67 1.33 8 1.33 8z"
                                                 stroke="currentColor"
@@ -220,7 +226,13 @@ export function TimelinePanel({
                                                 strokeLinecap="round"
                                                 strokeLinejoin="round"
                                               />
-                                              <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.33" />
+                                              <circle
+                                                cx="8"
+                                                cy="8"
+                                                r="2"
+                                                stroke="currentColor"
+                                                strokeWidth="1.33"
+                                              />
                                             </svg>
                                           </button>
                                         </span>

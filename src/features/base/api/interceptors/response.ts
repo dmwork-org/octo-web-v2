@@ -2,7 +2,6 @@ import type { FetchContext, FetchResponse } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
-import { router } from "@/lib/router";
 
 type ResponseCtx = FetchContext & { response: FetchResponse<unknown> };
 
@@ -16,7 +15,11 @@ export const with401Redirect =
     // 用户主动登出后残留 refetch 拿 401 不应被当成过期处理。
     if (typeof window !== "undefined" && window.location.pathname === "/login") return;
     const redirectTo = encodeURIComponent(window.location.href);
-    void router.navigate({ href: `/login?redirect=${redirectTo}` });
+    // 惰性 import 断开循环依赖:response → router → routeTree → matter-client → factory → response。
+    // router 只在真正发生 401 重定向时才用到,无需在模块顶层静态引入。
+    void import("@/lib/router").then(({ router }) => {
+      void router.navigate({ href: `/login?redirect=${redirectTo}` });
+    });
   };
 
 /**

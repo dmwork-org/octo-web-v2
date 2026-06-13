@@ -9,6 +9,7 @@ import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologra
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
 import { useArchivedThreadInputNotice } from "@/features/chat/hooks/use-archived-thread-input-notice.hook";
+import { reactivateThreadInChannelInfoCache } from "@/features/chat/lib/thread-status";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
 import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
@@ -129,6 +130,9 @@ export function ChatMain() {
             key={`${channel.channelID}_${channel.channelType}`}
             channel={channel}
             inputNotice={archivedInputNotice}
+            // 归档子区发完消息 → 后端自动 reactivate,这里乐观本地改 channelInfo
+            // 让 useArchivedThreadInputNotice 立即重算 → 顶部提示消失(issue #113)
+            onMessageSent={archivedInputNotice ? () => reactivateThreadInChannelInfoCache(channel) : undefined}
           />
         )}
       </section>

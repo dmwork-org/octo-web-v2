@@ -1,4 +1,4 @@
-import type { Conversation } from "wukongimjssdk";
+import WKSDK, { type Channel, type Conversation } from "wukongimjssdk";
 
 /**
  * Thread 状态枚举(对齐旧 dmworkbase `Service/Thread.ts ThreadStatus`):
@@ -33,4 +33,33 @@ export function isArchivedThread(conv: Conversation): boolean {
 /** 过滤掉明确已归档的子区(非子区/未知 status 保留)。 */
 export function filterArchivedThreads(convs: Conversation[]): Conversation[] {
   return convs.filter((c) => !isArchivedThread(c));
+}
+
+/**
+ * 已归档子区发消息后乐观本地 reactivate(issue #113):
+ *
+ * 后端会把 status 自动改回 Active,但 SDK channelInfo cache 不会自己刷新 — 没人
+ * 主动 fetchChannelInfo,本地的 thread.status 会一直停留在 Archived,composer
+ * 顶部归档提示 / 关注 tab 隐藏判定都还看到旧值。
+ *
+ * 这里乐观更新 cache 的 `orgData.thread.status` 为 Active 并触发
+ * `notifyListeners` — useChannelInfoTick 监听到变化触发重渲,所有读 channelInfo
+ * 的 hook(includeing useArchivedThreadInputNotice / aggregateThreadUnread 等)
+ * 立即拿到新状态。
+ *
+ * 如果 cache 不存在 / channel 不是子区 / 已经是 Active → no-op。
+ */
+export function reactivateThreadInChannelInfoCache(channel: Channel): void {
+  if (channel.channelType !== 5) return;
+  const cm = WKSDK.shared().channelManager;
+  const info = cm.getChannelInfo(channel);
+  if (!info) return;
+  const orgData = (info.orgData ?? {}) as Record<string, unknown>;
+  const thread = (orgData.thread ?? {}) as Record<string, unknown>;
+  if (thread.status === THREAD_STATUS_ACTIVE) return;
+  thread.status = THREAD_STATUS_ACTIVE;
+  orgData.thread = thread;
+  info.orgData = orgData;
+  cm.setChannleInfoForCache(info);
+  cm.notifyListeners(info);
 }

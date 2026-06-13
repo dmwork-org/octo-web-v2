@@ -163,6 +163,16 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
         },
+        // agent-card-server 独立服务,endpoint 实际带 `/api/v1/` 前缀(线上
+        // `/api/v1/agent-cards/...`)。**必须排在通用 `/api` rule 前面**,且
+        // 不能 rewrite(否则 `/api/v1/agent-cards/...` → `/v1/v1/agent-cards/...`
+        // 仍 404)。issue #30 复现:本地 `/v1/agent-cards/...` 404,线上
+        // `/api/v1/agent-cards/...` 200,差异定位到此 proxy 前缀。
+        "/api/v1/agent-cards": {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: true,
+        },
         "/v1": {
           target: apiTarget,
           changeOrigin: true,

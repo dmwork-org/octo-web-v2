@@ -12,6 +12,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import { useChannelAvatarUrl } from "@/features/chat/hooks/use-channel-avatar-url.hook";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { ClawInfoModal } from "@/features/base/components/claw/claw-info-modal";
 import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { applyFriend, setUserRemark } from "@/features/contacts/api/friends.api";
 import {
@@ -146,6 +147,7 @@ function BotDetailContent({
   const [showApplyInput, setShowApplyInput] = useState(false);
   const [applyRemark, setApplyRemark] = useState("");
   const [remarkEditing, setRemarkEditing] = useState(false);
+  const [showClawInfo, setShowClawInfo] = useState(false);
 
   const invalidate = () => {
     if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
@@ -289,7 +291,9 @@ function BotDetailContent({
           {username ? (
             <span className="font-mono text-xs text-text-tertiary">@{username}</span>
           ) : null}
-          {isOwner ? <ReportChip reported={reported} /> : null}
+          {isOwner ? (
+            <ReportChip reported={reported} onViewClaw={() => setShowClawInfo(true)} />
+          ) : null}
         </div>
       </div>
 
@@ -382,16 +386,10 @@ function BotDetailContent({
       {data?.bot_creator_name || data?.bot_commands ? (
         <SectionGroup>
           {data?.bot_creator_name ? (
-            <NavRow
-              title={t("base.botDetail.creator")}
-              subTitle={data.bot_creator_name}
-            />
+            <NavRow title={t("base.botDetail.creator")} subTitle={data.bot_creator_name} />
           ) : null}
           {data?.bot_commands ? (
-            <NavRow
-              title={t("base.botDetail.commands")}
-              subTitle={data.bot_commands}
-            />
+            <NavRow title={t("base.botDetail.commands")} subTitle={data.bot_commands} />
           ) : null}
         </SectionGroup>
       ) : null}
@@ -482,19 +480,43 @@ function BotDetailContent({
       {avatarPreviewOpen && avatarUrl ? (
         <ImagePreviewModal src={avatarUrl} onClose={() => setAvatarPreviewOpen(false)} />
       ) : null}
+      {uid && showClawInfo ? (
+        <ClawInfoModal
+          botId={uid}
+          botName={data?.remark || data?.name || undefined}
+          open={showClawInfo}
+          onClose={() => setShowClawInfo(false)}
+        />
+      ) : null}
     </>
   );
 }
 
-/** OctoPush 上报状态 chip(owner-only,根据 reported 渲染) */
-function ReportChip({ reported }: { reported: boolean | null | undefined }) {
+/** OctoPush 上报状态 chip + 查看龙虾信息按钮(owner-only,reported=true 时按钮可点) */
+function ReportChip({
+  reported,
+  onViewClaw,
+}: {
+  reported: boolean | null | undefined;
+  onViewClaw: () => void;
+}) {
   const t = useT();
   if (reported === true) {
     return (
-      <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-[rgba(34,197,94,0.1)] px-2 py-0.5 text-[11px] font-medium tracking-[0.3px] text-[#16a34a]">
-        <span className="text-[11px] leading-none">✅</span>
-        {t("base.botDetail.reported")}
-      </span>
+      <div className="mt-1.5 inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 rounded-md bg-[rgba(34,197,94,0.1)] px-2 py-0.5 text-[11px] font-medium tracking-[0.3px] text-[#16a34a]">
+          <span className="text-[11px] leading-none">✅</span>
+          {t("base.botDetail.reported")}
+        </span>
+        <button
+          type="button"
+          onClick={onViewClaw}
+          className="inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-0.5 text-[11px] font-medium text-text-primary hover:bg-bg-hover"
+        >
+          <span className="text-[11px] leading-none">🦞</span>
+          {t("base.botDetail.viewClawInfo")}
+        </button>
+      </div>
     );
   }
   if (reported === false) {

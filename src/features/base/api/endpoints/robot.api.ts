@@ -66,20 +66,21 @@ export async function uploadUserAvatar(uid: string, file: File): Promise<void> {
 
 /**
  * OctoPush 上报状态(对应旧 AgentCardService::getReportStatus)。
- * GET /v1/agent-cards/{botId}/report-status
+ * GET /api/v1/agent-cards/{botId}/report-status
  * 响应:`{ code, message, data: { reported: boolean } }`
  *
  * **静默失败**:对齐旧 BotDetailModal.loadReportStatus 行为,接口不存在 / 网络
  * 错误 / code !== 0 时返 `null`(不报 toast,不冒泡 error,UI 不显示 chip)。
  *
- * 这个接口部署在独立 agent-card-server,测试环境通常没接入,404 是预期场景。
- * **故意绕过 base/api/client** 的全局 withErrorToast 拦截器,用裸 fetch + 手动
- * 注入 token(同 uploadUserAvatar 思路)。
+ * 这个接口部署在独立 agent-card-server,endpoint 实际带 `/api/v1/` 前缀
+ * (不是主 wukong 的 `/v1/`)。**故意绕过 base/api/client** 的全局
+ * withErrorToast 拦截器,用裸 fetch + 手动注入 token(同 uploadUserAvatar 思路)。
+ * 本地 vite proxy 需有 `/api/v1/agent-cards` 不 rewrite 的 rule。
  */
 export async function getAgentReportStatus(botUid: string): Promise<boolean | null> {
   try {
     const token = authStore.state.token ?? "";
-    const resp = await fetch(`/v1/agent-cards/${encodeURIComponent(botUid)}/report-status`, {
+    const resp = await fetch(`/api/v1/agent-cards/${encodeURIComponent(botUid)}/report-status`, {
       headers: { token },
     });
     if (!resp.ok) return null;

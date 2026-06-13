@@ -58,10 +58,7 @@ export function ConfirmDialog({
           <Button variant="ghost" onClick={() => handleClose(false)}>
             {cancelText ?? t("base.common.cancel")}
           </Button>
-          <Button
-            variant={okDanger ? "destructive" : "default"}
-            onClick={onOk}
-          >
+          <Button variant={okDanger ? "destructive" : "default"} onClick={onOk}>
             {okText ?? t("base.common.confirm")}
           </Button>
         </>

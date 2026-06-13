@@ -307,7 +307,9 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         </AvatarMenuButton>
         {showOnline ? <ConversationOnlineBadge /> : null}
       </div>
-      <div className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}>
+      <div
+        className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}
+      >
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
           <button
             type="button"

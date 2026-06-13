@@ -253,7 +253,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
         <div className="w-9 shrink-0 text-center text-[10px] leading-[22px] text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100">
           {formatTime(message.timestamp)}
         </div>
-        <div className="relative min-w-0 flex-1">
+        <div className={`relative min-w-0 flex-1${selectionActive ? " pointer-events-none" : ""}`}>
           {(message.content as { reply?: Reply }).reply ? (
             <div className="mb-1">
               <ReplyBlock
@@ -287,14 +287,16 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       onClick={onRowClick}
     >
       {checkbox}
-      <AvatarMenuButton
-        messageChannel={message.channel}
-        senderUid={senderUid}
-        senderTitle={senderTitle}
-      >
-        <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
-      </AvatarMenuButton>
-      <div className="relative flex min-w-0 flex-1 flex-col gap-1">
+      <div className={selectionActive ? "pointer-events-none" : ""}>
+        <AvatarMenuButton
+          messageChannel={message.channel}
+          senderUid={senderUid}
+          senderTitle={senderTitle}
+        >
+          <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+        </AvatarMenuButton>
+      </div>
+      <div className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}>
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
           <button
             type="button"

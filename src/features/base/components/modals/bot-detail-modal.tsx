@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
-import { Camera, Check, ChevronRight, Edit2, MessageCircle, Plus, Settings } from "lucide-react";
+import { Camera, Check, ChevronRight, Edit2, MessageCircle, Plus } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";

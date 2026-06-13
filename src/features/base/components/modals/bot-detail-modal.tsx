@@ -25,6 +25,7 @@ import {
   type DrilldownDialogPage,
 } from "@/features/base/components/overlay/drilldown-dialog";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
+import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { InlineEditRow } from "@/features/base/components/section-form/inline-edit-row";
 import {
   BotManageMenuPage,
@@ -236,8 +237,8 @@ function BotDetailContent({
 
   return (
     <>
-      <div className="flex flex-col items-center gap-2 px-6 pt-2 pb-4">
-        <div className="relative">
+      <div className="flex shrink-0 items-start gap-4 px-6 pt-2 pb-4">
+        <div className="relative shrink-0">
           <button
             type="button"
             aria-label={t("imageRenderer.viewLargeImage")}
@@ -280,131 +281,129 @@ function BotDetailContent({
           }}
           onClick={(e) => ((e.target as HTMLInputElement).value = "")}
         />
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-text-primary">{name}</h2>
-          <AiBadge size="small" />
-        </div>
-        {username ? (
-          <span className="font-mono text-xs text-text-tertiary">@{username}</span>
-        ) : null}
-        {isOwner ? <ReportChip reported={reported} /> : null}
-      </div>
-
-      <div className="px-4 py-3">
-        <SectionGroup>
-          <InlineEditRow
-            title={t("base.botDetail.remark")}
-            value={data?.remark ?? ""}
-            placeholder={t("base.botDetail.remarkPlaceholder")}
-            canEdit
-            maxLength={30}
-            pending={remarkMu.isPending}
-            editing={remarkEditing}
-            onEnterEdit={() => setRemarkEditing(true)}
-            onCancel={() => setRemarkEditing(false)}
-            onSave={(v) => remarkMu.mutate(v)}
-          />
-          {remark ? (
-            <div className="flex w-full items-center gap-2 px-4 py-2.5">
-              <span className="flex-1 truncate text-[13px] text-text-primary">
-                {t("base.botDetail.nickname")}
-              </span>
-              <span className="shrink-0 max-w-[60%] truncate text-[12px] text-text-tertiary">
-                {botName}
-              </span>
-            </div>
-          ) : null}
-        </SectionGroup>
-      </div>
-
-      <div className="border-t border-border-subtle px-6 py-4">
-        <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-xs font-medium text-text-tertiary">{t("base.botDetail.intro")}</h3>
-          {isOwner && !editingDesc ? (
-            <button
-              type="button"
-              onClick={() => {
-                setDescDraft(description === noDescription ? "" : description);
-                setEditingDesc(true);
-              }}
-              aria-label={t("base.botDetail.editIntro")}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            >
-              <Edit2 size={12} />
-            </button>
-          ) : null}
-        </div>
-        {editingDesc ? (
-          <div className="flex flex-col gap-2">
-            <textarea
-              autoFocus
-              value={descDraft}
-              onChange={(e) => setDescDraft(e.target.value)}
-              rows={4}
-              placeholder={t("base.botDetail.introPlaceholder")}
-              className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="tertiary"
-                theme="borderless"
-                size="small"
-                onClick={() => {
-                  setEditingDesc(false);
-                  setDescDraft("");
-                }}
-              >
-                {t("base.common.cancel")}
-              </Button>
-              <Button
-                type="primary"
-                theme="solid"
-                size="small"
-                loading={updateDescMu.isPending}
-                onClick={() => updateDescMu.mutate(descDraft)}
-              >
-                {t("base.common.save")}
-              </Button>
-            </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-text-primary">{name}</h2>
+            <AiBadge size="small" />
           </div>
-        ) : (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-primary">
-            {description}
-          </p>
-        )}
+          {username ? (
+            <span className="font-mono text-xs text-text-tertiary">@{username}</span>
+          ) : null}
+          {isOwner ? <ReportChip reported={reported} /> : null}
+        </div>
       </div>
+
+      <SectionGroup>
+        <InlineEditRow
+          title={t("base.botDetail.remark")}
+          value={data?.remark ?? ""}
+          placeholder={t("base.botDetail.remarkPlaceholder")}
+          canEdit
+          maxLength={30}
+          pending={remarkMu.isPending}
+          editing={remarkEditing}
+          onEnterEdit={() => setRemarkEditing(true)}
+          onCancel={() => setRemarkEditing(false)}
+          onSave={(v) => remarkMu.mutate(v)}
+        />
+        {remark ? (
+          <div className="flex w-full items-center gap-2 px-4 py-2.5">
+            <span className="flex-1 truncate text-[13px] text-text-primary">
+              {t("base.botDetail.nickname")}
+            </span>
+            <span className="shrink-0 max-w-[60%] truncate text-[12px] text-text-tertiary">
+              {botName}
+            </span>
+          </div>
+        ) : null}
+      </SectionGroup>
+
+      <SectionGroup>
+        <div className="px-4 py-2.5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[13px] text-text-tertiary">{t("base.botDetail.intro")}</span>
+            {isOwner && !editingDesc ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDescDraft(description === noDescription ? "" : description);
+                  setEditingDesc(true);
+                }}
+                aria-label={t("base.botDetail.editIntro")}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Edit2 size={12} />
+              </button>
+            ) : null}
+          </div>
+          {editingDesc ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                autoFocus
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                rows={4}
+                placeholder={t("base.botDetail.introPlaceholder")}
+                className="resize-none rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  onClick={() => {
+                    setEditingDesc(false);
+                    setDescDraft("");
+                  }}
+                >
+                  {t("base.common.cancel")}
+                </Button>
+                <Button
+                  type="primary"
+                  theme="solid"
+                  size="small"
+                  loading={updateDescMu.isPending}
+                  onClick={() => updateDescMu.mutate(descDraft)}
+                >
+                  {t("base.common.save")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="max-h-[120px] overflow-y-auto">
+              <p className="break-words whitespace-pre-wrap text-[13px] leading-relaxed text-text-primary">
+                {description}
+              </p>
+            </div>
+          )}
+        </div>
+      </SectionGroup>
 
       {data?.bot_creator_name || data?.bot_commands ? (
-        <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 border-t border-border-subtle px-6 py-4 text-xs">
+        <SectionGroup>
           {data?.bot_creator_name ? (
-            <>
-              <dt className="text-text-tertiary">{t("base.botDetail.creator")}</dt>
-              <dd className="text-text-primary">{data.bot_creator_name}</dd>
-            </>
+            <NavRow
+              title={t("base.botDetail.creator")}
+              subTitle={data.bot_creator_name}
+            />
           ) : null}
           {data?.bot_commands ? (
-            <>
-              <dt className="text-text-tertiary">{t("base.botDetail.commands")}</dt>
-              <dd className="font-mono whitespace-pre-wrap text-text-primary">
-                {data.bot_commands}
-              </dd>
-            </>
+            <NavRow
+              title={t("base.botDetail.commands")}
+              subTitle={data.bot_commands}
+            />
           ) : null}
-        </dl>
+        </SectionGroup>
       ) : null}
 
       {isOwner ? (
-        <div className="border-t border-border-subtle px-6 py-3">
-          <button
-            type="button"
+        <SectionGroup>
+          <NavRow
+            title={t("base.botManage.entry")}
+            right={<ChevronRight size={16} className="text-text-tertiary" />}
             onClick={onOpenManage}
-            className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-hover"
-          >
-            <Settings size={16} className="shrink-0 text-text-tertiary" />
-            <span className="flex-1 text-sm text-text-primary">{t("base.botManage.entry")}</span>
-            <ChevronRight size={14} className="shrink-0 text-text-tertiary" />
-          </button>
-        </div>
+          />
+        </SectionGroup>
       ) : null}
 
       <div className="flex shrink-0 flex-col gap-2 border-t border-border-subtle px-6 py-4">

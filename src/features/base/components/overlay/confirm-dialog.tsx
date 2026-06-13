@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Button } from "@/components/semi-bridge/button";
+import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/use-t";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 
@@ -35,7 +35,7 @@ export function ConfirmDialog({
   okText,
   cancelText,
   okDanger = false,
-  okLoading = false,
+  okLoading: _okLoading = false, // 兼容老 API，加下划线避免 TS6133 未使用变量警告
   onOk,
   onCancel,
 }: ConfirmDialogProps) {
@@ -55,13 +55,11 @@ export function ConfirmDialog({
       showCloseButton={false}
       footer={
         <>
-          <Button type="tertiary" theme="borderless" onClick={() => handleClose(false)}>
+          <Button variant="ghost" onClick={() => handleClose(false)}>
             {cancelText ?? t("base.common.cancel")}
           </Button>
           <Button
-            type={okDanger ? "danger" : "primary"}
-            theme="solid"
-            loading={okLoading}
+            variant={okDanger ? "destructive" : "default"}
             onClick={onOk}
           >
             {okText ?? t("base.common.confirm")}

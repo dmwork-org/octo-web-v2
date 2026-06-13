@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
@@ -65,6 +65,8 @@ import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { quotedReplyPreviewText } from "@/features/chat/lib/quoted-reply-preview";
 import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
+import { extractOctoRichTextClipboardPayloadFromHtml } from "@/features/chat/lib/rich-text-clipboard";
+import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-text-paste";
 import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
@@ -201,6 +203,9 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   useChannelInfoTick();
   const botCommands = useBotCommands(channel);
   const attachments = useComposerAttachments();
+  const editorRef = useRef<Editor | null>(null);
+  const addAttachmentsRef = useRef(attachments.addAttachments);
+  addAttachmentsRef.current = attachments.addAttachments;
 
   const channelName = (() => {
     const info = WKSDK.shared().channelManager.getChannelInfo(channel);
@@ -310,8 +315,27 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         }
         return false;
       },
+      handlePaste: (_view, event) => {
+        const payload = extractOctoRichTextClipboardPayloadFromHtml(
+          event.clipboardData?.getData("text/html") || "",
+        );
+        const currentEditor = editorRef.current;
+        if (!payload || !currentEditor) return false;
+
+        event.preventDefault();
+        const beforePasteContent = JSON.stringify(currentEditor.getJSON());
+        restoreOctoRichTextClipboardToEditor(payload, currentEditor, (files, source, ed) =>
+          addAttachmentsRef.current(files, source, ed),
+        ).catch(() => {
+          if (payload.plain && JSON.stringify(currentEditor.getJSON()) === beforePasteContent) {
+            currentEditor.commands.insertContent(payload.plain);
+          }
+        });
+        return true;
+      },
     },
   });
+  editorRef.current = editor;
 
   const slash = useSlashCommand(editor, botCommands);
   const isMultiLine = useEditorMultiline(editor);

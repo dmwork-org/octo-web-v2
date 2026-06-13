@@ -200,11 +200,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
         return;
       }
       if (e.key === "PageDown" || e.key === "ArrowDown") {
@@ -270,9 +266,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              {isSidebarOpen
-                ? t("filePreview.pdf.hideSidebar")
-                : t("filePreview.pdf.showSidebar")}
+              {isSidebarOpen ? t("filePreview.pdf.hideSidebar") : t("filePreview.pdf.showSidebar")}
             </TooltipContent>
           </Tooltip>
 
@@ -291,9 +285,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
               title={t("filePreview.pdf.jumpToPage")}
               className="h-6 w-8 rounded-sm border border-brand-tint-10 bg-bg-surface px-1.5 py-0.5 text-center text-sm tabular-nums text-text-primary focus:border-brand focus:outline-none"
             />
-            <span>
-              {t("filePreview.pdf.pageTotal", { values: { total: totalPages ?? "-" } })}
-            </span>
+            <span>{t("filePreview.pdf.pageTotal", { values: { total: totalPages ?? "-" } })}</span>
           </div>
 
           {/* 右:缩放胶囊 + 适应宽度按钮 */}
@@ -404,9 +396,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
               }}
               renderError={(error) => (
                 <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                  <span className="text-sm text-error">
-                    {t("filePreview.pdf.loadFailed")}
-                  </span>
+                  <span className="text-sm text-error">{t("filePreview.pdf.loadFailed")}</span>
                   <span className="text-xs text-text-tertiary">
                     {error.message || t("filePreview.pdf.invalidFileHint")}
                   </span>

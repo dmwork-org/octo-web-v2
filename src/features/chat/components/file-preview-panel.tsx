@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@tanstack/react-store";
-import {
-  Code as CodeIcon,
-  Eye,
-  ExternalLink,
-  List,
-  X,
-} from "lucide-react";
+import { Code as CodeIcon, Eye, ExternalLink, List, X } from "lucide-react";
 import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
 import { openInNewWindow, triggerDownload } from "@/features/chat/lib/file-download";
 import { FileTypeIcon } from "@/features/chat/file-preview/file-type-icon";

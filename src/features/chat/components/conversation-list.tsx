@@ -181,8 +181,14 @@ function ConversationRow({
       }
     | undefined;
   const realTitle = orgData?.displayName || info?.title || "";
-  const titleLoading = !realTitle;
-  const title = realTitle || channel.channelID;
+  // titleLoading 仅在 channelInfo 未到达时为 true(显示 skeleton);
+  // info 已存在但 title 为空时不算 loading — 用 channelID 兜底显示(Issue #116)
+  const titleLoading = !info;
+  // Fix #116: 子区 fallback 用 #shortId(比完整 channelID 更友好),非子区用 channelID
+  const fallbackTitle = isThread
+    ? `#${parseThreadChannelId(channel.channelID)?.shortId ?? channel.channelID}`
+    : channel.channelID;
+  const title = realTitle || fallbackTitle;
   const isExternal = isGroup && orgData?.is_external_group === 1;
   const isBot = isPerson && orgData?.robot === 1;
   const identityIcon = orgData?.identityIcon;

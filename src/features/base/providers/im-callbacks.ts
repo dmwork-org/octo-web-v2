@@ -132,17 +132,21 @@ async function buildThreadChannelInfo(channel: Channel): Promise<ChannelInfo> {
   }
   let thread: ThreadRaw;
   try {
-    thread = await getThread(parsed.groupNo, parsed.shortId);
+    // silent: true — 已归档/已删除子区可能返回 404,不弹全局错误 toast(对齐旧项目 catch swallow)
+    thread = await getThread(parsed.groupNo, parsed.shortId, { silent: true });
   } catch {
+    // API 失败(404 / 已归档 / 无权限):用 channelID 兜底,确保 titleLoading 能 resolve
     info.title = channel.channelID;
     info.orgData = {};
     return info;
   }
-  info.title = thread.name;
+  // thread.name 可能为空(已归档子区后端清空 name 等),用 channelID 兜底避免 titleLoading 永真
+  const displayName = thread.name || channel.channelID;
+  info.title = displayName;
   info.logo = `groups/${parsed.groupNo}/avatar`;
   info.mute = thread.mute === 1;
   info.orgData = {
-    displayName: thread.name,
+    displayName,
     thread,
     parentGroupNo: parsed.groupNo,
     has_thread_md: !!thread.has_thread_md,

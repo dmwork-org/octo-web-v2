@@ -37,7 +37,7 @@ function injectCspMonitor(html: string): string {
     `window.parent.postMessage({type:'html-csp-violation',directive:d},'*');` +
     `}` +
     `});` +
-    `})();<\/script>`;
+    `})();</script>`;
 
   if (/<head[^>]*>/i.test(html)) {
     return html.replace(/<head[^>]*>/i, (m) => m + script);

@@ -33,10 +33,13 @@ import {
   revokeMessage,
 } from "@/features/base/api/endpoints/message.api";
 import { createThread } from "@/features/base/api/endpoints/group.api";
+import { MessageContentTypeConst } from "@/features/base/im/content-types";
+import type { RichTextContent } from "@/features/base/im/richtext-content";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { copyImageToClipboard } from "@/features/base/lib/copy-image";
+import { copyRichTextToClipboard } from "@/features/chat/lib/rich-text-clipboard";
 import { authStore } from "@/features/base/stores/auth";
 import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
 import { collectRevokeRoleContext } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
@@ -188,10 +191,15 @@ export function useMessageContextMenu(message: Message): {
       label: t("messageRow.menu.copy"),
       icon: <Copy size={13} />,
       onClick: () => {
-        const text = extractText(message);
-        void navigator.clipboard
-          .writeText(text)
-          .then(() => toast.success(t("messageRow.toast.copied")))
+        const richText = message.contentType === MessageContentTypeConst.richText;
+        const copied = richText
+          ? copyRichTextToClipboard(message.content as RichTextContent, message.channel)
+          : navigator.clipboard.writeText(extractText(message)).then(() => true);
+        void copied
+          .then((ok) => {
+            if (ok) toast.success(t("messageRow.toast.copied"));
+            else toast.error(t("messageRow.toast.copyFailed"));
+          })
           .catch(() => toast.error(t("messageRow.toast.copyFailed")));
       },
     });

@@ -216,7 +216,6 @@ function BotDetailContent({
   const botName = data?.name || uid || "";
   const remark = data?.remark?.trim() ?? "";
   const name = remark || botName;
-  const username = data?.username;
   const noDescription = t("base.botDetail.noDescription");
   const description = data?.bot_description || data?.description || data?.bio || noDescription;
   const isFriend = data?.follow === 1;
@@ -288,9 +287,6 @@ function BotDetailContent({
             <h2 className="text-lg font-semibold text-text-primary">{name}</h2>
             <AiBadge size="small" />
           </div>
-          {username ? (
-            <span className="font-mono text-xs text-text-tertiary">@{username}</span>
-          ) : null}
           {isOwner ? (
             <ReportChip reported={reported} onViewClaw={() => setShowClawInfo(true)} />
           ) : null}

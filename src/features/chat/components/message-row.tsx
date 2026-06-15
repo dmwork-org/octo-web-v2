@@ -26,6 +26,11 @@ import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import { isMessageSelectable } from "@/features/chat/lib/message-selection";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import {
+  INCOMING_WEBHOOK_DEFAULT_AVATAR,
+  isIncomingWebhookSender,
+  webhookFromOfMessage,
+} from "@/features/chat/lib/incoming-webhook";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import {
@@ -65,6 +70,7 @@ function useSenderInfoLive(fromUID: string): void {
   const [, force] = useState(0);
   useEffect(() => {
     if (!fromUID) return;
+    if (isIncomingWebhookSender(fromUID)) return;
     const mgr = WKSDK.shared().channelManager;
     const ch = new Channel(fromUID, ChannelTypePerson);
     if (!mgr.getChannelInfo(ch)) {
@@ -162,6 +168,12 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
    *   (避免后续转发/批量操作命中 system message 导致后端 400)
    */
   const selectable = isMessageSelectable(message);
+  const webhookFrom = webhookFromOfMessage(
+    message as {
+      fromUID?: string;
+      content?: { contentObj?: { from?: unknown } };
+    },
+  );
 
   const { onContextMenu, render: renderMenu } = useMessageContextMenu(message);
 
@@ -275,10 +287,13 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     );
   }
 
-  const senderTitle = senderDisplay(message);
+  const senderTitle = webhookFrom
+    ? webhookFrom.name || t("messageRow.webhookFallbackName")
+    : senderDisplay(message);
   const senderUid = effectiveFromUID(message);
   const senderChannel = new Channel(senderUid, ChannelTypePerson);
-  const isBot = isBotSender(senderUid);
+  const isWebhook = !!webhookFrom;
+  const isBot = !isWebhook && isBotSender(senderUid);
   const isVerified = isSenderVerified(senderUid, isBot);
 
   const showOnline = (() => {
@@ -298,30 +313,49 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     >
       {checkbox}
       <div className={`relative h-9 w-9 shrink-0 ${selectionActive ? "pointer-events-none" : ""}`}>
-        <AvatarMenuButton
-          messageChannel={message.channel}
-          senderUid={senderUid}
-          senderTitle={senderTitle}
-        >
-          <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
-        </AvatarMenuButton>
+        {isWebhook ? (
+          <img
+            src={webhookFrom.avatar || INCOMING_WEBHOOK_DEFAULT_AVATAR}
+            alt=""
+            className="h-9 w-9 rounded-md object-cover"
+          />
+        ) : (
+          <AvatarMenuButton
+            messageChannel={message.channel}
+            senderUid={senderUid}
+            senderTitle={senderTitle}
+          >
+            <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
+          </AvatarMenuButton>
+        )}
         {showOnline ? <ConversationOnlineBadge /> : null}
       </div>
       <div
         className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}
       >
         <header className="flex h-[22px] items-center gap-2 leading-[22px]">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openChatProfile(senderUid, message.channel);
-            }}
-            className="cursor-pointer truncate text-[15px] font-semibold text-text-primary hover:underline"
-          >
-            {senderTitle}
-          </button>
+          {isWebhook ? (
+            <span className="truncate text-[15px] font-semibold text-text-primary">
+              {senderTitle}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openChatProfile(senderUid, message.channel);
+              }}
+              className="cursor-pointer truncate text-[15px] font-semibold text-text-primary hover:underline"
+            >
+              {senderTitle}
+            </button>
+          )}
           {isVerified ? <RealnameBadge /> : null}
+          {isWebhook ? (
+            <span className="shrink-0 rounded-sm bg-bg-elevated px-1 text-[10px] font-medium text-text-tertiary">
+              {t("messageRow.webhookBadge")}
+            </span>
+          ) : null}
           {isBot ? <AiBadge size="small" /> : null}
           <span className="shrink-0 text-[12px] text-[rgba(28,28,35,0.4)]">
             {formatSenderTime(message.timestamp)}

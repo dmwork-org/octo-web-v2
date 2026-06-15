@@ -273,9 +273,10 @@ function mentionTokens(
       // 脏数据 uid(如 "utility")fetch 永远 400 反而触发"用户信息不存在"toast。
       continue;
     }
-    // 按长度升序排序 — 短名优先匹配,避免长 candidate(如 displayName 设成
-    // "李志伟测试测试测试")吞掉用户在 mention 后输入的普通文字(issue #73)
-    for (const name of names.slice().sort((a, b) => a.length - b.length)) {
+    // 保留 collectCandidateNames 的业务优先级(remark -> name -> org display names)。
+    // 不能按长度重排:短名会抢先命中 `@郭斌丨Octo` 里的 `@郭斌`(issue #131),
+    // 长名优先又会回归 issue #73 的普通后缀被吞问题。
+    for (const name of names) {
       const match = `@${name}`;
       if (text.includes(match)) {
         tokens.push({

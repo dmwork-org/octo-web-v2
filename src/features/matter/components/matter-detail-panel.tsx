@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSuspenseQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useRouter } from "@tanstack/react-router";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson, type ChannelInfo } from "wukongimjssdk";
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -106,6 +106,42 @@ function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, should
       ref.current?.select();
     }
   }, [shouldFocus, ref]);
+}
+
+function useOutputChannelNameTick(channels: MatterChannel[] | undefined): number {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const list = channels ?? [];
+    if (list.length === 0) return;
+
+    const listener = (info: ChannelInfo) => {
+      const matched = list.some(
+        (c) =>
+          c.channel_id === info.channel.channelID && c.channel_type === info.channel.channelType,
+      );
+      if (matched) setTick((value) => value + 1);
+    };
+    WKSDK.shared().channelManager.addListener(listener);
+
+    for (const c of list) {
+      const channel = new Channel(c.channel_id, c.channel_type);
+      const cached = WKSDK.shared().channelManager.getChannelInfo(channel);
+      if (!cached?.title) {
+        WKSDK.shared()
+          .channelManager.fetchChannelInfo(channel)
+          .catch(() => {
+            // 保留后端 snapshot 兜底；实时名称拉取失败不阻断详情页。
+          });
+      }
+    }
+
+    return () => {
+      WKSDK.shared().channelManager.removeListener(listener);
+    };
+  }, [channels]);
+
+  return tick;
 }
 
 /**
@@ -276,13 +312,27 @@ export function MatterDetailPanel({
     [data.channels, myGroupNos, myGroupsQ.isLoading, myGroupsQ.isError],
   );
 
+  const outputChannelNameTick = useOutputChannelNameTick(data.channels);
+
+  const outputChannelNameMap = useMemo(() => {
+    void outputChannelNameTick;
+    const map = new Map<string, string>();
+    for (const ch of data.channels ?? []) {
+      const liveName = WKSDK.shared().channelManager.getChannelInfo(
+        new Channel(ch.channel_id, ch.channel_type),
+      )?.title;
+      const name = liveName || ch.channel_name || "";
+      if (name) map.set(ch.channel_id, name);
+    }
+    return map;
+  }, [data.channels, outputChannelNameTick]);
+
   const resolveOutputChannelName = useCallback(
     (sourceChannelId?: string) => {
       if (!sourceChannelId) return undefined;
-      const ch = (data.channels ?? []).find((c) => c.channel_id === sourceChannelId);
-      return ch?.channel_name;
+      return outputChannelNameMap.get(sourceChannelId);
     },
-    [data.channels],
+    [outputChannelNameMap],
   );
 
   const handleOutputDownload = useCallback(

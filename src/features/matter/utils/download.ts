@@ -1,4 +1,4 @@
-import { $fetch } from "ofetch";
+import { triggerDownload } from "@/features/chat/lib/file-download";
 
 /**
  * 下载文件工具函数。
@@ -11,37 +11,19 @@ import { $fetch } from "ofetch";
  */
 export function resolveFileUrl(rawUrl: string | undefined): string | null {
   if (!rawUrl) return null;
-
-  // 已经是绝对 URL
-  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-    return rawUrl;
+  try {
+    const url = new URL(rawUrl, window.location.origin);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.href;
+  } catch {
+    return null;
   }
-
-  // 相对路径，拼上 origin
-  const origin = window.location.origin;
-  const path = rawUrl.replace(/^\//, "");
-  return `${origin}/${path}`;
 }
 
 /**
  * 下载文件。
- * 使用 ofetch + blob + createObjectURL 实现。
+ * 复用聊天文件下载逻辑，跨域时走后端预签名 URL fallback。
  */
 export async function downloadFile(url: string, fileName: string): Promise<void> {
-  const blob = await $fetch(url, { responseType: "blob" });
-
-  const blobUrl = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = blobUrl;
-  link.download = fileName;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-
-  // 清理
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl);
-    document.body.removeChild(link);
-  }, 100);
+  await triggerDownload(url, fileName);
 }

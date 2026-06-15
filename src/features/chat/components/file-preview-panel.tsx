@@ -179,7 +179,7 @@ function FilePreviewPanelInner({ file }: { file: FilePreviewInfo }) {
           <Sep />
           <IconBtn
             label={t("filePreview.close")}
-            onClick={() => chatSidePanelActions.close()}
+            onClick={() => chatSidePanelActions.closeFilePreview()}
             danger
           >
             <X size={18} />

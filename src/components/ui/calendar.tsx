@@ -1,11 +1,12 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
-import { zhCN } from "date-fns/locale";
+import { enUS, zhCN } from "date-fns/locale";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
 /**
- * shadcn/ui Calendar(react-day-picker v10 适配版,中文 locale 默认)。
+ * shadcn/ui Calendar(react-day-picker v10 适配版,跟随应用 locale)。
  *
  * 项目里 DDL pick / 提醒时间 popover 共用。包 PopoverContent 即为弹层模式。
  * 默认 mode="single",单选日期,onSelect 接 Date | undefined。
@@ -15,12 +16,16 @@ export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 export function Calendar({
   className,
   classNames,
+  locale: localeProp,
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  const { locale } = useI18n();
+  const dayPickerLocale = localeProp ?? (locale === "en-US" ? enUS : zhCN);
+
   return (
     <DayPicker
-      locale={zhCN}
+      locale={dayPickerLocale}
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{

@@ -11,6 +11,7 @@ import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { buildPersonaBotCandidates } from "@/features/persona/lib/bot-candidates";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tInst } from "@/lib/i18n/instance";
 
@@ -68,21 +69,7 @@ export function CreatePersonaModal({ open, onClose }: CreatePersonaModalProps) {
   const createMu = useCreateGrantMutation();
 
   const bots = useMemo<BotCandidate[]>(() => {
-    if (!open) return [];
-    const myList = Array.isArray(myBots) ? myBots : [];
-    const spaceList = Array.isArray(spaceBots) ? spaceBots : [];
-    const ownedSpaceBots = myUid
-      ? spaceList.filter((b) => b.creator_uid && b.creator_uid === myUid)
-      : [];
-    const merged = new Map<string, BotCandidate>();
-    for (const b of [...myList, ...ownedSpaceBots]) {
-      if (!b || !b.uid || merged.has(b.uid)) continue;
-      merged.set(b.uid, b);
-    }
-    const grantedUids = new Set(
-      (Array.isArray(grants) ? grants : []).map((g) => g.grantee_bot_uid),
-    );
-    return Array.from(merged.values()).filter((b) => !grantedUids.has(b.uid));
+    return buildPersonaBotCandidates({ open, myBots, spaceBots, grants, myUid });
   }, [open, myBots, spaceBots, grants, myUid]);
 
   const loading = myLoading || spaceLoading;

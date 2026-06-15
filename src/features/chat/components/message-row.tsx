@@ -11,7 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
-import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
@@ -37,6 +36,11 @@ import {
   formatMessageTimeShort as formatTime,
   formatMessageTimestamp as formatSenderTime,
 } from "@/features/chat/lib/format-message-time";
+import {
+  effectiveFromUID,
+  senderDisplay,
+  senderSubscribersChannel,
+} from "@/features/chat/lib/message-sender-display";
 
 interface MessageRowProps {
   message: Message;
@@ -46,28 +50,10 @@ interface MessageRowProps {
   bare?: boolean;
 }
 
-function effectiveFromUID(message: Message): string {
-  if (message.contentType === MessageContentTypeConst.threadCreated) {
-    const c = message.content as { from_uid?: string } | undefined;
-    if (c?.from_uid) return c.from_uid;
-  }
-  return message.fromUID;
-}
-
-function senderDisplay(message: Message): string {
-  if (message.contentType === MessageContentTypeConst.threadCreated) {
-    const c = message.content as { from_name?: string } | undefined;
-    if (c?.from_name) return c.from_name;
-  }
-  const uid = effectiveFromUID(message);
-  const personChannelInfo = WKSDK.shared().channelManager.getChannelInfo(
-    new Channel(uid, ChannelTypePerson),
-  );
-  return personChannelInfo?.title || uid;
-}
-
-function useSenderInfoLive(fromUID: string): void {
+function useSenderInfoLive(fromUID: string, sourceChannel: Channel): void {
   const [, force] = useState(0);
+  const sourceChannelID = sourceChannel.channelID;
+  const sourceChannelType = sourceChannel.channelType;
   useEffect(() => {
     if (!fromUID) return;
     if (isIncomingWebhookSender(fromUID)) return;
@@ -85,8 +71,26 @@ function useSenderInfoLive(fromUID: string): void {
       }
     };
     mgr.addListener(listener);
-    return () => mgr.removeListener(listener);
-  }, [fromUID]);
+    const subscribersChannel = senderSubscribersChannel(
+      new Channel(sourceChannelID, sourceChannelType),
+    );
+    const subscriberListener = (channel: Channel) => {
+      if (
+        subscribersChannel &&
+        channel.channelID === subscribersChannel.channelID &&
+        channel.channelType === subscribersChannel.channelType
+      ) {
+        force((v) => v + 1);
+      }
+    };
+    if (subscribersChannel) {
+      mgr.addSubscriberChangeListener(subscriberListener);
+    }
+    return () => {
+      mgr.removeListener(listener);
+      if (subscribersChannel) mgr.removeSubscriberChangeListener(subscriberListener);
+    };
+  }, [fromUID, sourceChannelID, sourceChannelType]);
 }
 
 // 时间格式化已抽到 lib/format-message-time.ts(对齐上游 c1eaadca)
@@ -154,7 +158,7 @@ function RealnameBadge() {
  * 单条消息行(Slack 风格,对应旧 packages/dmworkbase/src/ui/message/MessageRow)。
  */
 export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps) {
-  useSenderInfoLive(effectiveFromUID(message));
+  useSenderInfoLive(effectiveFromUID(message), message.channel);
   const qc = useQueryClient();
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const isSelf = me !== null && message.fromUID === me;

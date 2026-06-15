@@ -1,4 +1,9 @@
 import { api } from "@/features/base/api/client";
+import type {
+  IncomingWebhook,
+  IncomingWebhookCreateResp,
+  IncomingWebhookUpsertReq,
+} from "@/features/chat/lib/incoming-webhook";
 
 /**
  * Group(群聊)相关 endpoints。
@@ -275,6 +280,16 @@ export async function removeGroupManagers(groupNo: string, uids: string[]): Prom
   });
 }
 
+export async function exitGroup(groupNo: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/exit`, { method: "POST" });
+}
+
+export async function transferGroupOwner(groupNo: string, toUid: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/transfer/${encodeURIComponent(toUid)}`, {
+    method: "POST",
+  });
+}
+
 /**
  * 修改群字段(对应旧 dmworkdatasource updateField + ChannelField 枚举):
  *
@@ -413,6 +428,72 @@ export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise
   await api(`groups/${encodeURIComponent(groupNo)}/bot_admin/${encodeURIComponent(uid)}`, {
     method: "DELETE",
   });
+}
+
+type IncomingWebhookListResp =
+  | IncomingWebhook[]
+  | { items?: IncomingWebhook[]; list?: IncomingWebhook[]; webhooks?: IncomingWebhook[] }
+  | null;
+
+export function normalizeIncomingWebhookList(resp: IncomingWebhookListResp): IncomingWebhook[] {
+  if (Array.isArray(resp)) return resp;
+  if (!resp || typeof resp !== "object") return [];
+  if (Array.isArray(resp.items)) return resp.items;
+  if (Array.isArray(resp.list)) return resp.list;
+  if (Array.isArray(resp.webhooks)) return resp.webhooks;
+  return [];
+}
+
+export async function listIncomingWebhooks(groupNo: string): Promise<IncomingWebhook[]> {
+  const resp = await api<IncomingWebhookListResp>(
+    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks`,
+  );
+  return normalizeIncomingWebhookList(resp);
+}
+
+export async function createIncomingWebhook(
+  groupNo: string,
+  body: IncomingWebhookUpsertReq,
+): Promise<IncomingWebhookCreateResp> {
+  return api<IncomingWebhookCreateResp>(`groups/${encodeURIComponent(groupNo)}/incoming-webhooks`, {
+    method: "POST",
+    body,
+  });
+}
+
+export async function updateIncomingWebhook(
+  groupNo: string,
+  webhookId: string,
+  body: IncomingWebhookUpsertReq,
+): Promise<IncomingWebhook> {
+  return api<IncomingWebhook>(
+    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}`,
+    { method: "PUT", body },
+  );
+}
+
+export async function deleteIncomingWebhook(groupNo: string, webhookId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function regenerateIncomingWebhook(
+  groupNo: string,
+  webhookId: string,
+): Promise<IncomingWebhookCreateResp> {
+  return api<IncomingWebhookCreateResp>(
+    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}/regenerate`,
+    { method: "POST" },
+  );
+}
+
+export async function testIncomingWebhook(groupNo: string, webhookId: string): Promise<void> {
+  await api(
+    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}/test`,
+    { method: "POST" },
+  );
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   removeGroupBotAdmin,
   removeGroupManagers,
   setGroupBotAdmin,
+  transferGroupOwner,
 } from "@/features/base/api/endpoints/group.api";
 import { setChannelAllowNoMention } from "@/features/base/api/endpoints/channel-setting.api";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
@@ -28,6 +29,7 @@ import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { submitBotAdmins } from "@/features/chat/lib/incoming-webhook";
 
 interface GroupManagementModalProps {
   open: boolean;
@@ -44,7 +46,7 @@ interface GroupManagementModalProps {
 const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
-type Mode = "view" | "addManager" | "addBotAdmin";
+type Mode = "view" | "addManager" | "addBotAdmin" | "transferOwner";
 
 /**
  * 群管理二级抽屉(对应旧 dmworkbase GroupManagement)。
@@ -69,6 +71,7 @@ export function GroupManagementModal({
     uid: string;
     name: string;
   } | null>(null);
+  const [confirmTransfer, setConfirmTransfer] = useState<Subscriber | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [pickedUids, setPickedUids] = useState<string[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -100,6 +103,12 @@ export function GroupManagementModal({
       return subscribers.filter((s) => {
         const og = s.orgData as { robot?: number; bot_admin?: number } | undefined;
         return og?.robot === 1 && og.bot_admin !== 1;
+      });
+    }
+    if (mode === "transferOwner") {
+      return subscribers.filter((s) => {
+        const og = s.orgData as { robot?: number } | undefined;
+        return s.uid !== myUid && og?.robot !== 1;
       });
     }
     return [];
@@ -152,14 +161,46 @@ export function GroupManagementModal({
   });
 
   const setBotAdminMu = useMutation({
-    mutationFn: (uid: string) => setGroupBotAdmin(channel.channelID, uid),
-    onSuccess: () => {
-      refreshSubs();
-      toast.success(t("groupMgmt.toast.botAdminAdded"));
-      exitAddMode();
+    mutationFn: (uids: string[]) =>
+      submitBotAdmins(uids, (uid) => setGroupBotAdmin(channel.channelID, uid)),
+    onSuccess: (result, uids) => {
+      if (result.succeeded.length > 0) {
+        refreshSubs();
+        exitAddMode();
+      }
+      if (result.failed.length === 0) {
+        toast.success(t("groupMgmt.toast.botAdminAdded"));
+        return;
+      }
+      if (result.succeeded.length === 0) {
+        toast.error(t("groupMgmt.toast.addFailed"));
+        return;
+      }
+      toast.error(
+        t("groupMgmt.toast.botAdminPartialFailed", {
+          values: {
+            failed: result.failed.length,
+            total: uids.length,
+            uids: result.failed.map((f) => f.uid).join(", "),
+          },
+        }),
+      );
     },
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
+  });
+
+  const transferOwnerMu = useMutation({
+    mutationFn: (uid: string) => transferGroupOwner(channel.channelID, uid),
+    onSuccess: () => {
+      refreshSubs();
+      refreshChannelInfo();
+      toast.success(t("groupMgmt.toast.ownerTransferred"));
+      setConfirmTransfer(null);
+      exitAddMode();
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.transferOwnerFailed")),
   });
 
   const removeBotAdminMu = useMutation({
@@ -184,7 +225,7 @@ export function GroupManagementModal({
   });
 
   const togglePick = (uid: string) => {
-    if (mode === "addBotAdmin") {
+    if (mode === "transferOwner") {
       setPickedUids(pickedUids[0] === uid ? [] : [uid]);
       return;
     }
@@ -199,13 +240,20 @@ export function GroupManagementModal({
     if (mode === "addManager") {
       promoteMu.mutate(pickedUids);
     } else if (mode === "addBotAdmin") {
-      setBotAdminMu.mutate(pickedUids[0]);
+      setBotAdminMu.mutate([...pickedUids]);
+    } else if (mode === "transferOwner") {
+      const selected = subscribers.find((s) => s.uid === pickedUids[0]);
+      if (selected) setConfirmTransfer(selected);
     }
   };
 
   const inAddMode = mode !== "view";
   const addModeTitle =
-    mode === "addManager" ? tt("groupMgmt.addManagerTitle") : tt("groupMgmt.addBotAdminTitle");
+    mode === "addManager"
+      ? tt("groupMgmt.addManagerTitle")
+      : mode === "addBotAdmin"
+        ? tt("groupMgmt.addBotAdminTitle")
+        : tt("groupMgmt.transferOwnerSelect");
   const headerTitle = inAddMode ? addModeTitle : tt("groupMgmt.title");
 
   return (
@@ -228,7 +276,9 @@ export function GroupManagementModal({
                 type="primary"
                 theme="solid"
                 size="small"
-                loading={promoteMu.isPending || setBotAdminMu.isPending}
+                loading={
+                  promoteMu.isPending || setBotAdminMu.isPending || transferOwnerMu.isPending
+                }
                 disabled={pickedUids.length === 0}
                 onClick={onFinishPick}
               >
@@ -312,6 +362,15 @@ export function GroupManagementModal({
               addLabel={tt("groupMgmt.addManager")}
               showRoleBadge
             />
+            {isOwner ? (
+              <SectionGroup>
+                <NavRow
+                  title={tt("groupMgmt.transferOwner")}
+                  subTitle={tt("groupMgmt.transferOwnerHint")}
+                  onClick={() => setMode("transferOwner")}
+                />
+              </SectionGroup>
+            ) : null}
             <ManagerSection
               title={tt("groupMgmt.botAdmins")}
               members={botAdmins}
@@ -379,6 +438,22 @@ export function GroupManagementModal({
             else removeBotAdminMu.mutate(confirmRemove.uid);
           }}
           onCancel={() => setConfirmRemove(null)}
+        />
+      ) : null}
+
+      {confirmTransfer ? (
+        <ConfirmModal
+          open
+          title={tt("groupMgmt.transferOwner")}
+          content={tt("groupMgmt.transferOwnerConfirm", {
+            values: {
+              name: confirmTransfer.remark || confirmTransfer.name || confirmTransfer.uid,
+            },
+          })}
+          okText={tt("groupMgmt.transferOwner")}
+          okLoading={transferOwnerMu.isPending}
+          onOk={() => transferOwnerMu.mutate(confirmTransfer.uid)}
+          onCancel={() => setConfirmTransfer(null)}
         />
       ) : null}
     </>

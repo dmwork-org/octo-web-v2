@@ -19,6 +19,7 @@ import { GroupAvatarModal } from "@/features/chat/components/group-avatar-modal"
 import { GroupQrcodeModal } from "@/features/chat/components/group-qrcode-modal";
 import { GroupMdModal } from "@/features/chat/components/group-md-modal";
 import { GroupManagementModal } from "@/features/chat/components/group-management-modal";
+import { IncomingWebhookPanel } from "@/features/chat/components/incoming-webhook-panel";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
@@ -35,6 +36,7 @@ import {
 } from "@/features/base/api/endpoints/channel-setting.api";
 import {
   archiveThread,
+  exitGroup,
   leaveThread,
   deleteThread,
   unarchiveThread,
@@ -67,7 +69,7 @@ const CHANNEL_TYPE_THREAD = 5;
 const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
-type Subpage = "avatar" | "qrcode" | "md" | "manage";
+type Subpage = "avatar" | "qrcode" | "md" | "manage" | "webhook";
 
 /**
  * 顶部成员头像 grid — 对齐老仓 `Components/Subscribers/vm.ts:13-73`:
@@ -146,7 +148,13 @@ function SubscribersGrid({
   );
 }
 
-function SubscriberCell({ subscriber, onAvatarClick }: { subscriber: Subscriber; onAvatarClick: (uid: string) => void }) {
+function SubscriberCell({
+  subscriber,
+  onAvatarClick,
+}: {
+  subscriber: Subscriber;
+  onAvatarClick: (uid: string) => void;
+}) {
   const tt = useT();
   const display = subscriber.remark || subscriber.name || subscriber.uid;
   const ch = new Channel(subscriber.uid, ChannelTypePerson);
@@ -196,6 +204,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [editing, setEditing] = useState<string | null>(null);
   const [subpage, setSubpage] = useState<Subpage | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [ownerLeaveBlocked, setOwnerLeaveBlocked] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
@@ -387,10 +396,20 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           await leaveThread(p.shortId);
         }
       } else {
-        await deleteConversation({
-          channelId: channel.channelID,
-          channelType: channel.channelType,
-        });
+        if (isGroup) {
+          await exitGroup(channel.channelID);
+          await deleteConversation({
+            channelId: channel.channelID,
+            channelType: channel.channelType,
+          }).catch((err) => {
+            console.warn("[ChannelSetting] delete conversation after leaving failed", err);
+          });
+        } else {
+          await deleteConversation({
+            channelId: channel.channelID,
+            channelType: channel.channelType,
+          });
+        }
       }
       WKSDK.shared().conversationManager.removeConversation(channel);
     },
@@ -560,6 +579,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onClick={() => setSubpage("manage")}
               />
             ) : null}
+            <NavRow
+              title={tt("module.channelSettings.incomingWebhook")}
+              onClick={() => setSubpage("webhook")}
+            />
             <InlineEditRow
               title={tt("channelSetting.remark")}
               value={remark}
@@ -701,7 +724,13 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             title={dangerCloseTitle}
             danger
             center={isThread}
-            onClick={() => setConfirmClose(true)}
+            onClick={() => {
+              if (isGroup && iAmOwner) {
+                setOwnerLeaveBlocked(true);
+                return;
+              }
+              setConfirmClose(true);
+            }}
           />
         </SectionGroup>
       </BaseDrawer>
@@ -745,6 +774,14 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         channelInfo={channelInfo ?? undefined}
         isOwner={iAmOwner}
         canManage={iAmOwnerOrManager}
+        onClose={() => setSubpage(null)}
+      />
+
+      <IncomingWebhookPanel
+        open={subpage === "webhook"}
+        channel={channel}
+        isManager={iAmOwnerOrManager}
+        title={tt("module.channelSettings.incomingWebhook")}
         onClose={() => setSubpage(null)}
       />
 
@@ -799,6 +836,20 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           okLoading={archiveMu.isPending}
           onOk={() => archiveMu.mutate()}
           onCancel={() => setConfirmArchive(false)}
+        />
+      ) : null}
+
+      {ownerLeaveBlocked ? (
+        <ConfirmModal
+          open
+          title={tt("channelSetting.ownerLeaveBlockedTitle")}
+          content={tt("channelSetting.ownerLeaveBlockedContent")}
+          okText={tt("channelSetting.groupManagement")}
+          onOk={() => {
+            setOwnerLeaveBlocked(false);
+            setSubpage("manage");
+          }}
+          onCancel={() => setOwnerLeaveBlocked(false)}
         />
       ) : null}
 

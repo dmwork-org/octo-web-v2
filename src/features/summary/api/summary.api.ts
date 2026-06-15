@@ -63,6 +63,25 @@ const summaryApi = ofetch.create({
   },
 });
 
+function stripSourceNames(sources: SourceItem[] | undefined): SourceItem[] | undefined {
+  return sources?.map((source) => ({
+    source_type: source.source_type,
+    source_id: source.source_id,
+  }));
+}
+
+function normalizeCreateSummaryParams(params: CreateSummaryParams): CreateSummaryParams {
+  return { ...params, sources: stripSourceNames(params.sources) };
+}
+
+function normalizeCreateScheduleParams(params: CreateScheduleParams): CreateScheduleParams {
+  return { ...params, sources: stripSourceNames(params.sources) ?? [] };
+}
+
+function normalizeUpdateScheduleParams(params: UpdateScheduleParams): UpdateScheduleParams {
+  return { ...params, sources: stripSourceNames(params.sources) };
+}
+
 // ─── Core ─────────────────────────────────────────────────
 
 export async function listSummaries(
@@ -77,7 +96,10 @@ export async function getSummaryDetail(taskId: number): Promise<SummaryDetail> {
 }
 
 export async function createSummary(params: CreateSummaryParams): Promise<{ task_id: number }> {
-  return summaryApi<{ task_id: number }>("/summaries", { method: "POST", body: params });
+  return summaryApi<{ task_id: number }>("/summaries", {
+    method: "POST",
+    body: normalizeCreateSummaryParams(params),
+  });
 }
 
 export async function deleteSummary(taskId: number): Promise<void> {
@@ -169,7 +191,10 @@ export async function getSchedule(scheduleId: number): Promise<ScheduleItem> {
 }
 
 export async function createSchedule(params: CreateScheduleParams): Promise<ScheduleItem> {
-  return summaryApi<ScheduleItem>("/summary-schedules", { method: "POST", body: params });
+  return summaryApi<ScheduleItem>("/summary-schedules", {
+    method: "POST",
+    body: normalizeCreateScheduleParams(params),
+  });
 }
 
 export async function updateSchedule(
@@ -178,7 +203,7 @@ export async function updateSchedule(
 ): Promise<ScheduleItem> {
   return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`, {
     method: "PUT",
-    body: params,
+    body: normalizeUpdateScheduleParams(params),
   });
 }
 

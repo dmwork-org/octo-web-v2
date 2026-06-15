@@ -24,6 +24,7 @@ import {
   regenerateSummary,
 } from "@/features/summary/api/summary.api";
 import {
+  personalResultQueryOptions,
   summaryDetailQueryKey,
   summaryDetailQueryOptions,
 } from "@/features/summary/queries/summaries.query";
@@ -174,6 +175,9 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [regenerateTopic, setRegenerateTopic] = useState("");
   const { data, isLoading, isFetching, error } = useQuery(summaryDetailQueryOptions(taskId));
+  const { data: personalResult } = useQuery(
+    personalResultQueryOptions(taskId, data?.summary_mode === SummaryMode.BY_PERSON),
+  );
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["summary", "list"] });
@@ -263,6 +267,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const hasCitations = !!citations && citations.length > 0;
   const isPersonalMode = data.summary_mode === SummaryMode.BY_PERSON;
   const resultContent = data.result?.content ?? "";
+  const personalReady = isPersonalMode && !!personalResult?.content?.trim();
 
   const openForwardToChat = () => {
     if (!resultContent.trim()) {
@@ -365,7 +370,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto">
             <article className="mx-auto flex w-full max-w-[920px] flex-col gap-5 px-8 py-6">
-              {isGenerating ? (
+              {isGenerating && !personalReady ? (
                 <SummaryProcessingPanel status={data.status} />
               ) : (
                 <>

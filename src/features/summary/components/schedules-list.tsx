@@ -16,40 +16,7 @@ import {
   TIME_RANGE_TYPE_KEY,
   type ScheduleItem,
 } from "@/features/summary/types/summary.types";
-
-/** cron 5 段 → 中文可读(对应旧 cronToLabel)。 */
-function cronToLabel(cronExpr: string): string {
-  const parts = cronExpr.trim().split(/\s+/);
-  if (parts.length !== 5) return cronExpr;
-  const [minStr, hourStr, dom, , dow] = parts;
-  const pad = (s: string) => s.padStart(2, "0");
-  const timeStr = `${pad(hourStr)}:${pad(minStr)}`;
-  const dowKeys = [
-    "summary.cron.weekdays.sun",
-    "summary.cron.weekdays.mon",
-    "summary.cron.weekdays.tue",
-    "summary.cron.weekdays.wed",
-    "summary.cron.weekdays.thu",
-    "summary.cron.weekdays.fri",
-    "summary.cron.weekdays.sat",
-  ];
-  if (dom !== "*") {
-    return t("summary.schedule.cronEveryMonthOn", { values: { day: dom, time: timeStr } });
-  }
-  if (dow !== "*") {
-    if (dow === "1-5") return t("summary.schedule.cronWorkdays", { values: { time: timeStr } });
-    const n = parseInt(dow, 10);
-    const label = Number.isFinite(n) ? t(dowKeys[n] ?? "summary.cron.weekdays.sun") : dow;
-    return t("summary.schedule.cronWeekly", { values: { day: label, time: timeStr } });
-  }
-  return t("summary.schedule.cronDaily", { values: { time: timeStr } });
-}
-
-function formatNextRun(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+import { describeSchedule, formatNextRunAt } from "@/features/summary/utils/summary-schedule";
 
 interface ScheduleRowProps {
   item: ScheduleItem;
@@ -103,7 +70,7 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
-            <span>{cronToLabel(item.cron_expr)}</span>
+            <span>{describeSchedule(item, t)}</span>
             <span>·</span>
             <span>{tr(TIME_RANGE_TYPE_KEY[item.time_range_type])}</span>
             <span>·</span>
@@ -113,7 +80,7 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
             <span>·</span>
             <span>
               {tr("summary.schedule.nextRun", {
-                values: { time: formatNextRun(item.next_run_at) },
+                values: { time: formatNextRunAt(item.next_run_at) },
               })}
             </span>
           </div>

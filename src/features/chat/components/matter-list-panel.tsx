@@ -2,7 +2,11 @@ import { Suspense } from "react";
 import { useStore } from "@tanstack/react-store";
 import { X } from "lucide-react";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
-import { chatSidePanelActions, chatSidePanelStore } from "@/features/chat/stores/chat-side-panel";
+import {
+  chatSidePanelActions,
+  chatSidePanelStore,
+  type RestorableSidePanelState,
+} from "@/features/chat/stores/chat-side-panel";
 import { MatterList } from "@/features/matter/components/matter-list";
 import { MatterDetailPanel as MatterDetailInner } from "@/features/matter/components/matter-detail-panel";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
@@ -12,9 +16,15 @@ import { useT } from "@/lib/i18n/use-t";
 /**
  * Chat 右侧 matter 面板(对齐旧 dmworkbase registerChatMatterPanel)。
  */
-export function MatterListPanel() {
+interface MatterListPanelProps {
+  stateOverride?: Extract<RestorableSidePanelState, { kind: "matter" }>;
+  hidden?: boolean;
+}
+
+export function MatterListPanel({ stateOverride, hidden = false }: MatterListPanelProps = {}) {
   const t = useT();
-  const state = useStore(chatSidePanelStore, (s) => s);
+  const liveState = useStore(chatSidePanelStore, (s) => s);
+  const state = stateOverride ?? liveState;
   const channel = useStore(chatSelectedStore, (s) => s.channel);
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
@@ -25,7 +35,9 @@ export function MatterListPanel() {
     <aside
       ref={panelRef}
       style={{ width }}
-      className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
+      className={`relative h-full shrink-0 flex-col border-l border-border-default bg-bg-base ${
+        hidden ? "hidden" : "flex"
+      }`}
     >
       {matterId ? (
         /* 详情态: MatterDetailPanel 自带 header (标题+状态+关闭按钮)。

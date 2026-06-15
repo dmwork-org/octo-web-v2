@@ -87,7 +87,8 @@ function useListenCreateMatterFromComposer(
 export function ChatMain() {
   const channel = useStore(chatSelectedStore, (s) => s.channel);
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
-  const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
+  const sidePanelState = useStore(chatSidePanelStore, (s) => s);
+  const sidePanelKind = sidePanelState.kind;
   const [createMatterChannel, setCreateMatterChannel] = useState<Channel | null>(null);
   const [summaryCreateChannel, setSummaryCreateChannel] = useState<Channel | null>(null);
   useListenCreateMatterFromComposer(channel ?? null, setCreateMatterChannel);
@@ -111,6 +112,12 @@ export function ChatMain() {
   const createMatterChannelName = createMatterChannel
     ? (WKSDK.shared().channelManager.getChannelInfo(createMatterChannel)?.title ?? undefined)
     : undefined;
+  const preservedMatterState =
+    sidePanelKind === "matter"
+      ? sidePanelState
+      : sidePanelKind === "filePreview" && sidePanelState.returnTo?.kind === "matter"
+        ? sidePanelState.returnTo
+        : null;
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -132,7 +139,9 @@ export function ChatMain() {
             inputNotice={archivedInputNotice}
             // 归档子区发完消息 → 后端自动 reactivate,这里乐观本地改 channelInfo
             // 让 useArchivedThreadInputNotice 立即重算 → 顶部提示消失(issue #113)
-            onMessageSent={archivedInputNotice ? () => reactivateThreadInChannelInfoCache(channel) : undefined}
+            onMessageSent={
+              archivedInputNotice ? () => reactivateThreadInChannelInfoCache(channel) : undefined
+            }
           />
         )}
       </section>
@@ -143,8 +152,13 @@ export function ChatMain() {
           onClose={() => chatSidePanelActions.close()}
         />
       ) : null}
+      {preservedMatterState ? (
+        <MatterListPanel
+          stateOverride={preservedMatterState}
+          hidden={sidePanelKind === "filePreview"}
+        />
+      ) : null}
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
-      {sidePanelKind === "matter" ? <MatterListPanel /> : null}
       {sidePanelKind === "summary" ? (
         <ChatSummaryPanel onCreateNew={() => setSummaryCreateChannel(channel)} />
       ) : null}

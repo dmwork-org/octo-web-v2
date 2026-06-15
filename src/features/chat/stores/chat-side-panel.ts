@@ -24,19 +24,30 @@
 import { Store } from "@tanstack/react-store";
 import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
 
-export type SidePanelState =
+export type RestorableSidePanelState =
   | { kind: "none" }
   | { kind: "threads" }
-  | { kind: "filePreview"; file: FilePreviewInfo }
   | { kind: "matter"; matterId: string | null }
   | { kind: "summary"; taskId: number | null };
+
+export type SidePanelState =
+  | RestorableSidePanelState
+  | { kind: "filePreview"; file: FilePreviewInfo; returnTo?: RestorableSidePanelState };
 
 export const chatSidePanelStore = new Store<SidePanelState>({ kind: "none" });
 
 export const chatSidePanelActions = {
   openThreads: () => chatSidePanelStore.setState(() => ({ kind: "threads" })),
   openFilePreview: (file: FilePreviewInfo) =>
-    chatSidePanelStore.setState(() => ({ kind: "filePreview", file })),
+    chatSidePanelStore.setState((s) => ({
+      kind: "filePreview",
+      file,
+      returnTo: s.kind === "filePreview" ? s.returnTo : s,
+    })),
+  closeFilePreview: () =>
+    chatSidePanelStore.setState((s) =>
+      s.kind === "filePreview" ? (s.returnTo ?? { kind: "none" }) : s,
+    ),
   /** 打开 matter 面板:可选 matterId 直接定位详情;否则进列表。 */
   openMatter: (matterId: string | null = null) =>
     chatSidePanelStore.setState(() => ({ kind: "matter", matterId })),

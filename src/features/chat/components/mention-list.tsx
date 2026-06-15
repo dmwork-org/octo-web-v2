@@ -31,23 +31,43 @@ export interface MentionListRef {
   onKeyDown: (props: { event: KeyboardEvent }) => boolean;
 }
 
-/** items 变化时 reset activeIndex 到 0(命名 hook 包 useEffect)。 */
-function useResetActiveOnItemsChange(items: MentionItem[], setActiveIndex: (i: number) => void) {
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [items, setActiveIndex]);
-}
+type MentionInteractionMode = "keyboard" | "mouse";
 
-/** activeIndex 变化时把对应 li 滚到视口内(对齐旧 MentionList scrollIntoView)。 */
-function useScrollActiveIntoView(
-  itemRefs: React.MutableRefObject<(HTMLLIElement | null)[]>,
-  activeIndex: number,
+/** items 变化时 reset activeIndex 到 0(命名 hook 包 useEffect)。 */
+function useResetActiveOnItemsChange(
+  items: MentionItem[],
+  setActiveIndex: (i: number) => void,
+  setMode: (mode: MentionInteractionMode) => void,
 ) {
   useEffect(() => {
+    setActiveIndex(0);
+    setMode("keyboard");
+  }, [items, setActiveIndex, setMode]);
+}
+
+/** activeIndex 变化时把对应 li 确定性滚到容器视口内,避免 smooth scroll 触发 hover 抖动。 */
+function useScrollActiveIntoView(
+  listRef: React.MutableRefObject<HTMLUListElement | null>,
+  itemRefs: React.MutableRefObject<(HTMLLIElement | null)[]>,
+  activeIndex: number,
+  mode: MentionInteractionMode,
+) {
+  useEffect(() => {
+    if (mode !== "keyboard") return;
+    const list = listRef.current;
     const el = itemRefs.current[activeIndex];
-    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (!list || !el) return;
+    const top = el.offsetTop;
+    const bottom = top + el.offsetHeight;
+    const viewTop = list.scrollTop;
+    const viewBottom = viewTop + list.clientHeight;
+    if (top < viewTop) {
+      list.scrollTop = top;
+    } else if (bottom > viewBottom) {
+      list.scrollTop = bottom - list.clientHeight;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex]);
+  }, [activeIndex, mode]);
 }
 
 /**
@@ -64,9 +84,11 @@ function useScrollActiveIntoView(
 export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
     const [activeIndex, setActiveIndex] = useState(0);
+    const [interactionMode, setInteractionMode] = useState<MentionInteractionMode>("keyboard");
+    const listRef = useRef<HTMLUListElement | null>(null);
     const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
-    useResetActiveOnItemsChange(items, setActiveIndex);
-    useScrollActiveIntoView(itemRefs, activeIndex);
+    useResetActiveOnItemsChange(items, setActiveIndex, setInteractionMode);
+    useScrollActiveIntoView(listRef, itemRefs, activeIndex, interactionMode);
 
     const selectItem = (index: number) => {
       const item = items[index];
@@ -77,10 +99,12 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
       onKeyDown: ({ event }) => {
         const action = resolveMentionListKeyAction(event.key, items.length);
         if (action === "previous") {
+          setInteractionMode("keyboard");
           setActiveIndex((i) => (i + items.length - 1) % items.length);
           return true;
         }
         if (action === "next") {
+          setInteractionMode("keyboard");
           setActiveIndex((i) => (i + 1) % items.length);
           return true;
         }
@@ -96,6 +120,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
 
     return (
       <ul
+        ref={listRef}
         role="listbox"
         className="max-h-[220px] min-w-[420px] overflow-y-auto rounded-md bg-bg-surface py-[5px] shadow-lg"
       >
@@ -111,7 +136,12 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
               }}
               role="option"
               aria-selected={active}
-              onMouseEnter={() => setActiveIndex(i)}
+              onPointerMove={(e) => {
+                if (e.pointerType === "mouse" || e.pointerType === "pen") {
+                  setInteractionMode("mouse");
+                  setActiveIndex(i);
+                }
+              }}
               onMouseDown={(e) => {
                 e.preventDefault();
                 selectItem(i);

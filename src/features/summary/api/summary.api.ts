@@ -63,6 +63,44 @@ const summaryApi = ofetch.create({
   },
 });
 
+function stripSourceNames(sources: SourceItem[] | undefined): SourceItem[] | undefined {
+  return sources?.map((source) => ({
+    source_type: source.source_type,
+    source_id: source.source_id,
+  }));
+}
+
+function normalizeCreateSummaryParams(params: CreateSummaryParams): CreateSummaryParams {
+  return { ...params, sources: stripSourceNames(params.sources) };
+}
+
+function normalizeCreateScheduleParams(params: CreateScheduleParams): CreateScheduleParams {
+  return { ...params, sources: stripSourceNames(params.sources) ?? [] };
+}
+
+function normalizeUpdateScheduleParams(params: UpdateScheduleParams): UpdateScheduleParams {
+  return { ...params, sources: stripSourceNames(params.sources) };
+}
+
+function normalizeScheduleItem(item: ScheduleItem): ScheduleItem {
+  return {
+    ...item,
+    title: item.title ?? "",
+    cron_expr: item.cron_expr ?? "",
+    time_range_type:
+      item.time_range_type === 1 ||
+      item.time_range_type === 2 ||
+      item.time_range_type === 3 ||
+      item.time_range_type === 4
+        ? item.time_range_type
+        : 2,
+    sources: item.sources ?? [],
+    participants: item.participants ?? [],
+    is_active: item.is_active ?? true,
+    next_run_at: item.next_run_at ?? null,
+  };
+}
+
 // ─── Core ─────────────────────────────────────────────────
 
 export async function listSummaries(
@@ -77,7 +115,10 @@ export async function getSummaryDetail(taskId: number): Promise<SummaryDetail> {
 }
 
 export async function createSummary(params: CreateSummaryParams): Promise<{ task_id: number }> {
-  return summaryApi<{ task_id: number }>("/summaries", { method: "POST", body: params });
+  return summaryApi<{ task_id: number }>("/summaries", {
+    method: "POST",
+    body: normalizeCreateSummaryParams(params),
+  });
 }
 
 export async function deleteSummary(taskId: number): Promise<void> {
@@ -161,25 +202,31 @@ export async function batchStatus(taskIds: number[]): Promise<BatchStatusItem[]>
 
 export async function listSchedules(): Promise<ScheduleItem[]> {
   const data = await summaryApi<ScheduleItem[] | null>("/summary-schedules");
-  return data ?? [];
+  return (data ?? []).map(normalizeScheduleItem);
 }
 
 export async function getSchedule(scheduleId: number): Promise<ScheduleItem> {
-  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`);
+  const data = await summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`);
+  return normalizeScheduleItem(data);
 }
 
 export async function createSchedule(params: CreateScheduleParams): Promise<ScheduleItem> {
-  return summaryApi<ScheduleItem>("/summary-schedules", { method: "POST", body: params });
+  const data = await summaryApi<ScheduleItem>("/summary-schedules", {
+    method: "POST",
+    body: normalizeCreateScheduleParams(params),
+  });
+  return normalizeScheduleItem(data);
 }
 
 export async function updateSchedule(
   scheduleId: number,
   params: UpdateScheduleParams,
 ): Promise<ScheduleItem> {
-  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`, {
+  const data = await summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}`, {
     method: "PUT",
-    body: params,
+    body: normalizeUpdateScheduleParams(params),
   });
+  return normalizeScheduleItem(data);
 }
 
 export async function deleteSchedule(scheduleId: number): Promise<void> {
@@ -187,10 +234,11 @@ export async function deleteSchedule(scheduleId: number): Promise<void> {
 }
 
 export async function toggleSchedule(scheduleId: number, isActive: boolean): Promise<ScheduleItem> {
-  return summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}/toggle`, {
+  const data = await summaryApi<ScheduleItem>(`/summary-schedules/${scheduleId}/toggle`, {
     method: "PUT",
     body: { is_active: isActive },
   });
+  return normalizeScheduleItem(data);
 }
 
 // ─── BY_PERSON / Personal Mode(Wave 3c) ────────────────

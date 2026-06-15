@@ -114,6 +114,7 @@ export interface SummaryListItem {
   summary_mode: SummaryModeType;
   status: TaskStatusType;
   trigger_type: number;
+  schedule_id?: number;
   time_range_start: string;
   time_range_end: string;
   sources: SourceItem[];

@@ -5,7 +5,11 @@ import { Button } from "@/components/semi-bridge/button";
 import { useT } from "@/lib/i18n/use-t";
 import { authStore } from "@/features/base/stores/auth";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
-import { ParticipantStatus, type SummaryListItem } from "@/features/summary/types/summary.types";
+import {
+  ParticipantStatus,
+  TriggerType,
+  type SummaryListItem,
+} from "@/features/summary/types/summary.types";
 import { SummaryStatusBadge } from "@/features/summary/components/summary-status-badge";
 
 interface SummaryCardProps {
@@ -29,6 +33,9 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
     isMultiParticipant &&
     myParticipant != null &&
     myParticipant.status === ParticipantStatus.PENDING;
+  const isScheduledTask =
+    (item.schedule_id != null && item.schedule_id > 0) ||
+    item.trigger_type === TriggerType.SCHEDULED;
   const confirmDelete = () => {
     if (!onDelete) return;
     setDeleteConfirmOpen(true);
@@ -114,9 +121,14 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title={t("summary.summaryCard.deleteTitle")}
-        content={t("summary.summaryCard.deleteContent", {
-          values: { title: item.title || item.task_no },
-        })}
+        content={t(
+          isScheduledTask
+            ? "summary.summaryCard.deleteScheduledContent"
+            : "summary.summaryCard.deleteContent",
+          {
+            values: { title: item.title || item.task_no },
+          },
+        )}
         okText={t("summary.common.delete")}
         cancelText={t("summary.common.cancel")}
         okDanger

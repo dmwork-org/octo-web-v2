@@ -11,12 +11,18 @@ import { conversationsQueryOptions } from "@/features/chat/queries/conversations
 import { createSchedule, updateSchedule } from "@/features/summary/api/summary.api";
 import { schedulesQueryKey } from "@/features/summary/queries/summaries.query";
 import {
+  scheduleItemToConfig,
+  scheduleToParams,
+  validateScheduleConfig,
+} from "@/features/summary/utils/summary-schedule";
+import {
   SourceType,
   SummaryMode,
   TIME_RANGE_TYPE_KEY,
   type ScheduleItem,
   type SourceItem,
   type SummaryModeType,
+  type ScheduleUnit,
   type TimeRangeTypeValue,
 } from "@/features/summary/types/summary.types";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
@@ -28,14 +34,17 @@ interface ScheduleFormModalProps {
   onClose: () => void;
 }
 
-const CRON_PRESETS: { value: string; labelKey: string }[] = [
-  { value: "0 9 * * *", labelKey: "summary.schedule.cronPresetDaily" },
-  { value: "0 9 * * 1-5", labelKey: "summary.schedule.cronPresetWorkdays" },
-  { value: "0 9 * * 1", labelKey: "summary.schedule.cronPresetWeekly" },
-  { value: "0 9 1 * *", labelKey: "summary.schedule.cronPresetMonthly" },
-];
-
 const TIME_RANGE_OPTION_VALUES: TimeRangeTypeValue[] = [1, 2, 3, 4];
+const CHANNEL_TYPE_THREAD = 5;
+const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
+function buildTimeOptions(): string[] {
+  return Array.from({ length: 48 }, (_, index) => {
+    const hour = Math.floor(index / 2);
+    const minute = index % 2 === 0 ? "00" : "30";
+    return `${String(hour).padStart(2, "0")}:${minute}`;
+  });
+}
 
 function convToSource(c: Conversation): SourceItem {
   const type =
@@ -58,9 +67,13 @@ function useResetFormOnOpen(
   setters: {
     setTitle: (v: string) => void;
     setMode: (v: SummaryModeType) => void;
-    setCron: (v: string) => void;
-    setUseCustomCron: (v: boolean) => void;
-    setCustomCron: (v: string) => void;
+    setEvery: (v: number) => void;
+    setUnit: (v: ScheduleUnit) => void;
+    setRunTime: (v: string) => void;
+    setDayOfWeek: (v: number) => void;
+    setDayOfMonth: (v: number) => void;
+    setLegacyCron: (v: boolean) => void;
+    setErrMsg: (v: string | null) => void;
     setTimeRangeType: (v: TimeRangeTypeValue) => void;
     setSelectedIds: (ids: Set<string>) => void;
   },
@@ -69,11 +82,14 @@ function useResetFormOnOpen(
     if (!open) return;
     setters.setTitle(schedule?.title ?? "");
     setters.setMode(schedule?.summary_mode ?? SummaryMode.BY_GROUP);
-    const cron = schedule?.cron_expr ?? "0 9 * * 1";
-    const isPreset = CRON_PRESETS.some((p) => p.value === cron);
-    setters.setUseCustomCron(!isPreset);
-    setters.setCron(isPreset ? cron : "0 9 * * 1");
-    setters.setCustomCron(isPreset ? "" : cron);
+    const config = scheduleItemToConfig(schedule ?? {});
+    setters.setEvery(config.every);
+    setters.setUnit(config.unit);
+    setters.setRunTime(config.time);
+    setters.setDayOfWeek(config.dayOfWeek || 0);
+    setters.setDayOfMonth(config.dayOfMonth || 0);
+    setters.setLegacyCron(!!config.legacyCron);
+    setters.setErrMsg(null);
     setters.setTimeRangeType(schedule?.time_range_type ?? 2);
     setters.setSelectedIds(new Set(schedule?.sources.map((s) => s.source_id) ?? []));
   }, [open, schedule, setters]);
@@ -91,18 +107,27 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
 
   const [title, setTitle] = useState("");
   const [mode, setMode] = useState<SummaryModeType>(SummaryMode.BY_GROUP);
-  const [cron, setCron] = useState("0 9 * * 1");
-  const [useCustomCron, setUseCustomCron] = useState(false);
-  const [customCron, setCustomCron] = useState("");
+  const [every, setEvery] = useState(1);
+  const [unit, setUnit] = useState<ScheduleUnit>("week");
+  const [runTime, setRunTime] = useState("09:00");
+  const [dayOfWeek, setDayOfWeek] = useState(0);
+  const [dayOfMonth, setDayOfMonth] = useState(0);
+  const [legacyCron, setLegacyCron] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
   const [timeRangeType, setTimeRangeType] = useState<TimeRangeTypeValue>(2);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const timeOptions = useMemo(buildTimeOptions, []);
 
   useResetFormOnOpen(open, schedule, {
     setTitle,
     setMode,
-    setCron,
-    setUseCustomCron,
-    setCustomCron,
+    setEvery,
+    setUnit,
+    setRunTime,
+    setDayOfWeek,
+    setDayOfMonth,
+    setLegacyCron,
+    setErrMsg,
     setTimeRangeType,
     setSelectedIds,
   });
@@ -115,13 +140,22 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
   const candidates = useMemo(() => {
     return (conversations ?? []).filter(
       (c) =>
-        c.channel.channelType === ChannelTypeGroup || c.channel.channelType === ChannelTypePerson,
+        c.channel.channelType === ChannelTypeGroup ||
+        c.channel.channelType === ChannelTypePerson ||
+        c.channel.channelType === CHANNEL_TYPE_THREAD,
     );
   }, [conversations]);
 
   const mu = useMutation({
     mutationFn: () => {
-      const finalCron = (useCustomCron ? customCron : cron).trim();
+      const config = { unit, every, time: runTime, dayOfWeek, dayOfMonth };
+      const err = validateScheduleConfig(config, t);
+      if (err) {
+        setErrMsg(err);
+        throw new Error(err);
+      }
+      setErrMsg(null);
+      const scheduleParams = scheduleToParams(config);
       const sources: SourceItem[] = candidates
         .filter((c) => selectedIds.has(c.channel.channelID))
         .map(convToSource);
@@ -135,7 +169,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
       const payload = {
         title: title.trim(),
         summary_mode: mode,
-        cron_expr: finalCron,
+        ...scheduleParams,
         time_range_type: timeRangeType,
         sources,
       };
@@ -152,8 +186,9 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
       toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
-  const finalCron = (useCustomCron ? customCron : cron).trim();
-  const canSubmit = !!finalCron && selectedIds.size > 0 && !mu.isPending;
+  const canSubmit = selectedIds.size > 0 && !mu.isPending;
+  const isWeekMode = unit === "week";
+  const isMonthMode = unit === "month";
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -228,44 +263,109 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
             <span className="text-xs font-medium text-text-secondary">
               {tr("summary.schedule.frequencyLabel")}
             </span>
-            {!useCustomCron ? (
-              <>
-                <select
-                  value={cron}
-                  onChange={(e) => setCron(e.target.value)}
-                  className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none"
-                >
-                  {CRON_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {tr(p.labelKey)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setUseCustomCron(true)}
-                  className="self-start text-[12px] text-brand hover:underline"
-                >
-                  {tr("summary.schedule.customCron")}
-                </button>
-              </>
-            ) : (
-              <>
-                <input
-                  value={customCron}
-                  onChange={(e) => setCustomCron(e.target.value)}
-                  placeholder={tr("summary.schedule.customCronPlaceholder")}
-                  className="rounded-md border border-border-default bg-bg-base px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setUseCustomCron(false)}
-                  className="self-start text-[12px] text-brand hover:underline"
-                >
-                  {tr("summary.schedule.usePreset")}
-                </button>
-              </>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-text-tertiary">
+                {tr("summary.schedule.config.everyPrefix")}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={9999}
+                value={every}
+                onChange={(event) => {
+                  setEvery(Number(event.target.value));
+                  setLegacyCron(false);
+                }}
+                className="h-9 w-20 rounded-md border border-border-default bg-bg-base px-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+              />
+              <select
+                value={unit}
+                onChange={(event) => {
+                  setUnit(event.target.value as ScheduleUnit);
+                  setLegacyCron(false);
+                }}
+                className="h-9 rounded-md border border-border-default bg-bg-base px-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+              >
+                <option value="day">{tr("summary.schedule.config.unitDay")}</option>
+                <option value="week">{tr("summary.schedule.config.unitWeek")}</option>
+                <option value="month">{tr("summary.schedule.config.unitMonth")}</option>
+              </select>
+
+              {isWeekMode ? (
+                <>
+                  <span className="text-sm text-text-tertiary">
+                    {tr("summary.schedule.config.onWeekdayPrefix")}
+                  </span>
+                  <select
+                    value={dayOfWeek || ""}
+                    onChange={(event) => {
+                      setDayOfWeek(Number(event.target.value) || 0);
+                      setLegacyCron(false);
+                    }}
+                    className="h-9 rounded-md border border-border-default bg-bg-base px-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+                  >
+                    <option value="">{tr("summary.schedule.config.weekdayPlaceholder")}</option>
+                    {WEEKDAY_KEYS.map((key, index) => (
+                      <option key={key} value={index + 1}>
+                        {tr(`summary.schedule.config.weekday.${key}`)}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
+
+              {isMonthMode ? (
+                <>
+                  <span className="text-sm text-text-tertiary">
+                    {tr("summary.schedule.config.onDayOfMonthPrefix")}
+                  </span>
+                  <select
+                    value={dayOfMonth || ""}
+                    onChange={(event) => {
+                      setDayOfMonth(Number(event.target.value) || 0);
+                      setLegacyCron(false);
+                    }}
+                    className="h-9 rounded-md border border-border-default bg-bg-base px-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+                  >
+                    <option value="">{tr("summary.schedule.config.dayOfMonthPlaceholder")}</option>
+                    {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                      <option key={day} value={day}>
+                        {tr("summary.schedule.config.dayOfMonthLabel", { values: { day } })}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
+
+              <span className="text-sm text-text-tertiary">
+                {tr("summary.schedule.config.atPrefix")}
+              </span>
+              <select
+                value={runTime}
+                onChange={(event) => {
+                  setRunTime(event.target.value);
+                  setLegacyCron(false);
+                }}
+                className="h-9 rounded-md border border-border-default bg-bg-base px-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+              >
+                {timeOptions.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {legacyCron ? (
+              <p className="text-xs text-warning">
+                {tr("summary.schedule.config.legacyCronWarning")}
+              </p>
+            ) : null}
+            {isMonthMode ? (
+              <p className="text-xs text-text-tertiary">
+                {tr("summary.schedule.config.dayOfMonthHint")}
+              </p>
+            ) : null}
+            {errMsg ? <p className="text-xs text-error">{errMsg}</p> : null}
           </div>
 
           <label className="flex flex-col gap-1">
@@ -299,6 +399,7 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                   const id = c.channel.channelID;
                   const checked = selectedIds.has(id);
                   const isGroup = c.channel.channelType === ChannelTypeGroup;
+                  const isThread = c.channel.channelType === CHANNEL_TYPE_THREAD;
                   const name = c.channelInfo?.title ?? id;
                   return (
                     <label
@@ -315,9 +416,11 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
                       />
                       <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
                       <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                        {isGroup
-                          ? tr("summary.schedule.tagGroup")
-                          : tr("summary.schedule.tagDirect")}
+                        {isThread
+                          ? tr("summary.schedule.tagThread")
+                          : isGroup
+                            ? tr("summary.schedule.tagGroup")
+                            : tr("summary.schedule.tagDirect")}
                       </span>
                     </label>
                   );

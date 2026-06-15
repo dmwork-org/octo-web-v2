@@ -13,6 +13,7 @@ import WKSDK, {
   MessageImage,
   MessageText,
   Reply,
+  type Subscriber,
   type MessageContent,
 } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
@@ -69,6 +70,11 @@ import { extractOctoRichTextClipboardPayloadFromHtml } from "@/features/chat/lib
 import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-text-paste";
 import { handleSecretPaste } from "@/features/chat/lib/secret-paste-detect";
 import { dispatchOpenSecrets } from "@/features/base/events/secrets-events";
+import {
+  buildVoiceContext,
+  buildVoiceMentionMembers,
+  type MentionMemberSource,
+} from "@/features/chat/lib/mention-resolve";
 import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
@@ -162,6 +168,17 @@ function buildPlaceholder(
     : tt("composer.placeholder.reply", { values: { alt: ALT_KEY } });
 }
 
+function subscriberMentionSource(sub: Subscriber): MentionMemberSource {
+  const orgData = sub.orgData as MentionMemberSource["orgData"];
+  return {
+    uid: sub.uid,
+    name: sub.name,
+    remark: sub.remark,
+    isDeleted: sub.isDeleted,
+    orgData,
+  };
+}
+
 function createSubmitOnEnter(onSubmit: () => void) {
   return Extension.create({
     name: "submitOnEnter",
@@ -197,7 +214,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
   const isMentionable = isGroup || isThread;
 
-  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const authUser = useStore(authStore, (s) => s.user);
+  const myUid = authUser?.uid ?? "";
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const subscribers = useGroupSubscribers(channel, isMentionable);
   // 订阅 channelInfo 推送 — reply digest 内 lookupNicknameLabel 依赖 SDK 缓存,
@@ -235,6 +253,18 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         };
       });
   }, [subscribers, myUid, isMentionable]);
+
+  const voiceContext = useMemo(
+    () =>
+      isMentionable
+        ? buildVoiceContext({
+            members: subscribers.map((s) => subscriberMentionSource(s)),
+            selfUid: myUid,
+            selfName: authUser?.name,
+          })
+        : { selfName: authUser?.name },
+    [authUser?.name, isMentionable, myUid, subscribers],
+  );
 
   const sendRef = useRef<() => void>(() => {});
   const candidatesRef = useRef<MentionItem[]>([]);
@@ -587,6 +617,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       const result = await transcribeVoice(file, {
         channelType: channel.channelType,
         contextText,
+        memberContext: voiceContext.memberContext,
+        selfName: voiceContext.selfName,
         mode,
       });
       const text = result.text;
@@ -604,6 +636,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
             mode,
             channelType: channel.channelType,
             contextText,
+            memberContext: voiceContext.memberContext,
+            selfName: voiceContext.selfName,
           },
         });
       } catch {
@@ -617,13 +651,12 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return;
       }
       if (isMentionable) {
-        const [{ parseVoiceMentions }, { isStickyMentionUid }] = await Promise.all([
-          import("@/features/chat/lib/voice-mention-parser"),
-          import("@/features/base/lib/mention-three-state"),
-        ]);
-        const members = candidatesRef.current
-          .filter((c) => !isStickyMentionUid(c.id))
-          .map((c) => ({ uid: c.id, name: c.label }));
+        const { parseVoiceMentions } = await import("@/features/chat/lib/voice-mention-parser");
+        const members = buildVoiceMentionMembers(
+          subscribers
+            .filter((s) => s.uid !== myUid && !s.isDeleted)
+            .map((s) => subscriberMentionSource(s)),
+        );
         const content = parseVoiceMentions(text, members);
         editor
           .chain()

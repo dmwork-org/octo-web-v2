@@ -134,7 +134,7 @@
 - [x] `b1bb31df` 2026-06-03 feat(octo-web): 接收渲染 RichText=14 图文混排 (Phase 1)
 - [x] `b5a3b68e` 2026-06-03 feat(octo-web): send RichText=14 mixed text+image + SmartCreateModal digest (Phase 1)
 - [x] `fff36eb1` 2026-06-04 feat: migrate rich text mixed content UI(本仓 TanStack 架构已是上游迁移目标;只搬 file block 前向兼容 + mergeforward preview 部分)
-- [x] `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip(**deferred / P3** — 核心收发已闭合,clipboard round trip 是 UX 增量,~330 行代码 + 多文件改造,工作量重,单独立项)
+- [x] `39284abf` 2026-06-08 Fix rich text mixed message clipboard round trip(**后续 issue #125 / MR !122 已完成** — 原 Batch 1.8 deferred / P3，Batch 2.8 文档回填确认)
 
 **手测**:粘贴图+文混排发出去;接收方正确渲染;复制走 round trip 不丢东西。
 

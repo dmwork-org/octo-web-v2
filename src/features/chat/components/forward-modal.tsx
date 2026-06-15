@@ -17,10 +17,14 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
+import { getMyGroups, listThreads } from "@/features/base/api/endpoints/group.api";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ThreadIcon } from "@/components/ui/thread-icon";
-import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import {
+  buildThreadChannelId,
+  parseThreadChannelId,
+} from "@/features/base/im/parse-thread-channel-id";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import {
   MergeforwardContent,
@@ -28,6 +32,7 @@ import {
 } from "@/features/base/im/mergeforward-content";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { filterArchivedThreads, THREAD_STATUS_ACTIVE } from "@/features/chat/lib/thread-status";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -258,6 +263,121 @@ function orderConversationsWithThreads(conversations: Conversation[]): ForwardCa
   return out;
 }
 
+function candidateKey(candidate: Pick<ForwardCandidate, "channelID" | "channelType">): string {
+  return `${candidate.channelType}::${candidate.channelID}`;
+}
+
+async function loadAllGroupThreadCandidates(spaceId: string): Promise<ForwardCandidate[]> {
+  const groups = await getMyGroups(spaceId);
+  const threadsByGroup = new Map<string, Awaited<ReturnType<typeof listThreads>>>();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < groups.length) {
+      const group = groups[cursor++];
+      try {
+        const threads = await listThreads(group.group_no, {
+          page_index: 1,
+          page_size: 100,
+          status: "active",
+        });
+        threadsByGroup.set(group.group_no, threads);
+      } catch (err) {
+        console.warn("[ForwardModal] listThreads failed", group.group_no, err);
+        threadsByGroup.set(group.group_no, []);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, groups.length) }, worker));
+
+  const candidates: ForwardCandidate[] = [];
+  for (const group of groups) {
+    const groupChannel = new Channel(group.group_no, ChannelTypeGroup);
+    candidates.push({
+      channelID: group.group_no,
+      channelType: ChannelTypeGroup,
+      channel: groupChannel,
+      displayName: group.name || group.group_no,
+      isAI: false,
+      isExternal: false,
+      isThread: false,
+    });
+
+    for (const thread of threadsByGroup.get(group.group_no) ?? []) {
+      if (!thread.short_id) continue;
+      if (thread.is_member === 0) continue;
+      if (thread.status != null && thread.status !== THREAD_STATUS_ACTIVE) continue;
+      const channelID = thread.channel_id || buildThreadChannelId(group.group_no, thread.short_id);
+      const channel = new Channel(channelID, CHANNEL_TYPE_THREAD);
+      candidates.push({
+        channelID,
+        channelType: CHANNEL_TYPE_THREAD,
+        channel,
+        displayName: thread.name || channelID,
+        isAI: false,
+        isExternal: false,
+        isThread: true,
+        parentChannelID: group.group_no,
+      });
+    }
+  }
+  return candidates;
+}
+
+function mergeConversationAndSupplementalCandidates(
+  conversationCandidates: ForwardCandidate[],
+  supplementalCandidates: ForwardCandidate[],
+): ForwardCandidate[] {
+  const seen = new Set<string>();
+  const supplementalGroups: ForwardCandidate[] = [];
+  const supplementalThreadsByParent = new Map<string, ForwardCandidate[]>();
+  const orphanSupplementalThreads: ForwardCandidate[] = [];
+
+  for (const candidate of supplementalCandidates) {
+    if (candidate.isThread) {
+      const parent = candidate.parentChannelID ?? parentChannelIDOf(candidate.channel);
+      if (parent) {
+        const list = supplementalThreadsByParent.get(parent) ?? [];
+        list.push(candidate);
+        supplementalThreadsByParent.set(parent, list);
+      } else {
+        orphanSupplementalThreads.push(candidate);
+      }
+    } else {
+      supplementalGroups.push(candidate);
+    }
+  }
+
+  const out: ForwardCandidate[] = [];
+  const push = (candidate: ForwardCandidate) => {
+    const key = candidateKey(candidate);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(candidate);
+  };
+
+  for (const candidate of conversationCandidates) {
+    push(candidate);
+    if (candidate.channelType !== ChannelTypeGroup) continue;
+    const children = supplementalThreadsByParent.get(candidate.channelID) ?? [];
+    for (const child of children) push(child);
+    supplementalThreadsByParent.delete(candidate.channelID);
+  }
+
+  for (const group of supplementalGroups) {
+    push(group);
+    const children = supplementalThreadsByParent.get(group.channelID) ?? [];
+    for (const child of children) push(child);
+    supplementalThreadsByParent.delete(group.channelID);
+  }
+
+  for (const children of supplementalThreadsByParent.values()) {
+    for (const child of children) push(child);
+  }
+  for (const child of orphanSupplementalThreads) push(child);
+
+  return out;
+}
+
 function ForwardCandidateAvatar({ candidate }: { candidate: ForwardCandidate }) {
   const parentChannelID = candidate.parentChannelID ?? parentChannelIDOf(candidate.channel);
   const avatarChannel =
@@ -457,6 +577,13 @@ export function ForwardModal({
     enabled: open,
   });
 
+  const { data: groupThreadCandidates } = useQuery({
+    queryKey: ["chat", "forward", "group-thread-candidates", spaceId ?? "_"],
+    queryFn: () => loadAllGroupThreadCandidates(spaceId!),
+    enabled: open && !!spaceId,
+    staleTime: 60 * 1000,
+  });
+
   const { data: members } = useQuery({
     ...spaceMembersQueryOptions(spaceId),
     enabled: open && !!spaceId,
@@ -464,9 +591,13 @@ export function ForwardModal({
 
   const allCandidates = useMemo<ForwardCandidate[]>(() => {
     void channelInfoTick;
-    const fromConvs = orderConversationsWithThreads(conversations ?? []);
+    const fromConvs = orderConversationsWithThreads(filterArchivedThreads(conversations ?? []));
+    const fromChats = mergeConversationAndSupplementalCandidates(
+      fromConvs,
+      groupThreadCandidates ?? [],
+    );
     const convDmIds = new Set(
-      fromConvs.filter((c) => c.channelType === ChannelTypePerson).map((c) => c.channelID),
+      fromChats.filter((c) => c.channelType === ChannelTypePerson).map((c) => c.channelID),
     );
     const fromMembers: ForwardCandidate[] = (members ?? [])
       .filter((m) => m.uid !== myUid && m.robot !== 1 && !convDmIds.has(m.uid))
@@ -482,8 +613,8 @@ export function ForwardModal({
           isThread: false,
         };
       });
-    return [...fromConvs, ...fromMembers];
-  }, [channelInfoTick, conversations, members, myUid]);
+    return [...fromChats, ...fromMembers];
+  }, [channelInfoTick, conversations, groupThreadCandidates, members, myUid]);
 
   const filtered = useMemo<ForwardCandidate[]>(() => {
     const kw = keyword.trim().toLowerCase();
@@ -508,27 +639,40 @@ export function ForwardModal({
     mutationFn: async () => {
       const targets = selectedCandidates.map((c) => c.channel);
       const chat = WKSDK.shared().chatManager;
+      const tasks: Promise<unknown>[] = [];
       if (mode === "merge") {
         for (const target of targets) {
           const mf = buildMergeforward(messages);
-          await chat.send(
-            wrapSendContentForInjection(mf, {
-              spaceId: target.channelType === ChannelTypePerson ? spaceId : null,
-            }),
-            target,
+          tasks.push(
+            chat.send(
+              wrapSendContentForInjection(mf, {
+                spaceId: target.channelType === ChannelTypePerson ? spaceId : null,
+              }),
+              target,
+            ),
           );
         }
       } else {
         for (const target of targets) {
           for (const m of messages) {
-            await chat.send(
-              wrapSendContentForInjection(cloneContent(m.content), {
-                spaceId: target.channelType === ChannelTypePerson ? spaceId : null,
-              }),
-              target,
+            tasks.push(
+              chat.send(
+                wrapSendContentForInjection(cloneContent(m.content), {
+                  spaceId: target.channelType === ChannelTypePerson ? spaceId : null,
+                }),
+                target,
+              ),
             );
           }
         }
+      }
+      const results = await Promise.allSettled(tasks);
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        throw Object.assign(new Error(t("forwardModalLocal.toast.failed")), {
+          failed,
+          total: tasks.length,
+        });
       }
     },
     onSuccess: () => {
@@ -550,8 +694,18 @@ export function ForwardModal({
       onSuccess?.();
       onClose();
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("forwardModalLocal.toast.failed")),
+    onError: (err) => {
+      const detail = err as Error & { failed?: number; total?: number };
+      if (detail.failed && detail.total && detail.failed < detail.total) {
+        toast.error(
+          t("forwardModalLocal.toast.partialFailed", {
+            values: { failed: detail.failed, total: detail.total },
+          }),
+        );
+        return;
+      }
+      toast.error(err instanceof Error ? err.message : t("forwardModalLocal.toast.failed"));
+    },
   });
 
   const toggle = (id: string) => {

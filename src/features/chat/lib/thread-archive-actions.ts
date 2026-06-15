@@ -55,3 +55,18 @@ export function refreshThreadChannelInfoCache(groupNo: string, shortId: string):
   WKSDK.shared().channelManager.deleteChannelInfo(channel);
   void WKSDK.shared().channelManager.fetchChannelInfo(channel);
 }
+
+export function syncThreadArchiveState(groupNo: string, shortId: string, status: number): void {
+  const channelId = buildThreadChannelId(groupNo, shortId);
+  const channel = new Channel(channelId, CHANNEL_TYPE_THREAD);
+  const cm = WKSDK.shared().channelManager;
+  const info = cm.getChannelInfo(channel);
+  if (!info) return;
+  const orgData = (info.orgData ?? {}) as Record<string, unknown>;
+  const thread = (orgData.thread ?? {}) as Record<string, unknown>;
+  thread.status = status;
+  orgData.thread = thread;
+  info.orgData = orgData;
+  cm.setChannleInfoForCache(info);
+  cm.notifyListeners(info);
+}

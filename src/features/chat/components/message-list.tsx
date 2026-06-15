@@ -333,6 +333,29 @@ function useSyncAiCollabFoldDigest(channel: Channel, renderItems: RenderItem[]):
   }, [channel, renderItems]);
 }
 
+function useExpandLocatedFoldSession(
+  renderItems: RenderItem[],
+  pendingLocateForChannel: boolean,
+  messageSeq: number | null | undefined,
+  setExpandedSessions: React.Dispatch<React.SetStateAction<Map<string, boolean>>>,
+): void {
+  useEffect(() => {
+    if (!pendingLocateForChannel || !messageSeq) return;
+    const hit = renderItems.find(
+      (item) =>
+        item.type === "foldSession" &&
+        item.session.messages.some((message) => message.messageSeq === messageSeq),
+    );
+    if (!hit || hit.type !== "foldSession") return;
+    setExpandedSessions((prev) => {
+      if (prev.get(hit.session.sessionId)) return prev;
+      const next = new Map(prev);
+      next.set(hit.session.sessionId, true);
+      return next;
+    });
+  }, [messageSeq, pendingLocateForChannel, renderItems, setExpandedSessions]);
+}
+
 export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
@@ -403,6 +426,13 @@ export function MessageList({ channel }: MessageListProps) {
     !!locateRequest.messageSeq &&
     locateRequest.channelId === channel.channelID &&
     locateRequest.channelType === channel.channelType;
+
+  useExpandLocatedFoldSession(
+    renderItems,
+    pendingLocateForChannel,
+    locateRequest.messageSeq,
+    setExpandedSessions,
+  );
 
   useInitialScrollToBottom(scrollRef, firstReadyKey, pendingLocateForChannel);
   useFollowBottomOnNewMessages(scrollRef, followKey, pendingLocateForChannel);

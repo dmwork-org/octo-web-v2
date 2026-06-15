@@ -286,6 +286,7 @@ export async function getMembers(taskId: number): Promise<MemberStatus[]> {
 export async function getChatCandidates(params?: {
   keyword?: string;
   chat_type?: string;
+  include_archived?: boolean;
 }): Promise<ChatCandidate[]> {
   const data = await summaryApi<ChatCandidate[] | null>("/summary-chat-candidates", {
     query: params,

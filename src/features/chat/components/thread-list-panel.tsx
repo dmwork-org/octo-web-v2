@@ -34,8 +34,8 @@ import { archiveThread, unarchiveThread } from "@/features/base/api/endpoints/gr
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import {
   deriveArchiveAction,
-  refreshThreadChannelInfoCache,
   shouldShowArchiveButton,
+  syncThreadArchiveState,
 } from "@/features/chat/lib/thread-archive-actions";
 import {
   sidebarFollowQueryKey,
@@ -43,6 +43,7 @@ import {
 } from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { useT } from "@/lib/i18n/use-t";
@@ -369,6 +370,19 @@ function DetailView({
   const deleteMu = useMutation({
     mutationFn: () => deleteThread(groupNo, thread.short_id),
     onSuccess: () => {
+      const cm = WKSDK.shared().channelManager;
+      cm.deleteChannelInfo(threadChannel);
+      WKSDK.shared().conversationManager.removeConversation(threadChannel);
+      qc.setQueryData(conversationsQueryKey(spaceId), (old) =>
+        Array.isArray(old)
+          ? old.filter(
+              (conv) =>
+                conv.channel.channelID !== threadChannel.channelID ||
+                conv.channel.channelType !== threadChannel.channelType,
+            )
+          : old,
+      );
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       onInvalidate();
       setDeleteOpen(false);
       onAfterDelete();
@@ -389,11 +403,10 @@ function DetailView({
       setArchiveConfirmOpen(false);
       onInvalidate();
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      // 清 SDK channelInfo 缓存让 follow-list / sidebar 的 isArchivedThread 判定拿到
-      // 新 thread.status(issue #72:不清缓存关注列表页不刷新)
-      refreshThreadChannelInfoCache(groupNo, thread.short_id);
       const nextStatus =
         archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
+      syncThreadArchiveState(groupNo, thread.short_id, nextStatus);
+      void WKSDK.shared().channelManager.fetchChannelInfo(threadChannel);
       onThreadUpdated?.({ status: nextStatus });
       toast.success(
         archiveAction === "archive"
@@ -720,9 +733,14 @@ function ThreadItem({
       }
       void qc.invalidateQueries({ queryKey: ["chat", "thread-list", groupNo] });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      // 清 SDK channelInfo 缓存让 follow-list / sidebar 的 isArchivedThread 判定拿到
-      // 新 thread.status(issue #72:不清缓存关注列表页不刷新)
-      refreshThreadChannelInfoCache(groupNo, thread.short_id);
+      syncThreadArchiveState(
+        groupNo,
+        thread.short_id,
+        action === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE,
+      );
+      void WKSDK.shared().channelManager.fetchChannelInfo(
+        new Channel(buildThreadChannelId(groupNo, thread.short_id), CHANNEL_TYPE_THREAD),
+      );
       toast.success(
         action === "archive"
           ? t("threadPanelLocal.toast.archived")

@@ -42,7 +42,12 @@ import { InputModal } from "@/features/base/components/modals/input-modal";
 import { FollowEmptyState } from "@/features/chat/components/follow-empty-state";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-import { filterArchivedThreads, isArchivedThread } from "@/features/chat/lib/thread-status";
+import {
+  filterArchivedThreads,
+  isArchivedThread,
+  isThreadArchivedForBadge,
+  type ThreadSidebarStatusMap,
+} from "@/features/chat/lib/thread-status";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
@@ -478,6 +483,16 @@ function aggregateThreadUnread(threads: Conversation[], parentGroupNo: string): 
   }, 0);
 }
 
+function buildThreadSidebarStatus(items: SidebarItem[]): ThreadSidebarStatusMap {
+  const statusMap: ThreadSidebarStatusMap = new Map();
+  for (const it of items) {
+    if (it.target_type !== SidebarTargetType.THREAD) continue;
+    if (it.status == null) continue;
+    statusMap.set(it.target_id, it.status);
+  }
+  return statusMap;
+}
+
 interface CategorySectionProps {
   category: CategoryItem;
   collapsed: boolean;
@@ -487,6 +502,7 @@ interface CategorySectionProps {
   ctxMenuActive?: boolean;
   sidebarItems: SidebarItem[];
   followedThreadsByParent: Map<string, Conversation[]>;
+  threadSidebarStatus: ThreadSidebarStatusMap;
   selectedChannelId?: string;
   /** 当前被右键的 row key(`${channelType}::${channelID}`),命中 → row 高亮(对齐选中色)。 */
   ctxMenuRowKey?: string | null;
@@ -502,6 +518,7 @@ interface CategorySectionProps {
 function aggregateCategoryStats(
   sidebarItems: SidebarItem[],
   myUid: string,
+  threadSidebarStatus: ThreadSidebarStatusMap,
 ): { unread: number; hasMention: boolean } {
   let unread = 0;
   let hasMention = false;
@@ -512,6 +529,12 @@ function aggregateCategoryStats(
     else if (it.target_type === SidebarTargetType.THREAD) channelType = CHANNEL_TYPE_THREAD;
     else continue;
     const conv = findConv(it.target_id, channelType);
+    if (
+      it.target_type === SidebarTargetType.THREAD &&
+      isThreadArchivedForBadge(conv, it.target_id, threadSidebarStatus)
+    ) {
+      continue;
+    }
     const isMuted = !!conv?.channelInfo?.mute;
     if (!isMuted) unread += conv?.unread ?? it.unread ?? 0;
     if (conv && computeMentionMe(conv, myUid)) hasMention = true;
@@ -527,6 +550,7 @@ function CategorySection({
   ctxMenuActive = false,
   sidebarItems,
   followedThreadsByParent,
+  threadSidebarStatus,
   selectedChannelId,
   ctxMenuRowKey,
   myUid,
@@ -541,7 +565,10 @@ function CategorySection({
   const [expandedThreadsSet, setExpandedThreadsSet] = useState<Set<string>>(new Set());
   const count = sidebarItems.length;
   const isEmpty = count === 0;
-  const stats = useMemo(() => aggregateCategoryStats(sidebarItems, myUid), [sidebarItems, myUid]);
+  const stats = useMemo(
+    () => aggregateCategoryStats(sidebarItems, myUid, threadSidebarStatus),
+    [sidebarItems, myUid, threadSidebarStatus],
+  );
 
   const sortable = useSortable({
     id: `cat::${category.category_id ?? "default"}`,
@@ -664,7 +691,7 @@ function CategorySection({
                       // 父群 UI 看可见(非归档)子区:hasThreads 决定是否显"子区"按钮,
                       // 角标也只算活跃子区(对齐上游 645fa295)。拖拽 payload 仍用全量
                       // threads,归档隐藏不影响后端 follow_sort。
-                      const visibleThreads = filterArchivedThreads(threads);
+                      const visibleThreads = filterArchivedThreads(threads, threadSidebarStatus);
                       const expanded = isExpanded(groupNo);
                       const groupUnread = conv?.unread ?? it.unread;
                       const aggThreadUnread = expanded
@@ -792,6 +819,14 @@ function CategorySection({
                       if (nestedThreadIds.has(tid)) return null;
                       const conv = findConv(tid, CHANNEL_TYPE_THREAD);
                       const channel = conv?.channel ?? new Channel(tid, CHANNEL_TYPE_THREAD);
+                      if (
+                        isArchivedThread(
+                          conv ?? ({ channel, channelInfo: undefined } as unknown as Conversation),
+                          threadSidebarStatus,
+                        )
+                      ) {
+                        return null;
+                      }
                       const live = getLiveTitle(channel);
                       const title = live.title || tid;
                       const titleLoading = live.loading;
@@ -1122,6 +1157,11 @@ export function FollowList({
     return buildFollowedThreadsByParent(conversationsQ.data ?? [], sidebarQ.data);
   }, [conversationsQ.data, sidebarQ.data]);
 
+  const threadSidebarStatus = useMemo(
+    () => buildThreadSidebarStatus(sidebarQ.data?.items ?? []),
+    [sidebarQ.data?.items],
+  );
+
   const orderedCategories = useMemo<CategoryItem[]>(() => {
     const cats = categoriesQ.data ?? [];
     return cats.filter((c) => !c.is_default);
@@ -1209,7 +1249,8 @@ export function FollowList({
       const groupNo = conv.channel.channelID;
       // 右键"展开/收起子区"也按可见子区(非归档)算
       const hasThreads =
-        filterArchivedThreads(followedThreadsByParent.get(groupNo) ?? []).length > 0;
+        filterArchivedThreads(followedThreadsByParent.get(groupNo) ?? [], threadSidebarStatus)
+          .length > 0;
       if (hasThreads) {
         const expanded = isExpanded(groupNo);
         items.push({
@@ -1448,6 +1489,7 @@ export function FollowList({
                 ctxMenuActive={ctxMenuCatId === (cat.category_id ?? null)}
                 sidebarItems={sidebarItems}
                 followedThreadsByParent={followedThreadsByParent}
+                threadSidebarStatus={threadSidebarStatus}
                 selectedChannelId={selectedChannelId}
                 ctxMenuRowKey={ctxMenuRowKey}
                 myUid={myUid}

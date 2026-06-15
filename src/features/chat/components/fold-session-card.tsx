@@ -41,6 +41,7 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
   const { participants, messages, lastMessage } = session;
   const participantLabel = participants.map((p) => p.name).join(" × ") || "AI";
   const time = formatTime(lastMessage.timestamp);
+  const summaryRevoked = !!lastMessage.remoteExtra?.revoke;
 
   // 折叠态右键 → 菜单作用于 lastMessage(对齐老仓 FoldSessionCard onSummaryContextMenu);
   // 展开态由内层 ExpandedItemWithMenu 各自维护 hook(React 规则)。
@@ -70,11 +71,14 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
           {expanded ? (
             <FoldSessionExpanded messages={messages} />
           ) : (
-            <FoldSessionItem message={lastMessage} onContextMenu={summaryMenu.onContextMenu} />
+            <FoldSessionItem
+              message={lastMessage}
+              onContextMenu={summaryRevoked ? undefined : summaryMenu.onContextMenu}
+            />
           )}
         </div>
       </div>
-      {summaryMenu.render()}
+      {summaryRevoked ? null : summaryMenu.render()}
     </div>
   );
 }
@@ -104,6 +108,7 @@ function FoldSessionItem({
 }) {
   const senderName = senderTitleOf(message.fromUID);
   const time = formatTime(message.timestamp);
+  const revoked = !!message.remoteExtra?.revoke;
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
   const selectionIds = useStore(chatSelectionStore, (s) => s.ids);
   const selectable = isMessageSelectable(message);
@@ -120,6 +125,7 @@ function FoldSessionItem({
 
   return (
     <div
+      data-msg-seq={message.messageSeq > 0 ? message.messageSeq : undefined}
       className={`flex flex-col gap-1 ${selectedBg} ${cursor}`}
       onClick={onRowClick}
       onContextMenu={onContextMenu}
@@ -141,10 +147,14 @@ function FoldSessionItem({
             ) : null}
           </span>
         ) : null}
-        <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
-          {senderName}
-        </span>
-        <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
+        {!revoked ? (
+          <>
+            <span className="inline-flex h-5 shrink-0 items-center rounded-[3px] bg-white px-2 text-[12px] leading-4 font-bold text-[rgba(28,28,35,1)]">
+              {senderName}
+            </span>
+            <span className="text-[12px] text-[rgba(28,28,35,0.4)]">{time}</span>
+          </>
+        ) : null}
       </div>
       <div style={{ pointerEvents: selectionActive ? "none" : undefined }}>
         <MessageDispatch message={message} />
@@ -171,10 +181,11 @@ function FoldSessionExpanded({ messages }: { messages: Message[] }) {
 /** 展开态单条 + 自己的菜单(每条独立 hook 实例,保证 React 规则)。 */
 function ExpandedItemWithMenu({ message }: { message: Message }) {
   const { onContextMenu, render } = useMessageContextMenu(message);
+  const revoked = !!message.remoteExtra?.revoke;
   return (
     <>
-      <FoldSessionItem message={message} onContextMenu={onContextMenu} />
-      {render()}
+      <FoldSessionItem message={message} onContextMenu={revoked ? undefined : onContextMenu} />
+      {revoked ? null : render()}
     </>
   );
 }

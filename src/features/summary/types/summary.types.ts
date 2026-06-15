@@ -295,6 +295,7 @@ export interface ChatCandidate {
   member_count: number | null;
   parent_group_no?: string;
   is_bot?: boolean;
+  is_archived?: boolean;
 }
 
 /** 成员候选项(member-selector 用,Wave 3+)。 */

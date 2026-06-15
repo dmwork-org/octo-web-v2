@@ -156,7 +156,7 @@ function SubscriberCell({ subscriber, onAvatarClick }: { subscriber: Subscriber;
         type="button"
         onClick={() => onAvatarClick(subscriber.uid)}
         aria-label={tt("channelSetting.viewMemberInfo")}
-        className="relative rounded-full hover:opacity-80 transition-opacity"
+        className="relative rounded-full cursor-pointer hover:opacity-80 transition-opacity"
       >
         <ChannelAvatar channel={ch} size={48} title={display} />
         {subscriber.role === ROLE_OWNER ? (

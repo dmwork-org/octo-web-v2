@@ -163,7 +163,9 @@ function mentionRangesForText(
   if (!channel) return out;
   for (const uid of mention.uids ?? []) {
     const names = collectCandidateNames(uid, channel);
-    for (const name of names.slice().sort((a, b) => a.length - b.length)) {
+    // Match the render path: keep candidate source priority instead of length sorting,
+    // so special-character display names are not clipped to a shorter alias.
+    for (const name of names) {
       const needle = `@${name}`;
       const start = text.indexOf(needle);
       if (start === -1) continue;

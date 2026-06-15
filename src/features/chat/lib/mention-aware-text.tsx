@@ -333,9 +333,10 @@ export function MentionAwareText({
               continue;
             }
             let found = false;
-            // 按长度升序 — 短名优先匹配,避免长 candidate 吞掉 mention 后的
-            // 普通文字(issue #73 `@李志伟测试测试测试` 多余高亮)
-            for (const name of names.slice().sort((a, b) => a.length - b.length)) {
+            // 保留 collectCandidateNames 的业务优先级(remark -> name -> org display names)。
+            // 不能按长度重排:短名会抢先命中 `@郭斌丨Octo` 里的 `@郭斌`(issue #131),
+            // 长名优先又会回归 issue #73 的普通后缀被吞问题。
+            for (const name of names) {
               const needle = `@${name}`;
               let from = 0;
               while (from < text.length) {
@@ -444,9 +445,7 @@ function useFetchMissingMentionCandidates(
       // 标记为已 fetch,避免重复
       fetchedRef.current.add(uid);
       // 主动 fetch Person channelInfo — 成功后 SDK 触发 listener → tick → 重渲
-      void WKSDK.shared().channelManager.fetchChannelInfo(
-        new Channel(uid, ChannelTypePerson),
-      );
+      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
     }
   });
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Message, MessageText } from "wukongimjssdk";
 import {
+  Clock,
   Loader2,
   MessageSquareText,
   RefreshCcw,
@@ -20,8 +21,12 @@ import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { addMatterComment } from "@/features/matter/api/matter.api";
 import {
   cancelSummary,
+  createSchedule,
   deleteSummary,
+  getSchedule,
   regenerateSummary,
+  toggleSchedule,
+  updateSchedule,
 } from "@/features/summary/api/summary.api";
 import {
   personalResultQueryOptions,
@@ -29,6 +34,7 @@ import {
   summaryDetailQueryOptions,
 } from "@/features/summary/queries/summaries.query";
 import { SummaryContent } from "@/features/summary/components/summary-content";
+import { ScheduleConfigModal } from "@/features/summary/components/schedule-config-modal";
 import { CitationText } from "@/features/summary/components/citation-text";
 import { MatterPickerModal } from "@/features/summary/components/matter-picker-modal";
 import { PersonalSection } from "@/features/summary/components/personal-section";
@@ -36,9 +42,16 @@ import {
   SourceType,
   SummaryMode,
   TaskStatus,
+  type ScheduleConfig,
   type SourceItem,
   type TaskStatusType,
 } from "@/features/summary/types/summary.types";
+import {
+  describeSchedule,
+  formatNextRunAt,
+  scheduleItemToConfig,
+  scheduleToParams,
+} from "@/features/summary/utils/summary-schedule";
 import { splitSummaryText } from "@/features/summary/utils/split-message";
 
 interface SummaryDetailProps {
@@ -172,9 +185,17 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const [forwardMessages, setForwardMessages] = useState<Message[] | null>(null);
   const [matterPickerOpen, setMatterPickerOpen] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
+  const [scheduleConfigOpen, setScheduleConfigOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [regenerateTopic, setRegenerateTopic] = useState("");
   const { data, isLoading, isFetching, error } = useQuery(summaryDetailQueryOptions(taskId));
+  const scheduleId = data?.schedule_id && data.schedule_id > 0 ? data.schedule_id : null;
+  const { data: scheduleItem, isLoading: scheduleLoading } = useQuery({
+    queryKey: ["summary", "schedule", scheduleId],
+    queryFn: () => getSchedule(scheduleId!),
+    enabled: scheduleId !== null,
+    staleTime: 30 * 1000,
+  });
   const { data: personalResult } = useQuery(
     personalResultQueryOptions(taskId, data?.summary_mode === SummaryMode.BY_PERSON),
   );
@@ -184,6 +205,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     if (taskId !== null) {
       void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
     }
+    void qc.invalidateQueries({ queryKey: ["summary", "schedule"] });
   };
 
   const regenMu = useMutation({
@@ -236,6 +258,53 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
       toast.error(err instanceof Error ? err.message : t("summary.detail.forwardFailed")),
   });
 
+  const saveScheduleMu = useMutation({
+    mutationFn: async (config: ScheduleConfig) => {
+      if (!data) throw new Error(t("summary.detail.loadFailed"));
+      const params = scheduleToParams(config);
+      if (scheduleItem) {
+        const updated = await updateSchedule(scheduleItem.schedule_id, {
+          ...params,
+          scope: "task",
+          task_id: data.task_id,
+        });
+        if (scheduleItem.is_active === false) {
+          await toggleSchedule(updated.schedule_id, true);
+        }
+        return updated;
+      }
+      return createSchedule({
+        title: data.title,
+        summary_mode: data.summary_mode,
+        ...params,
+        time_range_type: 2,
+        sources: data.sources,
+        scope: "task",
+        task_id: data.task_id,
+      });
+    },
+    onSuccess: () => {
+      setScheduleConfigOpen(false);
+      invalidate();
+      toast.success(
+        scheduleItem ? t("summary.detail.scheduleSaved") : t("summary.detail.scheduleCreated"),
+      );
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+  });
+
+  const disableScheduleMu = useMutation({
+    mutationFn: () => toggleSchedule(scheduleItem!.schedule_id, false),
+    onSuccess: () => {
+      setScheduleConfigOpen(false);
+      invalidate();
+      toast.success(t("summary.detail.scheduleDisabled"));
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
+  });
+
   if (taskId === null) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center text-sm text-text-tertiary">
@@ -268,6 +337,19 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const isPersonalMode = data.summary_mode === SummaryMode.BY_PERSON;
   const resultContent = data.result?.content ?? "";
   const personalReady = isPersonalMode && !!personalResult?.content?.trim();
+  const canEdit = !!data.permissions?.can_edit;
+  const hasActiveSchedule = !!scheduleItem && scheduleItem.is_active !== false;
+  const hasSchedule = hasActiveSchedule || (!scheduleItem && !!scheduleId);
+  const scheduleSummary =
+    scheduleItem && scheduleItem.is_active !== false
+      ? `${describeSchedule(scheduleItem, t)}${
+          scheduleItem.next_run_at
+            ? ` · ${tr("summary.detail.scheduleNextRun", {
+                values: { time: formatNextRunAt(scheduleItem.next_run_at) },
+              })}`
+            : ""
+        }`
+      : "";
 
   const openForwardToChat = () => {
     if (!resultContent.trim()) {
@@ -301,6 +383,10 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     regenMu.mutate(topic);
   };
 
+  const openScheduleConfig = () => {
+    setScheduleConfigOpen(true);
+  };
+
   return (
     <>
       <section className="flex flex-1 flex-col overflow-hidden bg-bg-surface">
@@ -309,8 +395,33 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
             <h1 className="truncate text-[17px] leading-6 font-semibold text-text-primary">
               {data.title}
             </h1>
+            {scheduleItem ? (
+              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-text-tertiary">
+                <Clock
+                  size={13}
+                  className={scheduleItem.is_active === false ? "text-text-tertiary" : "text-brand"}
+                />
+                <span className="truncate">
+                  {scheduleItem.is_active === false
+                    ? tr("summary.detail.scheduleDisabledHint")
+                    : tr("summary.detail.schedulePrefix", { values: { text: scheduleSummary } })}
+                </span>
+              </div>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {canEdit ? (
+              <Button
+                type="tertiary"
+                theme="borderless"
+                size="small"
+                loading={scheduleLoading || saveScheduleMu.isPending || disableScheduleMu.isPending}
+                onClick={openScheduleConfig}
+              >
+                <Clock size={13} />
+                {tr(hasSchedule ? "summary.detail.editSchedule" : "summary.detail.setSchedule")}
+              </Button>
+            ) : null}
             {isCompleted ? (
               <>
                 <Button type="tertiary" theme="borderless" size="small" onClick={openForwardToChat}>
@@ -438,6 +549,21 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         onOk={() => {
           if (!deleteMu.isPending) deleteMu.mutate();
         }}
+      />
+      <ScheduleConfigModal
+        open={scheduleConfigOpen}
+        value={
+          scheduleItem
+            ? scheduleItemToConfig(scheduleItem)
+            : { unit: "week", every: 1, time: "09:00" }
+        }
+        onConfirm={(config) => saveScheduleMu.mutate(config)}
+        onCancel={() => setScheduleConfigOpen(false)}
+        hasExisting={hasActiveSchedule}
+        onDisable={() => {
+          if (scheduleItem && !disableScheduleMu.isPending) disableScheduleMu.mutate();
+        }}
+        disabling={disableScheduleMu.isPending}
       />
       <BaseDialog
         open={regenerateOpen}

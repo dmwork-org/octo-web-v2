@@ -11,6 +11,9 @@ interface ScheduleConfigModalProps {
   value: ScheduleConfig;
   onConfirm: (config: ScheduleConfig) => void;
   onCancel: () => void;
+  hasExisting?: boolean;
+  onDisable?: () => void;
+  disabling?: boolean;
 }
 
 const DEFAULT_CONFIG: ScheduleConfig = { unit: "week", every: 1, time: "09:00" };
@@ -39,6 +42,9 @@ export function ScheduleConfigModal({
   value,
   onConfirm,
   onCancel,
+  hasExisting = false,
+  onDisable,
+  disabling = false,
 }: ScheduleConfigModalProps) {
   const tr = useT();
   const [local, setLocal] = useState<ScheduleConfig>({ ...DEFAULT_CONFIG, ...value });
@@ -79,14 +85,23 @@ export function ScheduleConfigModal({
       className="w-full max-w-md"
       title={tr("summary.schedule.config.title")}
       footer={
-        <>
-          <Button type="tertiary" theme="borderless" onClick={onCancel}>
-            {tr("summary.common.cancel")}
-          </Button>
-          <Button type="primary" theme="solid" onClick={handleConfirm}>
-            {tr("summary.common.save")}
-          </Button>
-        </>
+        <div className="flex w-full items-center justify-between gap-3">
+          <div>
+            {hasExisting && onDisable ? (
+              <Button type="danger" theme="borderless" loading={disabling} onClick={onDisable}>
+                {tr("summary.detail.disableSchedule")}
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="tertiary" theme="borderless" onClick={onCancel}>
+              {tr("summary.common.cancel")}
+            </Button>
+            <Button type="primary" theme="solid" onClick={handleConfirm}>
+              {tr("summary.common.save")}
+            </Button>
+          </div>
+        </div>
       }
     >
       <div className="flex flex-col gap-4 px-5 py-4">

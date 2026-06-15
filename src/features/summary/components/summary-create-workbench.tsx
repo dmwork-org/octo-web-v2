@@ -1,14 +1,23 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Plus, X } from "lucide-react";
+import { Bot, Clock, Plus, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
-import { createSummary, getTopicTemplates } from "@/features/summary/api/summary.api";
+import {
+  createSchedule,
+  createSummary,
+  getTopicTemplates,
+} from "@/features/summary/api/summary.api";
 import { ChatSelectorModal } from "@/features/summary/components/chat-selector-modal";
+import { ScheduleConfigModal } from "@/features/summary/components/schedule-config-modal";
 import { TemplateCard } from "@/features/summary/components/template-card";
 import { TOPIC_TEMPLATES } from "@/features/summary/constants/topic-templates";
+import {
+  describeScheduleConfig,
+  scheduleToParams,
+} from "@/features/summary/utils/summary-schedule";
 import {
   computeTemplateSelection,
   resolveTemplate,
@@ -19,6 +28,7 @@ import {
   SummaryMode,
   type ChatCandidate,
   type CreateSummaryParams,
+  type ScheduleConfig,
   type SourceItem,
   type TopicTemplate,
 } from "@/features/summary/types/summary.types";
@@ -48,7 +58,9 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
   const [topic, setTopic] = useState("");
   const [placeholderRange, setPlaceholderRange] = useState<[number, number] | null>(null);
   const [selectedChats, setSelectedChats] = useState<ChatCandidate[]>([]);
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(null);
   const [showChatSelector, setShowChatSelector] = useState(false);
+  const [showScheduleConfig, setShowScheduleConfig] = useState(false);
 
   const { data: remoteTemplates } = useQuery({
     queryKey: ["summary", "topic-templates"],
@@ -73,7 +85,23 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
         summary_mode: SummaryMode.BY_PERSON,
       };
       if (sources.length > 0) params.sources = sources;
-      return createSummary(params);
+      const result = await createSummary(params);
+      if (scheduleConfig) {
+        try {
+          await createSchedule({
+            title: topic.trim(),
+            summary_mode: params.summary_mode ?? SummaryMode.BY_PERSON,
+            ...scheduleToParams(scheduleConfig),
+            time_range_type: 2,
+            sources,
+            scope: "task",
+            task_id: result.task_id,
+          });
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : t("summary.create.scheduleFailed"));
+        }
+      }
+      return result;
     },
     onSuccess: ({ task_id }) => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
@@ -188,6 +216,18 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
                     })
                   : tr("summary.create.selectChat")}
               </button>
+              <button
+                type="button"
+                onClick={() => setShowScheduleConfig(true)}
+                className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors hover:bg-bg-hover ${
+                  scheduleConfig ? "text-brand" : "text-text-secondary"
+                }`}
+              >
+                <Clock size={15} />
+                {scheduleConfig
+                  ? describeScheduleConfig(scheduleConfig, t)
+                  : tr("summary.schedule.config.title")}
+              </button>
 
               <span className="text-xs text-text-tertiary">
                 {tr("summary.create.archivedNotice")}
@@ -236,6 +276,15 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
           setShowChatSelector(false);
         }}
         onCancel={() => setShowChatSelector(false)}
+      />
+      <ScheduleConfigModal
+        open={showScheduleConfig}
+        value={scheduleConfig ?? { unit: "week", every: 1, time: "09:00" }}
+        onConfirm={(config) => {
+          setScheduleConfig(config);
+          setShowScheduleConfig(false);
+        }}
+        onCancel={() => setShowScheduleConfig(false)}
       />
     </section>
   );

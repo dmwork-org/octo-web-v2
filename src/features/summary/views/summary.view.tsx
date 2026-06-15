@@ -19,13 +19,11 @@ import { summariesQueryOptions } from "@/features/summary/queries/summaries.quer
 import { SummaryCard } from "@/features/summary/components/summary-card";
 import { SummaryCreateWorkbench } from "@/features/summary/components/summary-create-workbench";
 import { SummaryDetail } from "@/features/summary/components/summary-detail";
-import { SchedulesList } from "@/features/summary/components/schedules-list";
 import { TaskStatus, type TaskStatusType } from "@/features/summary/types/summary.types";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
 const ALL_STATUS_VALUE = "all";
-type SummaryTab = "summaries" | "schedules";
 
 const STATUS_KEY: Record<TaskStatusType, string> = {
   [TaskStatus.PENDING]: "summary.status.pending",
@@ -62,10 +60,8 @@ export function SummaryView() {
   const t = useT();
   const qc = useQueryClient();
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
-  const [activeTab, setActiveTab] = useState<SummaryTab>("summaries");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [scheduleCreateOpen, setScheduleCreateOpen] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatusType | undefined>(undefined);
@@ -75,10 +71,8 @@ export function SummaryView() {
   const statusFilterValue = statusFilter === undefined ? ALL_STATUS_VALUE : String(statusFilter);
 
   useResetOnSpaceChange(() => {
-    setActiveTab("summaries");
     setSelectedId(null);
     setCreateOpen(false);
-    setScheduleCreateOpen(false);
     setSearchInput("");
     setStatusFilter(undefined);
     setPage(1);
@@ -141,8 +135,7 @@ export function SummaryView() {
     );
   }
 
-  const newTooltip =
-    activeTab === "schedules" ? t("summary.tabs.newSchedule") : t("summary.tabs.newSummary");
+  const newTooltip = t("summary.tabs.newSummary");
   const refreshList = async () => {
     if (manualRefreshing) return;
     setManualRefreshing(true);
@@ -168,14 +161,9 @@ export function SummaryView() {
             aria-label={newTooltip}
             title={newTooltip}
             onClick={() => {
-              if (activeTab === "schedules") {
-                setScheduleCreateOpen(true);
-                setSelectedId(null);
-              } else {
-                setCreateOpen(true);
-                setSelectedId(null);
-                setCreateKey((key) => key + 1);
-              }
+              setCreateOpen(true);
+              setSelectedId(null);
+              setCreateKey((key) => key + 1);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
@@ -184,181 +172,137 @@ export function SummaryView() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-border-subtle bg-bg-surface px-3 py-3">
-            <div className="flex rounded-md bg-bg-elevated p-1">
-              {(
-                [
-                  { id: "summaries", key: "summary.tabs.summaries" },
-                  { id: "schedules", key: "summary.tabs.schedules" },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setCreateOpen(false);
-                    setScheduleCreateOpen(false);
-                    setSelectedId(null);
-                  }}
-                  className={`h-8 flex-1 rounded-sm text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? "bg-bg-surface font-semibold text-text-primary shadow-sm"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
+          <div className="flex shrink-0 flex-col gap-2 border-b border-border-subtle bg-bg-surface px-3 py-3">
+            <div className="flex h-9 items-center gap-2 rounded-md border border-transparent bg-bg-elevated px-3 transition-colors focus-within:border-brand">
+              <Search size={14} className="text-text-tertiary" />
+              <input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder={t("summary.list.searchPlaceholder")}
+                className="min-w-0 flex-1 border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={statusFilterValue}
+                onValueChange={(value) => {
+                  setStatusFilter(
+                    value === ALL_STATUS_VALUE ? undefined : (Number(value) as TaskStatusType),
+                  );
+                }}
+              >
+                <SelectTrigger
+                  aria-label={t("summary.list.allStatus")}
+                  className="h-9 min-w-0 flex-1 rounded-md border-border-subtle bg-bg-base px-3 text-sm text-text-primary shadow-none hover:bg-bg-hover focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/15"
                 >
-                  {t(tab.key)}
-                </button>
-              ))}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  align="start"
+                  className="z-popover min-w-(--radix-select-trigger-width) rounded-md border border-border-default bg-bg-surface p-1 text-text-primary shadow-lg"
+                >
+                  <SelectItem value={ALL_STATUS_VALUE}>{t("summary.list.allStatus")}</SelectItem>
+                  {Object.values(TaskStatus).map((status) => (
+                    <SelectItem key={status} value={String(status)}>
+                      {t(STATUS_KEY[status])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <button
+                type="button"
+                aria-label={t("summary.list.refresh")}
+                title={t("summary.list.refresh")}
+                disabled={manualRefreshing}
+                onClick={() => void refreshList()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw
+                  size={15}
+                  className={manualRefreshing || isFetching ? "animate-spin" : ""}
+                />
+              </button>
             </div>
           </div>
 
-          {activeTab === "summaries" ? (
-            <>
-              <div className="flex shrink-0 flex-col gap-2 border-b border-border-subtle bg-bg-surface px-3 py-3">
-                <div className="flex h-9 items-center gap-2 rounded-md border border-transparent bg-bg-elevated px-3 transition-colors focus-within:border-brand">
-                  <Search size={14} className="text-text-tertiary" />
-                  <input
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder={t("summary.list.searchPlaceholder")}
-                    className="min-w-0 flex-1 border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={statusFilterValue}
-                    onValueChange={(value) => {
-                      setStatusFilter(
-                        value === ALL_STATUS_VALUE ? undefined : (Number(value) as TaskStatusType),
-                      );
-                    }}
-                  >
-                    <SelectTrigger
-                      aria-label={t("summary.list.allStatus")}
-                      className="h-9 min-w-0 flex-1 rounded-md border-border-subtle bg-bg-base px-3 text-sm text-text-primary shadow-none hover:bg-bg-hover focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/15"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent
-                      position="popper"
-                      align="start"
-                      className="z-popover min-w-(--radix-select-trigger-width) rounded-md border border-border-default bg-bg-surface p-1 text-text-primary shadow-lg"
-                    >
-                      <SelectItem value={ALL_STATUS_VALUE}>
-                        {t("summary.list.allStatus")}
-                      </SelectItem>
-                      {Object.values(TaskStatus).map((status) => (
-                        <SelectItem key={status} value={String(status)}>
-                          {t(STATUS_KEY[status])}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <button
-                    type="button"
-                    aria-label={t("summary.list.refresh")}
-                    title={t("summary.list.refresh")}
-                    disabled={manualRefreshing}
-                    onClick={() => void refreshList()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RefreshCw
-                      size={15}
-                      className={manualRefreshing || isFetching ? "animate-spin" : ""}
-                    />
-                  </button>
-                </div>
+          <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 [scrollbar-gutter:stable]">
+            {manualRefreshing ? (
+              <div className="pointer-events-none sticky top-0 z-10 flex justify-center">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-bg-surface/95 px-2.5 py-1 text-xs text-text-secondary shadow-sm">
+                  <RefreshCw size={12} className="animate-spin" />
+                  {t("summary.list.refreshing")}
+                </span>
               </div>
-
-              <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 [scrollbar-gutter:stable]">
-                {manualRefreshing ? (
-                  <div className="pointer-events-none sticky top-0 z-10 flex justify-center">
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-bg-surface/95 px-2.5 py-1 text-xs text-text-secondary shadow-sm">
-                      <RefreshCw size={12} className="animate-spin" />
-                      {t("summary.list.refreshing")}
-                    </span>
-                  </div>
-                ) : null}
-                {isLoading ? (
-                  <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                    {t("summary.list.loading")}
-                  </div>
-                ) : error ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-error">
-                    <span>{t("summary.list.loadFailed")}</span>
-                    <Button
-                      type="tertiary"
-                      theme="borderless"
-                      size="small"
-                      onClick={() => void refetch()}
-                    >
-                      {t("summary.common.retry")}
-                    </Button>
-                  </div>
-                ) : list.length === 0 ? (
-                  <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                    {t("summary.list.emptyHint")}
-                  </div>
-                ) : (
-                  list.map((item) => (
-                    <SummaryCard
-                      key={item.task_id}
-                      item={item}
-                      selected={item.task_id === selectedId}
-                      onClick={() => {
-                        setCreateOpen(false);
-                        setSelectedId(item.task_id);
-                      }}
-                      onDelete={() => deleteMu.mutate(item.task_id)}
-                      onRespond={(action) => respondMu.mutate({ taskId: item.task_id, action })}
-                    />
-                  ))
-                )}
+            ) : null}
+            {isLoading ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+                {t("summary.list.loading")}
               </div>
+            ) : error ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-error">
+                <span>{t("summary.list.loadFailed")}</span>
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  onClick={() => void refetch()}
+                >
+                  {t("summary.common.retry")}
+                </Button>
+              </div>
+            ) : list.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+                {t("summary.list.emptyHint")}
+              </div>
+            ) : (
+              list.map((item) => (
+                <SummaryCard
+                  key={item.task_id}
+                  item={item}
+                  selected={item.task_id === selectedId}
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setSelectedId(item.task_id);
+                  }}
+                  onDelete={() => deleteMu.mutate(item.task_id)}
+                  onRespond={(action) => respondMu.mutate({ taskId: item.task_id, action })}
+                />
+              ))
+            )}
+          </div>
 
-              {totalPages > 1 ? (
-                <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border-subtle px-3 py-2 text-xs text-text-tertiary">
-                  <span>
-                    {page} / {totalPages}
-                  </span>
-                  <div className="flex gap-1">
-                    <Button
-                      type="tertiary"
-                      theme="borderless"
-                      size="small"
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      ←
-                    </Button>
-                    <Button
-                      type="tertiary"
-                      theme="borderless"
-                      size="small"
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    >
-                      →
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <SchedulesList
-              createOpen={scheduleCreateOpen}
-              onCloseCreate={() => setScheduleCreateOpen(false)}
-            />
-          )}
+          {totalPages > 1 ? (
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border-subtle px-3 py-2 text-xs text-text-tertiary">
+              <span>
+                {page} / {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  ←
+                </Button>
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  →
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </aside>
 
-      {activeTab === "schedules" ? (
-        <section className="flex flex-1 items-center justify-center bg-bg-surface px-6 text-sm text-text-tertiary">
-          {t("summary.schedules.emptyRight")}
-        </section>
-      ) : createOpen || selectedId === null ? (
+      {createOpen || selectedId === null ? (
         <SummaryCreateWorkbench
           key={createKey}
           onCreated={(id) => {

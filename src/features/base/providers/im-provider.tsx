@@ -70,10 +70,8 @@ function useImConnection(uid: string | null, token: string | null) {
           const addrs = await getImConnectAddrs(uid);
           if (addrs[0]) callback(addrs[0]);
           else imConnectionActions.setError(t("base.connection.noGateway"));
-        } catch (err) {
-          imConnectionActions.setError(
-            err instanceof Error ? err.message : t("base.connection.fetchGatewayFailed"),
-          );
+        } catch {
+          imConnectionActions.setError(t("base.connection.fetchGatewayFailed"));
         }
       })();
     };

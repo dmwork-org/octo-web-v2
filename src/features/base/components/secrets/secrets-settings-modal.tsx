@@ -104,30 +104,24 @@ export function SecretsSettingsModal({
       <BaseDialog
         open={open}
         onOpenChange={(next) => !next && onClose()}
-        size="xl"
-        height="lg"
+        size="lg"
+        height="auto"
         title={t("base.secrets.title")}
-        className="w-[min(960px,calc(100vw-32px))] rounded-2xl"
+        className="w-[min(720px,calc(100vw-32px))]"
         contentClassName="overflow-hidden"
       >
         <div className="flex min-h-0 flex-1 flex-col bg-bg-surface">
-          <header className="flex shrink-0 items-start justify-between gap-5 px-8 pt-7 pb-5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3 text-[24px] leading-8 font-bold text-[#20212a]">
-                <KeyRound size={28} strokeWidth={3} className="shrink-0 text-[#20212a]" />
-                <span>{t("base.secrets.title")}</span>
-              </div>
-              <p className="mt-2 text-[17px] leading-7 text-[#6f737c]">
-                {t("base.secrets.subtitle")}
-              </p>
-            </div>
+          <header className="flex shrink-0 items-start justify-between gap-4 px-6 pt-4 pb-3">
+            <p className="min-w-0 max-w-[460px] text-[14px] leading-6 text-text-secondary">
+              {t("base.secrets.subtitle")}
+            </p>
             <Button
               type="primary"
               theme="solid"
               onClick={startCreate}
-              className="h-12 shrink-0 gap-3 rounded-xl bg-[#1f2028] px-5 text-[17px] font-semibold text-white hover:bg-[#2a2b34]"
+              className="h-9 shrink-0 gap-2 rounded-lg bg-[#1f2028] px-4 text-[14px] font-semibold text-white hover:bg-[#2a2b34]"
             >
-              <Plus size={24} strokeWidth={2.5} />
+              <Plus size={18} strokeWidth={2.5} />
               {t("base.secrets.addButton")}
             </Button>
           </header>
@@ -144,25 +138,25 @@ export function SecretsSettingsModal({
               </Button>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-8 pt-10 pb-24 text-center">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#e8e8eb] text-[#20212a]">
-                <KeyRound size={40} strokeWidth={3} />
+            <div className="flex min-h-[340px] flex-col items-center justify-center px-8 pt-8 pb-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8e8eb] text-[#20212a]">
+                <KeyRound size={28} strokeWidth={3} />
               </div>
-              <p className="mt-7 max-w-xl text-[18px] leading-8 text-[#60656f]">
+              <p className="mt-5 max-w-[440px] text-[15px] leading-7 text-text-secondary">
                 {t("base.secrets.empty")}
               </p>
               <Button
                 type="primary"
                 theme="solid"
                 onClick={startCreate}
-                className="mt-6 h-12 gap-3 rounded-xl bg-[#1f2028] px-6 text-[18px] font-semibold text-white hover:bg-[#2a2b34]"
+                className="mt-5 h-10 gap-2 rounded-lg bg-[#1f2028] px-5 text-[15px] font-semibold text-white hover:bg-[#2a2b34]"
               >
-                <Plus size={24} strokeWidth={2.5} />
+                <Plus size={18} strokeWidth={2.5} />
                 {t("base.secrets.empty.action")}
               </Button>
             </div>
           ) : (
-            <ul className="min-h-0 flex-1 overflow-y-auto px-8 py-4">
+            <ul className="max-h-[58vh] min-h-0 flex-1 overflow-y-auto px-6 py-4">
               {items.map((secret) => (
                 <li
                   key={secret.secret_id}

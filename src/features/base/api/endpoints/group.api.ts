@@ -430,11 +430,25 @@ export async function removeGroupBotAdmin(groupNo: string, uid: string): Promise
   });
 }
 
+type IncomingWebhookListResp =
+  | IncomingWebhook[]
+  | { items?: IncomingWebhook[]; list?: IncomingWebhook[]; webhooks?: IncomingWebhook[] }
+  | null;
+
+export function normalizeIncomingWebhookList(resp: IncomingWebhookListResp): IncomingWebhook[] {
+  if (Array.isArray(resp)) return resp;
+  if (!resp || typeof resp !== "object") return [];
+  if (Array.isArray(resp.items)) return resp.items;
+  if (Array.isArray(resp.list)) return resp.list;
+  if (Array.isArray(resp.webhooks)) return resp.webhooks;
+  return [];
+}
+
 export async function listIncomingWebhooks(groupNo: string): Promise<IncomingWebhook[]> {
-  const resp = await api<IncomingWebhook[]>(
+  const resp = await api<IncomingWebhookListResp>(
     `groups/${encodeURIComponent(groupNo)}/incoming-webhooks`,
   );
-  return resp ?? [];
+  return normalizeIncomingWebhookList(resp);
 }
 
 export async function createIncomingWebhook(

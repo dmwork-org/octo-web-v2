@@ -564,8 +564,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               />
             ) : null}
             <NavRow
-              title={tt("channelWebhook.title")}
-              subTitle={tt("channelWebhook.entryHint")}
+              title={tt("module.channelSettings.incomingWebhook")}
               onClick={() => setSubpage("webhook")}
             />
             <InlineEditRow
@@ -766,6 +765,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         open={subpage === "webhook"}
         channel={channel}
         isManager={iAmOwnerOrManager}
+        title={tt("module.channelSettings.incomingWebhook")}
         onClose={() => setSubpage(null)}
       />
 

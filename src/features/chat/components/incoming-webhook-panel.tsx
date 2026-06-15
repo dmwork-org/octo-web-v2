@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { type Channel } from "wukongimjssdk";
+import { type Channel, type Subscriber } from "wukongimjssdk";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,6 +21,8 @@ import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { Switch } from "@/features/base/components/section-form/toggle-row";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
+import { displayName } from "@/features/base/lib/display-name";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   createIncomingWebhook,
   deleteIncomingWebhook,
@@ -48,6 +50,7 @@ interface IncomingWebhookPanelProps {
   open: boolean;
   channel: Channel;
   isManager: boolean;
+  title: string;
   onClose: () => void;
 }
 
@@ -93,6 +96,12 @@ function displayWebhookError(err: unknown, fallback: string): void {
 function useTestCooldown() {
   const [coolingId, setCoolingId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
   const start = (id: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setCoolingId(id);
@@ -105,11 +114,14 @@ export function IncomingWebhookPanel({
   open,
   channel,
   isManager,
+  title,
   onClose,
 }: IncomingWebhookPanelProps) {
   const tr = useT();
   const qc = useQueryClient();
-  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const authUser = useStore(authStore, (s) => s.user);
+  const myUid = authUser?.uid ?? "";
+  const subscribers = useGroupSubscribers(channel, open);
   const { coolingId, start: startCooldown } = useTestCooldown();
   const [editTarget, setEditTarget] = useState<
     { mode: "create" } | { mode: "edit"; webhook: IncomingWebhook } | null
@@ -166,7 +178,20 @@ export function IncomingWebhookPanel({
     onError: (err) => displayWebhookError(err, t("channelWebhook.error.regenerateFailed")),
   });
 
-  const items = query.data ?? [];
+  const items = useMemo(() => (Array.isArray(query.data) ? query.data : []), [query.data]);
+  const creatorNames = useMemo(() => {
+    const wanted = new Set(items.map((item) => item.creator_uid).filter(Boolean));
+    const names = new Map<string, string>();
+    for (const sub of subscribers) {
+      if (!sub.uid || !wanted.has(sub.uid)) continue;
+      const name = displayNameOfSubscriber(sub);
+      if (name) names.set(sub.uid, name);
+    }
+    if (myUid && wanted.has(myUid) && !names.has(myUid)) {
+      names.set(myUid, authUser?.name || tr("channelWebhook.meta.me"));
+    }
+    return names;
+  }, [authUser?.name, items, myUid, subscribers, tr]);
 
   return (
     <>
@@ -177,7 +202,7 @@ export function IncomingWebhookPanel({
         }}
         side="right"
         size="md"
-        title={tr("channelWebhook.title")}
+        title={title}
       >
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
           <div className="mx-4 mb-3 flex items-center justify-between gap-3">
@@ -251,9 +276,16 @@ export function IncomingWebhookPanel({
                           ) : null}
                         </div>
                         <div className="mt-1 text-[11px] leading-4 text-text-tertiary">
-                          {tr("channelWebhook.meta.created", {
-                            values: { time: formatDateTime(item.created_at) },
-                          })}
+                          {creatorNames.has(item.creator_uid)
+                            ? tr("channelWebhook.meta.createdBy", {
+                                values: {
+                                  name: creatorNames.get(item.creator_uid) ?? "",
+                                  time: formatDateTime(item.created_at),
+                                },
+                              })
+                            : tr("channelWebhook.meta.created", {
+                                values: { time: formatDateTime(item.created_at) },
+                              })}
                         </div>
                         {item.call_count > 0 ? (
                           <div className="text-[11px] leading-4 text-text-tertiary">
@@ -295,7 +327,7 @@ export function IncomingWebhookPanel({
                           label={
                             canTest
                               ? tr("channelWebhook.action.test")
-                              : tr("channelWebhook.action.testDisabled")
+                              : tr("channelWebhook.action.testDisabledHint")
                           }
                           disabled={!canTest || testMu.isPending || coolingId === item.webhook_id}
                           onClick={() => testMu.mutate(item)}
@@ -309,11 +341,6 @@ export function IncomingWebhookPanel({
                         >
                           <Trash2 size={14} />
                         </IconButton>
-                        {!canTest ? (
-                          <span className="ml-1 text-[11px] text-text-tertiary">
-                            {tr("channelWebhook.disabledTestHint")}
-                          </span>
-                        ) : null}
                       </div>
                     ) : null}
                   </li>
@@ -433,7 +460,11 @@ function WebhookEditDialog({
       toast.success(isEdit ? t("channelWebhook.toast.updated") : t("channelWebhook.toast.created"));
       onSaved(created);
     },
-    onError: (err) => displayWebhookError(err, t("channelWebhook.error.saveFailed")),
+    onError: (err) =>
+      displayWebhookError(
+        err,
+        t(isEdit ? "channelWebhook.error.updateFailed" : "channelWebhook.error.createFailed"),
+      ),
   });
 
   return (
@@ -442,7 +473,8 @@ function WebhookEditDialog({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title={isEdit ? tr("channelWebhook.editTitle") : tr("channelWebhook.createTitle")}
+      title={isEdit ? tr("channelWebhook.form.editTitle") : tr("channelWebhook.form.createTitle")}
+      description={tr("channelWebhook.description")}
       footer={
         <div className="flex w-full justify-end gap-2">
           <Button type="tertiary" theme="borderless" onClick={onClose}>
@@ -457,31 +489,58 @@ function WebhookEditDialog({
       <div className="flex flex-col gap-3 px-5 py-4">
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-text-secondary">
-            {tr("channelWebhook.field.name")}
+            {tr("channelWebhook.form.name")}
           </span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={tr("channelWebhook.field.namePlaceholder")}
+            placeholder={tr("channelWebhook.form.namePlaceholder")}
             maxLength={40}
             className="h-9 rounded-md border border-border-default bg-bg-base px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </label>
+        {!isManager ? (
+          <p className="-mt-1 text-xs text-text-tertiary">
+            {tr("channelWebhook.form.memberPrefixHint")}
+          </p>
+        ) : null}
         {isManager ? (
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">
-              {tr("channelWebhook.field.avatar")}
+              {tr("channelWebhook.form.avatar")}
             </span>
             <input
               value={avatar}
               onChange={(e) => setAvatar(e.target.value)}
-              placeholder={tr("channelWebhook.field.avatarPlaceholder")}
+              placeholder={tr("channelWebhook.form.avatarPlaceholder")}
               className="h-9 rounded-md border border-border-default bg-bg-base px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
+            <span className="text-xs text-text-tertiary">
+              {tr("channelWebhook.form.avatarHint")}
+            </span>
           </label>
         ) : null}
       </div>
     </BaseDialog>
+  );
+}
+
+function displayNameOfSubscriber(sub: Subscriber): string {
+  const org = (sub.orgData ?? {}) as {
+    displayName?: string;
+    name?: string;
+    real_name?: string;
+    realname_verified?: boolean | number | string;
+  };
+  return (
+    displayName({
+      remark: sub.remark,
+      name: sub.name || org.name || org.displayName,
+      real_name: org.real_name,
+      realname_verified: org.realname_verified,
+    }) ||
+    org.displayName ||
+    sub.uid
   );
 }
 
@@ -522,6 +581,7 @@ function WebhookUrlDialog({
       closeOnEsc={false}
       size="lg"
       title={tr("channelWebhook.url.title")}
+      description={tr("channelWebhook.url.onceWarning")}
       footer={
         <div className="flex w-full justify-end">
           <Button type="primary" theme="solid" onClick={onClose}>

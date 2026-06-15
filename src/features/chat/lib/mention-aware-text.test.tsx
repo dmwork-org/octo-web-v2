@@ -8,6 +8,27 @@ function renderText(text: string, mention?: Mention): string {
 }
 
 describe("MentionAwareText linkify", () => {
+  it("renders @所有人 as a mention highlight DOM node", () => {
+    const mention = new Mention();
+    (mention as Mention & { humans?: number }).humans = 1;
+    const html = renderText("请 @所有人 看一下", mention);
+
+    expect(html).toContain("<span");
+    expect(html).toContain(">@所有人</span>");
+    expect(html).toContain("bg-[rgba(107,61,216,0.08)]");
+  });
+
+  it("renders broadcast and ordinary mentions with the same highlight style", () => {
+    const mention = new Mention();
+    (mention as Mention & { humans?: number }).humans = 1;
+    mention.uids = ["u1"];
+    const html = renderText("请 @所有人 和 @张三 看一下", mention);
+
+    expect(html).toContain(">@所有人</span>");
+    expect(html).toContain(">@张三</button>");
+    expect(html.match(/bg-\[rgba\(107,61,216,0\.08\)\]/g)).toHaveLength(2);
+  });
+
   it("renders safe rich-text links with highlight styling", () => {
     const html = renderText("文档 https://example.com/a?b=1。");
 

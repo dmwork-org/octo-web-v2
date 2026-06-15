@@ -5,10 +5,8 @@ import {
   MENTION_UID_HUMANS,
 } from "@/features/base/lib/mention-three-state";
 
-export interface VoiceMentionMember {
-  uid: string;
-  name: string;
-}
+export type { VoiceMentionMember } from "@/features/chat/lib/mention-resolve";
+import type { VoiceMentionMember } from "@/features/chat/lib/mention-resolve";
 
 /** TipTap insertContent 接受的节点形态(text 段 + mention 节点)。 */
 export type ParsedNode =
@@ -91,7 +89,7 @@ export function parseVoiceMentions(text: string, members: VoiceMentionMember[]):
     } else if (member) {
       result.push({
         type: "mention",
-        attrs: { id: member.uid, label: member.name },
+        attrs: { id: member.uid, label: member.label },
       });
       result.push({ type: "text", text: " " });
     } else {

@@ -99,12 +99,24 @@ export type VoiceMode = "append_only" | "edit_only" | "smart";
 
 export async function transcribeVoice(
   audio: Blob,
-  opts: { contextText?: string; channelType?: number; mode?: VoiceMode } = {},
+  opts: {
+    contextText?: string;
+    memberContext?: string;
+    selfName?: string;
+    chatContext?: string;
+    personalContext?: string;
+    channelType?: number;
+    mode?: VoiceMode;
+  } = {},
 ): Promise<TranscribeResult> {
   const fd = new FormData();
   const ext = audio.type.includes("mp4") ? "mp4" : "webm";
   fd.append("audio", audio, `recording.${ext}`);
   if (opts.contextText) fd.append("context_text", opts.contextText);
+  if (opts.memberContext) fd.append("member_context", opts.memberContext);
+  if (opts.selfName) fd.append("self_name", opts.selfName);
+  if (opts.chatContext) fd.append("chat_context", opts.chatContext);
+  if (opts.personalContext) fd.append("personal_context", opts.personalContext);
   fd.append("mode", opts.mode ?? "smart");
   if (opts.channelType !== undefined) fd.append("channel_type", String(opts.channelType));
   return api<TranscribeResult>("voice/transcribe", { method: "POST", body: fd });

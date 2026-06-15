@@ -356,7 +356,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
           )}
           {isVerified ? <RealnameBadge /> : null}
           {isWebhook ? (
-            <span className="shrink-0 rounded-sm bg-bg-elevated px-1 text-[10px] font-medium text-text-tertiary">
+            <span className="shrink-0 rounded-sm bg-[#F0EAFF] px-1.5 text-[10px] font-medium text-[#6B3DD8]">
               {t("messageRow.webhookBadge")}
             </span>
           ) : null}

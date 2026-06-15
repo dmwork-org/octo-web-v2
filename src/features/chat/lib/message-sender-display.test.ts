@@ -1,0 +1,52 @@
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, Message } from "wukongimjssdk";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildThreadChannelId } from "../../base/im/parse-thread-channel-id";
+import { senderDisplay } from "./message-sender-display";
+
+function makeMessage(channel: Channel, fromUID = "user-1"): Message {
+  const message = new Message();
+  message.channel = channel;
+  message.fromUID = fromUID;
+  return message;
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("senderDisplay", () => {
+  it("prefers group subscriber remark for message sender display", () => {
+    vi.spyOn(WKSDK.shared().channelManager, "getSubscribes").mockReturnValue([
+      { uid: "user-1", remark: "群昵称", name: "原名" },
+    ] as never);
+
+    expect(senderDisplay(makeMessage(new Channel("group-1", ChannelTypeGroup)))).toBe("群昵称");
+  });
+
+  it("falls back to group subscriber name when remark is empty", () => {
+    vi.spyOn(WKSDK.shared().channelManager, "getSubscribes").mockReturnValue([
+      { uid: "user-1", remark: "", name: "群内姓名" },
+    ] as never);
+
+    expect(senderDisplay(makeMessage(new Channel("group-1", ChannelTypeGroup)))).toBe("群内姓名");
+  });
+
+  it("uses parent group subscribers for thread messages", () => {
+    const getSubscribes = vi
+      .spyOn(WKSDK.shared().channelManager, "getSubscribes")
+      .mockReturnValue([{ uid: "user-1", remark: "子区群昵称", name: "原名" }] as never);
+    const threadChannel = new Channel(buildThreadChannelId("group-1", "thread-1"), 5);
+
+    expect(senderDisplay(makeMessage(threadChannel))).toBe("子区群昵称");
+    expect(getSubscribes.mock.calls[0]?.[0].channelID).toBe("group-1");
+    expect(getSubscribes.mock.calls[0]?.[0].channelType).toBe(ChannelTypeGroup);
+  });
+
+  it("falls back to person channel title outside group context", () => {
+    vi.spyOn(WKSDK.shared().channelManager, "getChannelInfo").mockReturnValue({
+      title: "全局姓名",
+    } as never);
+
+    expect(senderDisplay(makeMessage(new Channel("user-2", ChannelTypePerson)))).toBe("全局姓名");
+  });
+});

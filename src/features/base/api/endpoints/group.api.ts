@@ -315,8 +315,7 @@ export async function updateGroup(groupNo: string, body: UpdateGroupBody): Promi
  *
  * PUT /v1/groups/{groupNo}/members/{uid}  body: { name?, remark?, ... }
  *
- * 用例:改"我在本群的昵称"传 { name }(后端会把它存到 subscriber.remark 字段,
- * 旧版直接传 name,新项目对齐)。
+ * 用例:改"我在本群的昵称"传 { remark }(对齐旧版 subscriberAttrUpdate)。
  */
 export interface UpdateGroupMemberBody {
   name?: string;

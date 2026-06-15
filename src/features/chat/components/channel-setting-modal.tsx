@@ -184,6 +184,17 @@ function SubscriberCell({
   );
 }
 
+function updateCachedSubscriberRemark(channel: Channel, uid: string, remark: string): void {
+  const cm = WKSDK.shared().channelManager;
+  const subscriber = cm.getSubscribes(channel)?.find((s) => s.uid === uid);
+  if (!subscriber) return;
+  subscriber.remark = remark;
+  const orgData = (subscriber.orgData ?? {}) as Record<string, unknown>;
+  orgData.remark = remark;
+  subscriber.orgData = orgData;
+  cm.notifySubscribeChangeListeners(channel);
+}
+
 /**
  * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐)。
  *
@@ -352,8 +363,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   });
 
   const myNickMu = useMutation({
-    mutationFn: (next: string) => updateGroupMember(channel.channelID, myUid, { name: next }),
-    onSuccess: () => {
+    mutationFn: (next: string) => updateGroupMember(channel.channelID, myUid, { remark: next }),
+    onSuccess: (_data, next) => {
+      updateCachedSubscriberRemark(channel, myUid, next);
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       setEditing(null);
       toast.success(t("channelSetting.toast.updated"));

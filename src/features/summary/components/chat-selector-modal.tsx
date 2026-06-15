@@ -10,6 +10,7 @@ import WKSDK, {
 import { Check, Search } from "lucide-react";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { Button } from "@/components/semi-bridge/button";
+import { Switch } from "@/features/base/components/section-form/toggle-row";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { ThreadIcon } from "@/components/ui/thread-icon";
@@ -310,6 +311,11 @@ function ChatCandidateRow({
       {memberCount != null ? (
         <span className="shrink-0 text-[10px] text-text-tertiary">{memberCount}</span>
       ) : null}
+      {item.is_archived ? (
+        <span className="shrink-0 rounded-sm bg-bg-elevated px-1 text-[10px] font-medium text-text-tertiary">
+          {t("summary.chatSelector.archivedTag")}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -392,6 +398,7 @@ export function ChatSelectorModal({
   const tr = useT();
   const [tab, setTab] = useState<Tab>("all");
   const [keyword, setKeyword] = useState("");
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [localSelected, setLocalSelected] = useState<ChatCandidate[]>(selected);
   const channelInfoTick = useChannelInfoTick();
   const requestedInfoRef = useRef<Map<string, number>>(new Map());
@@ -401,11 +408,12 @@ export function ChatSelectorModal({
     setLocalSelected(selected.map(enrichCandidate));
     setKeyword("");
     setTab("all");
+    setIncludeArchived(false);
   });
 
   const { data: candidates, isLoading } = useQuery({
-    queryKey: ["summary", "chat-candidates"],
-    queryFn: () => getChatCandidates({}),
+    queryKey: ["summary", "chat-candidates", includeArchived],
+    queryFn: () => getChatCandidates(includeArchived ? { include_archived: true } : {}),
     enabled: open,
     staleTime: 30 * 1000,
   });
@@ -491,6 +499,16 @@ export function ChatSelectorModal({
               {tr(TAB_KEY[k])}
             </button>
           ))}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 text-xs">
+          <Switch checked={includeArchived} disabled={isLoading} onChange={setIncludeArchived} />
+          <span className="font-medium text-text-primary">
+            {tr("summary.chatSelector.includeArchived")}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-text-tertiary">
+            {tr("summary.chatSelector.includeArchivedHelper")}
+          </span>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

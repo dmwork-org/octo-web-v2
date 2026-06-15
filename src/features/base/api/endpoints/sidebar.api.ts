@@ -43,6 +43,8 @@ export interface SidebarItem {
   follow_sort?: number;
   /** 子区携带,指向父群 channelID */
   parent_channel_id?: string;
+  /** 子区状态:1=active,2=archived,3=deleted；仅 target_type=THREAD 时可能返回 */
+  status?: number;
 }
 
 export interface SidebarSyncResp {

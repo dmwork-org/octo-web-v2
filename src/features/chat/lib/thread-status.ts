@@ -13,6 +13,8 @@ export const THREAD_STATUS_ACTIVE = 1;
 export const THREAD_STATUS_ARCHIVED = 2;
 export const THREAD_STATUS_DELETED = 3;
 
+export type ThreadSidebarStatusMap = Map<string, number | undefined>;
+
 /**
  * 是否是已归档子区(对齐上游 645fa295 isArchivedThreadConversation):
  *
@@ -23,16 +25,35 @@ export const THREAD_STATUS_DELETED = 3;
  * 用法:关注 tab 展开父群子区时调 `filterArchivedThreads` 过滤,角标计算用
  * `aggregateThreadUnread` 时跳过 archived,保持"角标数 = 列表可见未读"一致。
  */
-export function isArchivedThread(conv: Conversation): boolean {
+export function isArchivedThread(
+  conv: Pick<Conversation, "channel" | "channelInfo">,
+  statusMap?: ThreadSidebarStatusMap,
+): boolean {
   // 子区在 ChannelTypeCommunityTopic(5),用 number 直接比避免引 SDK enum:
   if (conv.channel.channelType !== 5) return false;
   const orgData = conv.channelInfo?.orgData as { thread?: { status?: number } } | undefined;
-  return orgData?.thread?.status === THREAD_STATUS_ARCHIVED;
+  const channelInfoStatus = orgData?.thread?.status;
+  if (channelInfoStatus !== undefined) return channelInfoStatus === THREAD_STATUS_ARCHIVED;
+  const sidebarStatus = statusMap?.get(conv.channel.channelID);
+  if (sidebarStatus !== undefined) return sidebarStatus === THREAD_STATUS_ARCHIVED;
+  return false;
 }
 
 /** 过滤掉明确已归档的子区(非子区/未知 status 保留)。 */
-export function filterArchivedThreads(convs: Conversation[]): Conversation[] {
-  return convs.filter((c) => !isArchivedThread(c));
+export function filterArchivedThreads<T extends Pick<Conversation, "channel" | "channelInfo">>(
+  convs: T[],
+  statusMap?: ThreadSidebarStatusMap,
+): T[] {
+  return convs.filter((c) => !isArchivedThread(c, statusMap));
+}
+
+export function isThreadArchivedForBadge(
+  liveConv: Pick<Conversation, "channel" | "channelInfo"> | undefined,
+  targetId: string,
+  statusMap: ThreadSidebarStatusMap,
+): boolean {
+  if (liveConv) return isArchivedThread(liveConv, statusMap);
+  return statusMap.get(targetId) === THREAD_STATUS_ARCHIVED;
 }
 
 /**

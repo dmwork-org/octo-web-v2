@@ -2,6 +2,9 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 
 export interface SelectableMessageLike {
   contentType?: number;
+  remoteExtra?: {
+    revoke?: boolean;
+  };
 }
 
 /**
@@ -28,7 +31,7 @@ const UNSELECTABLE_MESSAGE_TYPES = new Set<number>([
  * (避免后续转发/批量操作命中 system message 导致后端 400)。
  */
 export function isMessageSelectable(message?: SelectableMessageLike | null): boolean {
-  if (!message || typeof message.contentType !== "number") {
+  if (!message || message.remoteExtra?.revoke || typeof message.contentType !== "number") {
     return false;
   }
   return !UNSELECTABLE_MESSAGE_TYPES.has(message.contentType);

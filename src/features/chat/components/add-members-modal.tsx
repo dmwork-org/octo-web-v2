@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Check, Search, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
@@ -12,7 +12,10 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
-import { addGroupMembers } from "@/features/base/api/endpoints/group.api";
+import { addGroupMembers, createGroup } from "@/features/base/api/endpoints/group.api";
+import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
+import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import { buildPrivateChatGroupMemberUids } from "@/features/chat/lib/private-chat-group-members";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -180,6 +183,7 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
   const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const isPrivateChat = channel.channelType === ChannelTypePerson;
 
   useResetOnClose(open, () => {
     setInput("");
@@ -192,16 +196,21 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
     ...spaceMembersQueryOptions(spaceId),
     enabled: open && !!spaceId,
   });
-  const subscribers = useGroupSubscribers(channel, open);
+  const subscribers = useGroupSubscribers(
+    channel,
+    open && channel.channelType === ChannelTypeGroup,
+  );
 
   const candidates = useMemo(() => {
-    const inGroup = new Set(subscribers.map((s) => s.uid));
+    const inGroup = isPrivateChat
+      ? new Set([myUid, channel.channelID])
+      : new Set(subscribers.map((s) => s.uid));
     return (members ?? []).filter((m) => {
       if (m.uid === myUid) return false;
       if (inGroup.has(m.uid)) return false;
       return true;
     });
-  }, [members, subscribers, myUid]);
+  }, [members, subscribers, myUid, isPrivateChat, channel.channelID]);
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -215,9 +224,31 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
     return candidates.filter((m) => selected.has(m.uid));
   }, [candidates, selected]);
 
+  const groupMemberCount = buildPrivateChatGroupMemberUids(myUid, channel.channelID, [
+    ...selected,
+  ]).length;
+
   const mu = useMutation({
-    mutationFn: () => addGroupMembers(channel.channelID, [...selected]),
-    onSuccess: () => {
+    mutationFn: async () => {
+      if (isPrivateChat) {
+        const members = buildPrivateChatGroupMemberUids(myUid, channel.channelID, [...selected]);
+        const resp = await createGroup({ members, space_id: spaceId || undefined });
+        return { kind: "createdGroup" as const, groupNo: resp.group_no };
+      }
+      await addGroupMembers(channel.channelID, [...selected]);
+      return { kind: "addedMembers" as const };
+    },
+    onSuccess: (result) => {
+      if (result.kind === "createdGroup") {
+        const newChannel = new Channel(result.groupNo, ChannelTypeGroup);
+        void WKSDK.shared().channelManager.fetchChannelInfo(newChannel);
+        chatSelectedActions.select(newChannel);
+        void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+        void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+        toast.success(t("createGroup.toast.created"));
+        onClose();
+        return;
+      }
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       toast.success(t("addMembers.toast.added", { values: { count: selected.size } }));
@@ -244,7 +275,9 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
       }}
       size="fit"
       title={
-        <span className="text-center text-[17px] font-semibold">{tt("addMembers.title")}</span>
+        <span className="text-center text-[17px] font-semibold">
+          {isPrivateChat ? tt("createGroup.title") : tt("addMembers.title")}
+        </span>
       }
       showCloseButton={false}
       className="h-[560px] w-[625px]"
@@ -264,9 +297,11 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
             disabled={selected.size === 0 || mu.isPending}
             className="inline-flex h-9 min-w-16 items-center justify-center rounded-full bg-[#1c1c23] px-4 text-[14px] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-35"
           >
-            {selected.size > 0
-              ? tt("addMembers.addWithCount", { values: { count: selected.size } })
-              : tt("addMembers.add")}
+            {isPrivateChat
+              ? tt("createGroup.createWithCount", { values: { count: groupMemberCount } })
+              : selected.size > 0
+                ? tt("addMembers.addWithCount", { values: { count: selected.size } })
+                : tt("addMembers.add")}
           </button>
         </div>
       }
@@ -292,9 +327,11 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
               <div className="flex h-20 items-center justify-center px-4 text-center text-[13px] text-[rgba(28,28,35,0.35)]">
                 {keyword
                   ? tt("addMembers.noMatches")
-                  : candidates.length === 0
-                    ? tt("addMembers.allInGroup")
-                    : tt("addMembers.noCandidates")}
+                  : isPrivateChat
+                    ? tt("createGroup.noOtherMembers")
+                    : candidates.length === 0
+                      ? tt("addMembers.allInGroup")
+                      : tt("addMembers.noCandidates")}
               </div>
             }
           />

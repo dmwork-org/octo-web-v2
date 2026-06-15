@@ -537,6 +537,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           </div>
         ) : null}
 
+        {isPerson ? (
+          <SectionGroup>
+            <NavRow title={tt("channelSetting.addMember")} onClick={() => setAddOpen(true)} />
+          </SectionGroup>
+        ) : null}
+
         {isGroup ? (
           <SectionGroup>
             <InlineEditRow

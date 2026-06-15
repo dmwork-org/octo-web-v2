@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authActions } from "@/features/base/stores/auth";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
@@ -7,6 +7,8 @@ import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
 import { VoiceSettingsModal } from "@/features/chat/components/voice-settings-modal";
+import { SecretsSettingsModal } from "@/features/base/components/secrets/secrets-settings-modal";
+import { OPEN_SECRETS_EVENT, type OpenSecretsPayload } from "@/features/base/events/secrets-events";
 import {
   isNotificationsOff,
   isNotificationSupported,
@@ -31,6 +33,21 @@ function useCloseOnOutside(open: boolean, onClose: () => void) {
   }, [open, onClose]);
 }
 
+function useOpenSecretsEvent(
+  onClose: () => void,
+  openSecrets: (payload: OpenSecretsPayload) => void,
+) {
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const payload = (event as CustomEvent<OpenSecretsPayload>).detail ?? {};
+      onClose();
+      openSecrets(payload);
+    };
+    window.addEventListener(OPEN_SECRETS_EVENT, handler);
+    return () => window.removeEventListener(OPEN_SECRETS_EVENT, handler);
+  }, [onClose, openSecrets]);
+}
+
 /**
  * 设置飞出菜单 — 1:1 对齐老仓 NavRail/NavSettingsPanel:
  *
@@ -50,8 +67,18 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
   const { data: spaces } = useQuery(mySpacesQueryOptions());
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [secretsSettingsOpen, setSecretsSettingsOpen] = useState(false);
+  const [secretsPayload, setSecretsPayload] = useState<OpenSecretsPayload>({});
+  const [secretsOpenKey, setSecretsOpenKey] = useState(0);
   const [notiOff, setNotiOff] = useState<boolean>(isNotificationsOff);
   useCloseOnOutside(open, onClose);
+
+  const openSecretsSettings = useCallback((payload: OpenSecretsPayload = {}) => {
+    setSecretsPayload(payload);
+    setSecretsOpenKey((v) => v + 1);
+    setSecretsSettingsOpen(true);
+  }, []);
+  useOpenSecretsEvent(onClose, openSecretsSettings);
 
   const canManageSpace = useMemo(
     () => (spaces ?? []).some((s) => s.role === 1 || s.role === 2),
@@ -75,6 +102,11 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
   const onClickVoiceSettings = () => {
     onClose();
     setVoiceSettingsOpen(true);
+  };
+
+  const onClickSecretsSettings = () => {
+    onClose();
+    openSecretsSettings();
   };
 
   const onClickManageSpace = () => {
@@ -129,6 +161,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
             <FlyoutItem onClick={onClickVoiceSettings}>
               {t("navRail.voiceSettings.title")}
             </FlyoutItem>
+            <FlyoutItem onClick={onClickSecretsSettings}>{t("base.secrets.title")}</FlyoutItem>
             {canManageSpace ? (
               <FlyoutItem onClick={onClickManageSpace}>{t("base.settings.manageSpace")}</FlyoutItem>
             ) : null}
@@ -142,6 +175,15 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
 
       <ChangelogModal open={changelogOpen} onClose={() => setChangelogOpen(false)} />
       <VoiceSettingsModal open={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} />
+      <SecretsSettingsModal
+        key={secretsOpenKey}
+        open={secretsSettingsOpen}
+        onClose={() => setSecretsSettingsOpen(false)}
+        initialCreate={!!secretsPayload.create}
+        prefillName={secretsPayload.name}
+        prefillValue={secretsPayload.value}
+        prefillKind={secretsPayload.kind}
+      />
     </>
   );
 }

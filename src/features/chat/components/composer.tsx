@@ -67,6 +67,8 @@ import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import { extractOctoRichTextClipboardPayloadFromHtml } from "@/features/chat/lib/rich-text-clipboard";
 import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-text-paste";
+import { handleSecretPaste } from "@/features/chat/lib/secret-paste-detect";
+import { dispatchOpenSecrets } from "@/features/base/events/secrets-events";
 import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
@@ -316,6 +318,22 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return false;
       },
       handlePaste: (_view, event) => {
+        const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+        const blockedSecret = handleSecretPaste(pastedText, (value) => {
+          toast.warning(t("base.secrets.pasteGuard.content"), {
+            key: "secret-paste-guard",
+            duration: 8000,
+            action: {
+              label: t("base.secrets.pasteGuard.action"),
+              onClick: () => dispatchOpenSecrets({ create: true, value }),
+            },
+          });
+        });
+        if (blockedSecret) {
+          event.preventDefault();
+          return true;
+        }
+
         const payload = extractOctoRichTextClipboardPayloadFromHtml(
           event.clipboardData?.getData("text/html") || "",
         );

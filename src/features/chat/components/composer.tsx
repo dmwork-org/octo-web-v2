@@ -71,7 +71,6 @@ import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-t
 import { handleSecretPaste } from "@/features/chat/lib/secret-paste-detect";
 import { dispatchOpenSecrets } from "@/features/base/events/secrets-events";
 import {
-  buildMentionItems,
   buildVoiceContext,
   buildVoiceMentionMembers,
   type MentionMemberSource,
@@ -243,11 +242,16 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const memberCandidates = useMemo<MentionItem[]>(() => {
     if (!isMentionable) return [];
-    return buildMentionItems(
-      subscribers
-        .filter((s) => s.uid !== myUid && !s.isDeleted)
-        .map((s) => subscriberMentionSource(s)),
-    );
+    return subscribers
+      .filter((s) => s.uid !== myUid && !s.isDeleted)
+      .map((s) => {
+        const og = s.orgData as { robot?: number } | undefined;
+        return {
+          id: s.uid,
+          label: s.remark || s.name || s.uid,
+          isBot: og?.robot === 1,
+        };
+      });
   }, [subscribers, myUid, isMentionable]);
 
   const voiceContext = useMemo(
@@ -314,10 +318,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                 // 命中仍能搜到,符合用户描述"@搜索能搜到"。
                 if (!kw) return [...stickyForChannel, ...list];
                 return list.filter(
-                  (c) =>
-                    c.label.toLowerCase().includes(kw) ||
-                    c.id.toLowerCase().includes(kw) ||
-                    c.searchText?.includes(kw),
+                  (c) => c.label.toLowerCase().includes(kw) || c.id.toLowerCase().includes(kw),
                 );
               }) as never,
             }),

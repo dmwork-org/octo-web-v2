@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildMentionItems,
   buildVoiceContext,
   buildVoiceMentionMembers,
   mentionDisplayLabel,
@@ -31,16 +30,6 @@ describe("mention real-name resolution", () => {
 
     expect(mentionDisplayLabel(bot)).toBe("部署助手");
     expect(mentionNameAliases(bot)).toEqual(["部署助手", "Deploy Bot"]);
-  });
-
-  it("lets mention search match real name, remark, nickname and uid", () => {
-    const [item] = buildMentionItems([verifiedMember]);
-
-    expect(item.label).toBe("张明");
-    expect(item.searchText).toContain("u1");
-    expect(item.searchText).toContain("张明");
-    expect(item.searchText).toContain("明哥");
-    expect(item.searchText).toContain("小明");
   });
 
   it("parses voice mentions by alias but inserts the canonical label", () => {

@@ -1,4 +1,3 @@
-import type { MentionItem } from "@/features/chat/components/mention-list";
 import { t } from "@/lib/i18n/instance";
 
 export interface MentionMemberSource {
@@ -65,18 +64,6 @@ export function mentionNameAliases(member: MentionMemberSource): string[] {
   pushUnique(names, member.remark);
   pushUnique(names, member.name);
   return names;
-}
-
-export function buildMentionItems(members: readonly MentionMemberSource[]): MentionItem[] {
-  return members.map((member) => {
-    const aliases = mentionNameAliases(member);
-    return {
-      id: member.uid,
-      label: mentionDisplayLabel(member),
-      isBot: isBot(member),
-      searchText: [member.uid, ...aliases].join(" ").toLowerCase(),
-    };
-  });
 }
 
 export function buildVoiceMentionMembers(

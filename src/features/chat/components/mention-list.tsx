@@ -19,7 +19,6 @@ export interface MentionItem {
   id: string;
   label: string;
   isBot?: boolean;
-  searchText?: string;
 }
 
 interface MentionListProps {

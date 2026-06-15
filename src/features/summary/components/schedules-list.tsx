@@ -51,6 +51,8 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
     item.summary_mode === SummaryMode.BY_GROUP
       ? tr("summary.schedule.modeByGroupShort")
       : tr("summary.schedule.modeByPersonShort");
+  const timeRangeKey = TIME_RANGE_TYPE_KEY[item.time_range_type] ?? TIME_RANGE_TYPE_KEY[2];
+  const sourceCount = item.sources?.length ?? 0;
 
   return (
     <>
@@ -72,11 +74,9 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
             <span>{describeSchedule(item, t)}</span>
             <span>·</span>
-            <span>{tr(TIME_RANGE_TYPE_KEY[item.time_range_type])}</span>
+            <span>{tr(timeRangeKey)}</span>
             <span>·</span>
-            <span>
-              {tr("summary.schedule.sourcesCount", { values: { count: item.sources.length } })}
-            </span>
+            <span>{tr("summary.schedule.sourcesCount", { values: { count: sourceCount } })}</span>
             <span>·</span>
             <span>
               {tr("summary.schedule.nextRun", {

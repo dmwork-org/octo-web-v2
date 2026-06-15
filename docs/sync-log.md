@@ -333,3 +333,18 @@ PreToolUse hook 真触发验证通过:
   - OIDC logout 简化版:不搬 dev-only VITE_OIDC_POST_LOGOUT_REDIRECT_URI override(用户没明确需要);clearLocalAuthState 只清本仓存的 3 个 key(octo:auth / currentSpaceId / pending_oidc_login),不按 prefix 扫整个 storage
   - disable_user_create_space 只搬 infra:本仓无创建入口可隐(SpaceSwitcher 只 join 不 create),字段+helper 接好让后续加创建时直接 wire
 - baseline SHA 暂不推进
+
+## 2026-06-15 — Batch 2 全功能覆盖计划
+
+- 新仓已切回并同步 `main`: `frontend/octo-web-2` `origin/main` = `f9cb5e1`
+- 已从远程 `main` 创建文档分支: `docs/upstream-batch-2-plan`
+- 老仓重新 fetch: `/Users/nancy/Desktop/workspace/octo/octo-web` `origin/main` = `b884e01e`
+- 从上一正式 audit checkpoint `1906c874` 到当前老仓 `b884e01e` 共 31 个 commit；本次相对上一版计划新增 `b0c9a96d..b884e01e` 的 27 个 commit
+- 重点新增功能域:
+  - Summary Schedule: interval day/week/month、source_name submit 清理、source 后缀保留、one-to-many 删除确认
+  - Chat / Thread / Forward: thread unread、archived thread 展开/同步、fold session locate/recall、forward picker cold cache 和 thread 转发
+  - Webhook / Group: group incoming webhook 管理、webhook URL 示例、group owner transfer、批量 bot admin
+  - Voice / Mention / Message Render: verified real name、@所有人 DOM 回归、rich text preview linkify、sticker category 不适用
+  - CI: 老仓 GitHub Actions commits 在新仓无 `.github`，暂标记不直接搬
+- 更新计划文档: `docs/upstream-batch-2-plan.md`
+- Batch 2 策略:不沿用 Batch 1 的“仅覆盖 chat/contact/login 主线”;本轮把 Batch 1 deferred/backlog 项重新纳入,按 chat input / secrets / summary schedule / thread-forward / webhook-group / matter / contact-persona-appbot 全功能闭环执行。

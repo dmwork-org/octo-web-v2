@@ -20,6 +20,7 @@ import { GroupQrcodeModal } from "@/features/chat/components/group-qrcode-modal"
 import { GroupMdModal } from "@/features/chat/components/group-md-modal";
 import { GroupManagementModal } from "@/features/chat/components/group-management-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
@@ -85,6 +86,7 @@ function SubscribersGrid({
   onAdd,
   onKickMode,
   onMore,
+  onAvatarClick,
 }: {
   subscribers: Subscriber[];
   canAdd: boolean;
@@ -92,6 +94,7 @@ function SubscribersGrid({
   onAdd: () => void;
   onKickMode: () => void;
   onMore: () => void;
+  onAvatarClick: (uid: string) => void;
 }) {
   const tt = useT();
   const showNum = MAX_GRID - (canAdd ? 1 : 0) - (canManage ? 1 : 0);
@@ -101,7 +104,7 @@ function SubscribersGrid({
     <section className="mx-4 mb-2 shrink-0 rounded-md border border-border-subtle bg-bg-base px-2 py-3">
       <div className="grid grid-cols-5 gap-y-3">
         {visible.map((m) => (
-          <SubscriberCell key={m.uid} subscriber={m} />
+          <SubscriberCell key={m.uid} subscriber={m} onAvatarClick={onAvatarClick} />
         ))}
         {canAdd ? (
           <button
@@ -143,13 +146,18 @@ function SubscribersGrid({
   );
 }
 
-function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
+function SubscriberCell({ subscriber, onAvatarClick }: { subscriber: Subscriber; onAvatarClick: (uid: string) => void }) {
   const tt = useT();
   const display = subscriber.remark || subscriber.name || subscriber.uid;
   const ch = new Channel(subscriber.uid, ChannelTypePerson);
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="relative">
+      <button
+        type="button"
+        onClick={() => onAvatarClick(subscriber.uid)}
+        aria-label={tt("channelSetting.viewMemberInfo")}
+        className="relative rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+      >
         <ChannelAvatar channel={ch} size={48} title={display} />
         {subscriber.role === ROLE_OWNER ? (
           <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm bg-warning px-1 py-px text-[9px] leading-none font-semibold whitespace-nowrap text-white">
@@ -160,7 +168,7 @@ function SubscriberCell({ subscriber }: { subscriber: Subscriber }) {
             {tt("channelSetting.managerBadge")}
           </span>
         ) : null}
-      </div>
+      </button>
       <span className="block w-full max-w-16 truncate text-center text-[11px] text-text-secondary">
         {display}
       </span>
@@ -188,6 +196,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [editing, setEditing] = useState<string | null>(null);
   const [subpage, setSubpage] = useState<Subpage | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -486,6 +495,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
             onAdd={() => setAddOpen(true)}
             onKickMode={() => setKickListOpen(true)}
             onMore={() => setKickListOpen(true)}
+            onAvatarClick={setSelectedMemberId}
           />
         ) : null}
 
@@ -789,6 +799,14 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           okLoading={archiveMu.isPending}
           onOk={() => archiveMu.mutate()}
           onCancel={() => setConfirmArchive(false)}
+        />
+      ) : null}
+
+      {isGroup && selectedMemberId ? (
+        <UserInfoModal
+          uid={selectedMemberId}
+          groupNo={isGroup ? channel.channelID : undefined}
+          onClose={() => setSelectedMemberId(null)}
         />
       ) : null}
     </>

@@ -146,10 +146,14 @@ export function webhookFromOfMessage(message: {
 export const INCOMING_WEBHOOK_DEFAULT_AVATAR =
   "data:image/svg+xml;charset=UTF-8," +
   encodeURIComponent(
-    `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">` +
+    `<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">` +
       `<rect width="50" height="50" rx="12" fill="#6B3DD8"/>` +
-      `<path d="M20 30 L30 20 M27 17 a5 5 0 0 1 7 7 l-2.5 2.5 M23 33 a5 5 0 0 1 -7 -7 l2.5 -2.5" ` +
-      `stroke="white" stroke-width="2.6" stroke-linecap="round" fill="none"/>` +
+      `<path d="M25 11v5" stroke="white" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<circle cx="25" cy="10" r="2" fill="white"/>` +
+      `<rect x="14" y="17" width="22" height="20" rx="6" fill="none" stroke="white" stroke-width="2.8"/>` +
+      `<circle cx="21" cy="27" r="2.2" fill="white"/>` +
+      `<circle cx="29" cy="27" r="2.2" fill="white"/>` +
+      `<path d="M20 33h10" stroke="white" stroke-width="2.5" stroke-linecap="round"/>` +
       `</svg>`,
   );
 

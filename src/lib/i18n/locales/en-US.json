@@ -1231,6 +1231,8 @@
   "imageRenderer.download": "Download image",
   "imageRenderer.failed": "Failed",
   "imageRenderer.imageLoading": "Loading image…",
+  "imageRenderer.imageLoadFailed": "Failed to load, tap to retry",
+  "imageRenderer.imageUnavailable": "Image unavailable",
   "imageRenderer.resetSize": "Original size",
   "imageRenderer.rotate": "Rotate",
   "imageRenderer.sending": "Sending",

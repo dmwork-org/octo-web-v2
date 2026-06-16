@@ -4,6 +4,19 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 
 /** ChannelType 7 = ChannelTypeCommunityTopic;SDK 未导出常量。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
+const ROLE_OWNER = 1;
+
+function sortSubscribersForDisplay(members: Subscriber[]): Subscriber[] {
+  return [...members].sort((a, b) => {
+    const roleA = a.role === ROLE_OWNER ? 999 : (a.role ?? 0);
+    const roleB = b.role === ROLE_OWNER ? 999 : (b.role ?? 0);
+    return roleB - roleA;
+  });
+}
+
+function getDisplaySubscribers(channel: Channel): Subscriber[] {
+  return sortSubscribersForDisplay(WKSDK.shared().channelManager.getSubscribes(channel) ?? []);
+}
 
 /**
  * 当前群(或子区父群)的成员订阅列表 hook。
@@ -34,9 +47,7 @@ export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscri
   }, [channel.channelID, channel.channelType]);
 
   const [members, setMembers] = useState<Subscriber[]>(() =>
-    enabled && effectiveChannel
-      ? (WKSDK.shared().channelManager.getSubscribes(effectiveChannel) ?? [])
-      : [],
+    enabled && effectiveChannel ? getDisplaySubscribers(effectiveChannel) : [],
   );
 
   useEffect(() => {
@@ -52,12 +63,12 @@ export function useGroupSubscribers(channel: Channel, enabled: boolean): Subscri
         ch.channelID === effectiveChannel.channelID &&
         ch.channelType === effectiveChannel.channelType
       ) {
-        setMembers(cm.getSubscribes(effectiveChannel) ?? []);
+        setMembers(getDisplaySubscribers(effectiveChannel));
       }
     };
     cm.addSubscriberChangeListener(listener);
     // 立刻读一次缓存(可能 channel-setting 提前同步过)
-    setMembers(cm.getSubscribes(effectiveChannel) ?? []);
+    setMembers(getDisplaySubscribers(effectiveChannel));
     // 主动触发同步;syncSubscribes 完成时 SDK 会 notifySubscribeChange 触发 listener
     void cm.syncSubscribes(effectiveChannel);
     return () => {

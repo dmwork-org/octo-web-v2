@@ -23,11 +23,16 @@ interface SdkTaskManager {
 
 function useUploadProgress(message: Message): number | null {
   const [progress, setProgress] = useState<number | null>(null);
+  // task 任意更新(进度 / 失败 / 成功)都强制重渲,让外层读到最新的 message.status —
+  // 上传失败时 upload-task.markFail() 翻 message.status=Fail(GH#135),徽章需及时
+  // 从 spinner 切到「重发」。仅靠 setProgress 在进度值未变时会被 React bail-out。
+  const [, force] = useState(0);
   useEffect(() => {
     const tm = (WKSDK.shared() as unknown as { taskManager?: SdkTaskManager }).taskManager;
     if (!tm) return;
     const listener = (task: SdkTaskRuntime) => {
       if (task?.id !== message.clientMsgNo) return;
+      force((v) => v + 1);
       try {
         const p = task.progress();
         if (typeof p === "number") setProgress(p);

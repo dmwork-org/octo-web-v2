@@ -32,6 +32,26 @@ function useMessageStatusTick(message: Message): void {
 }
 
 /**
+ * 图片加载失败标志:`<img onError>` 时置 true。`src` 变化(上传成功 / 重发拿到新
+ * 地址)时自动复位,重新尝试加载。抽成命名 hook 以满足 no-useeffect-in-component。
+ */
+function useImageError(src: string): {
+  imgError: boolean;
+  markError: () => void;
+  retry: () => void;
+} {
+  const [imgError, setImgError] = useState(false);
+  useEffect(() => {
+    setImgError(false);
+  }, [src]);
+  return {
+    imgError,
+    markError: () => setImgError(true),
+    retry: () => setImgError(false),
+  };
+}
+
+/**
  * 图片消息(Slack 风格 — 直接缩略图,无气泡)。
  *
  * 视觉对齐旧 SingleImage + ImageContent/index.css。
@@ -51,6 +71,8 @@ export function ImageRenderer({ message }: ImageRendererProps) {
   useMessageStatusTick(message);
 
   const src = image.url || "";
+  const { imgError, markError, retry } = useImageError(src);
+
   const naturalW = image.width || 200;
   const naturalH = image.height || 200;
   const ratio = Math.min(MAX_W / naturalW, MAX_H / naturalH, 1);
@@ -58,32 +80,76 @@ export function ImageRenderer({ message }: ImageRendererProps) {
   const h = Math.round(naturalH * ratio);
 
   const sending = message.status === MessageStatus.Wait;
-  const failed = message.status === MessageStatus.Fail;
+  // 发送失败:上传 task 失败时 upload-task.markFail() 会把 message.status 翻 Fail(GH#135)。
+  // 这是"我发出去没成功"的态,给「重发」入口(resend 整条 content)。
+  const sendFailed = message.status === MessageStatus.Fail;
+  // 注:既不在发送中、也不是发送失败,但图片加载不出来(代理/CDN 不可达,<img onError>)
+  // 或压根没有 url(脏消息 / 服务端落了空 url)的"加载失败"态,由 renderThumb 内部分支
+  // 处理(降级为静态提示 / 仅重试加载),**不 resend**(可能是别人发的图,误重发是 bug)。
+  const canPreview = !!src && !imgError && !sending && !sendFailed;
+
+  const renderThumb = () => {
+    if (src && !imgError) {
+      return (
+        <img
+          src={src}
+          alt=""
+          width={w}
+          height={h}
+          className="block"
+          style={{ maxWidth: MAX_W, maxHeight: MAX_H, objectFit: "contain" }}
+          onError={() => markError()}
+        />
+      );
+    }
+    if (sending) {
+      return (
+        <div className="flex h-32 w-32 items-center justify-center text-xs text-text-tertiary">
+          {t("imageRenderer.imageLoading")}
+        </div>
+      );
+    }
+    if (imgError) {
+      // url 有值但加载失败 → 仅"重新加载"(复位 imgError 触发 <img> 重新请求),不 resend。
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            retry();
+          }}
+          className="flex h-32 w-32 flex-col items-center justify-center gap-1 text-xs text-text-tertiary hover:text-text-secondary"
+        >
+          <RotateCw size={16} />
+          <span>{t("imageRenderer.imageLoadFailed")}</span>
+        </button>
+      );
+    }
+    // 无 url 且非发送中:没有图片地址,无法加载(发送失败时由下方 overlay 覆盖)。
+    return (
+      <div className="flex h-32 w-32 items-center justify-center text-xs text-text-tertiary">
+        {t("imageRenderer.imageUnavailable")}
+      </div>
+    );
+  };
+
+  const thumb = renderThumb();
 
   return (
     <>
       <div className="relative w-fit">
-        <button
-          type="button"
-          onClick={() => src && !sending && !failed && setPreview(true)}
-          className="block w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
-          aria-label={t("imageRenderer.viewLargeImage")}
-        >
-          {src ? (
-            <img
-              src={src}
-              alt=""
-              width={w}
-              height={h}
-              className="block"
-              style={{ maxWidth: MAX_W, maxHeight: MAX_H, objectFit: "contain" }}
-            />
-          ) : (
-            <div className="flex h-32 w-32 items-center justify-center text-xs text-text-tertiary">
-              {t("imageRenderer.imageLoading")}
-            </div>
-          )}
-        </button>
+        {canPreview ? (
+          <button
+            type="button"
+            onClick={() => setPreview(true)}
+            className="block w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
+            aria-label={t("imageRenderer.viewLargeImage")}
+          >
+            {thumb}
+          </button>
+        ) : (
+          <div className="block w-fit overflow-hidden rounded-lg bg-bg-elevated">{thumb}</div>
+        )}
 
         {sending ? (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/40 text-white">
@@ -92,7 +158,7 @@ export function ImageRenderer({ message }: ImageRendererProps) {
           </div>
         ) : null}
 
-        {failed ? (
+        {sendFailed ? (
           <button
             type="button"
             aria-label={t("messageStatus.resend")}

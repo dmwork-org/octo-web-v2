@@ -1,4 +1,4 @@
-import { MessageTask, TaskStatus, type MediaMessageContent } from "wukongimjssdk";
+import { MessageStatus, MessageTask, TaskStatus, type MediaMessageContent } from "wukongimjssdk";
 import {
   getUploadCredentials,
   type UploadCredentials,
@@ -39,21 +39,37 @@ export class MediaMessageUploadTask extends MessageTask {
         if (credentials) {
           await this.uploadFile(mediaContent.file, credentials);
         } else {
-          this.status = TaskStatus.fail;
-          this.update();
+          this.markFail();
         }
       } catch {
-        this.status = TaskStatus.fail;
-        this.update();
+        this.markFail();
       }
       return;
     }
     // 没有 file(已上传过或转发场景)— 直接走 remoteUrl
     if (mediaContent.remoteUrl && mediaContent.remoteUrl !== "") {
       this.status = TaskStatus.success;
+      this.update();
     } else {
-      this.status = TaskStatus.fail;
+      this.markFail();
     }
+  }
+
+  /**
+   * 上传失败统一出口:翻 task 状态的同时,**主动把 SDK `message.status` 翻 `Fail`**。
+   *
+   * Why(GH#135):媒体消息(带 file)只有 task=success 时 SDK 才真正发包、并最终
+   * 收到服务端 sendack;task=fail 时 SDK 既不发包,也永远不会有 sendack 回来,
+   * 而 `message.status` 的"唯一权威"恰恰是 sendack —— 于是 status 永远停在 `Wait`,
+   * UI 卡在"发送中 / 图片加载中"占位:既不报失败,也没有重试入口,刷新前一直是僵尸态。
+   *
+   * 这里主动翻 `Fail`,让 image/file/video renderer 走"发送失败 + 重试"分支。
+   * 失败的消息根本没发出去 → 不会收到 sendack,不与"sendack 是 status 唯一权威"冲突;
+   * 用户点重试,上传成功后 SDK 正常发包,sendack 仍会把 status 改回 `Normal`。
+   */
+  private markFail(): void {
+    this.status = TaskStatus.fail;
+    this.message.status = MessageStatus.Fail;
     this.update();
   }
 
@@ -99,22 +115,20 @@ export class MediaMessageUploadTask extends MessageTask {
           mediaContent.url = credentials.downloadUrl;
           mediaContent.remoteUrl = credentials.downloadUrl;
           this.status = TaskStatus.success;
+          this.update();
         } else {
-          this.status = TaskStatus.fail;
+          this.markFail();
         }
-        this.update();
         resolve();
       };
       xhr.onerror = () => {
         if (this.status !== TaskStatus.cancel) {
-          this.status = TaskStatus.fail;
-          this.update();
+          this.markFail();
         }
         resolve();
       };
       xhr.ontimeout = () => {
-        this.status = TaskStatus.fail;
-        this.update();
+        this.markFail();
         resolve();
       };
       xhr.send(file);

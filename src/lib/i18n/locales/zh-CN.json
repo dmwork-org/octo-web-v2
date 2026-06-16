@@ -1231,6 +1231,8 @@
   "imageRenderer.download": "下载图片",
   "imageRenderer.failed": "发送失败",
   "imageRenderer.imageLoading": "图片加载中…",
+  "imageRenderer.imageLoadFailed": "图片加载失败,点击重试",
+  "imageRenderer.imageUnavailable": "图片不可用",
   "imageRenderer.resetSize": "原始大小",
   "imageRenderer.rotate": "旋转",
   "imageRenderer.sending": "发送中",

@@ -106,6 +106,7 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
           className={`inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full px-2 text-xs leading-5 ${statusClass}`}
         >
           <span className="font-semibold">{statusLabel}</span>
+          {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}
         </span>
         {matter.deadline ? (
           <span className="flex items-center gap-0.5 text-xs leading-[18px] text-icon-default">

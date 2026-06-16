@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Channel } from "wukongimjssdk";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
@@ -27,6 +26,7 @@ interface GroupMdModalProps {
 }
 
 const MAX_BYTES = 10240;
+type GroupMdMode = "edit" | "preview";
 
 function getByteLength(str: string): number {
   return new TextEncoder().encode(str).length;
@@ -69,6 +69,16 @@ function useSyncDraftFromServer(
   }, [data, setDraft, setBaseline, setVersion]);
 }
 
+function useResetGroupMdPreviewMode(
+  open: boolean,
+  channelId: string,
+  setMode: (v: GroupMdMode) => void,
+) {
+  useEffect(() => {
+    if (open) setMode("preview");
+  }, [open, channelId, setMode]);
+}
+
 /**
  * GROUP.md 二级抽屉(对应旧 dmworkbase GroupMdEditor)。
  *
@@ -78,7 +88,7 @@ function useSyncDraftFromServer(
 export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalProps) {
   const tt = useT();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<"edit" | "preview">(canEdit ? "edit" : "preview");
+  const [mode, setMode] = useState<GroupMdMode>("preview");
   const [draft, setDraft] = useState("");
   const [baseline, setBaseline] = useState("");
   const [version, setVersion] = useState(0);
@@ -89,6 +99,8 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
   const parsed = isThread ? parseThreadChannelId(channel.channelID) : null;
   const groupNoForApi = parsed?.groupNo ?? channel.channelID;
   const shortIdForApi = parsed?.shortId;
+
+  useResetGroupMdPreviewMode(open, channel.channelID, setMode);
 
   const mdQ = useQuery({
     queryKey: ["chat", isThread ? "thread-md" : "group-md", channel.channelID],
@@ -162,44 +174,54 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
       >
         {canEdit ? (
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
-            <div className="flex gap-1">
-              <Button
-                size="small"
-                type={mode === "edit" ? "primary" : "tertiary"}
+            <div className="inline-flex items-center rounded-md border border-border-subtle">
+              <button
+                type="button"
+                className={`h-7 rounded-l-[5px] px-2.5 text-sm font-medium transition-colors ${
+                  !isPreview
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                }`}
                 onClick={() => setMode("edit")}
               >
                 {tt("groupMdModal.edit")}
-              </Button>
-              <Button
-                size="small"
-                type={mode === "preview" ? "primary" : "tertiary"}
+              </button>
+              <button
+                type="button"
+                className={`h-7 rounded-r-[5px] border-l border-border-subtle px-2.5 text-sm font-medium transition-colors ${
+                  isPreview
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                }`}
                 onClick={() => setMode("preview")}
               >
                 {tt("groupMdModal.preview")}
-              </Button>
+              </button>
             </div>
-            <div className="flex gap-2">
-              {baseline ? (
+            {!isPreview ? (
+              <div className="flex gap-2">
+                {baseline ? (
+                  <Button
+                    size="small"
+                    type="danger"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={deleteMu.isPending}
+                  >
+                    {tt("groupMdModal.delete")}
+                  </Button>
+                ) : null}
                 <Button
                   size="small"
-                  type="danger"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={deleteMu.isPending}
+                  type="primary"
+                  theme="solid"
+                  loading={saveMu.isPending}
+                  disabled={!dirty || overLimit}
+                  onClick={() => saveMu.mutate(draft)}
                 >
-                  {tt("groupMdModal.delete")}
+                  {tt("groupMdModal.save")}
                 </Button>
-              ) : null}
-              <Button
-                size="small"
-                type="primary"
-                theme="solid"
-                loading={saveMu.isPending}
-                disabled={!dirty || overLimit}
-                onClick={() => saveMu.mutate(draft)}
-              >
-                {tt("groupMdModal.save")}
-              </Button>
-            </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -219,9 +241,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
             </div>
           ) : isPreview ? (
             draft ? (
-              <article className="prose prose-sm max-w-none text-text-primary">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>
-              </article>
+              <Markdown content={draft} enableMath />
             ) : (
               <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
                 {tt("groupMdModal.empty")}

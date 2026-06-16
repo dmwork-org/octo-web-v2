@@ -455,7 +455,6 @@ export function MatterDetailPanel({
                 )}
                 <StatusPicker
                   status={data.status}
-                  seqNo={data.seq_no}
                   onChange={handleStatusChange}
                   isCreator={currentUid === data.creator_id}
                   canEditStatus={isOwner}
@@ -487,7 +486,6 @@ export function MatterDetailPanel({
           <div className="flex flex-1 items-center gap-2">
             <StatusPicker
               status={data.status}
-              seqNo={data.seq_no}
               onChange={handleStatusChange}
               isCreator={currentUid === data.creator_id}
               canEditStatus={isOwner}
@@ -738,13 +736,11 @@ function useCloseStatusPickerOnOutside(
 
 function StatusPicker({
   status,
-  seqNo,
   onChange,
   isCreator,
   canEditStatus,
 }: {
   status: MatterStatus;
-  seqNo?: number;
   onChange: (s: MatterStatus) => void;
   isCreator: boolean;
   canEditStatus: boolean;
@@ -779,7 +775,6 @@ function StatusPicker({
         }
       >
         <span className="font-semibold">{t(current.labelKey)}</span>
-        {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
       </button>
       {open && !isDisabled && (
         <div className="absolute top-full left-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">

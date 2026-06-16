@@ -543,7 +543,7 @@ export function MatterDetailPanel({
                     !myGroupsQ.isLoading && isSourceMember && hasSourceMsgs
                       ? "cursor-pointer hover:opacity-80"
                       : ""
-                  } text-text-primary`}
+                  } text-[rgba(9,30,66,0.87)]`}
                   title={
                     myGroupsQ.isLoading
                       ? t("matter.channel.loadingInfo")
@@ -614,7 +614,7 @@ export function MatterDetailPanel({
         </div>
 
         {/* ── 创建人 + 负责人 chip 行 ── */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-xs text-icon-default">
+        <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 text-xs text-[rgba(28,28,35,0.6)]">
           <FieldChip label={t("matter.sidebar.createdByLabel")}>
             <UserChip uid={data.creator_id} />
           </FieldChip>
@@ -762,7 +762,7 @@ function StatusPicker({
     <span className="relative shrink-0 inline-flex whitespace-nowrap" ref={ref}>
       <button
         type="button"
-        className={`inline-flex h-5 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
+        className={`inline-flex h-5 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border-0 px-2 text-[12px] leading-5 transition-opacity ${current.cls} ${
           isDisabled ? "cursor-not-allowed opacity-80" : "hover:opacity-80"
         }`}
         onClick={() => !isDisabled && setOpen(!open)}
@@ -806,7 +806,7 @@ function UserChip({ uid }: { uid: string }) {
   return (
     <span className="inline-flex h-5 items-center gap-1.5 rounded-full border border-brand-tint-10 bg-bg-surface py-0 pr-2 pl-0.5">
       <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={16} title={uid} />
-      <UserName uid={uid} className="text-sm font-normal text-text-primary" />
+      <UserName uid={uid} className="text-sm font-normal text-[rgba(28,28,35,0.6)]" />
     </span>
   );
 }
@@ -958,7 +958,7 @@ function ChannelsTab({
                 {/* Card head */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[14px] font-normal leading-[20px] text-text-primary">
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-medium leading-[20px] text-text-primary">
                       #
                       <ChannelNameLabel
                         channelId={mc.channel_id}
@@ -1114,7 +1114,7 @@ function SecondaryTabBtn({ active, onClick, label, count }: SecondaryTabBtnProps
       type="button"
       onClick={onClick}
       className={`relative inline-flex h-full cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] leading-[20px] transition-colors hover:text-text-primary ${
-        active ? "font-semibold text-text-primary" : "font-normal text-text-primary"
+        active ? "font-semibold text-text-primary" : "font-normal text-[rgba(28,28,35,0.9)]"
       }`}
     >
       {label}

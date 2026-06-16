@@ -98,6 +98,7 @@ export function MainGoalEditor({ matterId, description, children }: MainGoalEdit
             onBlur={handleBlur}
             placeholder={t("matter.create.goalPlaceholder")}
             autoFocus={editing && isEmpty}
+            className="[&_p]:font-medium [&_li]:font-medium"
           />
         </div>
       )}

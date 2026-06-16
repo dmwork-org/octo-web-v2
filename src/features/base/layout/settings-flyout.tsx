@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { authActions } from "@/features/base/stores/auth";
+import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
 import { toast } from "@/components/semi-bridge/toast";
@@ -85,6 +87,19 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     [spaces],
   );
 
+  const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
+  /**
+   * 「空间管理」跳转目标 spaceId:优先当前选中的 Space;若当前 Space 不可管理
+   * 或未选中,回退到第一个 owner/admin 的 Space。
+   */
+  const manageSpaceId = useMemo(() => {
+    const manageable = (spaces ?? []).filter((s) => s.role === 1 || s.role === 2);
+    if (currentSpaceId && manageable.some((s) => s.space_id === currentSpaceId)) {
+      return currentSpaceId;
+    }
+    return manageable[0]?.space_id ?? null;
+  }, [spaces, currentSpaceId]);
+
   const accountUrl = primaryProvider?.accountUrl;
   const showAccountCenter = !!accountUrl;
 
@@ -111,8 +126,15 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
 
   const onClickManageSpace = () => {
     onClose();
-    console.info("[settings] 空间管理 clicked → /space (独立 admin SPA,另一个 repo,待部署)");
-    toast.info(t("base.settings.manageSpaceUnavailable"));
+    if (!manageSpaceId) {
+      // 理论上 canManageSpace 为真时必有可管理 Space,这里仅做兜底。
+      toast.info(t("base.settings.manageSpaceUnavailable"));
+      return;
+    }
+    // admin SPA 部署在固定域名 im.deepminer.com.cn,与本应用分开打包;
+    // React Router 不识别,必须整页跳转。真实鉴权由 admin 后端负责,
+    // 此处仅用于 UI 可见性控制。对齐老仓 NavSettingsPanel 的 window.location.href 行为。
+    window.location.href = `https://im.deepminer.com.cn/admin/space/${manageSpaceId}/members`;
   };
 
   const onToggleDesktopNoti = async () => {

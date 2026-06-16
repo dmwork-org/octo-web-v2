@@ -670,6 +670,7 @@ export function MatterDetailPanel({
               onCloseLinkModal={() => setLinkModalOpen(false)}
               onDownloadAttachment={handleDownloadAttachment}
               onPreviewAttachment={showClose ? handleAttachmentPreview : undefined}
+              canLink={isOwner}
             />
           ) : secondaryTab === "outputs" ? (
             <OutputsPanel
@@ -838,6 +839,7 @@ function ChannelsTab({
   onCloseLinkModal,
   onDownloadAttachment,
   onPreviewAttachment,
+  canLink,
 }: {
   matterId: string;
   channels: MatterChannel[];
@@ -846,6 +848,8 @@ function ChannelsTab({
   onCloseLinkModal: () => void;
   onDownloadAttachment: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
   onPreviewAttachment?: (attachment: TimelineAttachment, entry: TimelineEntry) => void;
+  /** 当前用户是否有关联会话权限 (creator 或 assignee) */
+  canLink: boolean;
 }) {
   const t = useT();
   const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
@@ -917,21 +921,23 @@ function ChannelsTab({
     <div className="flex flex-col">
       {/* Toolbar */}
       <div className="mb-3 flex items-center">
-        <button
-          type="button"
-          onClick={() => onOpenLinkModal()}
-          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] font-semibold leading-[20px] text-accent transition-opacity hover:opacity-80"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M8.00033 15.3332C12.0504 15.3332 15.3337 12.0499 15.3337 7.99984C15.3337 3.94975 12.0504 0.666504 8.00033 0.666504C3.95024 0.666504 0.666992 3.94975 0.666992 7.99984C0.666992 12.0499 3.95024 15.3332 8.00033 15.3332ZM12.6662 7.9184C12.6758 8.4706 12.236 8.92606 11.6838 8.9357L9.01751 8.98224L9.06405 11.6485C9.07369 12.2007 8.63386 12.6562 8.08166 12.6658C7.52945 12.6754 7.07399 12.2356 7.06435 11.6834L7.01781 9.01714L4.35155 9.06368C3.79935 9.07332 3.34389 8.63349 3.33425 8.08129C3.32462 7.52909 3.76445 7.07363 4.31665 7.06399L6.98291 7.01745L6.93637 4.35119C6.92673 3.79899 7.36657 3.34353 7.91877 3.33389C8.47097 3.32425 8.92643 3.76408 8.93607 4.31628L8.98261 6.98254L11.6489 6.936C12.2011 6.92637 12.6565 7.3662 12.6662 7.9184Z"
-              fill="currentColor"
-            />
-          </svg>
-          {t("matter.action.linkNewGroup")}
-        </button>
+        {canLink && (
+          <button
+            type="button"
+            onClick={() => onOpenLinkModal()}
+            className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[14px] font-semibold leading-[20px] text-accent transition-opacity hover:opacity-80"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M8.00033 15.3332C12.0504 15.3332 15.3337 12.0499 15.3337 7.99984C15.3337 3.94975 12.0504 0.666504 8.00033 0.666504C3.95024 0.666504 0.666992 3.94975 0.666992 7.99984C0.666992 12.0499 3.95024 15.3332 8.00033 15.3332ZM12.6662 7.9184C12.6758 8.4706 12.236 8.92606 11.6838 8.9357L9.01751 8.98224L9.06405 11.6485C9.07369 12.2007 8.63386 12.6562 8.08166 12.6658C7.52945 12.6754 7.07399 12.2356 7.06435 11.6834L7.01781 9.01714L4.35155 9.06368C3.79935 9.07332 3.34389 8.63349 3.33425 8.08129C3.32462 7.52909 3.76445 7.07363 4.31665 7.06399L6.98291 7.01745L6.93637 4.35119C6.92673 3.79899 7.36657 3.34353 7.91877 3.33389C8.47097 3.32425 8.92643 3.76408 8.93607 4.31628L8.98261 6.98254L11.6489 6.936C12.2011 6.92637 12.6565 7.3662 12.6662 7.9184Z"
+                fill="currentColor"
+              />
+            </svg>
+            {t("matter.action.linkNewGroup")}
+          </button>
+        )}
       </div>
 
       {/* 已关联群聊列表 */}

@@ -148,12 +148,11 @@ export function MatterList({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <nav
-        className="mx-3 my-3 flex shrink-0 justify-center gap-1 rounded-full p-1"
-        style={{ background: "rgba(28, 28, 35, 0.04)" }}
+        className="mx-3 mb-2 flex shrink-0 items-center rounded-full p-1"
+        style={{ background: "rgba(28, 28, 35, 0.04)", minHeight: 44 }}
       >
         {TAB_KEYS.map((tk) => {
           const isActive = tab === tk.id;
-          // 所有模式都一次拉全量 → 每个 tab 计数都准确
           const tabFiltered = filterByTab(all, tk.id, myUid);
           const count = tabFiltered.length;
           return (
@@ -161,7 +160,7 @@ export function MatterList({
               key={tk.id}
               type="button"
               onClick={() => handleTabChange(tk.id)}
-              className={`whitespace-nowrap rounded-full px-3 py-1.5 h-9 text-sm font-normal transition-all duration-150 ease-(--ease-emphasized) ${
+              className={`flex flex-1 cursor-pointer items-center justify-center rounded-full px-1 py-0.5 h-9 text-sm font-normal transition-all duration-150 ease-(--ease-emphasized) ${
                 isActive
                   ? "bg-bg-surface text-text-primary shadow-[0_1px_3px_rgba(28,28,35,0.06)]"
                   : "text-icon-muted hover:text-text-secondary"

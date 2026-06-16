@@ -348,3 +348,15 @@ PreToolUse hook 真触发验证通过:
   - CI: 老仓 GitHub Actions commits 在新仓无 `.github`，暂标记不直接搬
 - 更新计划文档: `docs/upstream-batch-2-plan.md`
 - Batch 2 策略:不沿用 Batch 1 的“仅覆盖 chat/contact/login 主线”;本轮把 Batch 1 deferred/backlog 项重新纳入,按 chat input / secrets / summary schedule / thread-forward / webhook-group / matter / contact-persona-appbot 全功能闭环执行。
+
+## 2026-06-15 — Batch 2.8 CI / 文档回填
+
+- 分支: `feat/upstream-batch-2-8`
+- CI 判定:
+  - `48fdecd3` / `fd8780de` / `6deadc6a` / `517b87b3` / `5bc525d8` 均只修改老仓 `.github/workflows`。
+  - 这些提交覆盖 GitHub reusable workflow pin、issue/PR 通知、CodeQL 调度、dependency-review、history-check、pr-title-lint、secret-scan 等 GitHub/org 平台治理项。
+  - 新仓没有 `.github`，但已有自有 `.gitlab-ci.yml`，覆盖 main 分支 `pnpm build`、Docker package、K8s deploy；直接搬 GitHub Actions 不服务当前仓库,也会引入错误平台假设。
+  - 本批明确不搬 CI workflow。后续若需要安全/质量 gate，应按本仓 GitLab CI / 平台 CI 规范单独立项。
+- 文档回填:
+  - `docs/upstream-batch-2-plan.md` 补充 CI 不搬依据。
+  - `docs/upstream-batch-1-plan.md` 将 `39284abf` RichText clipboard round trip 从原 deferred / P3 改为“后续 issue #125 / MR !122 已完成”。

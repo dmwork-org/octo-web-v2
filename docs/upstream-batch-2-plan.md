@@ -19,39 +19,39 @@ Batch 1 的策略是优先搬 chat / contact / login 主线，对 matter / summa
 
 `1906c874..b884e01e` 共 31 个 commit，其中本次重新 fetch 后比上一版计划新增 `b0c9a96d..b884e01e` 的 27 个 commit。
 
-| SHA | 标题 | 处理方向 |
-| --- | --- | --- |
-| `a780c9ba` | mention suggestion keyboard hover selection | 待搬 P0 |
-| `c13e7e27` | inline archive quick action | 已搬于 Batch 1.3 |
-| `29cf8643` | summary stale loading / overflow tooltip | 待核对 P1 |
-| `b0c9a96d` | user secrets management UI + chat deep-link | 待搬 P0 |
-| `48fdecd3` | pin GitHub reusable workflows | 仓库 CI 不适用 |
-| `fd8780de` | TRIAGE_WEBHOOK_URL workflow | 仓库 CI 不适用 |
-| `6deadc6a` | codeql weekly schedule | 仓库 CI 不适用 |
-| `13434a2c` | keep thread unread off parent recent rows | 待核对 P1 |
-| `aed22a85` | hide archived threads on first expand | 待核对 P1 |
-| `4479e965` | locate messages inside fold sessions | 待核对 P1 |
-| `0a67d7e8` | group owner transfer | 待搬 P2 |
-| `c2b4d5d7` | remove deleted thread conversations locally | 待核对 P1 |
-| `732a0607` | archived threads in summary selector, exclude from forward | 待核对 P1 |
-| `af7cbab5` | folded message recall UI | 待核对 P1 |
-| `49e2b7d8` | suppress native context menu while custom menu open | 等效核对 P2 |
-| `517b87b3` | remove pr-contributor-welcome caller | 仓库 CI 不适用 |
-| `e66ebabe` | sync sidebar thread list on archive/unarchive | 待核对 P1 |
-| `b22098c1` | enhance scheduled summary | 部分已具备，需差异核对 P0 |
-| `5be72036` | linkify rich text previews | 等效核对 P2 |
-| `5bc525d8` | complete reusable caller coverage | 仓库 CI 不适用 |
-| `e94efe81` | scheduled summary deletion confirmation | 部分已具备，需核对 P1 |
-| `82246a7a` | show all groups and threads in forward picker | 待核对 P1 |
-| `fe15ae53` | forwarding to thread silently fails | 疑似已具备，需回归 P1 |
-| `3021b1b9` | verified real names in voice context + mention label | 待核对 P1 |
-| `9676efc7` | stop fetching sticker category endpoint | 等效 / 不适用 P2 |
-| `84949f19` | group incoming webhook management | 待搬 P0 |
-| `38179c92` | preserve scheduled summary source suffix | 待核对 P0 |
-| `c071042e` | webhook push URL examples + disable test for disabled webhooks | 待搬 P0 |
-| `a62b025d` | add all selected bots as admins | 待搬 P2 |
-| `a7f91b2e` | @所有人 mention highlight DOM regression | 测试补齐 P2 |
-| `b884e01e` | strip client source_name from scheduled-summary submit | 待搬 P0 |
+| SHA        | 标题                                                           | 处理方向                  |
+| ---------- | -------------------------------------------------------------- | ------------------------- |
+| `a780c9ba` | mention suggestion keyboard hover selection                    | 待搬 P0                   |
+| `c13e7e27` | inline archive quick action                                    | 已搬于 Batch 1.3          |
+| `29cf8643` | summary stale loading / overflow tooltip                       | 待核对 P1                 |
+| `b0c9a96d` | user secrets management UI + chat deep-link                    | 待搬 P0                   |
+| `48fdecd3` | pin GitHub reusable workflows                                  | 仓库 CI 不适用            |
+| `fd8780de` | TRIAGE_WEBHOOK_URL workflow                                    | 仓库 CI 不适用            |
+| `6deadc6a` | codeql weekly schedule                                         | 仓库 CI 不适用            |
+| `13434a2c` | keep thread unread off parent recent rows                      | 待核对 P1                 |
+| `aed22a85` | hide archived threads on first expand                          | 待核对 P1                 |
+| `4479e965` | locate messages inside fold sessions                           | 待核对 P1                 |
+| `0a67d7e8` | group owner transfer                                           | 待搬 P2                   |
+| `c2b4d5d7` | remove deleted thread conversations locally                    | 待核对 P1                 |
+| `732a0607` | archived threads in summary selector, exclude from forward     | 待核对 P1                 |
+| `af7cbab5` | folded message recall UI                                       | 待核对 P1                 |
+| `49e2b7d8` | suppress native context menu while custom menu open            | 等效核对 P2               |
+| `517b87b3` | remove pr-contributor-welcome caller                           | 仓库 CI 不适用            |
+| `e66ebabe` | sync sidebar thread list on archive/unarchive                  | 待核对 P1                 |
+| `b22098c1` | enhance scheduled summary                                      | 部分已具备，需差异核对 P0 |
+| `5be72036` | linkify rich text previews                                     | 等效核对 P2               |
+| `5bc525d8` | complete reusable caller coverage                              | 仓库 CI 不适用            |
+| `e94efe81` | scheduled summary deletion confirmation                        | 部分已具备，需核对 P1     |
+| `82246a7a` | show all groups and threads in forward picker                  | 待核对 P1                 |
+| `fe15ae53` | forwarding to thread silently fails                            | 疑似已具备，需回归 P1     |
+| `3021b1b9` | verified real names in voice context + mention label           | 待核对 P1                 |
+| `9676efc7` | stop fetching sticker category endpoint                        | 等效 / 不适用 P2          |
+| `84949f19` | group incoming webhook management                              | 待搬 P0                   |
+| `38179c92` | preserve scheduled summary source suffix                       | 待核对 P0                 |
+| `c071042e` | webhook push URL examples + disable test for disabled webhooks | 待搬 P0                   |
+| `a62b025d` | add all selected bots as admins                                | 待搬 P2                   |
+| `a7f91b2e` | @所有人 mention highlight DOM regression                       | 测试补齐 P2               |
+| `b884e01e` | strip client source_name from scheduled-summary submit         | 待搬 P0                   |
 
 ## 当前新仓观察
 
@@ -61,7 +61,7 @@ Batch 1 的策略是优先搬 chat / contact / login 主线，对 matter / summa
 - Forward modal 已有 thread candidate、clone content、channel info refresh 等逻辑，但候选来源仍主要基于 conversations + members，需要核对 cold cache / inactive groups / archived thread 排除。
 - Group bot admin 当前 add 模式是单选，`setGroupBotAdmin(channelID, pickedUids[0])`，与 `a62b025d` 的“全部选中的 bot 都添加”为差异。
 - 未发现 ChannelWebhook / IncomingWebhook 相关新仓实现，webhook 功能应作为独立 P0 搬运。
-- 新仓没有 `.github` 目录；老仓 GitHub workflow 相关 commit 不直接搬，除非后续项目决定补 GitLab/本仓 CI 等价策略。
+- 新仓没有 `.github` 目录，但已有自有 `.gitlab-ci.yml` 覆盖 main 分支 build/package/deploy；老仓 GitHub workflow 治理类 commit 不直接搬，除非后续项目决定在 GitLab CI 内补等价安全/质量 gate。
 
 ## Batch 2.1 — P0 Chat 输入与 Secrets 安全
 
@@ -197,12 +197,13 @@ Batch 1 曾因 matter 未复刻完整而 defer；当前新仓已有 MatterDetail
 ## Batch 2.8 — CI / 文档回填
 
 - [~] `48fdecd3` / `fd8780de` / `6deadc6a` / `517b87b3` / `5bc525d8`
-  - 老仓是 GitHub Actions；新仓当前无 `.github`，通常不直接搬。
-  - 若后续需要 CI 等价策略，另起 GitLab CI / repo workflow 专项，不混入功能搬运 MR。
+  - 已核对老仓 5 个提交，均只修改 `.github/workflows`：reusable workflow pin 到 `@v1`、issue/PR 通知 caller、CodeQL weekly schedule、删除 pr-contributor-welcome、补 dependency-review/history-check/pr-title-lint/secret-scan caller。
+  - 新仓没有 `.github`，但已有项目自有 `.gitlab-ci.yml`，负责 main 分支 `pnpm build`、Docker package、K8s deploy；直接搬 GitHub Actions 不会服务当前仓库流水线，还会引入老仓 GitHub/org 平台假设。
+  - 本批判定为不搬。若后续需要 dependency review、secret scan、PR title lint 或 CodeQL 等价能力，应按本仓 GitLab CI / 平台 CI 规范单独立项，不混入 upstream 功能搬运。
 
 - [x] `39284abf` RichText clipboard round trip
   - 已由 issue #125 / MR !122 搬入 `main`。
-  - 需要在 Batch 1 文档或 sync-log 收尾时把原 deferred / P3 改为“后续 issue #125 已完成”。
+  - 已在 Batch 2.8 文档回填中把 Batch 1 原 deferred / P3 状态改为“后续 issue #125 已完成”。
 
 ## 建议执行顺序
 

@@ -58,9 +58,9 @@ interface MetaRowProps {
 
 function MetaRow({ label, children }: MetaRowProps) {
   return (
-    <div className="flex items-center gap-1 text-xs leading-4 text-icon-default">
+    <div className="flex min-w-0 items-center gap-1 text-xs leading-4 text-icon-default">
       <span className="shrink-0">{label}</span>
-      <span className="inline-flex items-center gap-1">{children}</span>
+      <span className="inline-flex min-w-0 items-center gap-1">{children}</span>
     </div>
   );
 }
@@ -101,15 +101,15 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
       }`}
     >
       {/* 第一行:状态 pill + DDL */}
-      <div className="flex items-center justify-between">
+      <div className="flex min-w-0 items-start justify-between gap-2">
         <span
-          className={`inline-flex h-5 items-center rounded-full px-2 text-xs leading-5 ${statusClass}`}
+          className={`inline-flex min-w-0 max-w-full shrink items-center whitespace-nowrap rounded-full px-2 text-xs leading-5 ${statusClass}`}
         >
-          <span className="font-semibold">{statusLabel}</span>
-          {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}
+          <span className="truncate font-semibold">{statusLabel}</span>
+          {matter.seq_no ? <span className="shrink-0 font-normal">｜M-{matter.seq_no}</span> : null}
         </span>
         {matter.deadline ? (
-          <span className="flex items-center gap-0.5 text-xs leading-[18px] text-icon-default">
+          <span className="shrink-0 flex items-center gap-0.5 text-xs leading-[18px] text-icon-default">
             <CalendarIcon />
             {formatDeadline(matter.deadline)}
           </span>
@@ -129,7 +129,7 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
             size={16}
             title={matter.creator_id}
           />
-          <UserName uid={matter.creator_id} className="text-text-primary" />
+          <UserName uid={matter.creator_id} className="min-w-0 truncate text-text-primary" />
         </MetaRow>
 
         {assignees.length > 0 && firstAssigneeUid ? (
@@ -149,8 +149,8 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
                 </span>
               ))}
             </span>
-            <span className="text-text-primary">
-              <UserName uid={firstAssigneeUid} />
+            <span className="min-w-0 truncate text-text-primary">
+              <UserName uid={firstAssigneeUid} className="truncate" />
               {assignees.length > 1
                 ? t("matter.sidebar.assigneeCountSuffix", { values: { count: assignees.length } })
                 : ""}

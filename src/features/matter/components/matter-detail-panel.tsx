@@ -455,7 +455,6 @@ export function MatterDetailPanel({
                 )}
                 <StatusPicker
                   status={data.status}
-                  seqNo={data.seq_no}
                   onChange={handleStatusChange}
                   isCreator={currentUid === data.creator_id}
                   canEditStatus={isOwner}
@@ -487,7 +486,6 @@ export function MatterDetailPanel({
           <div className="flex flex-1 items-center gap-2">
             <StatusPicker
               status={data.status}
-              seqNo={data.seq_no}
               onChange={handleStatusChange}
               isCreator={currentUid === data.creator_id}
               canEditStatus={isOwner}
@@ -738,13 +736,11 @@ function useCloseStatusPickerOnOutside(
 
 function StatusPicker({
   status,
-  seqNo,
   onChange,
   isCreator,
   canEditStatus,
 }: {
   status: MatterStatus;
-  seqNo?: number;
   onChange: (s: MatterStatus) => void;
   isCreator: boolean;
   canEditStatus: boolean;
@@ -762,10 +758,10 @@ function StatusPicker({
   const isDisabled = isArchived || !canEditStatus;
 
   return (
-    <span className="relative inline-flex" ref={ref}>
+    <span className="relative shrink-0 inline-flex whitespace-nowrap" ref={ref}>
       <button
         type="button"
-        className={`inline-flex h-5 cursor-pointer items-center rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
+        className={`inline-flex h-5 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
           isDisabled ? "cursor-not-allowed opacity-80" : "hover:opacity-80"
         }`}
         onClick={() => !isDisabled && setOpen(!open)}
@@ -779,7 +775,6 @@ function StatusPicker({
         }
       >
         <span className="font-semibold">{t(current.labelKey)}</span>
-        {seqNo ? <span className="font-normal">｜M-{seqNo}</span> : null}
       </button>
       {open && !isDisabled && (
         <div className="absolute top-full left-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-border-subtle bg-bg-surface py-1 shadow-lg">

@@ -103,7 +103,7 @@ export function SidebarCard({ matter, selected, onClick }: SidebarCardProps) {
       {/* 第一行:状态 pill + DDL */}
       <div className="flex items-center justify-between">
         <span
-          className={`inline-flex h-5 items-center rounded-full px-2 text-xs leading-5 ${statusClass}`}
+          className={`inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full px-2 text-xs leading-5 ${statusClass}`}
         >
           <span className="font-semibold">{statusLabel}</span>
           {matter.seq_no ? <span className="font-normal">｜M-{matter.seq_no}</span> : null}

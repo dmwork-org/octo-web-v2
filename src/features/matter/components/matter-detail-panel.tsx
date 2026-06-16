@@ -758,10 +758,10 @@ function StatusPicker({
   const isDisabled = isArchived || !canEditStatus;
 
   return (
-    <span className="relative inline-flex" ref={ref}>
+    <span className="relative shrink-0 inline-flex whitespace-nowrap" ref={ref}>
       <button
         type="button"
-        className={`inline-flex h-5 cursor-pointer items-center rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
+        className={`inline-flex h-5 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border-0 px-2 text-[13px] leading-5 transition-opacity ${current.cls} ${
           isDisabled ? "cursor-not-allowed opacity-80" : "hover:opacity-80"
         }`}
         onClick={() => !isDisabled && setOpen(!open)}

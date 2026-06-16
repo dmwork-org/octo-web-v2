@@ -4,6 +4,8 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 
 /** CHANNEL_TYPE_COMMUNITY_TOPIC = 5(子区);ChannelTypeGroup = 2。 */
 const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
+const ROLE_MANAGER = 2;
+const pendingRoleSubscriberSyncs = new Set<string>();
 
 /**
  * 撤回菜单需要按"撤回者 vs 被撤回者"角色判定权限(对齐老仓
@@ -64,15 +66,34 @@ export function getRoleSync(roleChannel: Channel | null, uid: string): number | 
   return readRole(subs?.find((s) => s.uid === uid));
 }
 
-/** 异步预热 targetRole(对齐老仓 warmRevokeTargetRole);多次调用 SDK 内部去重。 */
+/** 异步预热 targetRole;同一频道请求未完成前去重,避免右键连续触发并发同步。 */
 export function warmRoleSubscribers(roleChannel: Channel | null): void {
   if (!roleChannel) return;
-  void WKSDK.shared().channelManager.syncSubscribes(roleChannel);
+  const requestKey = roleChannel.getChannelKey();
+  if (pendingRoleSubscriberSyncs.has(requestKey)) return;
+
+  pendingRoleSubscriberSyncs.add(requestKey);
+  void WKSDK.shared()
+    .channelManager.syncSubscribes(roleChannel)
+    .catch(() => undefined)
+    .finally(() => {
+      pendingRoleSubscriberSyncs.delete(requestKey);
+    });
+}
+
+export function warmMissingRevokeTargetRole(message: Message, myUid: string): void {
+  if (!message.fromUID) return;
+  const roleChannel = resolveRoleChannel(message.channel);
+  const myRole = getRoleSync(roleChannel, myUid);
+  if (myRole !== ROLE_MANAGER || message.send) return;
+  if (getRoleSync(roleChannel, message.fromUID) != null) return;
+  warmRoleSubscribers(roleChannel);
 }
 
 /**
  * 收集撤回判定所需上下文。供 message-row.tsx 在计算 revokeAllowed 时调用,
- * 同步返回 myRole + targetRole(若需要)。targetRole 缺失时触发 warm,下次重算命中。
+ * 同步返回 myRole + targetRole(若需要)。保持纯同步,避免 message-row render
+ * 阶段触发 membersync → subscriber notify → render 的循环。
  */
 export function collectRevokeRoleContext(
   message: Message,
@@ -81,11 +102,8 @@ export function collectRevokeRoleContext(
   const roleChannel = resolveRoleChannel(message.channel);
   const myRole = getRoleSync(roleChannel, myUid);
   let targetRole: number | undefined;
-  if (myRole === 2 /* manager */ && !message.send) {
+  if (myRole === ROLE_MANAGER && !message.send) {
     targetRole = getRoleSync(roleChannel, message.fromUID);
-    if (targetRole == null) {
-      warmRoleSubscribers(roleChannel);
-    }
   }
   return { roleChannel, myRole, targetRole };
 }

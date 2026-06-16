@@ -42,7 +42,10 @@ import { copyImageToClipboard } from "@/features/base/lib/copy-image";
 import { copyRichTextToClipboard } from "@/features/chat/lib/rich-text-clipboard";
 import { authStore } from "@/features/base/stores/auth";
 import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
-import { collectRevokeRoleContext } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
+import {
+  collectRevokeRoleContext,
+  warmMissingRevokeTargetRole,
+} from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
 import { getRevokeSecondFromCache } from "@/features/chat/lib/get-revoke-second";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -88,6 +91,7 @@ export function useMessageContextMenu(message: Message): {
   const onContextMenu = (e: MouseEvent) => {
     if (selectionActive) return;
     e.preventDefault();
+    if (me) warmMissingRevokeTargetRole(message, me);
     setMenu({ open: true, x: e.clientX, y: e.clientY });
   };
 

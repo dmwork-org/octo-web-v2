@@ -41,9 +41,6 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
 
-/** GroupRole:对齐旧 @octo/base 常量(normal=0, owner=1, manager=2)。 */
-const ROLE_OWNER = 1;
-
 /**
  * 从 SDK 所有群成员缓存里查 uid 是否曾被标记为 robot。
  * 用途:channelInfoCallback 拉到 person channelInfo 时,raw.robot 可能为空,
@@ -78,13 +75,18 @@ function rawToSubscriber(m: GroupMemberRaw): Subscriber {
   return sub;
 }
 
-/** 旧版排序口径:owner 升到 999,其余按 role desc(manager>normal)。 */
-function sortByRole(members: Subscriber[]): Subscriber[] {
-  return [...members].sort((a, b) => {
-    const roleA = a.role === ROLE_OWNER ? 999 : a.role;
-    const roleB = b.role === ROLE_OWNER ? 999 : b.role;
-    return roleB - roleA;
-  });
+export function sortSubscribersForSyncCursor(members: Subscriber[]): Subscriber[] {
+  // SDK uses the last cached subscriber.version as the next membersync cursor.
+  return [...members].sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
+}
+
+export function getSubscriberSyncVersion(channel: Channel, sdkVersion: number): number {
+  const cached = WKSDK.shared().channelManager.subscribeCacheMap.get(channel.getChannelKey());
+  const cachedMaxVersion =
+    cached?.reduce((maxVersion, subscriber) => {
+      return Math.max(maxVersion, subscriber.version ?? 0);
+    }, 0) ?? 0;
+  return Math.max(sdkVersion, cachedMaxVersion);
 }
 
 /**
@@ -341,17 +343,16 @@ export function registerImCallbacks(): void {
     }
     let raw: GroupMemberRaw[];
     try {
-      raw = await syncGroupMembers(groupNo, version);
+      raw = await syncGroupMembers(groupNo, getSubscriberSyncVersion(channel, version));
     } catch {
       return [];
     }
-    const members = raw.map(rawToSubscriber);
-    const sorted = sortByRole(members);
+    const members = sortSubscribersForSyncCursor(raw.map(rawToSubscriber));
 
     // robot 字段反向同步到 person channelInfo 缓存:消息列表 / 联系人页能立刻显示 AI 标识,
     // 不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
     const cm = WKSDK.shared().channelManager;
-    for (const member of sorted) {
+    for (const member of members) {
       if ((member.orgData as { robot?: number } | undefined)?.robot !== 1) continue;
       const personChannel = new Channel(member.uid, ChannelTypePerson);
       const existing = cm.getChannelInfo(personChannel);
@@ -363,7 +364,7 @@ export function registerImCallbacks(): void {
       }
     }
 
-    return sorted;
+    return members;
   };
 
   provider.syncMessagesCallback = async (channel, opts): Promise<Message[]> => {

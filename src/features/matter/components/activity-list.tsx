@@ -248,14 +248,14 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
     case "assignee_added":
       return (
-        <span>
+        <span className="inline-flex items-center gap-1">
           <UserName uid={(detail.user_id as string) || ""} />
         </span>
       );
 
     case "assignee_removed":
       return (
-        <span>
+        <span className="inline-flex items-center gap-1">
           <UserName uid={(detail.user_id as string) || ""} />
         </span>
       );
@@ -426,7 +426,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
                 <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
                   {t("matter.activity.table.type")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-56">
                   {t("matter.activity.table.content")}
                 </th>
                 <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-36">
@@ -446,8 +446,10 @@ export function ActivityList({ matterId }: ActivityListProps) {
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
                     {t(ACTION_LABEL_KEYS[a.action])}
                   </td>
-                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
-                    <ActivityContent activity={a} />
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle min-w-0">
+                    <div className="line-clamp-2 break-words">
+                      <ActivityContent activity={a} />
+                    </div>
                   </td>
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
                     <span className="inline-flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap max-w-full text-sm text-text-primary">

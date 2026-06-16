@@ -26,7 +26,6 @@ import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores
 import { isMessageSelectable } from "@/features/chat/lib/message-selection";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import {
-  INCOMING_WEBHOOK_DEFAULT_AVATAR,
   isIncomingWebhookSender,
   webhookFromOfMessage,
 } from "@/features/chat/lib/incoming-webhook";
@@ -318,10 +317,10 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       {checkbox}
       <div className={`relative h-9 w-9 shrink-0 ${selectionActive ? "pointer-events-none" : ""}`}>
         {isWebhook ? (
-          <img
-            src={webhookFrom.avatar || INCOMING_WEBHOOK_DEFAULT_AVATAR}
-            alt=""
-            className="h-9 w-9 rounded-md object-cover"
+          <ChannelAvatar
+            channel={new Channel(senderUid, ChannelTypePerson)}
+            size={36}
+            title={senderTitle}
           />
         ) : (
           <AvatarMenuButton

@@ -248,14 +248,14 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
     case "assignee_added":
       return (
-        <span>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <UserName uid={(detail.user_id as string) || ""} />
         </span>
       );
 
     case "assignee_removed":
       return (
-        <span>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <UserName uid={(detail.user_id as string) || ""} />
         </span>
       );

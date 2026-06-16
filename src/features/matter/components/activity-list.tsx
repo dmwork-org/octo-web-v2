@@ -170,7 +170,7 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
   switch (activity.action) {
     case "created":
       return (
-        <span>
+        <span className="inline-block whitespace-nowrap">
           {t("matter.activity.initial")}{" "}
           {(detail.summary as string) || t("matter.activity.createdMatter")}
         </span>
@@ -178,7 +178,7 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
     case "title_changed":
       return (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
             {(detail.from as string) || ""}
           </span>
@@ -192,7 +192,7 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
       const removed = (detail.removed as string[]) || [];
       if (added.length === 0 && removed.length === 0) {
         return (
-          <span>
+          <span className="inline-block whitespace-nowrap">
             {stripHtml((detail.summary as string) || "") || t("matter.activity.updatedDescription")}
           </span>
         );
@@ -200,13 +200,13 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
       return (
         <div className="flex flex-col gap-0.5">
           {added.map((line, i) => (
-            <div key={`add-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
+            <div key={`add-${i}`} className="inline-flex items-center gap-1 text-sm leading-5 whitespace-nowrap">
               <PlusIcon />
               <span className="text-text-primary font-medium">"{stripHtml(line)}"</span>
             </div>
           ))}
           {removed.map((line, i) => (
-            <div key={`rm-${i}`} className="inline-flex items-center gap-1 text-sm leading-5">
+            <div key={`rm-${i}`} className="inline-flex items-center gap-1 text-sm leading-5 whitespace-nowrap">
               <MinusIcon />
               <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
                 "{stripHtml(line)}"
@@ -225,7 +225,7 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
         ? formatActivityTime(new Date((detail.to as number) * 1000).toISOString())
         : t("matter.common.none");
       return (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
             {from}
           </span>
@@ -237,7 +237,7 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
     case "status_changed":
       return (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <span className="text-text-tertiary line-through decoration-[rgba(0,0,0,0.08)]">
             {(detail.from as string) || ""}
           </span>
@@ -261,13 +261,13 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
       );
 
     case "channel_linked":
-      return <span>#{(detail.channel_name as string) || (detail.channel_id as string) || ""}</span>;
+      return <span className="inline-block whitespace-nowrap">#{(detail.channel_name as string) || (detail.channel_id as string) || ""}</span>;
 
     case "channel_unlinked":
-      return <span>#{(detail.channel_id as string) || ""}</span>;
+      return <span className="inline-block whitespace-nowrap">#{(detail.channel_id as string) || ""}</span>;
 
     default:
-      return <span>{activity.action}</span>;
+      return <span className="inline-block whitespace-nowrap">{activity.action}</span>;
   }
 }
 
@@ -426,7 +426,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
                 <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-24">
                   {t("matter.activity.table.type")}
                 </th>
-                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle">
+                <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-96">
                   {t("matter.activity.table.content")}
                 </th>
                 <th className="h-8 px-3 bg-bg-elevated text-left text-[12px] font-medium leading-4 text-icon-default border-b border-border-subtle w-36">
@@ -446,7 +446,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
                     {t(ACTION_LABEL_KEYS[a.action])}
                   </td>
-                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
+                  <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle min-w-0 overflow-hidden">
                     <ActivityContent activity={a} />
                   </td>
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">

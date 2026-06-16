@@ -160,10 +160,10 @@ export function MatterList({
               key={tk.id}
               type="button"
               onClick={() => handleTabChange(tk.id)}
-              className={`flex flex-1 cursor-pointer items-center justify-center rounded-full px-1 py-0.5 h-9 text-sm font-normal transition-all duration-150 ease-(--ease-emphasized) ${
+              className={`flex flex-1 cursor-pointer items-center justify-center rounded-full px-1 py-0.5 h-9 text-xs font-semibold transition-all duration-150 ease-(--ease-emphasized) ${
                 isActive
                   ? "bg-bg-surface text-text-primary shadow-[0_1px_3px_rgba(28,28,35,0.06)]"
-                  : "text-icon-muted hover:text-text-secondary"
+                  : "text-[rgba(28,28,35,0.4)] hover:text-text-secondary"
               }`}
             >
               {t(tk.key)}

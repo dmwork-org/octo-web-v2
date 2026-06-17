@@ -39,6 +39,8 @@ interface UserInfoModalProps {
   /** 搜索结果带来的 vercode(陌生人申请好友需要) */
   vercode?: string;
   onClose: () => void;
+  /** 点击"开始聊天"后的额外收尾动作(如关闭父级设置面板) */
+  onMessageStart?: () => void;
 }
 
 const APP_NAME = "Octo";
@@ -76,7 +78,13 @@ function joinDate(value: unknown): string {
  *
  * Sections 4 段 + 底部按钮 5 分支(F-1a 已对齐 UserInfo.getBottomPanel)。
  */
-export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalProps) {
+export function UserInfoModal({
+  uid,
+  groupNo,
+  vercode,
+  onClose,
+  onMessageStart,
+}: UserInfoModalProps) {
   const t = useT();
   const qc = useQueryClient();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
@@ -211,6 +219,7 @@ export function UserInfoModal({ uid, groupNo, vercode, onClose }: UserInfoModalP
   const handleMessage = () => {
     if (!channel) return;
     chatSelectedActions.select(channel);
+    onMessageStart?.();
     onClose();
   };
 

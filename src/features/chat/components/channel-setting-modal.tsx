@@ -884,6 +884,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         <UserInfoModal
           uid={selectedMemberId}
           groupNo={isGroup ? channel.channelID : undefined}
+          onMessageStart={onClose}
           onClose={() => setSelectedMemberId(null)}
         />
       ) : null}

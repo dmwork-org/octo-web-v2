@@ -59,7 +59,7 @@ import {
   lastMessageDigest,
 } from "@/features/chat/lib/conversation-last-content";
 import { isConversationTop } from "@/features/chat/lib/conversation-top";
-import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -181,7 +181,8 @@ function ConversationRow({
 }) {
   const tt = useT();
   const channel = conversation.channel;
-  const info = conversation.channelInfo;
+  const liveTitle = getLiveTitle(channel);
+  const info = WKSDK.shared().channelManager.getChannelInfo(channel) ?? conversation.channelInfo;
   const isThread = channel.channelType === CHANNEL_TYPE_THREAD;
   const isPerson = channel.channelType === ChannelTypePerson;
   const isGroup = channel.channelType === ChannelTypeGroup;
@@ -200,8 +201,9 @@ function ConversationRow({
         identitySize?: { width: string; height: string };
       }
     | undefined;
-  const realTitle = orgData?.displayName || info?.title || "";
-  const titleLoading = !realTitle;
+  const fallbackTitle = orgData?.displayName || info?.title || "";
+  const realTitle = liveTitle.title || fallbackTitle;
+  const titleLoading = liveTitle.loading && !fallbackTitle;
   const title = realTitle || channel.channelID;
   const isExternal = isGroup && orgData?.is_external_group === 1;
   const isBot = isPerson && orgData?.robot === 1;

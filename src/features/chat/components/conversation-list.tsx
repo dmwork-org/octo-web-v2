@@ -82,6 +82,24 @@ function conversationDomKey(conversation: Conversation): string {
   return `${conversation.channel.channelType}-${conversation.channel.channelID}`;
 }
 
+function parentGroupNoOfThread(conversation: Conversation): string | undefined {
+  if (conversation.channel.channelType !== CHANNEL_TYPE_THREAD) return undefined;
+  const orgData = conversation.channelInfo?.orgData as { parentGroupNo?: string } | undefined;
+  return orgData?.parentGroupNo || parseThreadChannelId(conversation.channel.channelID)?.groupNo;
+}
+
+function buildThreadsByParent(conversations: Conversation[]): Map<string, Conversation[]> {
+  const threadsByParent = new Map<string, Conversation[]>();
+  for (const conversation of conversations) {
+    const parentGroupNo = parentGroupNoOfThread(conversation);
+    if (!parentGroupNo) continue;
+    const threads = threadsByParent.get(parentGroupNo) ?? [];
+    threads.push(conversation);
+    threadsByParent.set(parentGroupNo, threads);
+  }
+  return threadsByParent;
+}
+
 const WEEKDAY_KEYS = [
   "convList.weekday.sun",
   "convList.weekday.mon",
@@ -139,6 +157,7 @@ function ConversationRow({
   conversation,
   active,
   myUid,
+  hasThreads,
   onClick,
   onContextMenu,
   rowRef,
@@ -153,6 +172,7 @@ function ConversationRow({
    */
   active: boolean;
   myUid: string;
+  hasThreads?: boolean;
   onClick: () => void;
   onContextMenu: (e: MouseEvent) => void;
   rowRef?: (node: HTMLButtonElement | null) => void;
@@ -224,14 +244,12 @@ function ConversationRow({
     >
       <div className="relative h-8 w-8 shrink-0">
         <ChannelAvatar channel={avatarChannel} size={32} title={avatarTitle} />
-        {isThread ? (
+        {isGroup && hasThreads ? (
           <span
             aria-hidden
             className="absolute right-[-3px] bottom-[-3px] flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-bg-base bg-bg-elevated text-text-secondary"
           >
-            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden>
-              <path d="M9 6h6v2H9zM7 11h10v2H7zM9 16h6v2H9z" />
-            </svg>
+            <GroupCornerIcon size={10} />
           </span>
         ) : showOnline ? (
           <ConversationOnlineBadge />
@@ -331,6 +349,30 @@ function ConversationRow({
         </div>
       </div>
     </button>
+  );
+}
+
+function GroupCornerIcon({ size = 10 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        d="M8.07978 14.5547H5.44633C2.97245 14.5547 1.01367 14.5547 1.01367 13.3032V13.0428C1.01367 10.6411 3.00148 8.68789 5.44633 8.68789H8.07981C10.5247 8.68789 12.5125 10.6411 12.5125 13.0428V13.3032C12.5125 14.5547 10.4594 14.5547 8.07978 14.5547ZM6.63611 8.35512C4.69908 8.35512 3.1248 6.80704 3.1248 4.9045C3.1248 3.00194 4.69908 1.45386 6.63609 1.45386C8.57312 1.45386 10.1474 3.00194 10.1474 4.90448C10.1474 6.80704 8.57312 8.35512 6.63611 8.35512Z"
+        fill="currentColor"
+        fillOpacity="0.3"
+      />
+      <path
+        d="M13.2742 13.7098C13.4919 12.2405 13.0104 10.8867 11.8296 9.64856C13.5792 9.64856 15.0016 11.0127 15.0016 12.69V12.8719C15.0016 13.746 14.2054 13.6835 13.2742 13.7098ZM11.4751 9.28453C9.98711 8.30172 10.8874 8.71275 9.05469 8.13895C10.3354 7.40811 10.7751 6.8333 10.8874 4.73169C12.2492 4.73169 13.3559 5.83463 13.3559 7.19013C13.3559 8.54563 12.8369 9.28453 11.4751 9.28453Z"
+        fill="currentColor"
+        fillOpacity="0.3"
+      />
+    </svg>
   );
 }
 
@@ -463,6 +505,7 @@ export function ConversationList({
     // 避免 backend 返了 N 条未读但前端 hide 出现"角标 N 列表看不到"幽灵。
     return sortConversations(all);
   }, [data, filter]);
+  const threadsByParent = useMemo(() => buildThreadsByParent(filtered), [filtered]);
 
   useRecentUnreadJump(filter, filtered, listRef, rowRefs, (key) => {
     setRecentJumpPulse((prev) => ({ key, token: (prev?.token ?? 0) + 1 }));
@@ -827,6 +870,9 @@ export function ConversationList({
             active={selected || c.channel.channelID === ctxMenuRowKey}
             suppressDraft={selected}
             myUid={myUid}
+            hasThreads={
+              c.channel.channelType === ChannelTypeGroup && threadsByParent.has(c.channel.channelID)
+            }
             onClick={() => onSelect?.(c)}
             onContextMenu={onRowContextMenu(c)}
             unreadPulseToken={

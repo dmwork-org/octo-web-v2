@@ -50,6 +50,7 @@ import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archiv
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
+import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
 // section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -423,10 +424,18 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
           });
         }
       }
-      WKSDK.shared().conversationManager.removeConversation(channel);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (isThread) {
+        removeThreadConversation(channel, qc, spaceId, {
+          groupNo: threadParsed?.groupNo,
+          shortId: threadParsed?.shortId,
+        });
+        void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+      } else {
+        WKSDK.shared().conversationManager.removeConversation(channel);
+        void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      }
       if (
         chatSelectedStore.state.channel?.channelID === channel.channelID &&
         chatSelectedStore.state.channel.channelType === channel.channelType

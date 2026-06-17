@@ -43,9 +43,9 @@ import {
 } from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { buildThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
+import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -58,6 +58,7 @@ interface ThreadListPanelProps {
 // 旧仓 ThreadStatus enum: 1=Active 2=Archived 3=Deleted
 const THREAD_STATUS_ACTIVE = 1;
 const THREAD_STATUS_ARCHIVED = 2;
+const THREAD_STATUS_DELETED = 3;
 const CHANNEL_TYPE_THREAD = 5;
 
 type View = "list" | "detail";
@@ -131,8 +132,11 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     return raw ? new Date(raw).getTime() : 0;
   };
   const threads = threadsWithFollow.slice().sort((a, b) => threadSortTime(b) - threadSortTime(a));
-  const activeThreads = threads.filter((th) => !th.status || th.status === THREAD_STATUS_ACTIVE);
-  const archivedThreads = threads.filter((th) => th.status === THREAD_STATUS_ARCHIVED);
+  const visibleThreads = threads.filter((th) => th.status !== THREAD_STATUS_DELETED);
+  const activeThreads = visibleThreads.filter(
+    (th) => !th.status || th.status === THREAD_STATUS_ACTIVE,
+  );
+  const archivedThreads = visibleThreads.filter((th) => th.status === THREAD_STATUS_ARCHIVED);
 
   const openDetail = (thread: ThreadRaw) => {
     setActiveThread(thread);
@@ -370,20 +374,8 @@ function DetailView({
   const deleteMu = useMutation({
     mutationFn: () => deleteThread(groupNo, thread.short_id),
     onSuccess: () => {
-      const cm = WKSDK.shared().channelManager;
-      cm.deleteChannelInfo(threadChannel);
-      WKSDK.shared().conversationManager.removeConversation(threadChannel);
-      qc.setQueryData(conversationsQueryKey(spaceId), (old) =>
-        Array.isArray(old)
-          ? old.filter(
-              (conv) =>
-                conv.channel.channelID !== threadChannel.channelID ||
-                conv.channel.channelType !== threadChannel.channelType,
-            )
-          : old,
-      );
+      removeThreadConversation(threadChannel, qc, spaceId, { groupNo, shortId: thread.short_id });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      onInvalidate();
       setDeleteOpen(false);
       onAfterDelete();
       toast.success(t("threadPanelLocal.toast.deleted"));

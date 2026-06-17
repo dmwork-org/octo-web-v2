@@ -110,10 +110,11 @@ export function useMatterOutputs(matterId: string): UseMatterOutputsReturn {
   const effectiveHasMore = isFetching ? hasMore : (queryData?.pagination?.has_more ?? false);
 
   const outputs = queryData?.data ?? [];
+  const isBackgroundRefreshingWithRows = isFetching && outputs.length > 0;
 
   return {
     outputs,
-    loading: isLoading || isFetching || loadMoreLoading,
+    loading: isLoading || loadMoreLoading || isBackgroundRefreshingWithRows,
     hasMore: effectiveHasMore,
     query: searchQ,
     error: queryError ? t("matter.outputs.loadFailed") : null,

@@ -150,7 +150,8 @@ export function OutputsPanel({
     [onDownload],
   );
 
-  const isEmpty = outputs.length === 0 && !loading;
+  const showInitialSkeleton = loading && outputs.length === 0 && !error;
+  const isEmpty = outputs.length === 0 && !showInitialSkeleton && !error;
   const emptyText = query ? t("matter.outputs.emptySearch") : t("matter.outputs.emptyDefault");
 
   return (
@@ -227,151 +228,153 @@ export function OutputsPanel({
           </div>
         </div>
 
-        {/* 错误状态 */}
-        {error ? (
-          <div
-            className="flex flex-col items-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary"
-            role="alert"
-          >
-            <FileWarning size={40} className="opacity-40" />
-            <span>{error}</span>
-            {onRetry && (
-              <button
-                type="button"
-                className="mt-1 cursor-pointer rounded border border-border-default px-3 py-1 text-sm text-text-tertiary transition-colors hover:text-text-primary"
-                onClick={onRetry}
-              >
-                {t("matter.outputs.retry")}
-              </button>
-            )}
-          </div>
-        ) : isEmpty ? (
-          /* 空状态 */
-          <div className="flex flex-col items-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary">
-            <FileWarning size={40} className="opacity-40" />
-            <span>{emptyText}</span>
-          </div>
-        ) : (
-          /* 数据行 */
-          outputs.map((item) => {
-            const iconUrl = getFileIcon(item.file_name || "", item.mime_type || "");
-            return (
-              <div
-                key={item.id}
-                className="inline-flex h-[62px] min-w-full items-stretch border-b border-border-default bg-bg-surface transition-colors hover:bg-bg-hover"
-                role="row"
-              >
-                {/* 标题列: 缩略图 + 文件名 + 大小 */}
-                <div
-                  className="flex w-[216px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
-                  role="cell"
+        <div>
+          {/* 错误状态 */}
+          {error ? (
+            <div
+              className="flex min-h-[186px] flex-col items-center justify-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary"
+              role="alert"
+            >
+              <FileWarning size={40} className="opacity-40" />
+              <span>{error}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  className="mt-1 cursor-pointer rounded border border-border-default px-3 py-1 text-sm text-text-tertiary transition-colors hover:text-text-primary"
+                  onClick={onRetry}
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                    <img src={iconUrl} alt="" width={32} height={32} />
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col justify-center">
-                    <div
-                      className="overflow-hidden text-ellipsis whitespace-nowrap"
-                      title={item.file_name || ""}
-                    >
-                      {item.file_name || t("matter.outputs.unnamedFile")}
+                  {t("matter.outputs.retry")}
+                </button>
+              )}
+            </div>
+          ) : isEmpty ? (
+            /* 空状态 */
+            <div className="flex min-h-[186px] flex-col items-center justify-center gap-2 border-b border-border-subtle py-10 text-sm text-text-tertiary">
+              <FileWarning size={40} className="opacity-40" />
+              <span>{emptyText}</span>
+            </div>
+          ) : (
+            /* 数据行 */
+            outputs.map((item) => {
+              const iconUrl = getFileIcon(item.file_name || "", item.mime_type || "");
+              return (
+                <div
+                  key={item.id}
+                  className="inline-flex h-[62px] min-w-full items-stretch border-b border-border-default bg-bg-surface transition-colors hover:bg-bg-hover"
+                  role="row"
+                >
+                  {/* 标题列: 缩略图 + 文件名 + 大小 */}
+                  <div
+                    className="flex w-[216px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
+                    role="cell"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                      <img src={iconUrl} alt="" width={32} height={32} />
                     </div>
-                    {/* 文件大小:后端返回 file_size 才显示(0 字节是合法值);
-                        缺失时整行不渲染,避免难看的占位横杠。后端补数据后自动恢复。 */}
-                    {item.file_size != null ? (
-                      <div className="text-[12px] leading-[18px] text-text-tertiary">
-                        {formatFileSize(item.file_size)}
+                    <div className="flex min-w-0 flex-1 flex-col justify-center">
+                      <div
+                        className="overflow-hidden text-ellipsis whitespace-nowrap"
+                        title={item.file_name || ""}
+                      >
+                        {item.file_name || t("matter.outputs.unnamedFile")}
                       </div>
-                    ) : null}
+                      {/* 文件大小:后端返回 file_size 才显示(0 字节是合法值);
+                          缺失时整行不渲染,避免难看的占位横杠。后端补数据后自动恢复。 */}
+                      {item.file_size != null ? (
+                        <div className="text-[12px] leading-[18px] text-text-tertiary">
+                          {formatFileSize(item.file_size)}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* 描述列: 最多2行截断 */}
+                  <div
+                    className="flex w-[312px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary"
+                    role="cell"
+                    title={item.description || ""}
+                  >
+                    <span className="line-clamp-2 break-words">{item.description || ""}</span>
+                  </div>
+
+                  {/* 发送人列: 头像 + 姓名 */}
+                  <div
+                    className="flex w-[144px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
+                    role="cell"
+                  >
+                    <ChannelAvatar
+                      channel={new Channel(item.sender_uid, ChannelTypePerson)}
+                      size={20}
+                      title={item.sender_uid}
+                    />
+                    <UserName
+                      uid={item.sender_uid}
+                      className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+                    />
+                  </div>
+
+                  {/* 来源群列 */}
+                  <div
+                    className="flex w-[148px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary"
+                    role="cell"
+                  >
+                    <ChannelCell
+                      item={item}
+                      getChannelMembership={getChannelMembership}
+                      resolveChannelName={resolveChannelName}
+                    />
+                  </div>
+
+                  {/* 发送时间列 */}
+                  <div
+                    className="flex w-[172px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary tabular-nums"
+                    role="cell"
+                  >
+                    {formatOutputDateTime(item.sent_at)}
+                  </div>
+
+                  {/* 操作列: (可选)预览 + (可选)下载 */}
+                  <div className="flex w-[88px] shrink-0 items-center gap-4 px-4" role="cell">
+                    {onPreview && (
+                      <button
+                        type="button"
+                        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                        aria-label={t("matter.outputs.preview")}
+                        title={t("matter.outputs.preview")}
+                        onClick={(e) => handlePreview(e, item)}
+                      >
+                        <EyeIcon />
+                      </button>
+                    )}
+                    {onDownload && (
+                      <button
+                        type="button"
+                        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
+                        aria-label={t("matter.outputs.download")}
+                        title={t("matter.outputs.download")}
+                        onClick={(e) => handleDownload(e, item)}
+                      >
+                        <DownloadIcon />
+                      </button>
+                    )}
                   </div>
                 </div>
+              );
+            })
+          )}
 
-                {/* 描述列: 最多2行截断 */}
+          {/* 加载骨架 */}
+          {showInitialSkeleton && (
+            <div className="flex flex-col">
+              {[0, 1, 2].map((i) => (
                 <div
-                  className="flex w-[312px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary"
-                  role="cell"
-                  title={item.description || ""}
-                >
-                  <span className="line-clamp-2 break-words">{item.description || ""}</span>
-                </div>
-
-                {/* 发送人列: 头像 + 姓名 */}
-                <div
-                  className="flex w-[144px] shrink-0 items-center gap-1 px-3 text-sm leading-5 text-text-primary"
-                  role="cell"
-                >
-                  <ChannelAvatar
-                    channel={new Channel(item.sender_uid, ChannelTypePerson)}
-                    size={20}
-                    title={item.sender_uid}
-                  />
-                  <UserName
-                    uid={item.sender_uid}
-                    className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                  />
-                </div>
-
-                {/* 来源群列 */}
-                <div
-                  className="flex w-[148px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary"
-                  role="cell"
-                >
-                  <ChannelCell
-                    item={item}
-                    getChannelMembership={getChannelMembership}
-                    resolveChannelName={resolveChannelName}
-                  />
-                </div>
-
-                {/* 发送时间列 */}
-                <div
-                  className="flex w-[172px] shrink-0 items-center px-3 text-sm leading-5 text-text-primary tabular-nums"
-                  role="cell"
-                >
-                  {formatOutputDateTime(item.sent_at)}
-                </div>
-
-                {/* 操作列: (可选)预览 + (可选)下载 */}
-                <div className="flex w-[88px] shrink-0 items-center gap-4 px-4" role="cell">
-                  {onPreview && (
-                    <button
-                      type="button"
-                      className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-                      aria-label={t("matter.outputs.preview")}
-                      title={t("matter.outputs.preview")}
-                      onClick={(e) => handlePreview(e, item)}
-                    >
-                      <EyeIcon />
-                    </button>
-                  )}
-                  {onDownload && (
-                    <button
-                      type="button"
-                      className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"
-                      aria-label={t("matter.outputs.download")}
-                      title={t("matter.outputs.download")}
-                      onClick={(e) => handleDownload(e, item)}
-                    >
-                      <DownloadIcon />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* 加载骨架 */}
-        {loading && outputs.length === 0 && (
-          <div className="flex flex-col">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-[62px] min-w-full animate-pulse border-b border-border-default bg-bg-elevated"
-              />
-            ))}
-          </div>
-        )}
+                  key={i}
+                  className="h-[62px] min-w-full animate-pulse border-b border-border-default bg-bg-elevated"
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 加载更多 */}

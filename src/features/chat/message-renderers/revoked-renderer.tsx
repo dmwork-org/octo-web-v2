@@ -19,6 +19,7 @@ interface RevokedRendererProps {
  *   revoker != me &&  revoker == sender  → "<sender> 撤回了一条消息"
  *   revoker == me &&  revoker != sender  → "你撤回了成员 \"<sender>\" 的一条消息"
  *   revoker != me &&  revoker != sender  → "<revoker> 撤回了一条成员消息"
+ * 私聊没有"成员"概念,统一走普通撤回文案。
  *
  * 由 dispatch 在所有 contentType 分发之前优先检查 message.remoteExtra.revoke。
  */
@@ -29,12 +30,13 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
   const revoker = message.remoteExtra.revoker || sender;
   const revokerIsMe = me !== null && revoker === me;
   const revokerIsSender = revoker === sender;
+  const isPersonChannel = message.channel.channelType === ChannelTypePerson;
   const canReedit = canReeditRevokedMessage(message, me);
   const reeditBlocks = canReedit ? getReeditableMessageBlocks(message) : [];
 
   let text: string;
-  if (revokerIsSender) {
-    // 撤回自己消息(标准场景):"你/<sender> 撤回了一条消息"
+  if (isPersonChannel || revokerIsSender) {
+    // 私聊/撤回自己消息:"你/<sender> 撤回了一条消息"
     const name = revokerIsMe ? t("revoke.you") : displayNameOf(revoker);
     text = t("revoke.revokedMessage", { values: { name } });
   } else if (revokerIsMe) {

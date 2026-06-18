@@ -110,7 +110,7 @@ function Toolbar({
           {t("filePreview.jsonl.stats", { values: { lines: lineCount, records: validCount } })}
         </span>
       </div>
-      <div className="flex items-center gap-0.5 rounded-md border border-border-subtle">
+      <div className="flex items-center gap-0.5 rounded-md border border-border-subtle bg-bg-elevated">
         <ViewBtn
           active={viewMode === "table"}
           disabled={!canShowTable}
@@ -158,7 +158,7 @@ function ViewBtn({
       title={title}
       className={`inline-flex cursor-pointer items-center gap-1 px-2 py-1 text-[11px] transition-colors disabled:cursor-default disabled:opacity-40 ${
         active
-          ? "bg-bg-elevated text-text-primary"
+          ? "bg-bg-surface text-text-primary shadow-sm"
           : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
       }`}
     >

@@ -222,7 +222,7 @@ function ViewToggle({
 }) {
   const t = useT();
   return (
-    <div className="inline-flex items-center rounded-md border border-border-subtle">
+    <div className="inline-flex items-center rounded-md border border-border-subtle bg-bg-elevated">
       <ViewBtn
         active={value === "preview"}
         onClick={() => onChange("preview")}
@@ -261,7 +261,7 @@ function ViewBtn({
       title={title}
       className={`inline-flex cursor-pointer items-center gap-1 px-1.5 py-1 text-[11px] transition-colors ${
         active
-          ? "bg-bg-elevated text-text-primary"
+          ? "bg-bg-surface text-text-primary shadow-sm"
           : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
       }`}
     >

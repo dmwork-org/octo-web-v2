@@ -62,7 +62,7 @@ export function MarkdownRenderer({
   if (content.trim() === "") return <RendererEmpty />;
 
   if (effectiveViewMode === "source") {
-    const renderMode = getRenderMode(contentBytes);
+    const renderMode = getRenderMode(contentBytes, "markdown");
     return (
       <div className="flex h-full flex-col">
         {isLargeMarkdown ? (

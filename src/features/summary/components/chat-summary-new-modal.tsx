@@ -1,27 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
-import { createSummary, getTopicTemplates } from "@/features/summary/api/summary.api";
+import { createSummary } from "@/features/summary/api/summary.api";
 import { ChatSelectorModal } from "@/features/summary/components/chat-selector-modal";
 import { TemplateCard } from "@/features/summary/components/template-card";
-import { TOPIC_TEMPLATES } from "@/features/summary/constants/topic-templates";
+import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
 import { channelToChatCandidate, getSourceType } from "@/features/summary/utils/channel-source";
 import { notifyChatSummaryCreated } from "@/features/summary/utils/chat-summary-events";
-import {
-  computeTemplateSelection,
-  resolveTemplate,
-  type ResolvableTemplate,
-} from "@/features/summary/utils/template-resolver";
 import {
   SourceType,
   type ChatCandidate,
   type SourceItem,
-  type TopicTemplate,
 } from "@/features/summary/types/summary.types";
 
 interface ChatSummaryNewModalProps {
@@ -59,34 +53,23 @@ export function ChatSummaryNewModal({
   onCreated,
 }: ChatSummaryNewModalProps) {
   const tr = useT();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [topic, setTopic] = useState("");
   const [selectedChats, setSelectedChats] = useState<ChatCandidate[]>([]);
   const [showChatSelector, setShowChatSelector] = useState(false);
-  const [placeholderRange, setPlaceholderRange] = useState<[number, number] | null>(null);
+  const {
+    inputRef,
+    topic,
+    resolvedTemplates,
+    setTopic,
+    resetTopic,
+    handleTemplateClick,
+    handleTopicFocus,
+  } = useSummaryTopicTemplateInput({ enabled: open });
 
   useResetOnOpen(open, () => {
-    setTopic("");
+    resetTopic();
     setSelectedChats([channelToChatCandidate(channel)]);
     setShowChatSelector(false);
-    setPlaceholderRange(null);
   });
-
-  /** 后端模板,失败 / 空时 fallback 前端 TOPIC_TEMPLATES(对齐老仓 loadTemplates 兜底)。 */
-  const { data: remoteTemplates } = useQuery({
-    queryKey: ["summary", "topic-templates"],
-    queryFn: () => getTopicTemplates(),
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const templates: ResolvableTemplate[] =
-    remoteTemplates && remoteTemplates.length > 0 ? remoteTemplates : TOPIC_TEMPLATES;
-
-  const resolvedTemplates = useMemo(
-    () => templates.map((tpl) => resolveTemplate(tpl, t)),
-    [templates],
-  );
 
   const mu = useMutation({
     mutationFn: async () => {
@@ -116,28 +99,6 @@ export function ChatSummaryNewModal({
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : t("summary.common.createFailedRetry")),
   });
-
-  const handleTemplateClick = (tpl: TopicTemplate) => {
-    const { text, range } = computeTemplateSelection(tpl);
-    setTopic(text);
-    setPlaceholderRange(range);
-    // 下一个 tick 把光标定位到 placeholder token,让用户直接输入覆盖
-    setTimeout(() => {
-      const input = inputRef.current;
-      if (!input) return;
-      input.focus();
-      if (range) input.setSelectionRange(range[0], range[1]);
-    }, 0);
-  };
-
-  // 输入框 focus 时,如果还停留在自动填入的 placeholder 选区上,清掉 placeholder 文本
-  const handleInputFocus = () => {
-    if (!placeholderRange) return;
-    const [start, end] = placeholderRange;
-    setTopic((prev) => prev.substring(0, start) + prev.substring(end));
-    setPlaceholderRange(null);
-    setTimeout(() => inputRef.current?.setSelectionRange(start, start), 0);
-  };
 
   const handleSubmit = () => {
     if (!topic.trim() || mu.isPending) return;
@@ -184,11 +145,8 @@ export function ChatSummaryNewModal({
           <textarea
             ref={inputRef}
             value={topic}
-            onChange={(e) => {
-              setTopic(e.target.value);
-              setPlaceholderRange(null);
-            }}
-            onFocus={handleInputFocus}
+            onChange={(e) => setTopic(e.target.value)}
+            onFocus={handleTopicFocus}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !mu.isPending) {
                 e.preventDefault();

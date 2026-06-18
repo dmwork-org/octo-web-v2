@@ -1,28 +1,19 @@
-import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, Clock, Plus, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
-import {
-  createSchedule,
-  createSummary,
-  getTopicTemplates,
-} from "@/features/summary/api/summary.api";
+import { createSchedule, createSummary } from "@/features/summary/api/summary.api";
 import { ChatSelectorModal } from "@/features/summary/components/chat-selector-modal";
 import { ScheduleConfigModal } from "@/features/summary/components/schedule-config-modal";
 import { TemplateCard } from "@/features/summary/components/template-card";
-import { TOPIC_TEMPLATES } from "@/features/summary/constants/topic-templates";
+import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
 import {
   describeScheduleConfig,
   scheduleToParams,
 } from "@/features/summary/utils/summary-schedule";
-import {
-  computeTemplateSelection,
-  resolveTemplate,
-  type ResolvableTemplate,
-} from "@/features/summary/utils/template-resolver";
 import {
   SourceType,
   SummaryMode,
@@ -30,7 +21,6 @@ import {
   type CreateSummaryParams,
   type ScheduleConfig,
   type SourceItem,
-  type TopicTemplate,
 } from "@/features/summary/types/summary.types";
 
 interface SummaryCreateWorkbenchProps {
@@ -54,27 +44,12 @@ function chatsToSources(chats: ChatCandidate[]): SourceItem[] {
 export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProps) {
   const tr = useT();
   const qc = useQueryClient();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [topic, setTopic] = useState("");
-  const [placeholderRange, setPlaceholderRange] = useState<[number, number] | null>(null);
   const [selectedChats, setSelectedChats] = useState<ChatCandidate[]>([]);
   const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(null);
   const [showChatSelector, setShowChatSelector] = useState(false);
   const [showScheduleConfig, setShowScheduleConfig] = useState(false);
-
-  const { data: remoteTemplates } = useQuery({
-    queryKey: ["summary", "topic-templates"],
-    queryFn: () => getTopicTemplates(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const templates: ResolvableTemplate[] =
-    remoteTemplates && remoteTemplates.length > 0 ? remoteTemplates : TOPIC_TEMPLATES;
-
-  const resolvedTemplates = useMemo(
-    () => templates.map((tpl) => resolveTemplate(tpl, t)),
-    [templates],
-  );
+  const { inputRef, topic, resolvedTemplates, setTopic, handleTemplateClick, handleTopicFocus } =
+    useSummaryTopicTemplateInput({ maxLength: 1000 });
 
   const mu = useMutation({
     mutationFn: async () => {
@@ -112,26 +87,6 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
       toast.error(err instanceof Error ? err.message : t("summary.common.createFailed")),
   });
 
-  const handleTemplateClick = (template: TopicTemplate) => {
-    const { text, range } = computeTemplateSelection(template);
-    setTopic(text);
-    setPlaceholderRange(range);
-    setTimeout(() => {
-      const input = inputRef.current;
-      if (!input) return;
-      input.focus();
-      if (range) input.setSelectionRange(range[0], range[1]);
-    }, 0);
-  };
-
-  const handleTopicFocus = () => {
-    if (!placeholderRange) return;
-    const [start, end] = placeholderRange;
-    setTopic((prev) => prev.substring(0, start) + prev.substring(end));
-    setPlaceholderRange(null);
-    setTimeout(() => inputRef.current?.setSelectionRange(start, start), 0);
-  };
-
   const handleSubmit = () => {
     if (!topic.trim() || mu.isPending) return;
     mu.mutate();
@@ -162,10 +117,7 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
               ref={inputRef}
               autoFocus
               value={topic}
-              onChange={(event) => {
-                setTopic(event.target.value.slice(0, 1000));
-                setPlaceholderRange(null);
-              }}
+              onChange={(event) => setTopic(event.target.value)}
               onFocus={handleTopicFocus}
               rows={3}
               maxLength={1000}

@@ -91,6 +91,11 @@ interface BaseDialogProps {
   contentClassName?: string;
   /** 整个卡片 className 覆盖(尺寸/形状自定义场景);谨慎用 */
   className?: string;
+  /**
+   * 自定义外部交互拦截(如 portal 下拉列表点击不应关闭弹窗)。
+   * 返回 true 阻止 Radix 默认关闭行为。
+   */
+  shouldPreventOutsideClose?: (e: Event) => boolean;
   children?: ReactNode;
 }
 
@@ -132,6 +137,7 @@ export function BaseDialog({
   footer,
   contentClassName,
   className,
+  shouldPreventOutsideClose,
   children,
 }: BaseDialogProps) {
   const t = useT();
@@ -160,9 +166,11 @@ export function BaseDialog({
             }}
             onPointerDownOutside={(e) => {
               if (!closeOnMask || mask === "interactive") e.preventDefault();
+              else if (shouldPreventOutsideClose?.(e)) e.preventDefault();
             }}
             onInteractOutside={(e) => {
               if (!closeOnMask || mask === "interactive") e.preventDefault();
+              else if (shouldPreventOutsideClose?.(e)) e.preventDefault();
             }}
           >
             {renderHeader ? (

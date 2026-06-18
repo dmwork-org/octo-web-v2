@@ -137,6 +137,10 @@ export function CreateMatterModal({
         title={tr("matter.action.new")}
         className="w-[480px] max-w-full"
         contentClassName="px-4 py-[10px]"
+        shouldPreventOutsideClose={(e) => {
+          const dropdown = document.getElementById("member-select-dropdown");
+          return !!(dropdown && dropdown.contains(e.target as Node));
+        }}
         footer={
           <>
             <button

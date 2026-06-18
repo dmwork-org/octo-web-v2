@@ -1,8 +1,6 @@
 import type { JSONContent } from "@tiptap/react";
-import WKSDK, {
+import {
   Channel,
-  ChannelTypeGroup,
-  ChannelTypePerson,
   MessageContentType,
   type Message,
   type MessageImage,
@@ -11,12 +9,15 @@ import WKSDK, {
 import { RichTextBlockType, type RichTextContent } from "@/features/base/im/richtext-content";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import type { FileContent } from "@/features/base/im/file-content";
-import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   isLikelyRealUid,
   readMessageMention,
   type MentionWithFlags,
 } from "@/features/chat/lib/read-message-mention";
+import {
+  collectMentionCandidateNames,
+  lookupMentionUidByDisplayName,
+} from "@/features/chat/lib/mention-text-resolver";
 import {
   MENTION_LABEL_AIS,
   MENTION_LABEL_HUMANS,
@@ -25,8 +26,6 @@ import {
   MENTION_UID_LEGACY_ALL,
 } from "@/features/base/lib/mention-three-state";
 import type { ReeditBlock } from "@/features/chat/stores/chat-reedit-request";
-
-const CHANNEL_TYPE_THREAD = 5;
 
 interface MentionRange {
   start: number;
@@ -180,7 +179,9 @@ function collectMentionRanges(
     for (const entity of mention.entities) {
       const raw = text.slice(entity.offset, entity.offset + entity.length);
       const label = raw.startsWith("@") ? raw.slice(1) : raw;
-      const uid = isLikelyRealUid(entity.uid) ? entity.uid : lookupUidByDisplayName(channel, label);
+      const uid = isLikelyRealUid(entity.uid)
+        ? entity.uid
+        : lookupMentionUidByDisplayName(channel, label);
       if (!uid || !label) continue;
       addRange({ start: entity.offset, end: entity.offset + entity.length, uid, label });
     }
@@ -190,7 +191,7 @@ function collectMentionRanges(
   if (mention.ais) return ranges;
 
   for (const uid of mention.uids ?? []) {
-    for (const name of collectCandidateNames(uid, channel)) {
+    for (const name of collectMentionCandidateNames(uid, channel)) {
       const needle = `@${name}`;
       const index = findAvailableIndex(text, needle, ranges);
       if (index < 0) continue;
@@ -226,55 +227,4 @@ function findAvailableIndex(text: string, needle: string, ranges: MentionRange[]
     from = end;
   }
   return -1;
-}
-
-function collectCandidateNames(uid: string, channel: Channel): string[] {
-  const names: string[] = [];
-  const push = (value: unknown) => {
-    if (typeof value === "string" && value.length > 0 && !names.includes(value)) {
-      names.push(value);
-    }
-  };
-
-  const groupChannel = groupChannelOf(channel);
-  if (groupChannel) {
-    const sub = WKSDK.shared()
-      .channelManager.getSubscribes(groupChannel)
-      ?.find((s) => s.uid === uid);
-    push(sub?.remark);
-    push(sub?.name);
-    const subOrg = sub?.orgData as { real_name?: string; displayName?: string } | undefined;
-    push(subOrg?.real_name);
-    push(subOrg?.displayName);
-  }
-
-  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  push(info?.title);
-  const infoOrg = info?.orgData as
-    | { remark?: string; real_name?: string; displayName?: string }
-    | undefined;
-  push(infoOrg?.remark);
-  push(infoOrg?.real_name);
-  push(infoOrg?.displayName);
-  return names;
-}
-
-function lookupUidByDisplayName(channel: Channel, name: string): string | undefined {
-  const groupChannel = groupChannelOf(channel);
-  if (!groupChannel) return undefined;
-  const subs = WKSDK.shared().channelManager.getSubscribes(groupChannel);
-  if (!subs) return undefined;
-  for (const sub of subs) {
-    if (sub.name === name || sub.remark === name) return sub.uid;
-    const org = sub.orgData as { real_name?: string; displayName?: string } | undefined;
-    if (org?.real_name === name || org?.displayName === name) return sub.uid;
-  }
-  return undefined;
-}
-
-function groupChannelOf(channel: Channel): Channel | null {
-  if (channel.channelType === ChannelTypeGroup) return channel;
-  if (channel.channelType !== CHANNEL_TYPE_THREAD) return null;
-  const parsed = parseThreadChannelId(channel.channelID);
-  return parsed ? new Channel(parsed.groupNo, ChannelTypeGroup) : null;
 }

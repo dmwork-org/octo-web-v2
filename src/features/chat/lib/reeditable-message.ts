@@ -5,10 +5,12 @@ import WKSDK, {
   ChannelTypePerson,
   MessageContentType,
   type Message,
+  type MessageImage,
   type MessageText,
 } from "wukongimjssdk";
 import { RichTextBlockType, type RichTextContent } from "@/features/base/im/richtext-content";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
+import type { FileContent } from "@/features/base/im/file-content";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import {
   isLikelyRealUid,
@@ -22,6 +24,7 @@ import {
   MENTION_UID_HUMANS,
   MENTION_UID_LEGACY_ALL,
 } from "@/features/base/lib/mention-three-state";
+import type { ReeditBlock } from "@/features/chat/stores/chat-reedit-request";
 
 const CHANNEL_TYPE_THREAD = 5;
 
@@ -54,13 +57,78 @@ export function canReeditRevokedMessage(message: Message, myUid: string | null):
   if (!message.remoteExtra?.revoke) return false;
   const revoker = message.remoteExtra.revoker || message.fromUID;
   if (revoker !== myUid || message.fromUID !== myUid) return false;
-  return getReeditableMessageText(message).trim() !== "";
+  return getReeditableMessageBlocks(message).length > 0;
 }
 
-export function getReeditableMessageContent(message: Message): JSONContent[] {
+export function getReeditableMessageBlocks(message: Message): ReeditBlock[] {
+  if (message.contentType === MessageContentType.image) {
+    const image = message.content as MessageImage;
+    if (!image.url) return [];
+    return [
+      {
+        type: "image",
+        url: image.url,
+        width: image.width,
+        height: image.height,
+        name: "image.png",
+      },
+    ];
+  }
+
+  if (message.contentType === MessageContentTypeConst.file) {
+    const file = message.content as FileContent;
+    const url = file.url || file.remoteUrl || "";
+    const name = file.name || "file";
+    if (!url) return [];
+    return [
+      {
+        type: "file",
+        url,
+        name,
+        size: file.size,
+        mime: file.ext ? `application/${file.ext}` : undefined,
+      },
+    ];
+  }
+
+  if (message.contentType === MessageContentTypeConst.richText) {
+    return getReeditableRichTextBlocks(message);
+  }
+
   const text = getReeditableMessageText(message);
   if (text.trim() === "") return [];
+  return [{ type: "content", content: getReeditableInlineContent(message, text) }];
+}
 
+function getReeditableRichTextBlocks(message: Message): ReeditBlock[] {
+  const content = message.content as RichTextContent;
+  const blocks: ReeditBlock[] = [];
+  for (const block of content.content ?? []) {
+    if (block.type === RichTextBlockType.image && block.url) {
+      blocks.push({
+        type: "image",
+        url: block.url,
+        width: block.width,
+        height: block.height,
+        size: block.size,
+        name: block.name,
+      });
+      continue;
+    }
+    if (block.type === RichTextBlockType.file) {
+      const label = block.name ? `[文件] ${block.name}` : "[文件]";
+      blocks.push({ type: "content", content: textToInlineContent(label) });
+      continue;
+    }
+    const text = block.text ?? "";
+    if (text.trim() !== "") {
+      blocks.push({ type: "content", content: getReeditableInlineContent(message, text) });
+    }
+  }
+  return blocks;
+}
+
+function getReeditableInlineContent(message: Message, text: string): JSONContent[] {
   const mention = readMessageMention(message.content);
   if (!mention) return textToInlineContent(text);
 

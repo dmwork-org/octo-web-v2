@@ -15,7 +15,7 @@ import type {
   OctoRichTextClipboardPayload,
 } from "@/features/chat/lib/rich-text-clipboard";
 
-type AddAttachment = (
+export type AddAttachment = (
   files: File[],
   source: "paste" | "upload",
   editor: Editor | null,

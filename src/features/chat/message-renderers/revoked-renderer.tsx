@@ -3,7 +3,7 @@ import { useStore } from "@tanstack/react-store";
 import { authStore } from "@/features/base/stores/auth";
 import {
   canReeditRevokedMessage,
-  getReeditableMessageContent,
+  getReeditableMessageBlocks,
 } from "@/features/chat/lib/reeditable-message";
 import { chatReeditRequestActions } from "@/features/chat/stores/chat-reedit-request";
 import { useT } from "@/lib/i18n/use-t";
@@ -30,7 +30,7 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
   const revokerIsMe = me !== null && revoker === me;
   const revokerIsSender = revoker === sender;
   const canReedit = canReeditRevokedMessage(message, me);
-  const reeditContent = canReedit ? getReeditableMessageContent(message) : [];
+  const reeditBlocks = canReedit ? getReeditableMessageBlocks(message) : [];
 
   let text: string;
   if (revokerIsSender) {
@@ -59,7 +59,7 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
               className="cursor-pointer font-medium text-brand hover:underline"
               onClick={(event) => {
                 event.stopPropagation();
-                chatReeditRequestActions.request(message.channel, reeditContent);
+                chatReeditRequestActions.request(message.channel, reeditBlocks);
               }}
             >
               {t("revoke.reedit")}

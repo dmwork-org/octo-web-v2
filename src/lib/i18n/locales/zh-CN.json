@@ -2190,6 +2190,8 @@
   "revoke.revokedMemberMessage": "{{name}}撤回了一条成员消息",
   "revoke.revokedMemberMessageByYou": "你撤回了成员“{{member}}”的一条消息",
   "revoke.revokedMessage": "{{name}}撤回了一条消息",
+  "revoke.reeditAttachmentFailed": "附件恢复失败，已用占位文本代替",
+  "revoke.reeditFileFailed": "文件「{{name}}」恢复失败，可能已失效或超过 {{max}}",
   "revoke.reedit": "重新编辑",
   "revoke.you": "你",
   "scrollToBottom.backToBottom": "回到底部",

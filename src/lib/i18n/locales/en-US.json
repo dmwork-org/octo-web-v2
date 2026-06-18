@@ -2188,6 +2188,8 @@
   "revoke.revokedMemberMessage": "{{name}} recalled a member message",
   "revoke.revokedMemberMessageByYou": "You recalled a message from \"{{member}}\"",
   "revoke.revokedMessage": "{{name}} recalled a message",
+  "revoke.reeditAttachmentFailed": "Failed to restore the attachment. Inserted a placeholder instead.",
+  "revoke.reeditFileFailed": "Failed to restore \"{{name}}\". It may be unavailable or larger than {{max}}.",
   "revoke.reedit": "Re-edit",
   "revoke.you": "You",
   "scrollToBottom.backToBottom": "Back to bottom",

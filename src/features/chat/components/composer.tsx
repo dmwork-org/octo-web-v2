@@ -394,7 +394,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
-  useApplyReeditRequest(channel, editor);
+  useApplyReeditRequest(channel, editor, attachments.addAttachments);
   // issue #117:subs 拉到位时让仍开着的 sticky-only mention popup 重开拿全 list
   useReopenMentionPopupOnSubscribersReady(editor, subscribers.length);
   useDispatchOnPlaceholderChange(editor, placeholder);

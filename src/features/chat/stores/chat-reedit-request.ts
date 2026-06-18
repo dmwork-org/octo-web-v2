@@ -2,8 +2,27 @@ import { Store } from "@tanstack/react-store";
 import type { JSONContent } from "@tiptap/react";
 import type { Channel } from "wukongimjssdk";
 
+export type ReeditBlock =
+  | { type: "content"; content: JSONContent[] }
+  | {
+      type: "image";
+      url: string;
+      width?: number;
+      height?: number;
+      size?: number;
+      name?: string;
+      mime?: string;
+    }
+  | {
+      type: "file";
+      url: string;
+      name: string;
+      size?: number;
+      mime?: string;
+    };
+
 export interface ReeditRequest {
-  content: JSONContent[];
+  blocks: ReeditBlock[];
   nonce: number;
 }
 
@@ -22,10 +41,10 @@ export const chatReeditRequestStore = new Store<ChatReeditRequestState>({
 });
 
 export const chatReeditRequestActions = {
-  request: (channel: Channel, content: JSONContent[]) =>
+  request: (channel: Channel, blocks: ReeditBlock[]) =>
     chatReeditRequestStore.setState((s) => {
       const next = new Map(s.pending);
-      next.set(channelKey(channel), { content, nonce: ++nonceCounter });
+      next.set(channelKey(channel), { blocks, nonce: ++nonceCounter });
       return { pending: next };
     }),
 

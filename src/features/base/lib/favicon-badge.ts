@@ -1,6 +1,6 @@
 const DEFAULT_FAVICON_HREF = "/favicon.ico?v=2";
 const FAVICON_SIZE = 64;
-const BADGE_CENTER = 51;
+const BADGE_CENTER = 55;
 const BADGE_OUTER_RADIUS = 12;
 const BADGE_INNER_RADIUS = 9;
 

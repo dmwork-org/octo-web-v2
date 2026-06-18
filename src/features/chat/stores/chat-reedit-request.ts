@@ -1,8 +1,9 @@
 import { Store } from "@tanstack/react-store";
+import type { JSONContent } from "@tiptap/react";
 import type { Channel } from "wukongimjssdk";
 
 export interface ReeditRequest {
-  text: string;
+  content: JSONContent[];
   nonce: number;
 }
 
@@ -21,10 +22,10 @@ export const chatReeditRequestStore = new Store<ChatReeditRequestState>({
 });
 
 export const chatReeditRequestActions = {
-  request: (channel: Channel, text: string) =>
+  request: (channel: Channel, content: JSONContent[]) =>
     chatReeditRequestStore.setState((s) => {
       const next = new Map(s.pending);
-      next.set(channelKey(channel), { text, nonce: ++nonceCounter });
+      next.set(channelKey(channel), { content, nonce: ++nonceCounter });
       return { pending: next };
     }),
 

@@ -98,7 +98,10 @@ export function HtmlRenderer({
     () => (file.size ? file.size : content ? new Blob([content]).size : 0),
     [file.size, content],
   );
-  const sourceRenderMode = useMemo(() => getRenderMode(contentSize), [contentSize]);
+  const sourceRenderMode = useMemo(
+    () => getRenderMode(contentSize, "html"),
+    [contentSize],
+  );
 
   // ─── 提前返回 ───────────────────────────────────────────
   if (!enabled) return <FileTooLarge name={file.name} size={file.size} url={file.url} />;

@@ -1,3 +1,4 @@
+import { useDeferredValue } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
@@ -76,6 +77,13 @@ export function CommonCodeView({
   hidePlainHint,
 }: CommonCodeViewProps) {
   const t = useT();
+
+  // useDeferredValue:SyntaxHighlighter 同步解析大文本会阻塞主线程,
+  // 用 deferred 值让 React 先渲染 UI 框架(包括 loading 占位),
+  // 高亮在低优先级阶段完成,切换不卡顿(issue #156)。
+  const deferredContent = useDeferredValue(formattedContent);
+  const isStale = deferredContent !== formattedContent;
+
   if (renderMode === "too-large") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
@@ -103,23 +111,29 @@ export function CommonCodeView({
   if (useHighlight) {
     return (
       <div className="h-full overflow-auto bg-bg-base">
-        <SyntaxHighlighter
-          language={language}
-          style={oneLight}
-          showLineNumbers
-          customStyle={{
-            margin: 0,
-            padding: "12px 16px",
-            fontSize: 12.5,
-            lineHeight: 1.6,
-            background: "transparent",
-          }}
-          codeTagProps={{
-            style: { fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, monospace" },
-          }}
-        >
-          {formattedContent}
-        </SyntaxHighlighter>
+        {isStale ? (
+          <div className="flex h-full items-center justify-center">
+            <RendererLoading />
+          </div>
+        ) : (
+          <SyntaxHighlighter
+            language={language}
+            style={oneLight}
+            showLineNumbers
+            customStyle={{
+              margin: 0,
+              padding: "12px 16px",
+              fontSize: 12.5,
+              lineHeight: 1.6,
+              background: "transparent",
+            }}
+            codeTagProps={{
+              style: { fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, monospace" },
+            }}
+          >
+            {deferredContent}
+          </SyntaxHighlighter>
+        )}
       </div>
     );
   }
@@ -132,9 +146,15 @@ export function CommonCodeView({
           {t("filePreview.largeFilePlainHint", { values: { size: formatFileSize(contentSize) } })}
         </div>
       ) : null}
-      <pre className="m-0 flex-1 overflow-auto px-4 py-3 font-mono text-[12.5px] leading-[1.6] break-words whitespace-pre-wrap text-text-primary">
-        {formattedContent}
-      </pre>
+      {isStale ? (
+        <div className="flex flex-1 items-center justify-center">
+          <RendererLoading />
+        </div>
+      ) : (
+        <pre className="m-0 flex-1 overflow-auto px-4 py-3 font-mono text-[12.5px] leading-[1.6] break-words whitespace-pre-wrap text-text-primary">
+          {deferredContent}
+        </pre>
+      )}
     </div>
   );
 }

@@ -7,6 +7,14 @@
 export const FILE_SIZE_THRESHOLD = {
   /** < 200KB:语法高亮渲染(对应旧 HIGHLIGHT) */
   HIGHLIGHT: 200 * 1024,
+  /**
+   * HTML / Markdown 源码高亮阈值 — 超过此值降级为纯文本(issue #156)。
+   *
+   * 这两种语言标签/标记密集,SyntaxHighlighter 同步解析开销远大于普通代码,
+   * 200KB 阈值下切源码会明显卡顿。30KB 是经验值:覆盖大部分手写文档,
+   * 大文件(生成 HTML / 长 README)降级纯文本避免主线程阻塞。
+   */
+  HIGHLIGHT_HEAVY: 30 * 1024,
   /** < 2MB:纯文本渲染(对应旧 PLAIN_TEXT) */
   PLAIN_TEXT: 2 * 1024 * 1024,
   /** < 20MB:允许预览(超过则提示下载,对应旧 MAX_PREVIEW) */
@@ -32,9 +40,20 @@ export function isFileTooLarge(size?: number): boolean {
 /** 文本类 renderer 分级渲染模式(对齐旧 RenderMode)。 */
 export type RenderMode = "highlight" | "plain" | "too-large";
 
-/** size → 渲染模式(对齐旧 getRenderMode):<200KB highlight / <2MB plain / 其他 too-large。 */
-export function getRenderMode(size: number): RenderMode {
-  if (size <= FILE_SIZE_THRESHOLD.HIGHLIGHT) return "highlight";
+/**
+ * size → 渲染模式(对齐旧 getRenderMode):<200KB highlight / <2MB plain / 其他 too-large。
+ *
+ * **language 参数**(issue #156):html/markdown 等标签密集语言用更小的
+ * `HIGHLIGHT_HEAVY` 阈值,超过即降级纯文本,避免 SyntaxHighlighter 同步解析卡顿。
+ */
+const HEAVY_LANGUAGES = new Set(["html", "markdown"]);
+
+export function getRenderMode(size: number, language?: string): RenderMode {
+  const highlightLimit =
+    language && HEAVY_LANGUAGES.has(language)
+      ? FILE_SIZE_THRESHOLD.HIGHLIGHT_HEAVY
+      : FILE_SIZE_THRESHOLD.HIGHLIGHT;
+  if (size <= highlightLimit) return "highlight";
   if (size <= FILE_SIZE_THRESHOLD.PLAIN_TEXT) return "plain";
   return "too-large";
 }

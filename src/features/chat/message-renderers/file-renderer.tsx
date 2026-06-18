@@ -1,4 +1,6 @@
-import { type Message } from "wukongimjssdk";
+import { useEffect, useState } from "react";
+import WKSDK, { MessageStatus, type Message } from "wukongimjssdk";
+import { AlertCircle } from "lucide-react";
 import { type FileContent } from "@/features/base/im/file-content";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
@@ -8,6 +10,55 @@ import { useT } from "@/lib/i18n/use-t";
 
 interface FileRendererProps {
   message: Message;
+}
+
+interface SdkTaskRuntime {
+  id: string;
+  progress: () => number;
+}
+
+interface SdkTaskManager {
+  addListener: (listener: (task: SdkTaskRuntime) => void) => void;
+  removeListener: (listener: (task: SdkTaskRuntime) => void) => void;
+  taskMap?: Map<string, SdkTaskRuntime>;
+}
+
+function readProgress(task: SdkTaskRuntime): number | null {
+  try {
+    const progress = task.progress();
+    if (typeof progress !== "number" || Number.isNaN(progress)) return null;
+    return Math.min(100, Math.max(0, Math.round(progress)));
+  } catch {
+    return null;
+  }
+}
+
+function useFileUploadProgress(message: Message): number | null {
+  const [progress, setProgress] = useState<number | null>(null);
+  const [, force] = useState(0);
+
+  useEffect(() => {
+    setProgress(null);
+    const tm = (WKSDK.shared() as unknown as { taskManager?: SdkTaskManager }).taskManager;
+    if (!tm) return;
+
+    const listener = (task: SdkTaskRuntime) => {
+      if (task?.id !== message.clientMsgNo) return;
+      force((v) => v + 1);
+      const next = readProgress(task);
+      if (next !== null) setProgress(next);
+    };
+
+    tm.addListener(listener);
+    const existing = tm.taskMap?.get(message.clientMsgNo);
+    if (existing) {
+      const next = readProgress(existing);
+      if (next !== null) setProgress(next);
+    }
+    return () => tm.removeListener(listener);
+  }, [message.clientMsgNo]);
+
+  return progress;
 }
 
 /**
@@ -28,21 +79,19 @@ interface FileRendererProps {
  *   - 整卡点击 → openFilePreview(打开右侧预览面板,跟 thread 互斥)
  *   - 下载按钮独立 onClick,stopPropagation 阻冒泡(下载,不触发预览)
  *   - 下载走 triggerDownload(跨域走后端预签名 URL)
- *
- * **未实现**(发送侧场景,P4 收消息流不涉及):
- *   - 上传进度条 / 失败重试(taskManager 订阅)
- *   - send 气泡变色(ext 胶囊绿 / brand color)
- *   - 激活态 isActive 高亮(正在预览的卡片描边)— FilePreviewInfo.messageId 字段
- *     已保留,后续在 renderer 内用 useStore 监听即可
  */
 export function FileRenderer({ message }: FileRendererProps) {
   const t = useT();
+  const progress = useFileUploadProgress(message);
   const content = message.content as FileContent;
   const name = content.name || t("fileRenderer.unknownFile");
-  const ext = getExtension(content.ext, content.name);
+  const ext = getExtension(content.ext || content.extension, content.name);
   const size = content.size ?? 0;
   const url = content.url || content.remoteUrl || "";
-  const clickable = !!url;
+  const uploading = message.status === MessageStatus.Wait;
+  const sendFailed = message.status === MessageStatus.Fail;
+  const clickable = !!url && !uploading && !sendFailed;
+  const uploadPercent = progress ?? 0;
 
   const onCardClick = () => {
     if (!clickable) return;
@@ -61,7 +110,7 @@ export function FileRenderer({ message }: FileRendererProps) {
   };
 
   return (
-    <div>
+    <div className="max-w-[280px] min-w-[200px]">
       <div
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
@@ -73,7 +122,7 @@ export function FileRenderer({ message }: FileRendererProps) {
           }
         }}
         title={clickable ? t("fileRenderer.clickToPreview") : undefined}
-        className={`flex max-w-[280px] min-w-[200px] items-center gap-3 rounded-lg bg-[rgba(28,28,35,0.05)] px-3 py-2.5 transition-[background-color,box-shadow] duration-150 ${
+        className={`flex w-full items-center gap-3 rounded-lg bg-[rgba(28,28,35,0.05)] px-3 py-2.5 transition-[background-color,box-shadow] duration-150 ${
           clickable
             ? "cursor-pointer hover:bg-[rgba(28,28,35,0.08)] hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] active:bg-[rgba(28,28,35,0.12)]"
             : "cursor-default"
@@ -115,6 +164,38 @@ export function FileRenderer({ message }: FileRendererProps) {
           <TooltipContent>{t("filePreview.download")}</TooltipContent>
         </Tooltip>
       </div>
+      {uploading ? (
+        <div className="mt-2 space-y-1 px-1">
+          <div className="h-1.5 overflow-hidden rounded-full bg-[rgba(99,102,241,0.16)]">
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-200 ease-out"
+              style={{ width: `${uploadPercent}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-text-tertiary">
+            <span>
+              {progress === null
+                ? t("messageStatus.sending")
+                : t("messageStatus.uploadingPercent", { values: { percent: uploadPercent } })}
+            </span>
+            {progress !== null ? <span className="tabular-nums">{uploadPercent}%</span> : null}
+          </div>
+        </div>
+      ) : null}
+      {sendFailed ? (
+        <button
+          type="button"
+          aria-label={t("messageStatus.resend")}
+          onClick={(e) => {
+            e.stopPropagation();
+            void WKSDK.shared().chatManager.send(message.content, message.channel);
+          }}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-error/20 bg-error/5 px-2 py-1.5 text-[12px] text-error transition-colors hover:bg-error/10"
+        >
+          <AlertCircle size={14} />
+          <span>{t("messageStatus.sendFailed")}</span>
+        </button>
+      ) : null}
       {content.caption ? (
         <div className="px-2 pt-1 pb-2 text-[14px] leading-[1.4] break-words text-[rgba(9,30,66,0.87)]">
           {content.caption}

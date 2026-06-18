@@ -11,6 +11,7 @@ import { MessageContentTypeConst } from "@/features/base/im/content-types";
 export class FileContent extends MediaMessageContent {
   name = "";
   ext = "";
+  extension = "";
   size = 0;
   url = "";
   caption?: string;
@@ -27,7 +28,7 @@ export class FileContent extends MediaMessageContent {
     super();
     this.file = file;
     this.name = name ?? file?.name ?? "";
-    this.ext = ext ?? "";
+    this.setExtension(ext ?? "");
     this.size = size ?? file?.size ?? 0;
     this.caption = caption;
     this.mentionUids = mentionUids;
@@ -35,7 +36,7 @@ export class FileContent extends MediaMessageContent {
 
   decodeJSON(content: Record<string, unknown>): void {
     this.name = typeof content.name === "string" ? content.name : "";
-    this.ext = typeof content.extension === "string" ? content.extension : "";
+    this.setExtension(typeof content.extension === "string" ? content.extension : "");
     this.size = typeof content.size === "number" ? content.size : 0;
     this.url = typeof content.url === "string" ? content.url : "";
     this.caption = typeof content.caption === "string" ? content.caption : "";
@@ -46,9 +47,10 @@ export class FileContent extends MediaMessageContent {
   }
 
   encodeJSON(): Record<string, unknown> {
+    const extension = this.extension || this.ext;
     const json: Record<string, unknown> = {
       name: this.name,
-      extension: this.ext,
+      extension,
       size: this.size,
       url: this.remoteUrl,
     };
@@ -63,5 +65,10 @@ export class FileContent extends MediaMessageContent {
 
   get conversationDigest(): string {
     return t("message.digest.file");
+  }
+
+  private setExtension(ext: string): void {
+    this.ext = ext;
+    this.extension = ext;
   }
 }

@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Download } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { TimeSortButton } from "@/features/matter/components/time-sort-button";
 import { UserName } from "@/features/matter/components/user-name";
 import type { TimelineAttachment, TimelineEntry } from "@/features/matter/types/matter.types";
+import { formatMatterTime } from "@/features/matter/lib/time";
 import { getFileIcon, formatFileSize } from "@/features/matter/utils/file-utils";
 
 interface TimelinePanelProps {
@@ -29,13 +31,6 @@ function groupByDate(entries: TimelineEntry[]): Map<string, TimelineEntry[]> {
     map.set(key, arr);
   }
   return map;
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
 }
 
 function dayLabel(key: string): { label: string; raw: string } {
@@ -85,32 +80,13 @@ export function TimelinePanel({
       {/* Header: 标题 + 排序切换 */}
       <div className="flex items-center justify-between">
         <span className="text-[14px] font-medium leading-[20px] text-text-primary">群内进展</span>
-        <button
-          type="button"
+        <TimeSortButton
+          sortNewest={sortNewest}
+          onToggle={() => setSortNewest((v) => !v)}
+          label="时间排序"
           title="切换排序"
-          onClick={() => setSortNewest((v) => !v)}
           className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent text-[14px] leading-[20px] text-icon-default transition-colors hover:text-text-primary"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M7.33333 10.667L4.66667 13.3337L2 10.667M4.66667 13.3337V2.66699"
-              stroke="currentColor"
-              strokeOpacity={sortNewest ? 1 : 0.4}
-              strokeWidth="1.33"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M8.66602 5.33366L11.3327 2.66699L13.9993 5.33366M11.3327 2.66699V13.3337"
-              stroke="currentColor"
-              strokeOpacity={sortNewest ? 0.4 : 1}
-              strokeWidth="1.33"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          时间排序
-        </button>
+        />
       </div>
 
       {entries.length === 0 ? (
@@ -143,7 +119,7 @@ export function TimelinePanel({
                       <div className="flex flex-1 items-start gap-2">
                         {/* 时间 */}
                         <span className="shrink-0 font-sans text-[14px] leading-[20px] text-icon-muted">
-                          {formatTime(entry.created_at)}
+                          {formatMatterTime(entry.created_at)}
                         </span>
                         {/* 头像 + 用户名 */}
                         <span className="inline-flex shrink-0 items-center gap-1">

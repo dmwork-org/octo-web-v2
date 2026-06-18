@@ -65,6 +65,7 @@ import {
   sidebarFollowQueryOptions,
 } from "@/features/chat/queries/sidebar.query";
 import { useExpandedGroupIds } from "@/features/chat/hooks/use-expanded-group-ids.hook";
+import { useConversationActions } from "@/features/chat/hooks/use-conversation-actions.hook";
 import {
   type CategoryItem,
   createCategory,
@@ -73,16 +74,8 @@ import {
   moveGroupToCategory,
   renameCategory,
   sortCategories,
-  unfollowChannel,
-  unfollowDM,
-  unfollowThread,
 } from "@/features/base/api/endpoints/follow.api";
 import { type SidebarItem, SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
-import {
-  clearChannelMessages,
-  clearConversationUnread,
-} from "@/features/base/api/endpoints/conversation.api";
-import { setChannelMute } from "@/features/base/api/endpoints/channel-setting.api";
 import { useSortFollow } from "@/features/chat/hooks/use-sort-follow.hook";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -996,64 +989,13 @@ export function FollowList({
       toast.error(err instanceof Error ? err.message : t("followList.toast.deleteFailed")),
   });
 
-  const clearUnreadMu = useMutation({
-    mutationFn: (conv: Conversation) =>
-      clearConversationUnread({
-        channelId: conv.channel.channelID,
-        channelType: conv.channel.channelType,
-      }),
-    onSuccess: (_void, conv) => {
-      conv.unread = 0;
+  const { clearUnreadMu, muteMu, clearMessagesMu, unfollowMu } = useConversationActions({
+    scope: "followList",
+    onClearUnreadSuccess: invalidateAll,
+    onClearMessagesSuccess: () => setConfirmClear(null),
+    onUnfollowSuccess: () => {
       invalidateAll();
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.markReadFailed")),
-  });
-
-  const muteMu = useMutation({
-    mutationFn: (args: { conv: Conversation; mute: boolean }) =>
-      setChannelMute(args.conv.channel, args.mute),
-    onSuccess: (_void, args) => {
-      void WKSDK.shared().channelManager.fetchChannelInfo(args.conv.channel);
-      toast.success(args.mute ? t("followList.toast.muted") : t("followList.toast.unmuted"));
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.opFailed")),
-  });
-
-  const clearMessagesMu = useMutation({
-    mutationFn: (conv: Conversation) =>
-      clearChannelMessages({
-        channelId: conv.channel.channelID,
-        channelType: conv.channel.channelType,
-        messageSeq: conv.lastMessage?.messageSeq ?? 0,
-      }),
-    onSuccess: (_void, conv) => {
-      qc.setQueryData(["chat", "messages", conv.channel.channelType, conv.channel.channelID], {
-        pages: [[]],
-        pageParams: [0],
-      });
-      toast.success(t("followList.toast.cleared"));
-      setConfirmClear(null);
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.clearFailed")),
-  });
-
-  const unfollowMu = useMutation({
-    mutationFn: (conv: Conversation) => {
-      const tp = conv.channel.channelType;
-      if (tp === ChannelTypeGroup) return unfollowChannel(conv.channel.channelID);
-      if (tp === ChannelTypePerson) return unfollowDM(conv.channel.channelID);
-      if (tp === CHANNEL_TYPE_THREAD) return unfollowThread(conv.channel.channelID);
-      return Promise.reject(new Error(t("followList.error.unsupportedType")));
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast.success(t("followList.toast.unfollowed"));
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.unfollowFailed")),
   });
 
   const createCategoryMu = useMutation({

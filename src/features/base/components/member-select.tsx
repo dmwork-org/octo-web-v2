@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
@@ -185,6 +186,35 @@ export function MemberSelect({
 
   const remove = (uid: string) => onChange(value.filter((u) => u !== uid));
 
+  // 下拉列表 fixed 定位坐标(issue #162):用 portal 渲染到 body,
+  // 不受父级 overflow:hidden 裁剪。
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({
+    position: "fixed",
+    left: -9999,
+    top: -9999,
+    width: 0,
+  });
+
+  useLayoutEffect(() => {
+    if (!open || !wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const style: React.CSSProperties = {
+      position: "fixed",
+      left: rect.left,
+      top: rect.bottom + 4,
+      width: rect.width,
+      maxHeight: 240,
+      zIndex: 50,
+    };
+    // 如果下方空间不够且上方空间更大,向上展开
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom;
+    if (spaceBelow < 240 && rect.top > spaceBelow) {
+      style.top = Math.max(8, rect.top - 244);
+    }
+    setDropdownStyle(style);
+  }, [open]);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && input === "" && value.length > 0) {
       remove(value[value.length - 1]);
@@ -254,7 +284,11 @@ export function MemberSelect({
       </div>
 
       {open ? (
-        <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg">
+        createPortal(
+          <div
+            style={dropdownStyle}
+            className="overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg"
+          >
           {candidates.length === 0 ? (
             <p className="px-3 py-3 text-center text-xs text-text-tertiary">
               {debouncedKeyword ? t("base.memberSelect.noMatch") : t("base.memberSelect.empty")}
@@ -285,7 +319,9 @@ export function MemberSelect({
               );
             })
           )}
-        </div>
+          </div>,
+          document.body,
+        )
       ) : null}
     </div>
   );

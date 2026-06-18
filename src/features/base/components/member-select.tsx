@@ -215,6 +215,23 @@ export function MemberSelect({
     setDropdownStyle(style);
   }, [open]);
 
+  // 点击外部关闭下拉(issue #162):portal 到 body 后,
+  // 弹窗蒙层的 pointer-events 会拦截下拉列表点击。
+  // 用 mousedown 监听 + stopPropagation 让下拉列表优先。
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const dropdown = document.getElementById("member-select-dropdown");
+      const wrapper = wrapperRef.current;
+      if (dropdown && dropdown.contains(e.target as Node)) return;
+      if (wrapper && wrapper.contains(e.target as Node)) return;
+      setOpen(false);
+      setInput("");
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && input === "" && value.length > 0) {
       remove(value[value.length - 1]);
@@ -286,7 +303,9 @@ export function MemberSelect({
       {open ? (
         createPortal(
           <div
+            id="member-select-dropdown"
             style={dropdownStyle}
+            onPointerDown={(e) => e.stopPropagation()}
             className="overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg"
           >
           {candidates.length === 0 ? (

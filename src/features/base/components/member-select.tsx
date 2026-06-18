@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -192,33 +192,33 @@ export function MemberSelect({
 
   const remove = (uid: string) => onChange(value.filter((u) => u !== uid));
 
-  // 下拉列表 fixed 定位坐标(issue #162):用 portal 渲染到 body,
-  // 不受父级 overflow:hidden 裁剪。
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({
-    position: "fixed",
+  // 下拉列表 fixed 定位坐标(issue #162):portal 到 body,
+  // 不受父级 transform + overflow:hidden 影响。
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number }>({
     left: -9999,
     top: -9999,
     width: 0,
   });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!open || !wrapperRef.current) return;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    const style: React.CSSProperties = {
-      position: "fixed",
-      left: rect.left,
-      top: rect.bottom + 4,
-      width: rect.width,
-      maxHeight: 240,
-      zIndex: 310,
+    const update = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const spaceBelow = viewportH - rect.bottom;
+      const top = spaceBelow < 200 && rect.top > spaceBelow
+        ? Math.max(8, rect.top - 204)
+        : rect.bottom + 4;
+      setDropdownPos({ left: rect.left, top, width: rect.width });
     };
-    // 如果下方空间不够且上方空间更大,向上展开
-    const viewportH = window.innerHeight;
-    const spaceBelow = viewportH - rect.bottom;
-    if (spaceBelow < 240 && rect.top > spaceBelow) {
-      style.top = Math.max(8, rect.top - 244);
-    }
-    setDropdownStyle(style);
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
   }, [open]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -293,8 +293,23 @@ export function MemberSelect({
         createPortal(
           <div
             id="member-select-dropdown"
-            style={dropdownStyle}
-            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              left: dropdownPos.left,
+              top: dropdownPos.top,
+              width: dropdownPos.width,
+              maxHeight: 200,
+              zIndex: 310,
+              pointerEvents: "auto",
+              overscrollBehavior: "contain",
+            }}
+            onWheel={(e) => {
+              // Radix Dialog 锁了 body scroll,portal 到 body 的下拉列表
+              // 滚轮事件会被 body overflow:hidden 吞掉。手动滚动 + 阻止冒泡。
+              e.currentTarget.scrollTop += e.deltaY;
+              e.stopPropagation();
+              e.preventDefault();
+            }}
             className="overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg"
           >
           {candidates.length === 0 ? (

@@ -8,6 +8,7 @@
 #   CI_K8S_MZ_FRONTEND_TOKEN mz-frontend 空间 K8s token
 
 stages:
+  - quality
   - install&build
   - package
   - deploy
@@ -15,7 +16,10 @@ stages:
 workflow:
   rules:
     # main 分支 push 触发,但部署的 k8s 资源仍沿用 test 命名(ingress 已映射到 octo-web-test-svc)
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    # 允许手动 pipeline / 定时 pipeline 跑质量报告,不触发构建部署链路。
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - when: never
 
 variables:
@@ -75,6 +79,39 @@ variables:
       echo -e "\e[0Ksection_end:`date +%s`:pnpm_build\r\e[0K"
     - echo "[diag] .tsbuildinfo after build => $(du -sh .tsbuildinfo 2>/dev/null || echo 'EMPTY')"
 
+.dupcheck_base: &dupcheck_base
+  stage: quality
+  image: hub.intra.mlamp.cn/miaozhen-frontend/node:22.16.0-pnpm10.12.1
+  tags:
+    - nb
+  cache:
+    - key:
+        files:
+          - pnpm-lock.yaml
+      paths:
+        - .pnpm-store/
+  before_script:
+    - npm config set prefix "$CI_PROJECT_DIR/.npm-global"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:install_pnpm[collapsed=true]\r\e[0Knpm install -g pnpm"
+      time npm install -g pnpm@11.2.2 --registry=https://registry.npmmirror.com/
+      echo -e "\e[0Ksection_end:`date +%s`:install_pnpm\r\e[0K"
+    - export PATH="$CI_PROJECT_DIR/.npm-global/bin:$PATH"
+    - pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm-store"
+  script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pnpm_install[collapsed=true]\r\e[0Kpnpm install"
+      time pnpm install --frozen-lockfile --prefer-offline
+      echo -e "\e[0Ksection_end:`date +%s`:pnpm_install\r\e[0K"
+    - pnpm dupcheck
+  artifacts:
+    name: "dupcheck_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}"
+    when: always
+    expire_in: 14 days
+    paths:
+      - .jscpd/report.html
+      - .jscpd/jscpd-report.json
+
 .package: &package
   stage: package
   image:
@@ -111,11 +148,17 @@ variables:
 
 install_packages_test:
   <<: *install_packages
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - when: never
   variables:
     ENV: $TEST_ENV
 
 package_test:
   <<: *package
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - when: never
   dependencies:
     - install_packages_test
   variables:
@@ -124,9 +167,19 @@ package_test:
 
 deploy_test:
   <<: *deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - when: never
   variables:
     TAG: $TEST_ENV
     K8S_SPACE_NAME: mz-frontend
     K8S_SPACE_TOKEN: $CI_K8S_MZ_FRONTEND_TOKEN
     K8S_SERVER: https://k8s.nb.intra.mlamp.cn:8443
     PULL_IMAGE_PATH: $CONTAINER_IMAGE:$TEST_ENV$CI_PIPELINE_ID
+
+dupcheck_report:
+  <<: *dupcheck_base
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: never

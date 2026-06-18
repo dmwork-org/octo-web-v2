@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
+import { extractApiErrorMessage } from "@/features/base/api/api-error";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
@@ -152,8 +153,7 @@ export function useMessageContextMenu(message: Message): {
         clientMsgNo: message.clientMsgNo,
       }),
     onSuccess: () => toast.success(t("messageRow.toast.revoked")),
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("messageRow.toast.revokeFailed")),
+    onError: (err) => toast.error(extractApiErrorMessage(err, t("messageRow.toast.revokeFailed"))),
   });
 
   const deleteMu = useMutation({

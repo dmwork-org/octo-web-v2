@@ -20,7 +20,7 @@ export async function revokeMessage(args: {
     message_id: args.messageId,
     client_msg_no: args.clientMsgNo,
   });
-  await api(`message/revoke?${params.toString()}`, { method: "POST" });
+  await api(`message/revoke?${params.toString()}`, { method: "POST", silent: true } as never);
 }
 
 /**

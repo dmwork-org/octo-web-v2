@@ -54,20 +54,26 @@ function useDebouncedKeyword(input: string, delay: number) {
   return debounced;
 }
 
-/** 点击 wrapper 外部时回调。 */
+/** 点击 wrapper 外部时回调。extraIgnore 用于 portal 渲染的下拉列表。 */
 function useClickOutside(
   ref: React.RefObject<HTMLDivElement | null>,
   enabled: boolean,
   onOutside: () => void,
+  extraIgnore?: () => Element | null,
 ) {
   useEffect(() => {
     if (!enabled) return;
     const onMouseDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
+      if (ref.current && ref.current.contains(e.target as Node)) return;
+      if (extraIgnore) {
+        const extra = extraIgnore();
+        if (extra && extra.contains(e.target as Node)) return;
+      }
+      onOutside();
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [ref, enabled, onOutside]);
+  }, [ref, enabled, onOutside, extraIgnore]);
 }
 
 /** Space 成员候选源(无 channel 时);仅 open 时启用 query。 */
@@ -145,7 +151,7 @@ export function MemberSelect({
   useClickOutside(wrapperRef, open, () => {
     setOpen(false);
     setInput("");
-  });
+  }, () => document.getElementById("member-select-dropdown"));
 
   const spaceCandidates = useSpaceCandidates(open && !channel);
   const channelCandidates = useChannelCandidates(channel);
@@ -213,23 +219,6 @@ export function MemberSelect({
       style.top = Math.max(8, rect.top - 244);
     }
     setDropdownStyle(style);
-  }, [open]);
-
-  // 点击外部关闭下拉(issue #162):portal 到 body 后,
-  // 弹窗蒙层的 pointer-events 会拦截下拉列表点击。
-  // 用 mousedown 监听 + stopPropagation 让下拉列表优先。
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const dropdown = document.getElementById("member-select-dropdown");
-      const wrapper = wrapperRef.current;
-      if (dropdown && dropdown.contains(e.target as Node)) return;
-      if (wrapper && wrapper.contains(e.target as Node)) return;
-      setOpen(false);
-      setInput("");
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -1,15 +1,55 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { Channel } from "wukongimjssdk";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
+import { endpointStore } from "@/features/base/stores/endpoint";
 import { useT } from "@/lib/i18n/use-t";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+/**
+ * 轻量头像:直接用 avatar URL + name 首字母 fallback 渲染。
+ * 不走 ChannelAvatar / channelInfo 请求,避免成员选择列表
+ * 大量并发请求压垮浏览器连接池(issue #160)。
+ */
+function LiteAvatar({ uid, name, avatar, size }: { uid: string; name: string; avatar?: string; size: number }) {
+  const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const [failed, setFailed] = useState(false);
+  const src = avatar
+    ? avatar.startsWith("http") || avatar.startsWith("data:")
+      ? avatar
+      : `${baseURL}/${avatar.replace(/^\/+/, "")}`
+    : `${baseURL}/users/${uid}/avatar`;
+
+  const initial = (name || uid).slice(0, 1).toUpperCase();
+
+  if (failed) {
+    return (
+      <span
+        className="shrink-0 rounded-full bg-bg-elevated text-text-secondary"
+        style={{ width: size, height: size, fontSize: size * 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        {initial}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      className="shrink-0 rounded-full bg-bg-elevated object-cover"
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 export interface MemberSelectProps {
   /** 已选 uid 列表(受控)。 */
@@ -41,6 +81,7 @@ interface CandidateRow {
   uid: string;
   name: string;
   isBot: boolean;
+  avatar?: string;
 }
 
 /** 关键字搜索 debounce 300ms。 */
@@ -82,6 +123,7 @@ function useSpaceCandidates(enabled: boolean): CandidateRow[] {
         uid: m.uid,
         name: m.name || m.uid,
         isBot: m.robot === 1,
+        avatar: m.avatar,
       })),
     [data],
   );
@@ -134,6 +176,7 @@ export function MemberSelect({
 }: MemberSelectProps) {
   const t = useT();
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const myName = useStore(authStore, (s) => s.user?.name ?? "");
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const debouncedKeyword = useDebouncedKeyword(input, 300);
@@ -209,13 +252,13 @@ export function MemberSelect({
       >
         {value.map((uid) => {
           const row = allByUid.get(uid);
-          const name = row?.name ?? uid;
+          const name = row?.name ?? (uid === myUid ? myName : uid);
           return (
             <span
               key={uid}
               className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-brand/[0.06] px-2 py-[3px] text-xs leading-5 font-medium text-text-primary transition-colors hover:bg-brand/10"
             >
-              <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={16} title={name} />
+              <LiteAvatar uid={uid} name={name} avatar={row?.avatar} size={16} />
               <span className="max-w-[120px] truncate">{name}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -271,11 +314,7 @@ export function MemberSelect({
                     checked ? "bg-brand-tint/40" : ""
                   }`}
                 >
-                  <ChannelAvatar
-                    channel={new Channel(m.uid, ChannelTypePerson)}
-                    size={32}
-                    title={m.name}
-                  />
+                  <LiteAvatar uid={m.uid} name={m.name} avatar={m.avatar} size={32} />
                   <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>
                   {m.isBot ? <AiBadge size="small" /> : null}
                   {checked ? (

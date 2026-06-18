@@ -211,6 +211,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
                 <SelectableMemberRow
                   uid={m.uid}
                   name={m.name}
+                  avatar={m.avatar}
                   checked={checked}
                   onToggle={toggle}
                 />

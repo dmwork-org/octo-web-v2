@@ -1,6 +1,11 @@
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { useStore } from "@tanstack/react-store";
 import { authStore } from "@/features/base/stores/auth";
+import {
+  getReeditableMessageText,
+  canReeditRevokedMessage,
+} from "@/features/chat/lib/reeditable-message";
+import { chatReeditRequestActions } from "@/features/chat/stores/chat-reedit-request";
 import { useT } from "@/lib/i18n/use-t";
 
 interface RevokedRendererProps {
@@ -24,6 +29,8 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
   const revoker = message.remoteExtra.revoker || sender;
   const revokerIsMe = me !== null && revoker === me;
   const revokerIsSender = revoker === sender;
+  const canReedit = canReeditRevokedMessage(message, me);
+  const reeditText = canReedit ? getReeditableMessageText(message) : "";
 
   let text: string;
   if (revokerIsSender) {
@@ -42,8 +49,23 @@ export function RevokedRenderer({ message }: RevokedRendererProps) {
 
   return (
     <div className="flex justify-center py-1">
-      <span className="rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
+      <span className="inline-flex items-center gap-2 rounded-md bg-bg-elevated px-3 py-1 text-[11px] leading-none text-text-tertiary">
         {text}
+        {canReedit ? (
+          <>
+            <span className="h-3 w-px bg-border-default" aria-hidden />
+            <button
+              type="button"
+              className="cursor-pointer font-medium text-brand hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                chatReeditRequestActions.request(message.channel, reeditText);
+              }}
+            >
+              {t("revoke.reedit")}
+            </button>
+          </>
+        ) : null}
       </span>
     </div>
   );

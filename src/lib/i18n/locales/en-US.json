@@ -2188,6 +2188,7 @@
   "revoke.revokedMemberMessage": "{{name}} recalled a member message",
   "revoke.revokedMemberMessageByYou": "You recalled a message from \"{{member}}\"",
   "revoke.revokedMessage": "{{name}} recalled a message",
+  "revoke.reedit": "Re-edit",
   "revoke.you": "You",
   "scrollToBottom.backToBottom": "Back to bottom",
   "scrollToBottom.unreadAria": "{{count}} new messages, scroll to bottom",

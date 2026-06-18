@@ -2190,6 +2190,7 @@
   "revoke.revokedMemberMessage": "{{name}}撤回了一条成员消息",
   "revoke.revokedMemberMessageByYou": "你撤回了成员“{{member}}”的一条消息",
   "revoke.revokedMessage": "{{name}}撤回了一条消息",
+  "revoke.reedit": "重新编辑",
   "revoke.you": "你",
   "scrollToBottom.backToBottom": "回到底部",
   "scrollToBottom.unreadAria": "{{count}} 条新消息,回到底部",

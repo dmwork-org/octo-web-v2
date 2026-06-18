@@ -155,6 +155,7 @@ Baseline 结果:
 当前已接入 GitLab `dupcheck_report` 质量报告 job:
 
 - 触发方式: 手动 pipeline(`CI_PIPELINE_SOURCE=web`)和定时 pipeline(`CI_PIPELINE_SOURCE=schedule`)。
+- 触发变量: 必须设置 `PIPELINE_TASK=dupcheck`,避免未来新增手动/定时任务时互相串线。
 - 不触发方式: 普通 `main push` 不跑重复率报告,避免影响现有部署链路。
 - 构建部署保护: 原 `install_packages_test` / `package_test` / `deploy_test` 限制为 `main push` 才执行。
 - 产物: `.jscpd/report.html`, `.jscpd/jscpd-report.json`,保留 14 天。
@@ -164,6 +165,7 @@ Baseline 结果:
 - 每周四 12:00,`Asia/Shanghai` 时区。
 - GitLab schedule cron: `0 12 * * 4`。
 - 建议目标分支: `main`。
+- Schedule 变量: `PIPELINE_TASK=dupcheck`。
 
 阈值策略:
 

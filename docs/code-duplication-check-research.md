@@ -12,12 +12,12 @@
 
 ## 方案对比
 
-| 方案 | 定位 | 优点 | 风险/缺点 | 适合程度 |
-| --- | --- | --- | --- | --- |
-| jscpd | 专门的 copy/paste detector | JS/TS 友好,本地 CLI 简单,支持阈值和多 reporter,能快速接入 pnpm script | v5 是 Rust/native binary,锁包和跨平台要验证;阈值需要先扫一轮基线 | 高 |
-| SonarQube / SonarCloud | 平台型质量门禁 | 不止重复率,还覆盖 code smell/security/coverage/quality gate;适合组织级治理 | 需要 Sonar 服务、token、项目配置和 CI 集成;接入成本明显高于本地工具 | 中高,取决于公司是否已有 Sonar |
-| PMD CPD | 通用 Copy/Paste Detector | 老牌 CPD,支持 JS/TS copy-paste detection,语言覆盖广 | Java 生态工具,前端仓接入手感不如 npm 工具;报告和阈值体验偏传统 | 中 |
-| eslint-plugin-sonarjs | ESLint 规则补充 | 能在 lint 阶段发现重复分支、相似函数、复杂度等问题;可跟现有 lint 心智接近 | 不是“重复率”工具,不能给全仓 duplication percentage;项目当前 lint 由 Vite Plus 管,接入 ESLint 也可能另起一套 | 低到中,适合作补充不适合主方案 |
+| 方案                   | 定位                       | 优点                                                                       | 风险/缺点                                                                                                   | 适合程度                      |
+| ---------------------- | -------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| jscpd                  | 专门的 copy/paste detector | JS/TS 友好,本地 CLI 简单,支持阈值和多 reporter,能快速接入 pnpm script      | v5 是 Rust/native binary,锁包和跨平台要验证;阈值需要先扫一轮基线                                            | 高                            |
+| SonarQube / SonarCloud | 平台型质量门禁             | 不止重复率,还覆盖 code smell/security/coverage/quality gate;适合组织级治理 | 需要 Sonar 服务、token、项目配置和 CI 集成;接入成本明显高于本地工具                                         | 中高,取决于公司是否已有 Sonar |
+| PMD CPD                | 通用 Copy/Paste Detector   | 老牌 CPD,支持 JS/TS copy-paste detection,语言覆盖广                        | Java 生态工具,前端仓接入手感不如 npm 工具;报告和阈值体验偏传统                                              | 中                            |
+| eslint-plugin-sonarjs  | ESLint 规则补充            | 能在 lint 阶段发现重复分支、相似函数、复杂度等问题;可跟现有 lint 心智接近  | 不是“重复率”工具,不能给全仓 duplication percentage;项目当前 lint 由 Vite Plus 管,接入 ESLint 也可能另起一套 | 低到中,适合作补充不适合主方案 |
 
 ## 候选方案细节
 
@@ -101,6 +101,75 @@
 - 平台质量门禁: `SonarQube/@sonar/scan`
 - Java 生态兼容: `PMD CPD`
 - lint 补充规则: `eslint-plugin-sonarjs`
+
+## jscpd baseline
+
+执行命令:
+
+```sh
+pnpm dupcheck
+```
+
+当前配置:
+
+- 扫描范围: `src`, `scripts`
+- 文件格式: `typescript`, `tsx`, `javascript`, `jsx`
+- 最小重复块: 8 行 / 80 tokens
+- 检测模式: `weak`(跳过注释 token)
+- 报告输出: `.jscpd/report.html`, `.jscpd/jscpd-report.json`
+- HTML 报告由 `scripts/jscpd-report.mjs` 基于 JSON 自研生成,包含左右对照、代码高亮和行级重复标记。
+- 当前阈值: `100`,只用于本地观察现状,不阻断
+- 忽略范围: `node_modules`, `dist`, `.ai`, `docs`, `src/routeTree.gen.ts`, `src/components/ui`, 测试文件
+
+Baseline 结果:
+
+| 指标            | 数值   |
+| --------------- | ------ |
+| 分析文件数      | 430    |
+| 分析行数        | 65,159 |
+| 重复块          | 26     |
+| 重复行          | 442    |
+| 重复行占比      | 0.68%  |
+| 重复 token      | 2,962  |
+| 重复 token 占比 | 0.84%  |
+
+主要重复类型:
+
+- UI 容器结构重复: `base-dialog` / `base-drawer`, popover 类组件。
+- IM 内容转换与上传逻辑存在少量 TS 重复。
+- 聊天选择/联系人列表重复: `add-members-modal`, `create-group-modal`, `forward-modal`。
+- 会话列表渲染重复: `conversation-list` / `follow-list`。
+- mention 渲染逻辑重复: `mention-aware-text` / `text-renderer`,这是目前最大块(64 行)。
+- Matter / Summary 中的列表、picker、创建表单存在少量重复。
+
+阈值建议:
+
+- 现状重复率只有 0.68%,偏健康。
+- 如果只做本地报告: 保持 `threshold: 100`,避免给开发制造阻断,用于随时查看报告。
+- 如果后续接 CI 且只防止明显恶化: 建议先设 `threshold: 2`。
+- 如果要长期质量门禁: 建议先清理或确认最大几处重复后再降到 `threshold: 1.5`。
+- 暂不建议直接设为 `1`,因为它更像强门禁;当前阶段先用 `2` 防恶化更稳。
+
+## CI / 定时建议
+
+当前已接入 GitLab `dupcheck_report` 质量报告 job:
+
+- 触发方式: 手动 pipeline(`CI_PIPELINE_SOURCE=web`)和定时 pipeline(`CI_PIPELINE_SOURCE=schedule`)。
+- 不触发方式: 普通 `main push` 不跑重复率报告,避免影响现有部署链路。
+- 构建部署保护: 原 `install_packages_test` / `package_test` / `deploy_test` 限制为 `main push` 才执行。
+- 产物: `.jscpd/report.html`, `.jscpd/jscpd-report.json`,保留 14 天。
+
+建议定时:
+
+- 每周四 12:00,`Asia/Shanghai` 时区。
+- GitLab schedule cron: `0 12 * * 4`。
+- 建议目标分支: `main`。
+
+阈值策略:
+
+- 当前阶段: `.jscpd.json` 维持 `threshold: 100`,报告不阻断。
+- 若后续要加阻断门禁: 建议第一条线设为 `2%`。
+- 观察稳定后: 可考虑收紧到 `1.5%`。
 
 ## 参考链接
 

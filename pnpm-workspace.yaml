@@ -6,6 +6,14 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest
   vite-plus: latest
+minimumReleaseAgeExclude:
+  - cpd-darwin-arm64@5.0.10
+  - cpd-darwin-x64@5.0.10
+  - cpd-linux-arm64-gnu@5.0.10
+  - cpd-linux-x64-gnu@5.0.10
+  - cpd-linux-x64-musl@5.0.10
+  - cpd-windows-x64-msvc@5.0.10
+  - jscpd@5.0.10
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

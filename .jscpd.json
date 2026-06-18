@@ -1,0 +1,23 @@
+{
+  "format": ["typescript", "tsx", "javascript", "jsx"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.ai/**",
+    "**/docs/**",
+    "**/src/routeTree.gen.ts",
+    "**/src/components/ui/**",
+    "**/scripts/jscpd-report.mjs",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ],
+  "max-size": "1mb",
+  "min-lines": 8,
+  "min-tokens": 80,
+  "mode": "weak",
+  "output": ".jscpd",
+  "reporters": ["console", "json"],
+  "threshold": 100
+}

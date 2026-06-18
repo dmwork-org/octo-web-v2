@@ -45,3 +45,4 @@ src/**/*.preview-tmp-*.tsx
 .tanstack/tmp/
 ".nanobot/"
 .nanobot/
+.jscpd/

@@ -52,6 +52,7 @@ import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.
 import { useVoiceRecorder } from "@/features/chat/hooks/use-voice-recorder.hook";
 import { useVoiceShortcut } from "@/features/chat/hooks/use-voice-shortcut.hook";
 import { useApplyPendingMention } from "@/features/chat/hooks/use-apply-pending-mention.hook";
+import { useApplyReeditRequest } from "@/features/chat/hooks/use-apply-reedit-request.hook";
 import { useReopenMentionPopupOnSubscribersReady } from "@/features/chat/hooks/use-reopen-mention-popup.hook";
 import { useDispatchOnPlaceholderChange } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
 import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
@@ -393,6 +394,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const { clearDraft: dropDraft } = useComposerDraft(editor, channel);
 
   useApplyPendingMention(channel, editor);
+  useApplyReeditRequest(channel, editor, attachments.addAttachments);
   // issue #117:subs 拉到位时让仍开着的 sticky-only mention popup 重开拿全 list
   useReopenMentionPopupOnSubscribersReady(editor, subscribers.length);
   useDispatchOnPlaceholderChange(editor, placeholder);

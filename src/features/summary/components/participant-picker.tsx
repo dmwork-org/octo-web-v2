@@ -7,6 +7,8 @@ import { Button } from "@/components/semi-bridge/button";
 import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
+import { MemberChoiceList } from "@/features/base/components/member-select/member-select";
+import { toggleMemberSelection } from "@/features/base/components/member-select/member-select-utils";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
@@ -59,12 +61,7 @@ export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
   );
 
   const toggle = (uid: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
+    toggleMemberSelection(setSelected, uid);
   };
 
   const save = () => {
@@ -134,37 +131,16 @@ export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
         <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
           {t("summary.participant.selectedCount", { values: { count: selected.size } })}
         </div>
-        <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
-          {candidates.length === 0 ? (
+        <MemberChoiceList
+          items={candidates}
+          selectedIds={selected}
+          onToggle={toggle}
+          empty={
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
               {t("summary.participant.noSpaceMembers")}
             </div>
-          ) : (
-            candidates.map((m) => {
-              const checked = selected.has(m.uid);
-              const channel = new Channel(m.uid, ChannelTypePerson);
-              return (
-                <label
-                  key={m.uid}
-                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                    checked ? "bg-brand-tint" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(m.uid)}
-                    className="shrink-0"
-                  />
-                  <ChannelAvatar channel={channel} size={32} title={m.name} />
-                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                    {m.name || m.uid}
-                  </span>
-                </label>
-              );
-            })
-          )}
-        </div>
+          }
+        />
       </BaseDialog>
     </>
   );

@@ -15,12 +15,8 @@ import { ContextMenu, type ContextMenuItem } from "@/features/base/components/co
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { InputModal } from "@/features/base/components/modals/input-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-import {
-  clearChannelMessages,
-  clearConversationUnread,
-  deleteConversation,
-} from "@/features/base/api/endpoints/conversation.api";
-import { setChannelMute, setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
+import { deleteConversation } from "@/features/base/api/endpoints/conversation.api";
+import { setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
 import {
   type CategoryItem,
   createCategory,
@@ -28,9 +24,6 @@ import {
   followThread,
   moveGroupToCategory,
   refollowChannel,
-  unfollowChannel,
-  unfollowDM,
-  unfollowThread,
 } from "@/features/base/api/endpoints/follow.api";
 import {
   sidebarFollowQueryKey,
@@ -51,6 +44,7 @@ import {
   conversationsQueryKey,
 } from "@/features/chat/queries/conversations.query";
 import { chatRecentJumpStore } from "@/features/chat/stores/chat-recent-jump";
+import { useConversationActions } from "@/features/chat/hooks/use-conversation-actions.hook";
 import { useConversationsSync } from "@/features/chat/hooks/use-conversations-sync.hook";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
 import {
@@ -534,50 +528,6 @@ export function ConversationList({
       toast.error(err instanceof Error ? err.message : t("convList.toast.opFailed")),
   });
 
-  const muteMu = useMutation({
-    mutationFn: (args: { conv: Conversation; mute: boolean }) =>
-      setChannelMute(args.conv.channel, args.mute),
-    onSuccess: (_void, args) => {
-      refreshChannelInfo(args.conv);
-      toast.success(args.mute ? t("convList.toast.muted") : t("convList.toast.unmuted"));
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.opFailed")),
-  });
-
-  const clearUnreadMu = useMutation({
-    mutationFn: (conv: Conversation) =>
-      clearConversationUnread({
-        channelId: conv.channel.channelID,
-        channelType: conv.channel.channelType,
-      }),
-    onSuccess: (_void, conv) => {
-      conv.unread = 0;
-      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.markReadFailed")),
-  });
-
-  const clearMessagesMu = useMutation({
-    mutationFn: (conv: Conversation) =>
-      clearChannelMessages({
-        channelId: conv.channel.channelID,
-        channelType: conv.channel.channelType,
-        messageSeq: conv.lastMessage?.messageSeq ?? 0,
-      }),
-    onSuccess: (_void, conv) => {
-      qc.setQueryData(["chat", "messages", conv.channel.channelType, conv.channel.channelID], {
-        pages: [[]],
-        pageParams: [0],
-      });
-      toast.success(t("convList.toast.cleared"));
-      setConfirmClear(null);
-    },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.clearFailed")),
-  });
-
   const closeChatMu = useMutation({
     mutationFn: (conv: Conversation) =>
       deleteConversation({
@@ -601,20 +551,16 @@ export function ConversationList({
       toast.error(err instanceof Error ? err.message : t("convList.toast.closeFailed")),
   });
 
-  const unfollowMu = useMutation({
-    mutationFn: (conv: Conversation) => {
-      const tp = conv.channel.channelType;
-      if (tp === ChannelTypeGroup) return unfollowChannel(conv.channel.channelID);
-      if (tp === ChannelTypePerson) return unfollowDM(conv.channel.channelID);
-      if (tp === CHANNEL_TYPE_THREAD) return unfollowThread(conv.channel.channelID);
-      return Promise.reject(new Error(t("convList.error.unsupportedType")));
+  const { clearUnreadMu, muteMu, clearMessagesMu, unfollowMu } = useConversationActions({
+    scope: "convList",
+    onClearUnreadSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
     },
-    onSuccess: () => {
+    onMuteSuccess: ({ conv }) => refreshChannelInfo(conv),
+    onClearMessagesSuccess: () => setConfirmClear(null),
+    onUnfollowSuccess: () => {
       invalidateFollow();
-      toast.success(t("convList.toast.unfollowed"));
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.unfollowFailed")),
   });
 
   const followGroupMu = useMutation({

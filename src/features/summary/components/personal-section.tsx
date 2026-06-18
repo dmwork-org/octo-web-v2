@@ -16,6 +16,7 @@ import {
   submitPersonalResult,
 } from "@/features/summary/api/summary.api";
 import { CitationText } from "@/features/summary/components/citation-text";
+import { SummarySourcePicker } from "@/features/summary/components/summary-source-picker";
 import { SummaryContent } from "@/features/summary/components/summary-content";
 import { SummaryEditor } from "@/features/summary/components/summary-editor";
 import {
@@ -112,39 +113,15 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-surface p-3">
       <p className="text-sm text-text-primary">{tr("summary.personal.confirmPrompt")}</p>
-      <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
-        {candidates.length === 0 ? (
-          <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-            {tr("summary.personal.noContributable")}
-          </div>
-        ) : (
-          candidates.map((c) => {
-            const id = c.channel.channelID;
-            const checked = selectedIds.has(id);
-            const isGroup = c.channel.channelType === ChannelTypeGroup;
-            const name = c.channelInfo?.title ?? id;
-            return (
-              <label
-                key={`${c.channel.channelType}-${id}`}
-                className={`flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-bg-hover ${
-                  checked ? "bg-brand-tint" : ""
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(id)}
-                  className="shrink-0"
-                />
-                <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
-                <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                  {isGroup ? tr("summary.personal.tagGroup") : tr("summary.personal.tagDirect")}
-                </span>
-              </label>
-            );
-          })
-        )}
-      </div>
+      <SummarySourcePicker
+        candidates={candidates}
+        selectedIds={selectedIds}
+        onToggle={toggle}
+        emptyLabel={tr("summary.personal.noContributable")}
+        tagGroupLabel={tr("summary.personal.tagGroup")}
+        tagDirectLabel={tr("summary.personal.tagDirect")}
+        className="max-h-56"
+      />
       <div className="flex justify-end gap-2">
         <Button
           type="tertiary"

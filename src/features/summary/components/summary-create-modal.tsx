@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
@@ -9,21 +9,16 @@ import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
-import { createSummary, getTopicTemplates } from "@/features/summary/api/summary.api";
+import { createSummary } from "@/features/summary/api/summary.api";
 import { ParticipantPicker } from "@/features/summary/components/participant-picker";
+import { SummarySourcePicker } from "@/features/summary/components/summary-source-picker";
 import { TemplateCard } from "@/features/summary/components/template-card";
-import { TOPIC_TEMPLATES } from "@/features/summary/constants/topic-templates";
-import {
-  computeTemplateSelection,
-  resolveTemplate,
-  type ResolvableTemplate,
-} from "@/features/summary/utils/template-resolver";
+import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
 import {
   SourceType,
   SummaryMode,
   type SourceItem,
   type SummaryModeType,
-  type TopicTemplate,
 } from "@/features/summary/types/summary.types";
 
 interface SummaryCreateModalProps {
@@ -53,33 +48,24 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
   const tr = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
-  const topicRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState("");
-  const [topic, setTopic] = useState("");
   const [mode, setMode] = useState<SummaryModeType>(SummaryMode.BY_GROUP);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [participantUids, setParticipantUids] = useState<string[]>([]);
-  const [placeholderRange, setPlaceholderRange] = useState<[number, number] | null>(null);
+  const {
+    inputRef: topicRef,
+    topic,
+    resolvedTemplates,
+    setTopic,
+    resetTopic,
+    handleTemplateClick,
+    handleTopicFocus,
+  } = useSummaryTopicTemplateInput({ enabled: open, maxLength: 1000 });
 
   const { data: conversations } = useQuery({
     ...conversationsQueryOptions(spaceId),
     enabled: open,
   });
-
-  const { data: remoteTemplates } = useQuery({
-    queryKey: ["summary", "topic-templates"],
-    queryFn: () => getTopicTemplates(),
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const templates: ResolvableTemplate[] =
-    remoteTemplates && remoteTemplates.length > 0 ? remoteTemplates : TOPIC_TEMPLATES;
-
-  const resolvedTemplates = useMemo(
-    () => templates.map((tpl) => resolveTemplate(tpl, t)),
-    [templates],
-  );
 
   const candidates = useMemo(() => {
     return (conversations ?? []).filter(
@@ -113,11 +99,10 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
           : t("summary.create.successGroup"),
       );
       setTitle("");
-      setTopic("");
+      resetTopic();
       setSelectedIds(new Set());
       setParticipantUids([]);
       setMode(SummaryMode.BY_GROUP);
-      setPlaceholderRange(null);
       onCreated(task_id);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : t("summary.create.failed")),
@@ -142,26 +127,6 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
       else next.add(id);
       return next;
     });
-  };
-
-  const handleTemplateClick = (template: TopicTemplate) => {
-    const { text, range } = computeTemplateSelection(template);
-    setTopic(text);
-    setPlaceholderRange(range);
-    setTimeout(() => {
-      const input = topicRef.current;
-      if (!input) return;
-      input.focus();
-      if (range) input.setSelectionRange(range[0], range[1]);
-    }, 0);
-  };
-
-  const handleTopicFocus = () => {
-    if (!placeholderRange) return;
-    const [start, end] = placeholderRange;
-    setTopic((prev) => prev.substring(0, start) + prev.substring(end));
-    setPlaceholderRange(null);
-    setTimeout(() => topicRef.current?.setSelectionRange(start, start), 0);
   };
 
   const isPerson = mode === SummaryMode.BY_PERSON;
@@ -229,10 +194,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
                 ref={topicRef}
                 autoFocus
                 value={topic}
-                onChange={(e) => {
-                  setTopic(e.target.value.slice(0, 1000));
-                  setPlaceholderRange(null);
-                }}
+                onChange={(e) => setTopic(e.target.value)}
                 onFocus={handleTopicFocus}
                 rows={3}
                 placeholder={tr("summary.create.topicPlaceholder")}
@@ -290,39 +252,15 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
                   },
                 })}
               </span>
-              <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-md border border-border-default bg-bg-base p-1">
-                {candidates.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                    {tr("summary.create.noChats")}
-                  </div>
-                ) : (
-                  candidates.map((c) => {
-                    const id = c.channel.channelID;
-                    const checked = selectedIds.has(id);
-                    const isGroup = c.channel.channelType === ChannelTypeGroup;
-                    const name = c.channelInfo?.title ?? id;
-                    return (
-                      <label
-                        key={`${c.channel.channelType}-${id}`}
-                        className={`flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-bg-hover ${
-                          checked ? "bg-brand-tint" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSource(id)}
-                          className="shrink-0"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-text-primary">{name}</span>
-                        <span className="shrink-0 rounded-sm bg-bg-elevated px-1.5 text-[10px] text-text-tertiary">
-                          {isGroup ? tr("summary.create.tagGroup") : tr("summary.create.tagDirect")}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
+              <SummarySourcePicker
+                candidates={candidates}
+                selectedIds={selectedIds}
+                onToggle={toggleSource}
+                emptyLabel={tr("summary.create.noChats")}
+                tagGroupLabel={tr("summary.create.tagGroup")}
+                tagDirectLabel={tr("summary.create.tagDirect")}
+                className="max-h-64"
+              />
             </div>
           </div>
 

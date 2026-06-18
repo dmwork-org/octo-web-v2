@@ -1,19 +1,58 @@
 import { useRef, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
+import { useStore } from "@tanstack/react-store";
 import { Check, X } from "lucide-react";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { endpointStore } from "@/features/base/stores/endpoint";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+
+/**
+ * 轻量头像:直接用 avatar URL 渲染,不走 ChannelAvatar / channelInfo 请求。
+ * 避免 member-select 列表大量并发请求(issue #160)。
+ */
+function LiteAvatar({ uid, name, avatar, size }: { uid: string; name?: string; avatar?: string; size: number }) {
+  const baseURL = useStore(endpointStore, (s) => s.baseURL);
+  const [failed, setFailed] = useState(false);
+  const src = avatar
+    ? avatar.startsWith("http") || avatar.startsWith("data:")
+      ? avatar
+      : `${baseURL}/${avatar.replace(/^\/+/, "")}`
+    : `${baseURL}/users/${uid}/avatar`;
+
+  const initial = (name || uid).slice(0, 1).toUpperCase();
+
+  if (failed) {
+    return (
+      <span
+        className="shrink-0 rounded-full bg-bg-elevated text-text-secondary"
+        style={{ width: size, height: size, fontSize: size * 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        {initial}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name || ""}
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      className="shrink-0 rounded-full bg-bg-elevated object-cover"
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 interface MemberLike {
   uid: string;
   name?: string;
+  avatar?: string;
 }
 
-export function MemberAvatar({ uid, name, size }: { uid: string; name?: string; size: number }) {
-  return (
-    <ChannelAvatar channel={new Channel(uid, ChannelTypePerson)} size={size} title={name || uid} />
-  );
+export function MemberAvatar({ uid, name, avatar, size }: { uid: string; name?: string; avatar?: string; size: number }) {
+  return <LiteAvatar uid={uid} name={name} avatar={avatar} size={size} />;
 }
 
 export function MemberName({
@@ -31,6 +70,7 @@ export function MemberName({
 interface SelectableMemberRowProps {
   uid: string;
   name?: string;
+  avatar?: string;
   checked: boolean;
   onToggle: (uid: string) => void;
   avatarSize?: number;
@@ -44,6 +84,7 @@ interface SelectableMemberRowProps {
 export function SelectableMemberRow({
   uid,
   name,
+  avatar,
   checked,
   onToggle,
   avatarSize = 32,
@@ -84,7 +125,7 @@ export function SelectableMemberRow({
           className="shrink-0"
         />
       )}
-      <MemberAvatar uid={uid} name={name} size={avatarSize} />
+      <MemberAvatar uid={uid} name={name} avatar={avatar} size={avatarSize} />
       <MemberName uid={uid} name={name} className={nameClassName} />
       {trailing}
     </label>
@@ -94,6 +135,7 @@ export function SelectableMemberRow({
 interface SelectedMemberRowProps {
   uid: string;
   name?: string;
+  avatar?: string;
   onRemove: (uid: string) => void;
   removeLabel: string;
   trailing?: ReactNode;
@@ -102,13 +144,14 @@ interface SelectedMemberRowProps {
 export function SelectedMemberRow({
   uid,
   name,
+  avatar,
   onRemove,
   removeLabel,
   trailing,
 }: SelectedMemberRowProps) {
   return (
     <div className="group flex h-9 items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]">
-      <MemberAvatar uid={uid} name={name} size={28} />
+      <MemberAvatar uid={uid} name={name} avatar={avatar} size={28} />
       <MemberName uid={uid} name={name} className="text-[14px] text-text-primary" />
       {trailing}
       <button
@@ -199,6 +242,7 @@ export function MemberChoiceList<T extends MemberLike>({
               key={member.uid}
               uid={member.uid}
               name={member.name}
+              avatar={member.avatar}
               checked={selectedIds.has(member.uid)}
               onToggle={onToggle}
             />

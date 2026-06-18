@@ -66,6 +66,7 @@ function AddMemberCandidateRow({
     <SelectableMemberRow
       uid={member.uid}
       name={member.name}
+      avatar={member.avatar}
       checked={checked}
       onToggle={onToggle}
       avatarSize={28}
@@ -118,6 +119,7 @@ function AddMemberSelectedRow({
     <SelectedMemberRow
       uid={member.uid}
       name={member.name}
+      avatar={member.avatar}
       onRemove={onRemove}
       removeLabel={tt("forwardModalLocal.remove")}
       trailing={member.robot === 1 ? <AiBadge size="small" /> : null}

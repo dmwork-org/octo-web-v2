@@ -204,7 +204,7 @@ export function MemberSelect({
       top: rect.bottom + 4,
       width: rect.width,
       maxHeight: 240,
-      zIndex: 50,
+      zIndex: 310,
     };
     // 如果下方空间不够且上方空间更大,向上展开
     const viewportH = window.innerHeight;

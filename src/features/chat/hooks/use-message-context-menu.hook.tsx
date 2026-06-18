@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
   ChannelTypePerson,
+  ConversationAction,
   MessageContentType,
   type Message,
   type MessageImage,
@@ -145,6 +146,41 @@ export function useMessageContextMenu(message: Message): {
     );
   };
 
+  const markRevokedLocally = () => {
+    const revoker = me ?? message.fromUID;
+    const messageId = message.messageID;
+    const clientMsgNo = message.clientMsgNo;
+
+    qc.setQueryData<InfiniteData<Message[], number>>(
+      messagesQueryKey(message.channel.channelID, message.channel.channelType),
+      (prev) => {
+        if (!prev) return prev;
+        let touched = false;
+        for (const page of prev.pages) {
+          for (const cachedMessage of page) {
+            if (isSameMessage(cachedMessage, messageId, clientMsgNo)) {
+              cachedMessage.remoteExtra.revoke = true;
+              cachedMessage.remoteExtra.revoker = revoker;
+              touched = true;
+            }
+          }
+        }
+        if (!touched) return prev;
+        return { ...prev, pages: prev.pages.map((page) => [...page]) };
+      },
+    );
+
+    const cm = WKSDK.shared().conversationManager;
+    const conv = cm.findConversation(message.channel);
+    const lastMessage = conv?.lastMessage;
+    if (lastMessage && isSameMessage(lastMessage, messageId, clientMsgNo)) {
+      lastMessage.remoteExtra.revoke = true;
+      lastMessage.remoteExtra.revoker = revoker;
+      cm.notifyConversationListeners(conv, ConversationAction.update);
+      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
+    }
+  };
+
   const revokeMu = useMutation({
     mutationFn: () =>
       revokeMessage({
@@ -152,7 +188,10 @@ export function useMessageContextMenu(message: Message): {
         messageId: message.messageID,
         clientMsgNo: message.clientMsgNo,
       }),
-    onSuccess: () => toast.success(t("messageRow.toast.revoked")),
+    onSuccess: () => {
+      markRevokedLocally();
+      toast.success(t("messageRow.toast.revoked"));
+    },
     onError: (err) => toast.error(extractApiErrorMessage(err, t("messageRow.toast.revokeFailed"))),
   });
 
@@ -387,6 +426,13 @@ function restoreSelectionWithin(root: Node, snapshot: SelectionSnapshot): void {
   if (!selection) return;
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+function isSameMessage(message: Message, messageId: string, clientMsgNo: string): boolean {
+  return (
+    (messageId.length > 0 && message.messageID === messageId) ||
+    (clientMsgNo.length > 0 && message.clientMsgNo === clientMsgNo)
+  );
 }
 
 function findTextBoundary(root: Node, targetOffset: number): { node: Text; offset: number } | null {

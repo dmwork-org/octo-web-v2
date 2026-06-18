@@ -1,12 +1,13 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Mention } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { isLikelyRealUid, type MentionWithFlags } from "@/features/chat/lib/read-message-mention";
-import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
-
-/** 子区 channel type(对齐 dmworkbase Const.ts ChannelTypeCommunityTopic)。 */
-const CHANNEL_TYPE_THREAD = 5;
+import {
+  collectMentionCandidateNames,
+  resolveMentionTextTargets,
+  type MentionTextTarget,
+} from "@/features/chat/lib/mention-text-resolver";
 
 const richTextLinkRe = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
 const trailingLinkPunctuation = new Set([
@@ -32,69 +33,6 @@ const trailingLinkPunctuation = new Set([
   "」",
   "』",
 ]);
-
-/**
- * 收集 uid 在群/Person channelInfo 内**所有可能的显示名候选**(跟 text-renderer
- * collectCandidateNames 同款,本地副本未抽公共)。
- */
-function collectCandidateNames(uid: string, channel: Channel): string[] {
-  const names: string[] = [];
-  const push = (v: unknown) => {
-    if (typeof v === "string" && v.length > 0 && !names.includes(v)) names.push(v);
-  };
-  // 群 / 子区(走父群)的 subscriber 列表 — 子区本身无 sub 列表,必须解析父群(issue #73 真凶)
-  let groupChannel: Channel | null = null;
-  if (channel.channelType === ChannelTypeGroup) {
-    groupChannel = channel;
-  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
-    const parsed = parseThreadChannelId(channel.channelID);
-    if (parsed) {
-      groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
-    }
-  }
-  if (groupChannel) {
-    const sub = WKSDK.shared()
-      .channelManager.getSubscribes(groupChannel)
-      ?.find((s) => s.uid === uid);
-    push(sub?.remark);
-    push(sub?.name);
-    const subOrg = sub?.orgData as { real_name?: string; displayName?: string } | undefined;
-    push(subOrg?.real_name);
-    push(subOrg?.displayName);
-  }
-  const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
-  push(info?.title);
-  const infoOrg = info?.orgData as
-    | { remark?: string; real_name?: string; displayName?: string }
-    | undefined;
-  push(infoOrg?.remark);
-  push(infoOrg?.real_name);
-  push(infoOrg?.displayName);
-  return names;
-}
-
-/**
- * Reverse lookup:从群/子区 subscribers 找 name === target 的真 uid(issue #85
- * entity 路径配套,详见 text-renderer 同名 helper)。
- */
-function lookupUidByDisplayName(channel: Channel, name: string): string | undefined {
-  let groupChannel: Channel | null = null;
-  if (channel.channelType === ChannelTypeGroup) {
-    groupChannel = channel;
-  } else if (channel.channelType === CHANNEL_TYPE_THREAD) {
-    const parsed = parseThreadChannelId(channel.channelID);
-    if (parsed) groupChannel = new Channel(parsed.groupNo, ChannelTypeGroup);
-  }
-  if (!groupChannel) return undefined;
-  const subs = WKSDK.shared().channelManager.getSubscribes(groupChannel);
-  if (!subs) return undefined;
-  for (const s of subs) {
-    if (s.name === name || s.remark === name) return s.uid;
-    const org = s.orgData as { real_name?: string; displayName?: string } | undefined;
-    if (org?.real_name === name || org?.displayName === name) return s.uid;
-  }
-  return undefined;
-}
 
 /**
  * @ 提及高亮 tag(对应旧 dmworkbase Messages/Text MarkdownContent mention):
@@ -244,6 +182,37 @@ export function MentionAwareText({
       !!flags.entities?.length;
 
     if (hasMentionTargets) {
+      const pushTarget = (target: MentionTextTarget) => {
+        const render = (key: string) => (
+          <MentionTag key={key} isAll={target.isAll} uid={target.uid}>
+            {target.needle}
+          </MentionTag>
+        );
+        const start = target.start;
+        if (start != null) {
+          if (isInsideLink(start)) return;
+          const overlap = hits.some((h) => start < h.end && start + target.needle.length > h.start);
+          if (overlap) return;
+          hits.push({
+            start,
+            end: start + target.needle.length,
+            node: render(`tk-mention-${start}`),
+          });
+          return;
+        }
+        if (target.matchAll) {
+          pushAllOccurrences(target.needle, render);
+          return;
+        }
+        const idx = findAvailableIndex(text, target.needle, hits, isInsideLink);
+        if (idx === -1) return;
+        hits.push({
+          start: idx,
+          end: idx + target.needle.length,
+          node: render(`tk-mention-${idx}`),
+        });
+      };
+
       const pushAllOccurrences = (needle: string, render: (key: string) => ReactNode) => {
         if (!needle) return;
         let from = 0;
@@ -261,133 +230,14 @@ export function MentionAwareText({
           from = idx + needle.length;
         }
       };
-
-      if (mention.all) {
-        pushAllOccurrences("@所有人", (k) => (
-          <MentionTag key={k} isAll>
-            @所有人
-          </MentionTag>
-        ));
-        pushAllOccurrences("@all", (k) => (
-          <MentionTag key={k} isAll>
-            @all
-          </MentionTag>
-        ));
-      }
-      if (flags.humans) {
-        pushAllOccurrences("@所有人", (k) => (
-          <MentionTag key={k} isAll>
-            @所有人
-          </MentionTag>
-        ));
-      }
-      if (flags.ais) {
-        pushAllOccurrences("@所有AI", (k) => (
-          <MentionTag key={k} isAll>
-            @所有AI
-          </MentionTag>
-        ));
-        // ais=1 时 uids 是 routing bot,不绑文本(fail-closed,对齐 text-renderer)
-      } else if (flags.entities && flags.entities.length > 0 && channel) {
-        // entity 优先(issue #85,bot 消息):用 offset/length 直接圈定 mention,
-        // entity.uid 是占位 "uid" 时反查群成员真 uid 让 chip 可点击。
-        const seenNeedles = new Set<string>();
-        for (const ent of flags.entities) {
-          const needle = text.slice(ent.offset, ent.offset + ent.length);
-          if (!needle.startsWith("@")) continue;
-          if (seenNeedles.has(needle)) continue;
-          seenNeedles.add(needle);
-          if (isInsideLink(ent.offset)) continue;
-          const overlap = hits.some(
-            (h) => ent.offset < h.end && ent.offset + needle.length > h.start,
-          );
-          if (overlap) continue;
-          const displayName = needle.slice(1);
-          const realUid = isLikelyRealUid(ent.uid)
-            ? ent.uid
-            : lookupUidByDisplayName(channel, displayName);
-          hits.push({
-            start: ent.offset,
-            end: ent.offset + needle.length,
-            node: (
-              <MentionTag key={`tk-ent-${ent.offset}`} uid={realUid}>
-                {needle}
-              </MentionTag>
-            ),
-          });
-        }
-      } else {
-        const uids = mention.uids ?? [];
-        // 主路径 — candidate names 精确匹配(需要 channel)。生产消息都带 channel,
-        // 避免把普通 @ 文本误绑给 uids[0](issue #46 真凶)。
-        if (channel) {
-          for (const uid of uids) {
-            const names = collectCandidateNames(uid, channel);
-            if (names.length === 0) {
-              // candidate 拉不到就不高亮(退化为普通文本) — 不再 fetch Person
-              // channelInfo 兜底(issue #84):
-              //   - 真 uid:sender channelInfo 已被 message-row mount 时拉过,
-              //     群友通常在 subscribers cache,兜底命中率极低
-              //   - 脏数据 uid(如 "utility" / 旧版 label-as-uid):fetch 永远 400,
-              //     一点用没有 + 触发"用户信息不存在"toast
-              continue;
-            }
-            let found = false;
-            // 保留 collectCandidateNames 的业务优先级(remark -> name -> org display names)。
-            // 不能按长度重排:短名会抢先命中 `@郭斌丨Octo` 里的 `@郭斌`(issue #131),
-            // 长名优先又会回归 issue #73 的普通后缀被吞问题。
-            for (const name of names) {
-              const needle = `@${name}`;
-              let from = 0;
-              while (from < text.length) {
-                const idx = text.indexOf(needle, from);
-                if (idx === -1) break;
-                if (isInsideLink(idx)) {
-                  from = idx + 1;
-                  continue;
-                }
-                const overlap = hits.some((h) => idx < h.end && idx + needle.length > h.start);
-                if (!overlap) {
-                  hits.push({
-                    start: idx,
-                    end: idx + needle.length,
-                    node: (
-                      <MentionTag key={`tk-uid-${uid}-${idx}`} uid={uid}>
-                        {needle}
-                      </MentionTag>
-                    ),
-                  });
-                  found = true;
-                  break;
-                }
-                from = idx + 1;
-              }
-              if (found) break;
-            }
-          }
-        } else {
-          // 无 channel 的调用无法查候选名,只能按文本顺序兜底;链接内的 @ 不消耗 uid。
-          const re = /@[\p{Script=Han}A-Za-z][\p{Script=Han}\w.()（）-]{0,29}/gu;
-          let i = 0;
-          for (const m of text.matchAll(re)) {
-            if (i >= uids.length) break;
-            const match = m[0];
-            const start = m.index ?? -1;
-            if (start === -1 || isInsideLink(start)) continue;
-            const overlap = hits.some((h) => start < h.end && start + match.length > h.start);
-            if (overlap) continue;
-            const uid = uids[i++];
-            hits.push({
-              start,
-              end: start + match.length,
-              node: (
-                <MentionTag key={`tk-uid-${uid}-${start}`} uid={uid}>
-                  {match}
-                </MentionTag>
-              ),
-            });
-          }
-        }
+      for (const target of resolveMentionTextTargets({
+        text,
+        mention,
+        channel,
+        allowRegexFallback: true,
+        blockedRanges: linkRanges,
+      })) {
+        pushTarget(target);
       }
     }
   }
@@ -412,6 +262,25 @@ export function MentionAwareText({
   }
   if (pos < text.length) out.push(text.slice(pos));
   return <>{out}</>;
+}
+
+function findAvailableIndex(
+  text: string,
+  needle: string,
+  hits: { start: number; end: number }[],
+  isInsideLink: (pos: number) => boolean,
+): number {
+  let from = 0;
+  while (from < text.length) {
+    const idx = text.indexOf(needle, from);
+    if (idx === -1) return -1;
+    const end = idx + needle.length;
+    if (!isInsideLink(idx) && !hits.some((h) => idx < h.end && end > h.start)) {
+      return idx;
+    }
+    from = idx + 1;
+  }
+  return -1;
 }
 
 /**
@@ -440,7 +309,7 @@ function useFetchMissingMentionCandidates(
     for (const uid of mention.uids) {
       if (!isLikelyRealUid(uid)) continue;
       if (fetchedRef.current.has(uid)) continue;
-      const names = collectCandidateNames(uid, channel);
+      const names = collectMentionCandidateNames(uid, channel);
       if (names.length > 0) continue; // candidate 已有,无需 fetch
       // 标记为已 fetch,避免重复
       fetchedRef.current.add(uid);

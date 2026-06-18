@@ -2,6 +2,7 @@ import type { FetchContext, FetchResponse } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import { toast } from "@/components/semi-bridge/toast";
+import { extractResponseErrorMessage } from "@/features/base/api/api-error";
 
 type ResponseCtx = FetchContext & { response: FetchResponse<unknown> };
 
@@ -37,8 +38,7 @@ export const withErrorToast =
   () =>
   ({ response, options }: ResponseCtx) => {
     if ((options as { silent?: boolean }).silent) return;
-    const data = response._data as { message?: string; msg?: string } | undefined;
-    const msg = data?.message ?? data?.msg ?? response.statusText ?? "Request failed";
+    const msg = extractResponseErrorMessage(response);
     // 用 msg + status 当 key:相同错误同时间窗内只显一条
     toast.error(msg, { key: `err:${response.status}:${msg}` });
   };

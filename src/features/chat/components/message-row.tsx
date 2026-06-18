@@ -178,7 +178,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     },
   );
 
-  const { onContextMenu, render: renderMenu } = useMessageContextMenu(message);
+  const { onMouseDown, onContextMenu, render: renderMenu } = useMessageContextMenu(message);
 
   const onRowClick = () => {
     if (!selectionActive || !selectable) return;
@@ -262,6 +262,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       <div
         className={wrapperClass}
         data-msg-seq={message.messageSeq}
+        onMouseDown={onMouseDown}
         onContextMenu={onContextMenu}
         onClick={onRowClick}
       >
@@ -311,6 +312,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     <div
       className={wrapperClass}
       data-msg-seq={message.messageSeq}
+      onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
       onClick={onRowClick}
     >

@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -52,6 +52,12 @@ import { t } from "@/lib/i18n/instance";
 
 const CHANNEL_TYPE_THREAD = 5;
 
+interface SelectionSnapshot {
+  text: string;
+  start: number;
+  end: number;
+}
+
 /**
  * 通用消息右键菜单 hook —
  *
@@ -70,6 +76,7 @@ const CHANNEL_TYPE_THREAD = 5;
  * `selectionMode ? preventDefault : onSummaryContextMenu`)。
  */
 export function useMessageContextMenu(message: Message): {
+  onMouseDown: (e: MouseEvent) => void;
   onContextMenu: (e: MouseEvent) => void;
   render: () => ReactNode;
 } {
@@ -78,22 +85,51 @@ export function useMessageContextMenu(message: Message): {
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
+  const selectionRootRef = useRef<Node | null>(null);
+  const selectionSnapshotRef = useRef<SelectionSnapshot | null>(null);
 
-  const [menu, setMenu] = useState<{ open: boolean; x: number; y: number }>({
+  const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; selectedText: string }>({
     open: false,
     x: 0,
     y: 0,
+    selectedText: "",
   });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
 
+  const onMouseDown = (e: MouseEvent) => {
+    if (selectionActive || e.button !== 2) return;
+    const snapshot = captureSelectionWithin(e.currentTarget);
+    selectionRootRef.current = e.currentTarget instanceof Node ? e.currentTarget : null;
+    selectionSnapshotRef.current = snapshot?.text.trim() ? snapshot : null;
+  };
+
   const onContextMenu = (e: MouseEvent) => {
     if (selectionActive) return;
     e.preventDefault();
     if (me) warmMissingRevokeTargetRole(message, me);
-    setMenu({ open: true, x: e.clientX, y: e.clientY });
+    const liveSnapshot = captureSelectionWithin(e.currentTarget);
+    const savedSnapshot =
+      selectionRootRef.current === e.currentTarget ? selectionSnapshotRef.current : null;
+    const snapshot = liveSnapshot?.text.trim() ? liveSnapshot : savedSnapshot;
+    selectionRootRef.current = e.currentTarget instanceof Node ? e.currentTarget : null;
+    selectionSnapshotRef.current = snapshot ?? null;
+    setMenu({
+      open: true,
+      x: e.clientX,
+      y: e.clientY,
+      selectedText: snapshot?.text ?? "",
+    });
   };
+
+  useLayoutEffect(() => {
+    if (!menu.open) return;
+    const root = selectionRootRef.current;
+    const snapshot = selectionSnapshotRef.current;
+    if (!root || !snapshot) return;
+    restoreSelectionWithin(root, snapshot);
+  }, [menu.open, menu.x, menu.y]);
 
   const removeFromCache = () => {
     qc.setQueriesData<{ pages: Message[][]; pageParams: unknown[] }>(
@@ -189,16 +225,20 @@ export function useMessageContextMenu(message: Message): {
   const replyAllowed = canForward(message);
   const threadAllowed = canCreateThread(message);
 
+  const selectedText = menu.selectedText.trim() ? menu.selectedText : "";
+  const messageText = extractText(message);
   const items: ContextMenuItem[] = [];
-  if (extractText(message)) {
+  if (selectedText || messageText) {
     items.push({
       label: t("messageRow.menu.copy"),
       icon: <Copy size={13} />,
       onClick: () => {
         const richText = message.contentType === MessageContentTypeConst.richText;
-        const copied = richText
-          ? copyRichTextToClipboard(message.content as RichTextContent, message.channel)
-          : navigator.clipboard.writeText(extractText(message)).then(() => true);
+        const copied = selectedText
+          ? navigator.clipboard.writeText(selectedText).then(() => true)
+          : richText
+            ? copyRichTextToClipboard(message.content as RichTextContent, message.channel)
+            : navigator.clipboard.writeText(messageText).then(() => true);
         void copied
           .then((ok) => {
             if (ok) toast.success(t("messageRow.toast.copied"));
@@ -298,7 +338,70 @@ export function useMessageContextMenu(message: Message): {
     </>
   );
 
-  return { onContextMenu, render };
+  return { onMouseDown, onContextMenu, render };
+}
+
+function captureSelectionWithin(root: EventTarget | null): SelectionSnapshot | null {
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    typeof Node === "undefined" ||
+    !(root instanceof Node)
+  ) {
+    return null;
+  }
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+  const { anchorNode, focusNode } = selection;
+  if (!anchorNode || !focusNode) return null;
+  if (!root.contains(anchorNode) || !root.contains(focusNode)) return null;
+  const range = selection.getRangeAt(0);
+  const start = getTextOffsetWithin(root, range.startContainer, range.startOffset);
+  const end = getTextOffsetWithin(root, range.endContainer, range.endOffset);
+  if (start === null || end === null || start === end) return null;
+  return {
+    text: selection.toString(),
+    start: Math.min(start, end),
+    end: Math.max(start, end),
+  };
+}
+
+function getTextOffsetWithin(root: Node, node: Node, offset: number): number | null {
+  if (!root.contains(node)) return null;
+  const range = document.createRange();
+  range.selectNodeContents(root);
+  range.setEnd(node, offset);
+  return range.toString().length;
+}
+
+function restoreSelectionWithin(root: Node, snapshot: SelectionSnapshot): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (!root.isConnected) return;
+  const start = findTextBoundary(root, snapshot.start);
+  const end = findTextBoundary(root, snapshot.end);
+  if (!start || !end) return;
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  const selection = window.getSelection();
+  if (!selection) return;
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function findTextBoundary(root: Node, targetOffset: number): { node: Text; offset: number } | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, targetOffset);
+  let lastText: Text | null = null;
+  let current = walker.nextNode();
+  while (current) {
+    const text = current as Text;
+    lastText = text;
+    if (remaining <= text.data.length) return { node: text, offset: remaining };
+    remaining -= text.data.length;
+    current = walker.nextNode();
+  }
+  return lastText ? { node: lastText, offset: lastText.data.length } : null;
 }
 
 /** sender 是 bot 且 bot 由当前用户创建。 */

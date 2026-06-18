@@ -347,5 +347,5 @@ export function TextRenderer({ message }: TextRendererProps) {
     ...mentionTokens(text, readMessageMention(content), message.channel),
     ...emojiTokens(text),
   ];
-  return <Markdown content={text} tokens={tokens} />;
+  return <Markdown content={text} tokens={tokens} className="select-text" />;
 }

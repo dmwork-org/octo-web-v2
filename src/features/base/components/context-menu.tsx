@@ -181,6 +181,7 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
           "opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
       className="z-popover min-w-[160px] overflow-visible rounded-lg border border-[#E5E6EB] bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-border-default dark:bg-bg-surface"
+      onMouseDown={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
       <ul className="m-0 list-none p-0">

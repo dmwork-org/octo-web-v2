@@ -5,6 +5,9 @@ import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { activitiesInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import { UserName } from "@/features/matter/components/user-name";
+import { TimeSortButton } from "@/features/matter/components/time-sort-button";
+import { useFetchNextOnInView } from "@/features/matter/hooks/use-fetch-next-on-in-view";
+import { formatMatterDateTime } from "@/features/matter/lib/time";
 import type { ActivityEntry, MatterAction } from "@/features/matter/types/matter.types";
 
 interface ActivityListProps {
@@ -45,39 +48,11 @@ function applyFilter(activities: ActivityEntry[], filter: FilterId): ActivityEnt
   return activities.filter((a) => a.action === filter);
 }
 
-/** 时间格式化: 月/日 时:分(对齐原始 i18n.format.dateTime)。 */
-function formatActivityTime(iso: string): string {
-  const d = new Date(iso);
-  const mm = String(d.getMonth() + 1);
-  const dd = String(d.getDate());
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${mm}/${dd} ${hh}:${mi}`;
-}
-
 /** 去除 HTML 标签，用于活动记录文本展示 */
 function stripHtml(html: string): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent || "";
-}
-
-/** IntersectionObserver 无限滚动 sentinel hook。 */
-function useFetchNextOnInView(
-  ref: React.RefObject<HTMLDivElement | null>,
-  enabled: boolean,
-  fetchNextPage: () => void,
-) {
-  useEffect(() => {
-    if (!enabled) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) fetchNextPage();
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [ref, enabled, fetchNextPage]);
 }
 
 /** click-outside 关闭 dropdown hook。 */
@@ -219,10 +194,10 @@ function ActivityContent({ activity }: { activity: ActivityEntry }) {
 
     case "deadline_changed": {
       const from = detail.from
-        ? formatActivityTime(new Date((detail.from as number) * 1000).toISOString())
+        ? formatMatterDateTime(new Date((detail.from as number) * 1000))
         : t("matter.common.none");
       const to = detail.to
-        ? formatActivityTime(new Date((detail.to as number) * 1000).toISOString())
+        ? formatMatterDateTime(new Date((detail.to as number) * 1000))
         : t("matter.common.none");
       return (
         <span className="inline-flex items-center gap-1">
@@ -384,31 +359,11 @@ export function ActivityList({ matterId }: ActivityListProps) {
           )}
         </span>
 
-        <button
-          type="button"
-          className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium leading-5 text-text-primary transition-opacity hover:opacity-80"
-          onClick={() => setSortNewest((v) => !v)}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M7.33333 10.667L4.66667 13.3337L2 10.667M4.66667 13.3337V2.66699"
-              stroke="currentColor"
-              strokeOpacity={sortNewest ? 1 : 0.4}
-              strokeWidth="1.33"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M8.66602 5.33366L11.3327 2.66699L13.9993 5.33366M11.3327 2.66699V13.3337"
-              stroke="currentColor"
-              strokeOpacity={sortNewest ? 0.4 : 1}
-              strokeWidth="1.33"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          {t("matter.action.timeSort")}
-        </button>
+        <TimeSortButton
+          sortNewest={sortNewest}
+          onToggle={() => setSortNewest((v) => !v)}
+          label={t("matter.action.timeSort")}
+        />
       </div>
 
       {sorted.length === 0 ? (
@@ -441,7 +396,7 @@ export function ActivityList({ matterId }: ActivityListProps) {
               {sorted.map((a) => (
                 <tr key={a.id} className="bg-bg-surface">
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle tabular-nums">
-                    {formatActivityTime(a.created_at)}
+                    {formatMatterDateTime(a.created_at)}
                   </td>
                   <td className="p-3 align-top text-sm font-normal leading-5 text-text-primary border-b border-border-subtle">
                     {t(ACTION_LABEL_KEYS[a.action])}

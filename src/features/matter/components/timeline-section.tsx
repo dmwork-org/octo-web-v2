@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
@@ -15,23 +15,13 @@ import {
   useDeleteTimelineEntry,
 } from "@/features/matter/mutations/matters.mutation";
 import { UserName } from "@/features/matter/components/user-name";
+import { useFetchNextOnInView } from "@/features/matter/hooks/use-fetch-next-on-in-view";
+import { formatMatterTime, isSameMatterDay } from "@/features/matter/lib/time";
 import type { TimelineEntry } from "@/features/matter/types/matter.types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TimelineSectionProps {
   matterId: string;
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function formatTime(d: Date): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 interface TimelineGroup {
@@ -62,26 +52,6 @@ function groupTimelineEntries(
 }
 
 /**
- * IntersectionObserver 监听 sentinel 触底,加载更老的 timeline。命名 hook。
- */
-function useFetchNextOnInView(
-  ref: React.RefObject<HTMLDivElement | null>,
-  enabled: boolean,
-  fetchNextPage: () => void,
-) {
-  useEffect(() => {
-    if (!enabled) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) fetchNextPage();
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [ref, enabled, fetchNextPage]);
-}
-
-/**
  * Matter 评论 / 时间线区段(P3-matter D-4 扩展)。
  */
 export function TimelineSection({ matterId }: TimelineSectionProps) {
@@ -99,10 +69,10 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
   const all = useMemo<TimelineEntry[]>(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
 
   const formatGroupHeader = (d: Date, now: Date): string => {
-    if (isSameDay(d, now)) return tr("matter.day.today");
+    if (isSameMatterDay(d, now)) return tr("matter.day.today");
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
-    if (isSameDay(d, yesterday)) return tr("matter.day.yesterday");
+    if (isSameMatterDay(d, yesterday)) return tr("matter.day.yesterday");
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -156,7 +126,7 @@ export function TimelineSection({ matterId }: TimelineSectionProps) {
             </div>
             {g.entries.map((e) => {
               const canDelete = e.user_id === myUid;
-              const time = formatTime(new Date(e.created_at));
+              const time = formatMatterTime(e.created_at);
               return (
                 <article
                   key={e.id}

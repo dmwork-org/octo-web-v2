@@ -44,6 +44,7 @@ import {
 import { toParentGroupNo } from "@/features/matter/utils/channel-id";
 import { computeAnchorPosition } from "@/features/matter/utils/anchor-position";
 import { resolveFileUrl, downloadFile } from "@/features/matter/utils/download";
+import { formatMatterDateTime, formatMatterRelativeTime } from "@/features/matter/lib/time";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { chatLocateMessageActions } from "@/features/chat/stores/chat-locate-message";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
@@ -71,32 +72,6 @@ interface MatterDetailPanelProps {
 }
 
 type SecondaryTab = "channels" | "outputs" | "changelog";
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  const mm = String(d.getMonth() + 1);
-  const dd = String(d.getDate());
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${mm}/${dd} ${hh}:${mi}`;
-}
-
-/** 相对时间格式化（需要 t 函数） */
-function formatRelativeTime(
-  iso: string,
-  t: (key: string, params?: Record<string, unknown>) => string,
-): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diffMs = now - then;
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return t("matter.day.today");
-  if (diffDays === 1) return t("matter.day.yesterday");
-  if (diffDays < 30) return t("matter.time.daysAgo", { values: { count: diffDays } });
-  if (diffDays < 365)
-    return t("matter.time.monthsAgo", { values: { count: Math.floor(diffDays / 30) } });
-  return t("matter.time.yearsAgo", { values: { count: Math.floor(diffDays / 365) } });
-}
 
 /** 编辑态自动 focus + select */
 function useAutoFocusInput(ref: React.RefObject<HTMLInputElement | null>, shouldFocus: boolean) {
@@ -586,7 +561,7 @@ export function MatterDetailPanel({
                         values: { name: displaySourceName },
                       })}{" "}
                       · <UserName uid={data.creator_id} className="text-text-primary" /> ·{" "}
-                      {formatDateTime(data.created_at)}
+                      {formatMatterDateTime(data.created_at)}
                     </span>
                   ) : (
                     <span className="select-none blur-[2.5px] opacity-35">
@@ -970,7 +945,7 @@ function ChannelsTab({
                     </span>
                     {!myGroupsLoading && !isMember && <NotMemberBadge />}
                     <span className="shrink-0 text-[14px] leading-[20px] whitespace-nowrap text-icon-muted">
-                      {formatRelativeTime(mc.created_at, t)}
+                      {formatMatterRelativeTime(mc.created_at, t)}
                       {t("matter.sync.syncSuffix")}
                     </span>
                   </div>
@@ -997,7 +972,7 @@ function ChannelsTab({
                         className="font-normal text-[rgba(28,28,35,0.8)]"
                       />
                       <span className="text-icon-muted">
-                        {formatDateTime(latestEntry.created_at)}
+                        {formatMatterDateTime(latestEntry.created_at)}
                       </span>
                     </div>
                     <div className="text-[14px] leading-[20px] text-text-primary">

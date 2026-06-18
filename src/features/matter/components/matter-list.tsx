@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChevronRight } from "lucide-react";
@@ -8,6 +8,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { mattersListInfiniteQueryOptions } from "@/features/matter/queries/matters.query";
 import { SidebarCard } from "@/features/matter/components/sidebar-card";
+import { useFetchNextOnInView } from "@/features/matter/hooks/use-fetch-next-on-in-view";
 import type { Matter, MatterListParams } from "@/features/matter/types/matter.types";
 
 export type MatterTab = "mine" | "created" | "all";
@@ -38,24 +39,6 @@ interface MatterListProps {
   initialQ?: string;
   /** 搜索关键词变化时通知 view 层更新 URL */
   onQChange?: (q: string | null) => void;
-}
-
-/** IntersectionObserver 监听 sentinel 触底加载(命名 hook 包 useEffect)。 */
-function useFetchNextOnInView(
-  ref: React.RefObject<HTMLDivElement | null>,
-  enabled: boolean,
-  fetchNextPage: () => void,
-) {
-  useEffect(() => {
-    if (!enabled) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) fetchNextPage();
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [ref, enabled, fetchNextPage]);
 }
 
 /** 对齐旧 ChatMatterPanel.displayMatters:在已拉 matters 上按 tab + myUid 二次过滤。 */

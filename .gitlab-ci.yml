@@ -17,9 +17,9 @@ workflow:
   rules:
     # main 分支 push 触发,但部署的 k8s 资源仍沿用 test 命名(ingress 已映射到 octo-web-test-svc)
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
-    # 允许手动 pipeline / 定时 pipeline 跑质量报告,不触发构建部署链路。
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    # 手动/定时任务必须显式指定 PIPELINE_TASK,避免未来新增任务时互相串线。
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_TASK == "dupcheck"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_TASK == "dupcheck"'
     - when: never
 
 variables:
@@ -180,6 +180,6 @@ deploy_test:
 dupcheck_report:
   <<: *dupcheck_base
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_TASK == "dupcheck"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_TASK == "dupcheck"'
     - when: never

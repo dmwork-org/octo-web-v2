@@ -73,6 +73,7 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
           ) : (
             <FoldSessionItem
               message={lastMessage}
+              onMouseDown={summaryRevoked ? undefined : summaryMenu.onMouseDown}
               onContextMenu={summaryRevoked ? undefined : summaryMenu.onContextMenu}
             />
           )}
@@ -101,9 +102,11 @@ export function FoldSessionCard({ session, expanded, onToggle }: FoldSessionCard
  */
 function FoldSessionItem({
   message,
+  onMouseDown,
   onContextMenu,
 }: {
   message: Message;
+  onMouseDown?: (e: MouseEvent) => void;
   onContextMenu?: (e: MouseEvent) => void;
 }) {
   const senderName = senderTitleOf(message.fromUID);
@@ -128,6 +131,7 @@ function FoldSessionItem({
       data-msg-seq={message.messageSeq > 0 ? message.messageSeq : undefined}
       className={`flex flex-col gap-1 ${selectedBg} ${cursor}`}
       onClick={onRowClick}
+      onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
     >
       <div className="flex items-center gap-2">
@@ -180,11 +184,15 @@ function FoldSessionExpanded({ messages }: { messages: Message[] }) {
 
 /** 展开态单条 + 自己的菜单(每条独立 hook 实例,保证 React 规则)。 */
 function ExpandedItemWithMenu({ message }: { message: Message }) {
-  const { onContextMenu, render } = useMessageContextMenu(message);
+  const { onMouseDown, onContextMenu, render } = useMessageContextMenu(message);
   const revoked = !!message.remoteExtra?.revoke;
   return (
     <>
-      <FoldSessionItem message={message} onContextMenu={revoked ? undefined : onContextMenu} />
+      <FoldSessionItem
+        message={message}
+        onMouseDown={revoked ? undefined : onMouseDown}
+        onContextMenu={revoked ? undefined : onContextMenu}
+      />
       {revoked ? null : render()}
     </>
   );

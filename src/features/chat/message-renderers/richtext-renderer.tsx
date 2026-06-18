@@ -66,7 +66,7 @@ export function RichTextRenderer({ message }: RichTextRendererProps) {
 
   return (
     <div
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2 select-text"
       onCopy={onCopy}
       {...{ [OCTO_RICHTEXT_CLIPBOARD_ATTR]: clipboardPayload }}
     >

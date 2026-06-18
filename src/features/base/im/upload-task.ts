@@ -4,8 +4,8 @@ import {
   type UploadCredentials,
 } from "@/features/base/api/endpoints/upload.api";
 
-/** Image content 子类有 `url` 字段,基类 MediaMessageContent 没有;type-only intersection 让 cast 通过。 */
-type MediaContentWithUrl = MediaMessageContent & { url?: string };
+/** Image/File 等子类扩展了基类字段;type-only intersection 让安全兜底读取通过。 */
+type MediaContentWithUrl = MediaMessageContent & { url?: string; ext?: string };
 
 /**
  * 媒体消息(图片/文件/视频/语音)上传任务 — SDK MessageTask 实现。
@@ -33,7 +33,8 @@ export class MediaMessageUploadTask extends MessageTask {
     if (mediaContent.file) {
       try {
         const fileName = this.getUUID();
-        const ext = mediaContent.extension ? `.${mediaContent.extension}` : "";
+        const extension = this.resolveExtension(mediaContent);
+        const ext = extension ? `.${extension}` : "";
         const path = `/${this.message.channel.channelType}/${this.message.channel.channelID}/${fileName}${ext}`;
         const credentials = await this.fetchCredentials(mediaContent.file, path);
         if (credentials) {
@@ -53,6 +54,14 @@ export class MediaMessageUploadTask extends MessageTask {
     } else {
       this.markFail();
     }
+  }
+
+  private resolveExtension(mediaContent: MediaContentWithUrl): string {
+    const explicit = mediaContent.extension || mediaContent.ext || "";
+    if (explicit) return normalizeExtension(explicit);
+    const name = mediaContent.file?.name ?? "";
+    const dot = name.lastIndexOf(".");
+    return dot > 0 ? normalizeExtension(name.substring(dot + 1)) : "";
   }
 
   /**
@@ -153,4 +162,8 @@ export class MediaMessageUploadTask extends MessageTask {
   progress(): number {
     return this._progress;
   }
+}
+
+function normalizeExtension(extension: string): string {
+  return extension.replace(/^\.+/, "").toLowerCase();
 }

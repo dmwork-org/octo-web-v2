@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
@@ -15,6 +14,10 @@ import { Check, Search, X } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
+import {
+  SelectedPreviewPane,
+  VirtualizedSelectList,
+} from "@/features/base/components/member-select/member-select";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { getMyGroups, listThreads } from "@/features/base/api/endpoints/group.api";
@@ -472,43 +475,21 @@ function ForwardCandidateList({
   requestedInfoRef,
   empty,
 }: ForwardCandidateListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => FORWARD_ROW_HEIGHT,
-    overscan: FORWARD_LIST_OVERSCAN,
-  });
-
-  if (items.length === 0) {
-    return <div className="flex-1 overflow-y-auto py-1">{empty}</div>;
-  }
-
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto py-1">
-      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const candidate = items[virtualItem.index];
-          return (
-            <div
-              key={virtualItem.key}
-              className="absolute top-0 left-0 w-full"
-              style={{
-                height: virtualItem.size,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              <ForwardCandidateRow
-                candidate={candidate}
-                checked={selectedIds.has(candidate.channelID)}
-                onToggle={onToggle}
-                requestedInfoRef={requestedInfoRef}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <VirtualizedSelectList
+      items={items}
+      empty={empty}
+      rowHeight={FORWARD_ROW_HEIGHT}
+      overscan={FORWARD_LIST_OVERSCAN}
+      renderRow={(candidate) => (
+        <ForwardCandidateRow
+          candidate={candidate}
+          checked={selectedIds.has(candidate.channelID)}
+          onToggle={onToggle}
+          requestedInfoRef={requestedInfoRef}
+        />
+      )}
+    />
   );
 }
 
@@ -790,31 +771,21 @@ export function ForwardModal({
         <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
 
         {/* 右列:已选预览 */}
-        <div className="flex flex-1 flex-col overflow-hidden py-2">
-          {selectedCandidates.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
-              {tt("forwardModalLocal.notSelected")}
-            </div>
-          ) : (
-            <>
-              <div className="shrink-0 px-2 pb-1.5 text-[12px] text-[rgba(28,28,35,0.4)]">
-                {tt("forwardModalLocal.selectedCount", {
-                  values: { count: selectedCandidates.length },
-                })}
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {selectedCandidates.map((candidate) => (
-                  <ForwardSelectedRow
-                    key={`sel-${candidate.channelType}-${candidate.channelID}`}
-                    candidate={candidate}
-                    onRemove={toggle}
-                    requestedInfoRef={requestedInfoRef}
-                  />
-                ))}
-              </div>
-            </>
+        <SelectedPreviewPane
+          items={selectedCandidates}
+          emptyLabel={tt("forwardModalLocal.notSelected")}
+          countLabel={tt("forwardModalLocal.selectedCount", {
+            values: { count: selectedCandidates.length },
+          })}
+          getKey={(candidate) => `sel-${candidate.channelType}-${candidate.channelID}`}
+          renderItem={(candidate) => (
+            <ForwardSelectedRow
+              candidate={candidate}
+              onRemove={toggle}
+              requestedInfoRef={requestedInfoRef}
+            />
           )}
-        </div>
+        />
       </div>
     </BaseDialog>
   );

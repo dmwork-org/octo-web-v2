@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
-  ChannelTypePerson,
   ChannelTypeGroup,
   ConversationAction,
   type Conversation,
@@ -13,7 +12,11 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { SelectableMemberRow } from "@/features/base/components/member-select/member-select";
+import {
+  filterMembersByKeyword,
+  toggleMemberSelection,
+} from "@/features/base/components/member-select/member-select-utils";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
@@ -75,11 +78,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
   }, [members, myUid]);
 
   const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    if (!kw) return candidates;
-    return candidates.filter(
-      (c) => (c.name || "").toLowerCase().includes(kw) || c.uid.toLowerCase().includes(kw),
-    );
+    return filterMembersByKeyword(candidates, keyword);
   }, [candidates, keyword]);
 
   const mu = useMutation({
@@ -146,12 +145,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
   });
 
   const toggle = (uid: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
+    toggleMemberSelection(setSelected, uid);
   };
 
   return (
@@ -214,26 +208,12 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             const checked = selected.has(m.uid);
             return (
               <li key={m.uid} className="px-2">
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                    checked ? "bg-brand-tint" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(m.uid)}
-                    className="shrink-0"
-                  />
-                  <ChannelAvatar
-                    channel={new Channel(m.uid, ChannelTypePerson)}
-                    size={32}
-                    title={m.name}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                    {m.name || m.uid}
-                  </span>
-                </label>
+                <SelectableMemberRow
+                  uid={m.uid}
+                  name={m.name}
+                  checked={checked}
+                  onToggle={toggle}
+                />
               </li>
             );
           })

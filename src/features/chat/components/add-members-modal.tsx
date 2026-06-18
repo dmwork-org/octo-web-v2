@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
-import { Check, Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { type SpaceMember } from "@/features/base/api/endpoints/space.api";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import {
+  SelectableMemberRow,
+  SelectedMemberRow,
+  SelectedPreviewPane,
+  VirtualizedSelectList,
+} from "@/features/base/components/member-select/member-select";
+import {
+  filterMembersByKeyword,
+  toggleMemberSelection,
+} from "@/features/base/components/member-select/member-select-utils";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { addGroupMembers, createGroup } from "@/features/base/api/endpoints/group.api";
@@ -45,24 +53,6 @@ function useDebouncedKeyword(input: string, setKeyword: (k: string) => void): vo
   }, [input, setKeyword]);
 }
 
-function AddMemberAvatar({ member }: { member: SpaceMember }) {
-  return (
-    <ChannelAvatar
-      channel={new Channel(member.uid, ChannelTypePerson)}
-      size={28}
-      title={member.name || member.uid}
-    />
-  );
-}
-
-function AddMemberName({ member }: { member: SpaceMember }) {
-  return (
-    <span className="min-w-0 flex-1 truncate text-[14px] text-text-primary">
-      {member.name || member.uid}
-    </span>
-  );
-}
-
 function AddMemberCandidateRow({
   member,
   checked,
@@ -73,23 +63,18 @@ function AddMemberCandidateRow({
   onToggle: (uid: string) => void;
 }) {
   return (
-    <div
-      onClick={() => onToggle(member.uid)}
-      className="flex h-9 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]"
-    >
-      <span
-        role="checkbox"
-        aria-checked={checked}
-        className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[3px] border-[1.5px] transition-colors ${
-          checked ? "border-brand bg-brand text-text-inverse" : "border-border-strong bg-bg-surface"
-        }`}
-      >
-        {checked ? <Check size={12} strokeWidth={2.5} /> : null}
-      </span>
-      <AddMemberAvatar member={member} />
-      <AddMemberName member={member} />
-      {member.robot === 1 ? <AiBadge size="small" /> : null}
-    </div>
+    <SelectableMemberRow
+      uid={member.uid}
+      name={member.name}
+      checked={checked}
+      onToggle={onToggle}
+      avatarSize={28}
+      checkboxVariant="brand"
+      rowClassName="flex h-9 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]"
+      checkedClassName=""
+      nameClassName="text-[14px] text-text-primary"
+      trailing={member.robot === 1 ? <AiBadge size="small" /> : null}
+    />
   );
 }
 
@@ -104,43 +89,20 @@ function AddMemberCandidateList({
   onToggle: (uid: string) => void;
   empty: ReactNode;
 }) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ADD_MEMBER_ROW_HEIGHT,
-    overscan: ADD_MEMBER_LIST_OVERSCAN,
-  });
-
-  if (items.length === 0) {
-    return <div className="flex-1 overflow-y-auto py-1">{empty}</div>;
-  }
-
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto py-1">
-      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const member = items[virtualItem.index];
-          if (!member) return null;
-          return (
-            <div
-              key={virtualItem.key}
-              className="absolute top-0 left-0 w-full"
-              style={{
-                height: virtualItem.size,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              <AddMemberCandidateRow
-                member={member}
-                checked={selectedIds.has(member.uid)}
-                onToggle={onToggle}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <VirtualizedSelectList
+      items={items}
+      empty={empty}
+      rowHeight={ADD_MEMBER_ROW_HEIGHT}
+      overscan={ADD_MEMBER_LIST_OVERSCAN}
+      renderRow={(member) => (
+        <AddMemberCandidateRow
+          member={member}
+          checked={selectedIds.has(member.uid)}
+          onToggle={onToggle}
+        />
+      )}
+    />
   );
 }
 
@@ -153,22 +115,13 @@ function AddMemberSelectedRow({
 }) {
   const tt = useT();
   return (
-    <div className="group flex h-9 items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]">
-      <AddMemberAvatar member={member} />
-      <AddMemberName member={member} />
-      {member.robot === 1 ? <AiBadge size="small" /> : null}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(member.uid);
-        }}
-        aria-label={tt("forwardModalLocal.remove")}
-        className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.06)] hover:text-text-primary"
-      >
-        <X size={14} strokeWidth={2} />
-      </button>
-    </div>
+    <SelectedMemberRow
+      uid={member.uid}
+      name={member.name}
+      onRemove={onRemove}
+      removeLabel={tt("forwardModalLocal.remove")}
+      trailing={member.robot === 1 ? <AiBadge size="small" /> : null}
+    />
   );
 }
 
@@ -213,11 +166,7 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
   }, [members, subscribers, myUid, isPrivateChat, channel.channelID]);
 
   const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    if (!kw) return candidates;
-    return candidates.filter(
-      (c) => (c.name || "").toLowerCase().includes(kw) || c.uid.toLowerCase().includes(kw),
-    );
+    return filterMembersByKeyword(candidates, keyword);
   }, [candidates, keyword]);
 
   const selectedCandidates = useMemo(() => {
@@ -259,12 +208,7 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
   });
 
   const toggle = (uid: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
+    toggleMemberSelection(setSelected, uid);
   };
 
   return (
@@ -339,30 +283,15 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
 
         <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
 
-        <div className="flex flex-1 flex-col overflow-hidden py-2">
-          {selectedCandidates.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-[13px] text-[rgba(28,28,35,0.35)]">
-              {tt("forwardModalLocal.notSelected")}
-            </div>
-          ) : (
-            <>
-              <div className="shrink-0 px-2 pb-1.5 text-[12px] text-[rgba(28,28,35,0.4)]">
-                {tt("forwardModalLocal.selectedCount", {
-                  values: { count: selectedCandidates.length },
-                })}
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {selectedCandidates.map((member) => (
-                  <AddMemberSelectedRow
-                    key={`sel-${member.uid}`}
-                    member={member}
-                    onRemove={toggle}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <SelectedPreviewPane
+          items={selectedCandidates}
+          emptyLabel={tt("forwardModalLocal.notSelected")}
+          countLabel={tt("forwardModalLocal.selectedCount", {
+            values: { count: selectedCandidates.length },
+          })}
+          getKey={(member) => `sel-${member.uid}`}
+          renderItem={(member) => <AddMemberSelectedRow member={member} onRemove={toggle} />}
+        />
       </div>
     </BaseDialog>
   );

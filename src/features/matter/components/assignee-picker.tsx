@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
-import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { MemberChoiceList } from "@/features/base/components/member-select/member-select";
+import { toggleMemberSelection } from "@/features/base/components/member-select/member-select-utils";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { matterDetailQueryKey, mattersQueryKey } from "@/features/matter/queries/matters.query";
 import { addAssignee, removeAssignee } from "@/features/matter/api/matter.api";
@@ -89,12 +89,7 @@ export function AssigneePicker({
   });
 
   const toggle = (uid: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
+    toggleMemberSelection(setSelected, uid);
   };
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -138,37 +133,16 @@ export function AssigneePicker({
         <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
           {tr("matter.assignee.selectedPeople", { values: { count: selected.size } })}
         </div>
-        <div className="flex flex-1 flex-col overflow-y-auto px-2 pb-2">
-          {candidates.length === 0 ? (
+        <MemberChoiceList
+          items={candidates}
+          selectedIds={selected}
+          onToggle={toggle}
+          empty={
             <div className="px-3 py-4 text-center text-xs text-text-tertiary">
               {tr("matter.assignee.noSpaceMembers")}
             </div>
-          ) : (
-            candidates.map((m) => {
-              const checked = selected.has(m.uid);
-              const channel = new Channel(m.uid, ChannelTypePerson);
-              return (
-                <label
-                  key={m.uid}
-                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-bg-hover ${
-                    checked ? "bg-brand-tint" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(m.uid)}
-                    className="shrink-0"
-                  />
-                  <ChannelAvatar channel={channel} size={32} title={m.name} />
-                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                    {m.name || m.uid}
-                  </span>
-                </label>
-              );
-            })
-          )}
-        </div>
+          }
+        />
       </form>
     </BaseDialog>
   );

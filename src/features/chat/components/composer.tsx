@@ -3,7 +3,6 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
-import DOMPurify from "dompurify";
 import { Extension, type Editor } from "@tiptap/core";
 import WKSDK, {
   Channel,
@@ -384,13 +383,17 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return true;
       },
       transformPastedHTML: (html) => {
-        // P0 XSS: 非 Octo 格式 HTML 交由 TipTap 默认粘贴处理前，先 DOMPurify 过滤，
-        // 防止 <img onerror=alert(1)> 等恶意代码在浏览器创建 DOM 时执行
+        // P0 XSS #167: 浏览器在 ProseMirror schema 解析前就创建 DOM 并触发 onerror，
+        // 这里只 strip on* 属性和危险标签，不做白名单——标签过滤交给 ProseMirror schema
         if (!html) return html;
-        return DOMPurify.sanitize(html, {
-          ALLOWED_TAGS: ["p", "br", "strong", "em", "a", "ul", "ol", "li", "span"],
-          ALLOWED_ATTR: ["href"],
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
+        doc.querySelectorAll("*").forEach((el) => {
+          for (const attr of [...el.attributes]) {
+            if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
+          }
         });
+        return doc.body.innerHTML;
       },
     },
   });

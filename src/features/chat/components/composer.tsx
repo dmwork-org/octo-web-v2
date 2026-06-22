@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
+import DOMPurify from "dompurify";
 import { Extension, type Editor } from "@tiptap/core";
 import WKSDK, {
   Channel,
@@ -382,6 +383,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         });
         return true;
       },
+      transformPastedHTML: (html) => {
+        // P0 XSS: 非 Octo 格式 HTML 交由 TipTap 默认粘贴处理前，先 DOMPurify 过滤，
+        // 防止 <img onerror=alert(1)> 等恶意代码在浏览器创建 DOM 时执行
+        if (!html) return html;
+        return DOMPurify.sanitize(html, {
+          ALLOWED_TAGS: ["p", "br", "strong", "em", "a", "ul", "ol", "li", "span"],
+          ALLOWED_ATTR: ["href"],
+        });
+      },
     },
   });
   editorRef.current = editor;
@@ -416,11 +426,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   };
 
   const send = async () => {
-    if (!editor || sending) return;
+    if (!editor) return;
+    if (sending) {
+      toast.warning(t("composer.toast.sending"));
+      return;
+    }
     const MAX_MESSAGE_LENGTH = 5000;
     const blocks = attachments.extractOrderedBlocks(editor);
     const top = attachments.topAttachments;
-    const hasText = blocks.some((b) => b.type === "text" && b.text);
+    const hasText = blocks.some((b) => b.type === "text" && b.text?.trim());
     const hasAttach = blocks.some((b) => b.type !== "text") || top.length > 0;
     if (!hasText && !hasAttach) return;
 

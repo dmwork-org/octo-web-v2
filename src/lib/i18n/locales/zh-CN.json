@@ -649,6 +649,7 @@
   "composer.toast.noVoiceDetected": "未检测到语音",
   "composer.toast.recordFailed": "录音失败",
   "composer.toast.sendFailed": "发送失败",
+  "composer.toast.sending": "正在发送中，请稍候",
   "composer.toast.tooLong": "输入内容长度不能大于 {{max}} 字符!",
   "composer.toast.transcribeFailed": "转写失败",
   "composer.transcribing": "转写中...",

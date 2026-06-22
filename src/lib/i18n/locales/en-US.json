@@ -649,6 +649,7 @@
   "composer.toast.noVoiceDetected": "No voice detected",
   "composer.toast.recordFailed": "Recording failed",
   "composer.toast.sendFailed": "Send failed",
+  "composer.toast.sending": "Sending in progress, please wait",
   "composer.toast.tooLong": "Message length cannot exceed {{max}} characters!",
   "composer.toast.transcribeFailed": "Transcription failed",
   "composer.transcribing": "Transcribing...",

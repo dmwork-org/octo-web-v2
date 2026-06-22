@@ -188,7 +188,7 @@ export function BaseDialog({
                 {title ? (
                   <DialogTitle className="min-w-0 flex-1 truncate">{title}</DialogTitle>
                 ) : (
-                  <span className="flex-1" />
+                  <DialogTitle className="sr-only">{description || ""}</DialogTitle>
                 )}
                 {description ? (
                   <DialogDescription className="sr-only">{description}</DialogDescription>
@@ -205,7 +205,7 @@ export function BaseDialog({
             ) : (
               // a11y:Radix Dialog 要求必须有 Title;无 header 时把 title/description 用 sr-only 兜底
               <>
-                {title ? <DialogTitle className="sr-only">{title}</DialogTitle> : null}
+                <DialogTitle className="sr-only">{title || description || ""}</DialogTitle>
                 {description ? (
                   <DialogDescription className="sr-only">{description}</DialogDescription>
                 ) : null}

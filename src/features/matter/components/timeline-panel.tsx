@@ -138,14 +138,14 @@ export function TimelinePanel({
                           <span className="shrink-0 text-[14px] leading-[20px] text-text-primary">
                             ：
                           </span>
-                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <span className="whitespace-pre-wrap break-words text-[14px] leading-[20px] text-text-primary">
                               {entry.content || ""}
                             </span>
                             {/* 附件列表 */}
                             {entry.attachments && entry.attachments.length > 0 && (
                               <div
-                                className="flex flex-wrap gap-1.5"
+                                className="flex flex-wrap items-center gap-2"
                                 role="list"
                                 aria-label="附件列表"
                               >
@@ -157,7 +157,7 @@ export function TimelinePanel({
                                   return (
                                     <div
                                       key={att.id}
-                                      className="inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border-subtle bg-bg-surface px-2 py-1 transition-colors hover:border-border-default hover:bg-bg-item-hover"
+                                      className="flex max-w-full items-center gap-2 rounded border border-border-subtle bg-bg-surface px-2.5 py-1.5 transition-colors hover:border-border-default hover:bg-bg-item-hover"
                                       role="listitem"
                                       title={name}
                                     >
@@ -169,7 +169,7 @@ export function TimelinePanel({
                                         className="shrink-0 object-contain"
                                         aria-hidden="true"
                                       />
-                                      <span className="inline-flex min-w-0 max-w-[220px] items-baseline gap-1">
+                                      <span className="inline-flex min-w-0 max-w-[220px] items-center gap-1">
                                         <span className="truncate text-[12px] leading-[18px] text-text-primary">
                                           {name}
                                         </span>

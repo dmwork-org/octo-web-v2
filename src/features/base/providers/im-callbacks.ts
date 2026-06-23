@@ -37,6 +37,7 @@ import {
 } from "@/features/base/im/convert";
 import { MediaMessageUploadTask } from "@/features/base/im/upload-task";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { SYSTEM_BOTS } from "@/features/base/lib/space-filter";
 
 /** ChannelType 7 = ChannelTypeCommunityTopic(子区);SDK 1.3.5 未导出常量。 */
 const CHANNEL_TYPE_THREAD = 5; // ChannelTypeCommunityTopic(对齐旧 dmworkbase Const.ts);SDK 1.3.5 7 = ChannelTypeData,不是子区
@@ -349,18 +350,31 @@ export function registerImCallbacks(): void {
     }
     const members = sortSubscribersForSyncCursor(raw.map(rawToSubscriber));
 
-    // robot 字段反向同步到 person channelInfo 缓存:消息列表 / 联系人页能立刻显示 AI 标识,
-    // 不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
+    // robot / space_id 反向同步到 person channelInfo 缓存:消息列表 / 联系人页 / @提及列表
+    // 能立刻显示 AI 标识和外部标记,不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
     const cm = WKSDK.shared().channelManager;
     for (const member of members) {
-      if ((member.orgData as { robot?: number } | undefined)?.robot !== 1) continue;
+      const og = member.orgData as { robot?: number; space_id?: string } | undefined;
+      const isRobot = og?.robot === 1;
+      const memberSpaceId = og?.space_id;
+      if (!isRobot && !memberSpaceId) continue;
       const personChannel = new Channel(member.uid, ChannelTypePerson);
       const existing = cm.getChannelInfo(personChannel);
       if (existing) {
-        const og = (existing.orgData ?? {}) as Record<string, unknown>;
-        og.robot = 1;
-        existing.orgData = og;
-        cm.setChannleInfoForCache(existing);
+        const existingOg = (existing.orgData ?? {}) as Record<string, unknown>;
+        let changed = false;
+        if (isRobot && existingOg.robot !== 1) {
+          existingOg.robot = 1;
+          changed = true;
+        }
+        if (memberSpaceId && !existingOg.space_id) {
+          existingOg.space_id = memberSpaceId;
+          changed = true;
+        }
+        if (changed) {
+          existing.orgData = existingOg;
+          cm.setChannleInfoForCache(existing);
+        }
       }
     }
 
@@ -368,14 +382,24 @@ export function registerImCallbacks(): void {
   };
 
   provider.syncMessagesCallback = async (channel, opts): Promise<Message[]> => {
-    const resp = await syncChannelMessages({
-      channel_id: channel.channelID,
-      channel_type: channel.channelType,
-      start_message_seq: opts.startMessageSeq ?? 0,
-      end_message_seq: opts.endMessageSeq ?? 0,
-      limit: opts.limit ?? 30,
-      pull_mode: opts.pullMode ?? 0,
-    });
+    // SYSTEM_BOTS(BotFather)消息跨 Space 共存,后端按 X-Space-Id 过滤会截断
+    // 为仅当前 Space 消息,导致分页提前终止(issue #161)。跳过 Space header,
+    // 拉取全量历史;前端在 message-list display 层用 isMessageOfSpace 做客户端
+    // 过滤,保证只展示当前 Space 消息,同时 getNextPageParam 能基于未过滤的
+    // 全量数据正确计算下一页 cursor。
+    const isSystemBot =
+      channel.channelType === ChannelTypePerson && SYSTEM_BOTS.has(channel.channelID);
+    const resp = await syncChannelMessages(
+      {
+        channel_id: channel.channelID,
+        channel_type: channel.channelType,
+        start_message_seq: opts.startMessageSeq ?? 0,
+        end_message_seq: opts.endMessageSeq ?? 0,
+        limit: opts.limit ?? 30,
+        pull_mode: opts.pullMode ?? 0,
+      },
+      { noSpaceFilter: isSystemBot },
+    );
     return (resp.messages ?? []).map(rawToMessage);
   };
 

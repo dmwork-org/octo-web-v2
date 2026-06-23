@@ -146,8 +146,18 @@ export interface SyncMessagesResp {
   messages?: MessageRaw[];
 }
 
-export async function syncChannelMessages(req: SyncMessagesReq): Promise<SyncMessagesResp> {
-  return api<SyncMessagesResp>("message/channel/sync", { method: "POST", body: req });
+export async function syncChannelMessages(
+  req: SyncMessagesReq,
+  options?: { noSpaceFilter?: boolean },
+): Promise<SyncMessagesResp> {
+  return api<SyncMessagesResp>("message/channel/sync", {
+    method: "POST",
+    body: req,
+    // noSpaceFilter: 跳过 X-Space-Id 注入(issue #161),用于 SYSTEM_BOTS
+    // (BotFather)的全局历史拉取 — 后端按 Space 过滤会截断为仅当前 Space 消息,
+    // 导致分页提前终止。前端在 display 层用 isMessageOfSpace 做客户端过滤。
+    headers: options?.noSpaceFilter ? { "X-No-Space-Filter": "1" } : undefined,
+  });
 }
 
 /**

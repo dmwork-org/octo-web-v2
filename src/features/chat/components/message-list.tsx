@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { type Channel, type Message } from "wukongimjssdk";
+import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
+import { spaceStore } from "@/features/base/stores/space";
+import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
@@ -128,12 +130,44 @@ interface FollowBottomKey {
   mine: boolean;
 }
 
+/**
+ * 通过 scroll listener 维护"用户是否在底部附近"的 ref。
+ *
+ * **为什么不直接在 useLayoutEffect 里测 distanceFromBottom(el)**:
+ * useLayoutEffect 在 DOM commit 后同步执行,此时新消息已在 DOM 中、scrollHeight 已增大。
+ * 若新消息高度 > NEAR_BOTTOM_THRESHOLD(200px)— BotFather 的命令列表 / 帮助文本
+ * 常超此阈值 — distanceFromBottom 会超阈值 → 误判"不在底部" → 不滚动(issue #165)。
+ *
+ * 改用 scroll listener 维护 ref:用户主动滚动时更新;DOM 内容增减不触发 scroll 事件,
+ * 所以 ref 始终反映"上次用户滚动后的位置" = 新消息渲染前的真实位置。
+ */
+function useWasNearBottomRef(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  ready: boolean,
+): React.RefObject<boolean> {
+  const ref = useRef(true);
+  useEffect(() => {
+    if (!ready) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    // 初始化:attach 时同步一次当前位置
+    ref.current = distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
+    const onScroll = () => {
+      ref.current = distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scrollRef, ready]);
+  return ref;
+}
+
 function useFollowBottomOnNewMessages(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   key: FollowBottomKey,
   skip: boolean,
 ) {
   const lastIdRef = useRef("");
+  const wasNearBottomRef = useWasNearBottomRef(scrollRef, !!key.id);
   useLayoutEffect(() => {
     if (!key.id || lastIdRef.current === key.id) return;
     if (skip) {
@@ -145,7 +179,10 @@ function useFollowBottomOnNewMessages(
       lastIdRef.current = key.id;
       return;
     }
-    const shouldFollow = key.mine || distanceFromBottom(el) < NEAR_BOTTOM_THRESHOLD;
+    // issue #165 修复:用 wasNearBottomRef 替代 distanceFromBottom(el)。
+    // useLayoutEffect 执行时新消息已在 DOM 中,长消息(>200px)会让 distanceFromBottom
+    // 超阈值导致不滚动。ref 由 scroll listener 维护,反映渲染前的真实位置。
+    const shouldFollow = key.mine || wasNearBottomRef.current;
     if (shouldFollow) {
       el.scrollTop = el.scrollHeight;
       requestAnimationFrame(() => {
@@ -363,6 +400,7 @@ export function MessageList({ channel }: MessageListProps) {
   // issue #32:进会话时锁定历史/新消息分割线锚点(unread > 0 时返回最后已读 seq)
   const historySplitAfterSeq = useHistorySplitAnchor(channel);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 
@@ -373,6 +411,15 @@ export function MessageList({ channel }: MessageListProps) {
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
+    // issue #161:SYSTEM_BOTS(BotFather)的 syncMessagesCallback 跳过了 X-Space-Id,
+    // 后端返回跨 Space 全量消息。这里在 display 层用 isMessageOfSpace 做客户端
+    // 过滤,只展示当前 Space 的消息。getNextPageParam 基于未过滤的全量数据计算
+    // 下一页 cursor,确保分页不受过滤影响。
+    //
+    // 仅对 Person 私聊过滤:群聊由后端 X-Space-Id 已正确过滤,且 isChannelOfSpace
+    // 在 channelSpaceMap 未回填时会 fail-close 误过滤。
+    const isPerson = channel.channelType === ChannelTypePerson;
+    const filtered = isPerson ? all.filter((m) => isMessageOfSpace(m, spaceId)) : all;
     // 排序:**timestamp 主键**(秒,跨 ack/pending 一致),seq 次键(同秒消息稳定)。
     //
     // 为什么不用 messageSeq:bot 真消息 ack 后 seq=N,我刚发消息 pending(seq=0),
@@ -381,13 +428,13 @@ export function MessageList({ channel }: MessageListProps) {
     // 我消息正确显示在 bot 之前。
     //
     // timestamp 缺失(=0)的极端 case fallback 用 seq 兜底排序稳定。
-    return [...all].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const ta = a.timestamp || 0;
       const tb = b.timestamp || 0;
       if (ta !== tb) return ta - tb;
       return (a.messageSeq || 0) - (b.messageSeq || 0);
     });
-  }, [data?.pages]);
+  }, [data?.pages, channel.channelType, spaceId]);
 
   // 计算 renderItems:连续 ≥2 条 bot 消息聚合成 foldSession,其他普通 message。
   // 加 channelInfoTick 依赖 — channelInfo 异步到位后 isBotMessage 重算,

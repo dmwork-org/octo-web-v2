@@ -246,14 +246,27 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     return subscribers
       .filter((s) => s.uid !== myUid && !s.isDeleted)
       .map((s) => {
-        const og = s.orgData as { robot?: number } | undefined;
+        const og = s.orgData as { robot?: number; space_id?: string } | undefined;
+        // 外部成员判定:成员 orgData.space_id 与当前 Space 不一致 → 外部。
+        // space_id 来源:membersync 后端透传(GroupMemberRaw [key:string]:unknown)。
+        // 缺失时 fallback 到 person channelInfo 缓存(channelInfoCallback 写入)。
+        let memberSpaceId = og?.space_id;
+        if (!memberSpaceId) {
+          const personInfo = WKSDK.shared().channelManager.getChannelInfo(
+            new Channel(s.uid, ChannelTypePerson),
+          );
+          memberSpaceId = (
+            personInfo?.orgData as { space_id?: string } | undefined
+          )?.space_id;
+        }
         return {
           id: s.uid,
           label: s.remark || s.name || s.uid,
           isBot: og?.robot === 1,
+          isExternal: !!spaceId && !!memberSpaceId && memberSpaceId !== spaceId,
         };
       });
-  }, [subscribers, myUid, isMentionable]);
+  }, [subscribers, myUid, isMentionable, spaceId]);
 
   const voiceContext = useMemo(
     () =>

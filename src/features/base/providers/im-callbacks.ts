@@ -349,18 +349,31 @@ export function registerImCallbacks(): void {
     }
     const members = sortSubscribersForSyncCursor(raw.map(rawToSubscriber));
 
-    // robot 字段反向同步到 person channelInfo 缓存:消息列表 / 联系人页能立刻显示 AI 标识,
-    // 不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
+    // robot / space_id 反向同步到 person channelInfo 缓存:消息列表 / 联系人页 / @提及列表
+    // 能立刻显示 AI 标识和外部标记,不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
     const cm = WKSDK.shared().channelManager;
     for (const member of members) {
-      if ((member.orgData as { robot?: number } | undefined)?.robot !== 1) continue;
+      const og = member.orgData as { robot?: number; space_id?: string } | undefined;
+      const isRobot = og?.robot === 1;
+      const memberSpaceId = og?.space_id;
+      if (!isRobot && !memberSpaceId) continue;
       const personChannel = new Channel(member.uid, ChannelTypePerson);
       const existing = cm.getChannelInfo(personChannel);
       if (existing) {
-        const og = (existing.orgData ?? {}) as Record<string, unknown>;
-        og.robot = 1;
-        existing.orgData = og;
-        cm.setChannleInfoForCache(existing);
+        const existingOg = (existing.orgData ?? {}) as Record<string, unknown>;
+        let changed = false;
+        if (isRobot && existingOg.robot !== 1) {
+          existingOg.robot = 1;
+          changed = true;
+        }
+        if (memberSpaceId && !existingOg.space_id) {
+          existingOg.space_id = memberSpaceId;
+          changed = true;
+        }
+        if (changed) {
+          existing.orgData = existingOg;
+          cm.setChannleInfoForCache(existing);
+        }
       }
     }
 

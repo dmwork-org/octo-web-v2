@@ -1824,6 +1824,7 @@
   "me.setName": "Set name",
   "me.shortNo": "{{appName}} ID",
   "meInfo.title": "Profile",
+  "mentionList.external": "External",
   "mentionList.noMembers": "No members found",
   "mergeForward.back": "Back",
   "mergeForward.chatHistory": "Chat history",

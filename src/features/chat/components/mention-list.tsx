@@ -3,6 +3,7 @@ import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Bot, Users } from "lucide-react";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { ExternalBadge } from "@/features/base/components/badges/external-badge";
 import { MENTION_UID_AIS, isStickyMentionUid } from "@/features/base/lib/mention-three-state";
 import { resolveMentionListKeyAction } from "./mention-list-keyboard";
 
@@ -14,11 +15,13 @@ import { resolveMentionListKeyAction } from "./mention-list-keyboard";
  * - @所有AI(三态新): `{ id: "-3", label: "所有AI" }` — extractOrderedBlocks 见到设 ais=1
  * - @所有人(legacy):`{ id: "-1" 或 "@all", label: "所有人" }` — 设 mention.all=1
  * - AI bot 成员:`{ id: uid, label: name, isBot: true }`(普通成员路径 + UI AI 角标)
+ * - 外部成员:`{ id: uid, label: name, isExternal: true }`(space_id 与当前 Space 不一致)
  */
 export interface MentionItem {
   id: string;
   label: string;
   isBot?: boolean;
+  isExternal?: boolean;
 }
 
 interface MentionListProps {
@@ -171,6 +174,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 {c.label}
               </strong>
               {isAis || c.isBot ? <AiBadge size="small" /> : null}
+              {c.isExternal ? <ExternalBadge size="small" /> : null}
             </li>
           );
         })}

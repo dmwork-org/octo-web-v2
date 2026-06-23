@@ -267,7 +267,7 @@ export function useMessageContextMenu(message: Message): {
   const selectedText = menu.selectedText.trim() ? menu.selectedText : "";
   const messageText = extractText(message);
   const items: ContextMenuItem[] = [];
-  if (selectedText || messageText) {
+  if (canCopy(message) && (selectedText || messageText)) {
     items.push({
       label: t("messageRow.menu.copy"),
       icon: <Copy size={13} />,
@@ -477,6 +477,13 @@ function isSystemMessage(message: Message): boolean {
 function canForward(message: Message): boolean {
   if (isSystemMessage(message)) return false;
   if (message.contentType === MessageContentType.cmd) return false;
+  return true;
+}
+
+function canCopy(message: Message): boolean {
+  // 名片消息不支持复制(对齐老仓 contextmenus.copy — card 无可复制文本,
+  // conversationDigest 仅用于会话列表摘要,不应触发「复制」菜单项)。
+  if (message.contentType === MessageContentTypeConst.card) return false;
   return true;
 }
 

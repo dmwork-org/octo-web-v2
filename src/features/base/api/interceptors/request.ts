@@ -40,9 +40,18 @@ export const withSpaceHeader =
     // logout 时清 spaceId 的语义(老仓 logout 之后 spaceIdCallback 返空,
     // interceptor 行 60-65 跳过 header 注入)。
     if (!authStore.state.token) return;
+    const headers = ensureHeaders(options);
+    // 允许调用方显式跳过 Space 过滤(issue #161):
+    // BotFather 等 SYSTEM_BOTS 的消息同步需要拉取跨 Space 的全部历史,
+    // 后端按 X-Space-Id 过滤会截断为仅当前 Space 消息,导致分页提前终止。
+    // 调用方在 headers 里设 "X-No-Space-Filter": "1" 即可跳过注入,
+    // 拦截器消费后删除该临时 header,不会发送到后端。
+    if (headers.get("X-No-Space-Filter") === "1") {
+      headers.delete("X-No-Space-Filter");
+      return;
+    }
     const spaceId = spaceStore.state.spaceId;
     if (!spaceId) return;
-    const headers = ensureHeaders(options);
     headers.set("X-Space-Id", spaceId);
   };
 

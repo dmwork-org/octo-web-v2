@@ -1826,6 +1826,7 @@
   "me.setName": "设置名字",
   "me.shortNo": "{{appName}}号",
   "meInfo.title": "个人信息",
+  "mentionList.external": "外部",
   "mentionList.noMembers": "没有找到成员",
   "mergeForward.back": "返回",
   "mergeForward.chatHistory": "聊天记录",

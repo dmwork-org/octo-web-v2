@@ -204,6 +204,8 @@ function createSubmitOnEnter(onSubmit: () => void) {
 export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps) {
   const tt = useT();
   const [sending, setSending] = useState(false);
+  /** 快速连发缓冲：sending 为 true 时把编辑器 HTML 快照入队，finally 中自动重放。 */
+  const pendingSendsRef = useRef<string[]>([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -255,9 +257,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
           const personInfo = WKSDK.shared().channelManager.getChannelInfo(
             new Channel(s.uid, ChannelTypePerson),
           );
-          memberSpaceId = (
-            personInfo?.orgData as { space_id?: string } | undefined
-          )?.space_id;
+          memberSpaceId = (personInfo?.orgData as { space_id?: string } | undefined)?.space_id;
         }
         return {
           id: s.uid,
@@ -444,7 +444,13 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const send = async () => {
     if (!editor) return;
     if (sending) {
-      toast.warning(t("composer.toast.sending"));
+      // 缓冲：把当前编辑器内容快照入队，当前发送完成后自动重放。
+      // 不再 toast warning + 丢弃（GH#176 快速连发消息丢失）。
+      const html = editor.getHTML();
+      if (html && html !== "<p></p>") {
+        pendingSendsRef.current.push(html);
+        editor.commands.clearContent();
+      }
       return;
     }
     const MAX_MESSAGE_LENGTH = 5000;
@@ -637,6 +643,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
       setSending(false);
+      // 重放缓冲队列（GH#176 快速连发消息丢失）
+      const pending = pendingSendsRef.current.shift();
+      if (pending) {
+        editor?.commands.setContent(pending);
+        // 下一帧触发 send，避免在 finally 中递归调用
+        queueMicrotask(() => {
+          void send();
+        });
+      }
     }
   };
 

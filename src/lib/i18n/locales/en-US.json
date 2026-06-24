@@ -1727,6 +1727,8 @@
   "matter.state.empty": "No tasks yet",
   "matter.state.loadFailed": "Failed to load",
   "matter.state.loadFailedRetry": "Failed to load. Please try again later.",
+  "matter.state.notFound": "Matter not found or has been deleted",
+  "matter.state.notFoundRetry": "Back to list",
   "matter.state.loading": "Loading...",
   "matter.state.loadingDetail": "Loading detail…",
   "matter.state.selectMatter": "Select a task",

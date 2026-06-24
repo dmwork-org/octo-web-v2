@@ -9,6 +9,7 @@ import { CreateMatterModal } from "@/features/matter/components/create-matter-mo
 import { MatterDetailPanel } from "@/features/matter/components/matter-detail-panel";
 import { Route } from "@/routes/_auth.matter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 /**
  * 事项主视图(对齐 P3-matter 设计稿 + 原 dmworktodo 创建交互):
@@ -86,19 +87,39 @@ export function MatterView() {
       </aside>
 
       {selectedId ? (
-        <Suspense
-          fallback={
-            <section className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-              {t("matter.state.loadingDetail")}
+        <ErrorBoundary
+          key={selectedId}
+          resetKeys={[selectedId]}
+          fallback={(_error, reset) => (
+            <section className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-text-tertiary">
+              <p>{t("matter.state.notFound")}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setSelectedId(null);
+                }}
+                className="rounded-md px-3 py-1.5 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                {t("matter.state.notFoundRetry")}
+              </button>
             </section>
-          }
+          )}
         >
-          <MatterDetailPanel
-            key={selectedId}
-            matterId={selectedId}
-            onClose={() => setSelectedId(null)}
-          />
-        </Suspense>
+          <Suspense
+            fallback={
+              <section className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+                {t("matter.state.loadingDetail")}
+              </section>
+            }
+          >
+            <MatterDetailPanel
+              key={selectedId}
+              matterId={selectedId}
+              onClose={() => setSelectedId(null)}
+            />
+          </Suspense>
+        </ErrorBoundary>
       ) : (
         <section className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
           {t("matter.state.selectMatterHint")}

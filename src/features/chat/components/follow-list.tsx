@@ -1066,7 +1066,7 @@ export function FollowList({
       return;
     }
     const channel = new Channel(groupNo, ChannelTypeGroup);
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
     onSelect({ channel, channelInfo: undefined } as unknown as Conversation);
   };
 
@@ -1078,7 +1078,7 @@ export function FollowList({
       return;
     }
     const channel = new Channel(peerUid, ChannelTypePerson);
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
     onSelect({ channel, channelInfo: undefined } as unknown as Conversation);
   };
 
@@ -1090,7 +1090,7 @@ export function FollowList({
       return;
     }
     const channel = new Channel(threadChannelId, CHANNEL_TYPE_THREAD);
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
     onSelect({ channel, channelInfo: undefined } as unknown as Conversation);
   };
 

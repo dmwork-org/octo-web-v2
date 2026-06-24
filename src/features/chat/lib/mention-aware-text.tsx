@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import WKSDK, { Channel, ChannelTypePerson, type Mention } from "wukongimjssdk";
+import { Channel, ChannelTypePerson, type Mention } from "wukongimjssdk";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { isLikelyRealUid, type MentionWithFlags } from "@/features/chat/lib/read-message-mention";
@@ -8,6 +8,7 @@ import {
   resolveMentionTextTargets,
   type MentionTextTarget,
 } from "@/features/chat/lib/mention-text-resolver";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 const richTextLinkRe = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
 const trailingLinkPunctuation = new Set([
@@ -314,7 +315,7 @@ function useFetchMissingMentionCandidates(
       // 标记为已 fetch,避免重复
       fetchedRef.current.add(uid);
       // 主动 fetch Person channelInfo — 成功后 SDK 触发 listener → tick → 重渲
-      void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
+      tryFetchChannelInfo(new Channel(uid, ChannelTypePerson));
     }
   });
 }

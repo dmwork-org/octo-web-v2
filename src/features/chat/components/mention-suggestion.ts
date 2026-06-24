@@ -73,6 +73,7 @@ export function createMentionSuggestion(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let component: ReactRenderer<MentionListRef, any> | null = null;
       let popup: TippyInstance[] | null = null;
+      const hidePopup = () => popup?.[0]?.hide();
 
       const getRect = (props: SuggestionProps<MentionItem>) => {
         const r = props.clientRect?.();
@@ -81,11 +82,13 @@ export function createMentionSuggestion(
 
       return {
         onStart: (props) => {
+          if (!props.editor.isFocused) return;
           component = new ReactRenderer(MentionList, {
             props,
             editor: props.editor,
           });
           if (!props.clientRect) return;
+          props.editor.on("blur", hidePopup);
           popup = tippy("body", {
             getReferenceClientRect: () => getRect(props),
             appendTo: () => document.body,
@@ -100,6 +103,10 @@ export function createMentionSuggestion(
         onUpdate: (props) => {
           if (!component) return;
           component.updateProps(props);
+          if (!props.editor.isFocused) {
+            popup?.[0]?.hide();
+            return;
+          }
           if (!props.items.length) {
             popup?.[0]?.hide();
             return;
@@ -118,6 +125,7 @@ export function createMentionSuggestion(
         },
 
         onExit: () => {
+          component?.editor.off("blur", hidePopup);
           popup?.[0]?.destroy();
           component?.destroy();
           popup = null;

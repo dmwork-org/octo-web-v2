@@ -1729,6 +1729,8 @@
   "matter.state.empty": "暂无事项",
   "matter.state.loadFailed": "加载失败",
   "matter.state.loadFailedRetry": "加载失败，请稍后重试",
+  "matter.state.notFound": "事项不存在或已被删除",
+  "matter.state.notFoundRetry": "返回列表",
   "matter.state.loading": "加载中...",
   "matter.state.loadingDetail": "加载详情…",
   "matter.state.selectMatter": "请选择事项",

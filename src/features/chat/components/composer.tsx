@@ -203,7 +203,9 @@ function createSubmitOnEnter(onSubmit: () => void) {
 
 export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps) {
   const tt = useT();
-  const [sending, setSending] = useState(false);
+  const [, setSending] = useState(false);
+  /** sending 的 ref 镜像，绕过闭包陷阱，finally 中重放时读取最新值。 */
+  const sendingRef = useRef(false);
   /** 快速连发缓冲：sending 为 true 时把编辑器 HTML 快照入队，finally 中自动重放。 */
   const pendingSendsRef = useRef<string[]>([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -443,7 +445,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const send = async () => {
     if (!editor) return;
-    if (sending) {
+    if (sendingRef.current) {
       // 缓冲：把当前编辑器内容快照入队，当前发送完成后自动重放。
       // 不再 toast warning + 丢弃（GH#176 快速连发消息丢失）。
       const html = editor.getHTML();
@@ -453,6 +455,9 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       }
       return;
     }
+    // 立即占锁，防止后续 send() 在 await 期间穿透 guard（GH#176）
+    sendingRef.current = true;
+    setSending(true);
     const MAX_MESSAGE_LENGTH = 5000;
     const blocks = attachments.extractOrderedBlocks(editor);
     const top = attachments.topAttachments;
@@ -485,7 +490,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       /* feedback 失败不影响 send */
     }
 
-    setSending(true);
     let isFirst = true;
     const attachReplyOnce = (c: MessageContent) => {
       if (!isFirst) return;
@@ -642,12 +646,14 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
+      sendingRef.current = false;
       setSending(false);
       // 重放缓冲队列（GH#176 快速连发消息丢失）
       const pending = pendingSendsRef.current.shift();
       if (pending) {
         editor?.commands.setContent(pending);
-        // 下一帧触发 send，避免在 finally 中递归调用
+        // 下一帧触发 send，避免在 finally 中递归调用。
+        // sendingRef 已置 false，重放的 send() 不会再次命中 guard。
         queueMicrotask(() => {
           void send();
         });

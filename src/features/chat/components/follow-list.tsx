@@ -378,7 +378,7 @@ function CompactRow({
       </span>
 
       {isMentionMe && hasUnread ? (
-        <span className="inline-flex h-[14px] shrink-0 items-center rounded-[4px] bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+        <span className="inline-flex h-[14px] shrink-0 items-center rounded-md bg-error/15 px-1 text-[10px] leading-none font-semibold text-error">
           {tt("followList.mentionMe")}
         </span>
       ) : null}
@@ -644,7 +644,7 @@ function CategorySection({
               {stats.unread > 99 ? "99+" : stats.unread}
             </span>
             {stats.hasMention ? (
-              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold leading-none text-text-inverse">
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-md bg-error/15 px-1 text-[10px] leading-none font-semibold text-error">
                 @
               </span>
             ) : null}

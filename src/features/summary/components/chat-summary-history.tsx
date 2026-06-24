@@ -115,7 +115,7 @@ function SummaryCardWithDelete({
 }) {
   const tr = useT();
   return (
-    <div className="group relative">
+    <div className="group relative [&>div>div:first-of-type]:pr-8">
       <SummaryCard item={item} selected={false} onClick={onClick} />
       <button
         type="button"
@@ -123,7 +123,7 @@ function SummaryCardWithDelete({
           e.stopPropagation();
           if (confirm(tr("summary.common.deleteConfirm"))) onDelete();
         }}
-        className="absolute top-2 right-2 hidden h-6 w-6 items-center justify-center rounded-md bg-bg-surface text-text-tertiary opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:text-error"
+        className="absolute top-2 right-2 z-10 hidden h-6 w-6 items-center justify-center rounded-md bg-bg-surface text-text-tertiary opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:text-error"
         aria-label={tr("summary.common.delete")}
       >
         ×

@@ -190,9 +190,9 @@ export function BaseDialog({
                 ) : (
                   <DialogTitle className="sr-only">{description || ""}</DialogTitle>
                 )}
-                {description ? (
-                  <DialogDescription className="sr-only">{description}</DialogDescription>
-                ) : null}
+                <DialogDescription className="sr-only">
+                  {description || title || ""}
+                </DialogDescription>
                 {showCloseButton ? (
                   <DialogClose
                     aria-label={t("base.common.close")}
@@ -206,9 +206,9 @@ export function BaseDialog({
               // a11y:Radix Dialog 要求必须有 Title;无 header 时把 title/description 用 sr-only 兜底
               <>
                 <DialogTitle className="sr-only">{title || description || ""}</DialogTitle>
-                {description ? (
-                  <DialogDescription className="sr-only">{description}</DialogDescription>
-                ) : null}
+                <DialogDescription className="sr-only">
+                  {description || title || ""}
+                </DialogDescription>
               </>
             )}
             <div className={cn("flex min-h-0 flex-1 flex-col overflow-auto", contentClassName)}>

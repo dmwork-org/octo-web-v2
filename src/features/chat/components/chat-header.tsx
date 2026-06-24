@@ -16,6 +16,7 @@ import {
 import { isSupportedChannelType } from "@/features/summary/utils/channel-source";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/components/semi-bridge/toast";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tFn } from "@/lib/i18n/instance";
 
@@ -48,7 +49,7 @@ function useChannelInfoLive(channel: Channel) {
   useEffect(() => {
     const mgr = WKSDK.shared().channelManager;
     if (!mgr.getChannelInfo(channel)) {
-      void mgr.fetchChannelInfo(channel);
+      tryFetchChannelInfo(channel);
     }
     const listener = () => force((v) => v + 1);
     mgr.addListener(listener);
@@ -229,7 +230,7 @@ function useParentGroupTitle(groupNo: string | null): string | undefined {
     if (!groupNo) return;
     const ch = new Channel(groupNo, ChannelTypeGroup);
     if (!WKSDK.shared().channelManager.getChannelInfo(ch)) {
-      void WKSDK.shared().channelManager.fetchChannelInfo(ch);
+      tryFetchChannelInfo(ch);
     }
     const listener = () => force((v) => v + 1);
     WKSDK.shared().channelManager.addListener(listener);

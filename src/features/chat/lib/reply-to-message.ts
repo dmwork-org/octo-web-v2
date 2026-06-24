@@ -2,6 +2,7 @@ import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson, type Message } fro
 import { chatReplyActions } from "@/features/chat/stores/chat-reply";
 import { chatMentionRequestActions } from "@/features/chat/stores/chat-mention-request";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 /** ChannelTypeCommunityTopic(子区) = 5,thread 角色继承父群。 */
 const CHANNEL_TYPE_COMMUNITY_TOPIC = 5;
@@ -43,7 +44,7 @@ export function replyToMessage(channel: Channel, message: Message, myUid: string
   if (message.fromUID) {
     const senderChannel = new Channel(message.fromUID, ChannelTypePerson);
     if (!WKSDK.shared().channelManager.getChannelInfo(senderChannel)) {
-      void WKSDK.shared().channelManager.fetchChannelInfo(senderChannel);
+      tryFetchChannelInfo(senderChannel);
     }
   }
   if (!myUid) return;

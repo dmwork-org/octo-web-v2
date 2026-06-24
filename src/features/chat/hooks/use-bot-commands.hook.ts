@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
 import type { ChannelInfoListener } from "wukongimjssdk";
 import type { BotCommand } from "@/features/chat/components/slash-command-menu";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 /** 浅相等:length + 同 index command+description 字符串一致(rebuild parse 同源 JSON 时大概率命中)。 */
 function sameCommands(a: BotCommand[], b: BotCommand[]): boolean {
@@ -57,7 +58,7 @@ export function useBotCommands(channel: Channel): BotCommand[] {
 
     parse();
     // 兜底:channelInfo 还没拉到 → 主动 fetch,listener 触发再 parse
-    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+    tryFetchChannelInfo(channel);
 
     const listener: ChannelInfoListener = (info: ChannelInfo) => {
       if (

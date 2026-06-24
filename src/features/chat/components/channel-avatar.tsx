@@ -5,6 +5,14 @@ import { endpointStore } from "@/features/base/stores/endpoint";
 import { avatarVersionFor, avatarVersionStore } from "@/features/base/stores/avatar-version";
 import { spaceStore } from "@/features/base/stores/space";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import {
+  claimAvatarLoad,
+  getAvatarLoadStatus,
+  markAvatarFailed,
+  markAvatarLoaded,
+  releaseAvatarLoad,
+  subscribeAvatarLoad,
+} from "@/features/chat/lib/avatar-load-cache";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 
 interface ChannelAvatarProps {
@@ -49,6 +57,37 @@ function useResetFailedOnUrlChange(
       timerRef.current = null;
     }
   }, [url, setSoftFailed, setHardFailed, timerRef]);
+}
+
+function useSharedAvatarLoad(url: string): { loadingElsewhere: boolean; failed: boolean } {
+  const [, force] = useState(0);
+  const claimedUrlsRef = useRef<Set<string>>(new Set());
+
+  let status = url ? getAvatarLoadStatus(url) : undefined;
+  if (url && !status && claimAvatarLoad(url)) {
+    claimedUrlsRef.current.add(url);
+    status = "loading";
+  }
+
+  useEffect(() => {
+    if (!url) return;
+    return subscribeAvatarLoad(url, () => force((v) => v + 1));
+  }, [url]);
+
+  useEffect(() => {
+    const claimedUrls = claimedUrlsRef.current;
+    return () => {
+      if (claimedUrls.has(url)) {
+        releaseAvatarLoad(url);
+        claimedUrls.delete(url);
+      }
+    };
+  }, [url]);
+
+  return {
+    loadingElsewhere: status === "loading" && !claimedUrlsRef.current.has(url),
+    failed: status === "failed",
+  };
 }
 
 function withVersion(url: string, version: number): string {
@@ -153,6 +192,7 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
         ? groupFallbackUrl(baseURL, channel.channelID)
         : "";
   const url = withVersion(rawUrl, avatarVersion);
+  const sharedLoad = useSharedAvatarLoad(url);
 
   useResetFailedOnUrlChange(url, setSoftFailed, setHardFailed, graceTimerRef);
 
@@ -161,11 +201,13 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
     if (graceTimerRef.current != null) window.clearTimeout(graceTimerRef.current);
     graceTimerRef.current = window.setTimeout(() => {
       setHardFailed(true);
+      markAvatarFailed(url);
     }, 1500);
   };
+  const onImgLoad = () => markAvatarLoaded(url);
 
   // URL 完全空(person 无 logo)或硬性失败 → 首字符 fallback(最终态)
-  if (!url || hardFailed) {
+  if (!url || hardFailed || sharedLoad.failed) {
     return (
       <div
         className={`flex shrink-0 items-center justify-center ${rounded} bg-bg-elevated font-medium text-text-secondary`}
@@ -178,7 +220,7 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
   }
 
   // 软性失败(刚 onError,grace period 内)→ 灰块占位,等 url 变化 reset 重 GET
-  if (softFailed) {
+  if (softFailed || sharedLoad.loadingElsewhere) {
     return (
       <div
         className={`shrink-0 ${rounded} bg-bg-elevated`}
@@ -194,6 +236,7 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
       alt={displayTitle}
       width={size}
       height={size}
+      onLoad={onImgLoad}
       onError={onImgError}
       className={`shrink-0 ${rounded} bg-bg-elevated object-cover`}
       style={{ width: size, height: size }}

@@ -15,6 +15,8 @@ import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
@@ -50,6 +52,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
   const subscribers = useGroupSubscribers(channel, open);
   const [keyword, setKeyword] = useState("");
   const [confirmKickUid, setConfirmKickUid] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   const groupChannel = useMemo(() => {
@@ -155,7 +158,8 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
               return (
                 <li
                   key={m.uid}
-                  className="group flex items-center gap-3 px-5 py-2 hover:bg-bg-hover"
+                  className="group flex cursor-pointer items-center gap-3 px-5 py-2 hover:bg-bg-hover"
+                  onClick={() => setSelectedMemberId(m.uid)}
                 >
                   <ChannelAvatar
                     channel={new Channel(m.uid, ChannelTypePerson)}
@@ -179,9 +183,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
                       </span>
                     ) : null}
                     {isBot ? (
-                      <span className="shrink-0 rounded-sm bg-brand-tint px-1 text-[10px] font-semibold text-brand">
-                        {tt("channelMembers.aiTag")}
-                      </span>
+                      <AiBadge size="small" />
                     ) : null}
                   </div>
                   {canKick ? (
@@ -190,7 +192,10 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
                         <button
                           type="button"
                           aria-label={tt("channelMembers.action.kick")}
-                          onClick={() => setConfirmKickUid(m.uid)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmKickUid(m.uid);
+                          }}
                           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
                         >
                           <UserMinus size={15} />
@@ -225,6 +230,14 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
 
       {addOpen && groupChannel ? (
         <AddMembersModal open channel={groupChannel} onClose={() => setAddOpen(false)} />
+      ) : null}
+
+      {selectedMemberId ? (
+        <UserInfoModal
+          uid={selectedMemberId}
+          groupNo={channel.channelType === CHANNEL_TYPE_THREAD ? groupChannel?.channelID : channel.channelID}
+          onClose={() => setSelectedMemberId(null)}
+        />
       ) : null}
     </>
   );

@@ -195,7 +195,7 @@ export function BaseDrawer({
                     {title}
                   </DialogTitle>
                 ) : (
-                  <span className="flex-1" />
+                  <DialogTitle className="sr-only">{description || ""}</DialogTitle>
                 )}
                 {description ? (
                   <DialogDescription className="sr-only">{description}</DialogDescription>
@@ -211,7 +211,7 @@ export function BaseDrawer({
               </header>
             ) : (
               <>
-                {title ? <DialogTitle className="sr-only">{title}</DialogTitle> : null}
+                <DialogTitle className="sr-only">{title || description || ""}</DialogTitle>
                 {description ? (
                   <DialogDescription className="sr-only">{description}</DialogDescription>
                 ) : null}

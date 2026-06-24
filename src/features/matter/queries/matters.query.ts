@@ -62,11 +62,35 @@ export const mattersQueryOptions = (params?: MatterListParams) =>
 
 export const matterDetailQueryKey = (matterId: string) => ["matter", "detail", matterId] as const;
 
+interface HttpStatusError {
+  status?: unknown;
+  statusCode?: unknown;
+  response?: {
+    status?: unknown;
+  };
+}
+
+function readHttpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const err = error as HttpStatusError;
+  if (typeof err.status === "number") return err.status;
+  if (typeof err.statusCode === "number") return err.statusCode;
+  if (typeof err.response?.status === "number") return err.response.status;
+  return undefined;
+}
+
+export function shouldRetryMatterDetailQuery(failureCount: number, error: unknown): boolean {
+  const status = readHttpStatus(error);
+  if (status !== undefined && status >= 400 && status < 500) return false;
+  return failureCount < 3;
+}
+
 export const matterDetailQueryOptions = (matterId: string | null, sourceChannelId?: string) =>
   queryOptions({
     queryKey: matterDetailQueryKey(matterId ?? "_"),
     queryFn: () => getMatter(matterId!, sourceChannelId),
     enabled: !!matterId,
+    retry: shouldRetryMatterDetailQuery,
     staleTime: 30 * 1000,
   });
 

@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
-import { Download, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Copy, Download, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { toast } from "@/components/semi-bridge/toast";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -12,6 +13,18 @@ interface ImagePreviewModalProps {
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
 const SCALE_STEP = 0.25;
+
+async function copyImageToClipboard(src: string): Promise<void> {
+  try {
+    const response = await fetch(src);
+    const blob = await response.blob();
+    await navigator.clipboard.write([
+      new ClipboardItem({ [blob.type]: blob }),
+    ]);
+  } catch (err) {
+    throw new Error("Failed to copy image");
+  }
+}
 
 function imageFileNameFromSrc(src: string): string {
   const dataMime = /^data:image\/([a-z0-9.+-]+)[;,]/i.exec(src);
@@ -59,6 +72,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   const t = useT();
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [copying, setCopying] = useState(false);
   const filename = imageFileNameFromSrc(src);
   useBodyPointerEventsWhileMounted();
 
@@ -71,6 +85,19 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   const rotate = () => setRotation((v) => (v + 90) % 360);
   const stopClose = (e: MouseEvent | PointerEvent) => {
     e.stopPropagation();
+  };
+
+  const handleCopy = async (e: MouseEvent) => {
+    stopClose(e);
+    setCopying(true);
+    try {
+      await copyImageToClipboard(src);
+      toast.success(t("imageRenderer.copySuccess"));
+    } catch {
+      toast.error(t("imageRenderer.copyFailed"));
+    } finally {
+      setCopying(false);
+    }
   };
 
   return createPortal(
@@ -96,6 +123,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
 
       <div
         className="relative z-0 flex h-full w-full items-center justify-center overflow-auto p-8 pb-24"
+        onContextMenu={(e) => e.preventDefault()}
         onClick={onClose}
       >
         <img
@@ -104,6 +132,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
           className="max-h-[calc(100vh-120px)] max-w-[calc(100vw-64px)] object-contain transition-transform duration-150 ease-(--ease-emphasized)"
           style={{ transform: `scale(${scale}) rotate(${rotation}deg)` }}
           onClick={stopClose}
+          onContextMenu={(e) => e.preventDefault()}
           onPointerDown={stopClose}
           draggable={false}
         />
@@ -164,6 +193,17 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
           }}
         >
           <RotateCw size={19} />
+        </button>
+        <span className="h-7 w-px bg-white/25" />
+        <button
+          type="button"
+          aria-label={t("imageRenderer.copy")}
+          title={t("imageRenderer.copy")}
+          disabled={copying}
+          className="flex h-8 w-8 items-center justify-center rounded-sm text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+          onClick={handleCopy}
+        >
+          <Copy size={19} />
         </button>
         <span className="h-7 w-px bg-white/25" />
         <button

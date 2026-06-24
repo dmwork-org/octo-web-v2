@@ -52,7 +52,10 @@ import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { isMentionMe as computeMentionMe } from "@/features/chat/lib/conversation-last-content";
+import {
+  effectiveMute,
+  isMentionMe as computeMentionMe,
+} from "@/features/chat/lib/conversation-last-content";
 import {
   categoriesQueryKey,
   categoriesQueryOptions,
@@ -458,8 +461,7 @@ function isThreadEffectivelyMuted(
   thread: Conversation,
   parentGroupNo: string | undefined,
 ): boolean {
-  const selfMute = thread.channelInfo?.mute;
-  if (selfMute != null) return !!selfMute;
+  if (effectiveMute(thread)) return true;
   if (!parentGroupNo) return false;
   const parentInfo = WKSDK.shared().channelManager.getChannelInfo(
     new Channel(parentGroupNo, ChannelTypeGroup),
@@ -528,7 +530,17 @@ function aggregateCategoryStats(
     ) {
       continue;
     }
-    const isMuted = !!conv?.channelInfo?.mute;
+    const isMuted =
+      it.target_type === SidebarTargetType.THREAD
+        ? isThreadEffectivelyMuted(
+            conv ??
+              ({
+                channel: new Channel(it.target_id, CHANNEL_TYPE_THREAD),
+                channelInfo: undefined,
+              } as unknown as Conversation),
+            it.parent_channel_id ?? parseThreadChannelId(it.target_id)?.groupNo,
+          )
+        : !!conv?.channelInfo?.mute;
     if (!isMuted) unread += conv?.unread ?? it.unread ?? 0;
     if (conv && computeMentionMe(conv, myUid)) hasMention = true;
   }

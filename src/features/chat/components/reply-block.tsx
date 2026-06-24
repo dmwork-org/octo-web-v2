@@ -1,4 +1,6 @@
 import type { Reply } from "wukongimjssdk";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
+import { t } from "@/lib/i18n/instance";
 
 interface ReplyBlockProps {
   reply: Reply;
@@ -19,8 +21,9 @@ interface ReplyBlockProps {
  */
 export function ReplyBlock({ reply, onClick }: ReplyBlockProps) {
   const fromName = reply.fromName || reply.fromUID || "";
-  const digest =
+  const rawDigest =
     (reply.content as { conversationDigest?: string } | undefined)?.conversationDigest ?? "";
+  const digest = safeAiServiceText(rawDigest, t("message.aiServiceUnavailable"));
   return (
     <button
       type="button"

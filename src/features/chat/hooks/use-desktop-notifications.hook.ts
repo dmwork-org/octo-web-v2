@@ -5,6 +5,7 @@ import { endpointStore } from "@/features/base/stores/endpoint";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import {
   isNotificationSupported,
   playMessageTone,
@@ -19,12 +20,12 @@ function extractBody(msg: Message): string {
   const content = msg.content as
     | { conversationDigest?: string; text?: string; displayText?: string }
     | undefined;
-  return (
+  const body =
     content?.conversationDigest ||
     content?.displayText ||
     content?.text ||
-    t("desktopNotifications.newMessage")
-  );
+    t("desktopNotifications.newMessage");
+  return safeAiServiceText(body, t("message.aiServiceUnavailable"));
 }
 
 function iconForChannel(channel: Channel, baseURL: string): string {

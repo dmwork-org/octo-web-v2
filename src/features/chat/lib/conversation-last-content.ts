@@ -7,6 +7,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import { t } from "@/lib/i18n/instance";
 
 /**
@@ -37,15 +38,16 @@ export function lastMessageDigest(conv: Conversation, myUid: string): string {
 
   const digest =
     (last.content as { conversationDigest?: string } | undefined)?.conversationDigest ?? "";
+  const safeDigest = safeAiServiceText(digest, t("message.aiServiceUnavailable"));
 
   // Person:digest 直返
-  if (conv.channel.channelType === ChannelTypePerson) return digest;
+  if (conv.channel.channelType === ChannelTypePerson) return safeDigest;
 
   // Group / Topic:加发送人前缀(发送人是自己时不加 — 对齐老仓 from 默认 "" 的语义:
   // 老仓 lastContent 是无差加 from,但发送人 channelInfo 取不到时显 "")
   const fromName = getFromName(last);
-  if (!fromName) return digest;
-  return `${fromName}: ${digest}`;
+  if (!fromName) return safeDigest;
+  return `${fromName}: ${safeDigest}`;
 }
 
 /** 抽出来给 typing-digest fallback 用 — 是否 lastMessage 已撤回(撤回时不显 typing,直接显 tip)。 */

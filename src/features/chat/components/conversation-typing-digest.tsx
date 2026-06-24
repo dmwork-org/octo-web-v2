@@ -20,11 +20,6 @@ interface ConversationTypingDigestProps {
    * ConversationList 行 672-684)。
    */
   reminders?: Reminder[];
-  /**
-   * 静音多未读 `[N 条]` 红字前缀(typing / fold preview 时不显)。
-   * 对齐老仓 wk-conv-count-hint(行 685-690)。
-   */
-  countHint?: number;
   /** 当前打开的会话行不提前显示草稿；切走后再显示在列表里。 */
   suppressDraft?: boolean;
 }
@@ -37,8 +32,7 @@ interface ConversationTypingDigestProps {
  *   - 否则有 AI 协作 fold preview(chatAiCollabFoldStore)→ "AI协作中 · 参与者 × ··· · N条"
  *     对齐老仓 lastContent 行 379-394 `wk-ai-collab-preview`(渐变 brand+success tag +
  *     绿色 pulse 点 + 灰字 X 连接参与者)
- *   - 否则 → [草稿] label(有 draft) + reminders 红 tag(未完成) + [N 条] 红字 + fallback(digest)
- *     四者并存
+ *   - 否则 → [草稿] label(有 draft) + reminders 红 tag(未完成) + fallback(digest) 并存
  *
  * **草稿 preview**(对齐上游 30185565):草稿原文是 `@[uid:label]` 序列化格式(由
  * useComposerDraft 写入),展示前过 formatDraftPreview 渲染成 `@label`(以及 sticky
@@ -48,7 +42,6 @@ export function ConversationTypingDigest({
   channel,
   fallback,
   reminders,
-  countHint,
   suppressDraft = false,
 }: ConversationTypingDigestProps) {
   const t = useT();
@@ -97,7 +90,6 @@ export function ConversationTypingDigest({
     reminders?.filter((r) => !r.done && r.reminderType !== ReminderType.ReminderTypeMentionMe) ??
     [];
   const hasDraft = !suppressDraft && !!draft && draft.trim() !== "";
-  const showCountHint = countHint != null && countHint > 0;
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
@@ -109,17 +101,6 @@ export function ConversationTypingDigest({
           {r.text ?? ""}
         </span>
       ))}
-      {showCountHint ? (
-        // [N 条] — 老仓 .wk-conv-count-hint 默认 color-danger 红;
-        // **但 .wk-conversationlist-item-muted .wk-conv-count-hint 整行 override
-        // 成 icon-muted(0.4 灰)**(老仓 css 行 197-198)。countHint 触发条件就是
-        // muted+unread>1,所以**永远在 muted 行内显**,实际永远是灰色。
-        <span className="shrink-0 font-medium text-[#1c1c23]/40">
-          {t("typingDigest.countHint", {
-            values: { count: countHint > 99 ? "99+" : String(countHint) },
-          })}
-        </span>
-      ) : null}
       {hasDraft && draft ? (
         <span className="min-w-0 truncate">{formatDraftPreview(draft)}</span>
       ) : (

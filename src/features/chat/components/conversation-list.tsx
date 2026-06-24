@@ -226,7 +226,6 @@ function ConversationRow({
   })();
 
   const digest = lastMessageDigest(conversation, myUid);
-  const showCountHint = isMuted && conversation.unread > 1;
 
   return (
     <button
@@ -250,26 +249,6 @@ function ConversationRow({
         ) : showOnline ? (
           <ConversationOnlineBadge />
         ) : null}
-        {hasUnread &&
-          (isMuted ? (
-            <span
-              key={shouldShakeUnread ? `muted-unread-${unreadPulseToken}` : "muted-unread"}
-              aria-hidden
-              className={`absolute -top-[2px] -right-[2px] box-border h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-error ${
-                shouldShakeUnread ? "wk-unread-badge-shake" : ""
-              }`}
-            />
-          ) : (
-            <span
-              key={shouldShakeUnread ? `unread-${unreadPulseToken}` : "unread"}
-              aria-label={tt("convList.unreadAria", { values: { count: conversation.unread } })}
-              className={`absolute -top-[6px] -right-[6px] box-border inline-flex h-4 min-w-4 items-center justify-center rounded-[9px] border-2 border-bg-base bg-error px-1 text-[10px] leading-none font-semibold text-white ${
-                shouldShakeUnread ? "wk-unread-badge-shake" : ""
-              }`}
-            >
-              {unread}
-            </span>
-          ))}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-[2px] overflow-hidden">
@@ -333,15 +312,31 @@ function ConversationRow({
               channel={channel}
               fallback={digest}
               reminders={conversation.simpleReminders}
-              countHint={showCountHint ? conversation.unread : 0}
               suppressDraft={suppressDraft}
             />
           </span>
-          {mentionMe && hasUnread && !isMuted ? (
-            <span className="ml-1 inline-flex h-[14px] shrink-0 items-center rounded-[3px] bg-error px-1 text-[10px] leading-none font-semibold text-white">
-              {tt("convList.mentionMe")}
+          {(mentionMe || hasUnread) && (
+            <span className="ml-1 inline-flex min-h-4 shrink-0 items-center justify-end gap-1">
+              {mentionMe ? (
+                <span className="inline-flex h-[14px] items-center rounded-md bg-error/15 px-1 text-[10px] leading-none font-semibold text-error">
+                  {tt("convList.mentionMe")}
+                </span>
+              ) : null}
+              {hasUnread ? (
+                <span
+                  key={shouldShakeUnread ? `unread-${unreadPulseToken}` : "unread"}
+                  aria-label={tt("convList.unreadAria", { values: { count: conversation.unread } })}
+                  className={`inline-flex h-4 min-w-4 items-center justify-center rounded-md px-1 text-[10px] leading-none font-semibold ${
+                    isMuted
+                      ? "bg-[rgba(28,28,35,0.08)] text-[#1c1c23]/40"
+                      : "bg-error/15 text-error"
+                  } ${shouldShakeUnread ? "wk-unread-badge-shake" : ""}`}
+                >
+                  {unread}
+                </span>
+              ) : null}
             </span>
-          ) : null}
+          )}
         </div>
       </div>
     </button>

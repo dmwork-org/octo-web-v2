@@ -22,6 +22,7 @@ import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
 import { buildRenderItems, type RenderItem } from "@/features/chat/lib/fold-session";
+import { shouldRenderBareContentType } from "@/features/chat/lib/message-bare";
 import { locateMessageWindow, locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
 import {
   chatLocateMessageActions,
@@ -46,11 +47,7 @@ interface MessageListProps {
  * (addMembers/removeMembers/channelUpdate/...)继续 bare。
  */
 function shouldRenderBare(m: Message): boolean {
-  if (m.remoteExtra?.revoke) return true;
-  const ct = m.contentType;
-  if (ct === MessageContentTypeConst.threadCreated) return false;
-  if (ct >= 1000 && ct <= 2000) return true;
-  return false;
+  return shouldRenderBareContentType(m.contentType, !!m.remoteExtra?.revoke);
 }
 
 /** 用户离底部多远还算"在底部",收到新消息时自动跟到底。 */
@@ -190,7 +187,7 @@ function useFollowBottomOnNewMessages(
       });
     }
     lastIdRef.current = key.id;
-  }, [key.id, key.mine, scrollRef, skip]);
+  }, [key.id, key.mine, scrollRef, skip, wasNearBottomRef]);
 }
 
 /**

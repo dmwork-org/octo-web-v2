@@ -144,6 +144,7 @@ export function rawToConversation(raw: ConversationRaw): Conversation {
     categoryId: raw.category_id ?? null,
     categorySort: raw.category_sort ?? 0,
     spaceUnread: raw.space_unread,
+    spaceId: raw.space_id,
   };
   const lastRaw = raw.recents?.[0] as MessageRaw | undefined;
   if (lastRaw) conv.lastMessage = rawToMessage(lastRaw);

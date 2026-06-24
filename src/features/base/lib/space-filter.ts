@@ -90,6 +90,8 @@ export function isConversationOfSpace(conversation: Conversation, spaceId: strin
   if (!channel) return true;
 
   if (channel.channelType !== ChannelTypePerson) {
+    const convSpaceId = getConversationSpaceId(conversation);
+    if (convSpaceId) return convSpaceId === spaceId;
     return isChannelOfSpace(channel, spaceId);
   }
 
@@ -136,4 +138,9 @@ function getMessageSpaceId(message: Message | undefined): string | undefined {
   if (!message) return undefined;
   const content = message.content as { contentObj?: { space_id?: string } } | undefined;
   return content?.contentObj?.space_id;
+}
+
+function getConversationSpaceId(conversation: Conversation): string | undefined {
+  const extra = conversation.extra as { spaceId?: string; space_id?: string } | undefined;
+  return extra?.spaceId ?? extra?.space_id;
 }

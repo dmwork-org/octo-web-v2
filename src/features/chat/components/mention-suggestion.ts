@@ -9,6 +9,12 @@ import type {
 import tippy, { type Instance as TippyInstance } from "tippy.js";
 import { MentionList, type MentionItem, type MentionListRef } from "./mention-list";
 
+type MentionPopupInstance = Pick<TippyInstance, "popper" | "state">;
+
+export function canHideMentionPopup(instance: MentionPopupInstance | null | undefined): boolean {
+  return !!instance && !instance.state.isDestroyed && !!instance.popper.firstElementChild;
+}
+
 /**
  * 自定义 findSuggestionMatch:解除 TipTap 默认 `@ 前必须是空白或开头` 的限制,
  * 允许 @ 在任意位置触发(中文输入 / 已有文本中插入 @ 的场景)。
@@ -73,7 +79,21 @@ export function createMentionSuggestion(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let component: ReactRenderer<MentionListRef, any> | null = null;
       let popup: TippyInstance[] | null = null;
-      const hidePopup = () => popup?.[0]?.hide();
+      const hidePopup = () => {
+        const instance = popup?.[0];
+        if (!instance || !canHideMentionPopup(instance)) return;
+        instance.hide();
+      };
+      const destroyPopup = () => {
+        const instance = popup?.[0];
+        if (!instance) return;
+        if (canHideMentionPopup(instance) || !instance.state.isVisible) {
+          instance.destroy();
+          return;
+        }
+        instance.clearDelayTimeouts();
+        instance.popperInstance?.destroy();
+      };
 
       const getRect = (props: SuggestionProps<MentionItem>) => {
         const r = props.clientRect?.();
@@ -104,21 +124,23 @@ export function createMentionSuggestion(
           if (!component) return;
           component.updateProps(props);
           if (!props.editor.isFocused) {
-            popup?.[0]?.hide();
+            hidePopup();
             return;
           }
           if (!props.items.length) {
-            popup?.[0]?.hide();
+            hidePopup();
             return;
           }
-          popup?.[0]?.show();
+          const instance = popup?.[0];
+          if (!instance || !canHideMentionPopup(instance)) return;
+          instance.show();
           if (!props.clientRect) return;
-          popup?.[0]?.setProps({ getReferenceClientRect: () => getRect(props) });
+          instance.setProps({ getReferenceClientRect: () => getRect(props) });
         },
 
         onKeyDown: (props: SuggestionKeyDownProps) => {
           if (props.event.key === "Escape") {
-            popup?.[0]?.hide();
+            hidePopup();
             return true;
           }
           return component?.ref?.onKeyDown({ event: props.event }) ?? false;
@@ -126,7 +148,7 @@ export function createMentionSuggestion(
 
         onExit: () => {
           component?.editor.off("blur", hidePopup);
-          popup?.[0]?.destroy();
+          destroyPopup();
           component?.destroy();
           popup = null;
           component = null;

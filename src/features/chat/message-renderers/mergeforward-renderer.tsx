@@ -16,6 +16,7 @@ import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import {
   MergeforwardContent,
   type MergeforwardUser,
@@ -129,7 +130,10 @@ function buildPreview(content: MergeforwardContent): string[] {
   const users = content.users ?? [];
   return (content.msgs ?? []).slice(0, 4).map((m) => {
     const name = senderNameOf(m.fromUID, users);
-    const digest = m.content?.conversationDigest ?? "";
+    const digest = safeAiServiceText(
+      m.content?.conversationDigest ?? "",
+      tInst("message.aiServiceUnavailable"),
+    );
     return name ? `${name}：${digest}` : digest;
   });
 }
@@ -289,7 +293,10 @@ function InnerContent({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   if (msg.contentType === MessageContentType.text) {
-    const text = (msg.content as MessageText).text ?? "";
+    const text = safeAiServiceText(
+      (msg.content as MessageText).text ?? "",
+      t("message.aiServiceUnavailable"),
+    );
     return <Markdown content={text} />;
   }
   if (msg.contentType === MessageContentType.image) {
@@ -411,7 +418,14 @@ function InnerContent({
       />
     );
   }
-  return <span>{msg.content?.conversationDigest ?? t("mergeForward.messageFallback")}</span>;
+  return (
+    <span>
+      {safeAiServiceText(
+        msg.content?.conversationDigest ?? t("mergeForward.messageFallback"),
+        t("message.aiServiceUnavailable"),
+      )}
+    </span>
+  );
 }
 
 function FileCard({

@@ -43,6 +43,7 @@ import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { copyImageToClipboard } from "@/features/base/lib/copy-image";
 import { copyRichTextToClipboard } from "@/features/chat/lib/rich-text-clipboard";
 import { authStore } from "@/features/base/stores/auth";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import { canShowRevokeMenu } from "@/features/chat/lib/revoke-permission";
 import {
   collectRevokeRoleContext,
@@ -341,8 +342,9 @@ export function useMessageContextMenu(message: Message): {
     onClick: () => setDeleteOpen(true),
   });
 
-  const threadDefaultName = (
-    (message.content as { conversationDigest?: string } | undefined)?.conversationDigest ?? ""
+  const threadDefaultName = safeAiServiceText(
+    (message.content as { conversationDigest?: string } | undefined)?.conversationDigest ?? "",
+    t("message.aiServiceUnavailable"),
   ).slice(0, 20);
 
   const render = (): ReactNode => (
@@ -462,12 +464,13 @@ function isBotOwnerOf(message: Message, myUid: string): boolean {
 }
 
 function extractText(message: Message): string {
+  const fallback = t("message.aiServiceUnavailable");
   if (message.contentType === MessageContentType.text) {
-    return (message.content as MessageText).text ?? "";
+    return safeAiServiceText((message.content as MessageText).text ?? "", fallback);
   }
   const digest = (message.content as { conversationDigest?: string } | undefined)
     ?.conversationDigest;
-  return digest ?? "";
+  return safeAiServiceText(digest ?? "", fallback);
 }
 
 function isSystemMessage(message: Message): boolean {

@@ -4,6 +4,8 @@ import { Markdown, type MarkdownToken } from "@/components/ui/markdown";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { readMessageMention } from "@/features/chat/lib/read-message-mention";
 import { resolveMentionTextTargets } from "@/features/chat/lib/mention-text-resolver";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
+import { useT } from "@/lib/i18n/use-t";
 import {
   findEmojiKeywords,
   getEmojiImageUrl,
@@ -141,8 +143,9 @@ function emojiTokens(text: string): MarkdownToken[] {
  * emoji 走全局 keyword 扫描 token — 不依赖 parts 字段,直接对 text 匹配 152 keyword。
  */
 export function TextRenderer({ message }: TextRendererProps) {
+  const t = useT();
   const content = message.content as MessageText;
-  const text = content.text ?? "";
+  const text = safeAiServiceText(content.text ?? "", t("message.aiServiceUnavailable"));
   // 订阅全局 channelInfo 变化 — mention candidate 来自 channelInfo/subscribers,
   // cache race 时主路径没匹配,主动 fetchChannelInfo 后到位时重渲就能正确高亮
   useChannelInfoTick();

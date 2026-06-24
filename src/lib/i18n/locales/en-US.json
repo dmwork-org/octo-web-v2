@@ -1854,6 +1854,7 @@
   "message.digest.summaryCard": "[Smart summary]",
   "message.digest.typing": "[Typing]",
   "message.digest.voice": "[Voice]",
+  "message.aiServiceUnavailable": "AI service is temporarily unavailable",
   "message.edited": "Edited",
   "message.flame.unavailable": "[This is a burn-after-reading message. View it on mobile.]",
   "message.historySplit": "Above are historical messages",

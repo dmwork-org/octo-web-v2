@@ -7,6 +7,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { sanitizeHighlight } from "@/features/base/lib/sanitize-highlight";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import {
   searchGlobal,
   type SearchFriend,
@@ -394,7 +395,12 @@ function MessagesList({ items, onClose }: { items: SearchMessage[]; onClose: () 
               <span
                 className="truncate text-xs text-text-secondary"
                 dangerouslySetInnerHTML={{
-                  __html: sanitizeHighlight(m.conversationDigest ?? digestFromPayload(m)),
+                  __html: sanitizeHighlight(
+                    safeAiServiceText(
+                      m.conversationDigest ?? digestFromPayload(m),
+                      tt("message.aiServiceUnavailable"),
+                    ),
+                  ),
                 }}
               />
             </div>

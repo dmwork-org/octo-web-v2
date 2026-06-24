@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
 import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
 import { ComposerTopAttachmentBar } from "@/features/chat/components/composer-top-attachment-bar";
@@ -404,7 +405,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         const doc = new DOMParser().parseFromString(html, "text/html");
         doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
         doc.querySelectorAll("*").forEach((el) => {
-          for (const attr of [...el.attributes]) {
+          for (const attr of Array.from(el.attributes)) {
             if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
           }
         });
@@ -863,8 +864,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   };
 
   const replyDigest = replyingTo
-    ? ((replyingTo.content as { conversationDigest?: string } | undefined)?.conversationDigest ??
-      "")
+    ? safeAiServiceText(
+        (replyingTo.content as { conversationDigest?: string } | undefined)?.conversationDigest ??
+          "",
+        tt("message.aiServiceUnavailable"),
+      )
     : "";
   const replySender = replyingTo ? lookupNicknameLabel(channel, replyingTo.fromUID) : "";
   const replyTypeMeta = quotedTypeMeta(tt, replyingTo?.content);

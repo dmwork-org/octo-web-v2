@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addTimelineEntry, listMatters } from "@/features/matter/api/matter.api";
 import { mattersListInfiniteQueryKey } from "@/features/matter/queries/matters.query";
+import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import type {
   ExtractMessage,
   ExtractMessageAttachment,
@@ -165,7 +166,10 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         from_uid: m.fromUID,
         from_uname: info?.title,
         timestamp: m.timestamp,
-        content: m.content?.conversationDigest ?? "",
+        content: safeAiServiceText(
+          m.content?.conversationDigest ?? "",
+          t("message.aiServiceUnavailable"),
+        ),
         attachments: extractAttachments(m),
       };
     });

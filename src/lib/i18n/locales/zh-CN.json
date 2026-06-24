@@ -1856,6 +1856,7 @@
   "message.digest.summaryCard": "[智能总结]",
   "message.digest.typing": "[正在输入]",
   "message.digest.voice": "[语音]",
+  "message.aiServiceUnavailable": "AI 服务暂时不可用",
   "message.edited": "已编辑",
   "message.flame.unavailable": "[此消息为阅后即焚消息，请在手机端查看]",
   "message.historySplit": "以上为历史消息",

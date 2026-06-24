@@ -87,6 +87,11 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
     e.stopPropagation();
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   const handleCopy = async (e: MouseEvent) => {
     stopClose(e);
     setCopying(true);
@@ -103,7 +108,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
   return createPortal(
     <div
       className="pointer-events-auto fixed inset-0 z-system-overlay flex items-center justify-center overflow-hidden bg-black/60"
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={handleContextMenu}
       role="dialog"
       aria-modal="true"
     >
@@ -123,7 +128,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
 
       <div
         className="relative z-0 flex h-full w-full items-center justify-center overflow-auto p-8 pb-24"
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={handleContextMenu}
         onClick={onClose}
       >
         <img
@@ -132,7 +137,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
           className="max-h-[calc(100vh-120px)] max-w-[calc(100vw-64px)] object-contain transition-transform duration-150 ease-(--ease-emphasized)"
           style={{ transform: `scale(${scale}) rotate(${rotation}deg)` }}
           onClick={stopClose}
-          onContextMenu={(e) => e.preventDefault()}
+          onContextMenu={handleContextMenu}
           onPointerDown={stopClose}
           draggable={false}
         />
@@ -141,6 +146,7 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
       <div
         className="absolute bottom-6 left-1/2 z-10 flex h-12 -translate-x-1/2 items-center gap-3 rounded-md bg-black/70 px-4 text-white shadow-lg"
         onClick={stopClose}
+        onContextMenu={handleContextMenu}
         onPointerDown={stopClose}
       >
         <button

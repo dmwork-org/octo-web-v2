@@ -22,6 +22,7 @@ export interface MentionItem {
   label: string;
   isBot?: boolean;
   isExternal?: boolean;
+  externalSpaceName?: string;
 }
 
 interface MentionListProps {
@@ -174,7 +175,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
                 {c.label}
               </strong>
               {isAis || c.isBot ? <AiBadge size="small" /> : null}
-              {c.isExternal ? <ExternalBadge size="small" /> : null}
+              {c.isExternal ? <ExternalBadge size="small" spaceName={c.externalSpaceName} /> : null}
             </li>
           );
         })}

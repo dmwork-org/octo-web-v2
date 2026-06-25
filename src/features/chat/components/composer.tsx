@@ -251,22 +251,27 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     return subscribers
       .filter((s) => s.uid !== myUid && !s.isDeleted)
       .map((s) => {
-        const og = s.orgData as { robot?: number; home_space_id?: string } | undefined;
+        const og = s.orgData as { robot?: number; home_space_id?: string; home_space_name?: string } | undefined;
         // 外部成员判定:成员 orgData.home_space_id 与当前 Space 不一致 → 外部。
         // home_space_id 来源:membersync 后端透传(GroupMemberRaw [key:string]:unknown)。
         // 缺失时 fallback 到 person channelInfo 缓存(channelInfoCallback 写入)。
         let memberSpaceId = og?.home_space_id;
+        let memberSpaceName = og?.home_space_name;
         if (!memberSpaceId) {
           const personInfo = WKSDK.shared().channelManager.getChannelInfo(
             new Channel(s.uid, ChannelTypePerson),
           );
-          memberSpaceId = (personInfo?.orgData as { home_space_id?: string } | undefined)?.home_space_id;
+          const personOrgData = personInfo?.orgData as { home_space_id?: string; home_space_name?: string } | undefined;
+          memberSpaceId = personOrgData?.home_space_id;
+          memberSpaceName = memberSpaceName ?? personOrgData?.home_space_name;
         }
+        const isExternal = !!spaceId && !!memberSpaceId && memberSpaceId !== spaceId;
         return {
           id: s.uid,
           label: s.remark || s.name || s.uid,
           isBot: og?.robot === 1,
-          isExternal: !!spaceId && !!memberSpaceId && memberSpaceId !== spaceId,
+          isExternal,
+          externalSpaceName: isExternal ? memberSpaceName : undefined,
         };
       });
   }, [subscribers, myUid, isMentionable, spaceId]);

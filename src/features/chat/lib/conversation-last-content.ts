@@ -58,7 +58,7 @@ export function isLastMessageRevoked(conv: Conversation): boolean {
 /**
  * isMentionMe — 1:1 对齐旧 Service/Model.tsx ConversationWrap.isMentionMe getter:
  *   1. 权威:server-side reminders(reminderType === MentionMe && !done)
- *   2. 实时兜底:lastMessage.content.mention.uids 包含 myUid
+ *   2. 实时兜底:未读会话 lastMessage.content.mention.uids 包含 myUid
  *
  * SDK Conversation 自带 isMentionMe getter/setter,但 setter 是显式赋值(老仓 vm 算完写回),
  * 新仓没那一层 vm — 这里改成"现算"模式,行内直接调,免去 listener 同步开销。
@@ -69,6 +69,7 @@ export function isMentionMe(conv: Conversation, myUid: string): boolean {
   if (reminders.some((r) => r.reminderType === ReminderType.ReminderTypeMentionMe && !r.done)) {
     return true;
   }
+  if (conv.unread <= 0) return false;
   const mention = (conv.lastMessage?.content as { mention?: { uids?: string[] } } | undefined)
     ?.mention;
   if (mention?.uids && mention.uids.includes(myUid)) return true;

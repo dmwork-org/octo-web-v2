@@ -1,6 +1,14 @@
-import WKSDK, { Channel, ChannelInfo, ChannelTypeGroup, Conversation } from "wukongimjssdk";
+import WKSDK, {
+  Channel,
+  ChannelInfo,
+  ChannelTypeGroup,
+  Conversation,
+  Message,
+  Reminder,
+  ReminderType,
+} from "wukongimjssdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { effectiveMute } from "./conversation-last-content";
+import { effectiveMute, isMentionMe } from "./conversation-last-content";
 
 const CHANNEL_TYPE_THREAD = 5;
 const parentChannel = new Channel("group-1", ChannelTypeGroup);
@@ -24,6 +32,24 @@ function threadConversation(threadMute: number | null): Conversation {
   return conv;
 }
 
+function mentionConversation(unread: number): Conversation {
+  const conv = new Conversation();
+  conv.channel = parentChannel;
+  conv.unread = unread;
+  const message = new Message();
+  message.content = { mention: { uids: ["me"] } };
+  conv.lastMessage = message;
+  return conv;
+}
+
+function mentionReminder(done: boolean): Reminder {
+  const reminder = new Reminder();
+  reminder.reminderID = 1;
+  reminder.reminderType = ReminderType.ReminderTypeMentionMe;
+  reminder.done = done;
+  return reminder;
+}
+
 describe("effectiveMute", () => {
   afterEach(() => {
     WKSDK.shared().channelManager.deleteChannelInfo(parentChannel);
@@ -40,5 +66,19 @@ describe("effectiveMute", () => {
     setParentMute(true);
 
     expect(effectiveMute(threadConversation(0))).toBe(false);
+  });
+});
+
+describe("isMentionMe", () => {
+  it("keeps undone server reminders authoritative", () => {
+    const conv = mentionConversation(0);
+    conv.reminders = [mentionReminder(false)];
+
+    expect(isMentionMe(conv, "me")).toBe(true);
+  });
+
+  it("uses last-message mention fallback only while unread remains", () => {
+    expect(isMentionMe(mentionConversation(1), "me")).toBe(true);
+    expect(isMentionMe(mentionConversation(0), "me")).toBe(false);
   });
 });

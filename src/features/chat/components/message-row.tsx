@@ -38,6 +38,7 @@ import {
 import {
   effectiveFromUID,
   senderDisplay,
+  senderExternalSpaceName,
   senderSubscribersChannel,
 } from "@/features/chat/lib/message-sender-display";
 
@@ -294,6 +295,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const senderTitle = webhookFrom
     ? webhookFrom.name || t("messageRow.webhookFallbackName")
     : senderDisplay(message);
+  const senderSpaceName = webhookFrom ? "" : senderExternalSpaceName(message);
   const senderUid = effectiveFromUID(message);
   const senderChannel = new Channel(senderUid, ChannelTypePerson);
   const isWebhook = !!webhookFrom;
@@ -350,11 +352,16 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
                 e.stopPropagation();
                 openChatProfile(senderUid, message.channel);
               }}
-              className="cursor-pointer truncate text-[15px] font-semibold text-text-primary hover:underline"
+              className="min-w-0 cursor-pointer truncate text-left text-[15px] font-semibold text-text-primary hover:underline"
             >
               {senderTitle}
             </button>
           )}
+          {senderSpaceName ? (
+            <span className="shrink-0 text-[13px] font-medium text-text-tertiary">
+              @{senderSpaceName}
+            </span>
+          ) : null}
           {isVerified ? <RealnameBadge /> : null}
           {isWebhook ? (
             <span className="shrink-0 rounded-sm bg-[#F0EAFF] px-1.5 text-[10px] font-medium text-[#6B3DD8]">

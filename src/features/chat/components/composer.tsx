@@ -251,16 +251,16 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     return subscribers
       .filter((s) => s.uid !== myUid && !s.isDeleted)
       .map((s) => {
-        const og = s.orgData as { robot?: number; space_id?: string } | undefined;
-        // 外部成员判定:成员 orgData.space_id 与当前 Space 不一致 → 外部。
-        // space_id 来源:membersync 后端透传(GroupMemberRaw [key:string]:unknown)。
+        const og = s.orgData as { robot?: number; home_space_id?: string } | undefined;
+        // 外部成员判定:成员 orgData.home_space_id 与当前 Space 不一致 → 外部。
+        // home_space_id 来源:membersync 后端透传(GroupMemberRaw [key:string]:unknown)。
         // 缺失时 fallback 到 person channelInfo 缓存(channelInfoCallback 写入)。
-        let memberSpaceId = og?.space_id;
+        let memberSpaceId = og?.home_space_id;
         if (!memberSpaceId) {
           const personInfo = WKSDK.shared().channelManager.getChannelInfo(
             new Channel(s.uid, ChannelTypePerson),
           );
-          memberSpaceId = (personInfo?.orgData as { space_id?: string } | undefined)?.space_id;
+          memberSpaceId = (personInfo?.orgData as { home_space_id?: string } | undefined)?.home_space_id;
         }
         return {
           id: s.uid,

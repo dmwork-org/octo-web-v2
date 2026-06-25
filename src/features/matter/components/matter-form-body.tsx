@@ -166,11 +166,7 @@ function DeadlineField({
           {value || t("matter.common.selectPlaceholder")}
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        className="z-dialog-secondary w-auto p-0"
-        align="start"
-        style={{ zIndex: 400 }}
-      >
+      <PopoverContent className="z-dialog-secondary w-auto p-0" align="start">
         <Calendar
           mode="single"
           selected={selectedDate}

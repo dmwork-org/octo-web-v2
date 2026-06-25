@@ -17,7 +17,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * 不走 ChannelAvatar / channelInfo 请求,避免成员选择列表
  * 大量并发请求压垮浏览器连接池(issue #160)。
  */
-function LiteAvatar({ uid, name, avatar, size }: { uid: string; name: string; avatar?: string; size: number }) {
+function LiteAvatar({
+  uid,
+  name,
+  avatar,
+  size,
+}: {
+  uid: string;
+  name: string;
+  avatar?: string;
+  size: number;
+}) {
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [failed, setFailed] = useState(false);
   const src = avatar
@@ -32,7 +42,14 @@ function LiteAvatar({ uid, name, avatar, size }: { uid: string; name: string; av
     return (
       <span
         className="shrink-0 rounded-full bg-bg-elevated text-text-secondary"
-        style={{ width: size, height: size, fontSize: size * 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+        style={{
+          width: size,
+          height: size,
+          fontSize: size * 0.4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
         {initial}
       </span>
@@ -156,6 +173,43 @@ function useChannelCandidates(channel: Channel | undefined): CandidateRow[] {
 }
 
 /**
+ * 下拉列表 fixed 定位坐标(issue #162):portal 到 body,
+ * 不受父级 transform + overflow:hidden 影响。
+ */
+function useMemberSelectDropdownPosition(
+  open: boolean,
+  wrapperRef: React.RefObject<HTMLDivElement | null>,
+) {
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number }>({
+    left: -9999,
+    top: -9999,
+    width: 0,
+  });
+
+  useEffect(() => {
+    if (!open || !wrapperRef.current) return;
+    const update = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const spaceBelow = viewportH - rect.bottom;
+      const top =
+        spaceBelow < 200 && rect.top > spaceBelow ? Math.max(8, rect.top - 204) : rect.bottom + 4;
+      setDropdownPos({ left: rect.left, top, width: rect.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, wrapperRef]);
+
+  return dropdownPos;
+}
+
+/**
  * 公共成员选择组件(支持单选 / 多选)。
  *
  * 抽公共组件后,选人场景按 props 配置(候选源 + 过滤):
@@ -191,10 +245,15 @@ export function MemberSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const effectivePlaceholder = placeholder ?? t("base.memberSelect.placeholder");
 
-  useClickOutside(wrapperRef, open, () => {
-    setOpen(false);
-    setInput("");
-  }, () => document.getElementById("member-select-dropdown"));
+  useClickOutside(
+    wrapperRef,
+    open,
+    () => {
+      setOpen(false);
+      setInput("");
+    },
+    () => document.getElementById("member-select-dropdown"),
+  );
 
   const spaceCandidates = useSpaceCandidates(open && !channel);
   const channelCandidates = useChannelCandidates(channel);
@@ -234,35 +293,7 @@ export function MemberSelect({
   };
 
   const remove = (uid: string) => onChange(value.filter((u) => u !== uid));
-
-  // 下拉列表 fixed 定位坐标(issue #162):portal 到 body,
-  // 不受父级 transform + overflow:hidden 影响。
-  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number }>({
-    left: -9999,
-    top: -9999,
-    width: 0,
-  });
-
-  useEffect(() => {
-    if (!open || !wrapperRef.current) return;
-    const update = () => {
-      if (!wrapperRef.current) return;
-      const rect = wrapperRef.current.getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const spaceBelow = viewportH - rect.bottom;
-      const top = spaceBelow < 200 && rect.top > spaceBelow
-        ? Math.max(8, rect.top - 204)
-        : rect.bottom + 4;
-      setDropdownPos({ left: rect.left, top, width: rect.width });
-    };
-    update();
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-    };
-  }, [open]);
+  const dropdownPos = useMemberSelectDropdownPosition(open, wrapperRef);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && input === "" && value.length > 0) {
@@ -332,59 +363,59 @@ export function MemberSelect({
         ) : null}
       </div>
 
-      {open ? (
-        createPortal(
-          <div
-            id="member-select-dropdown"
-            style={{
-              position: "fixed",
-              left: dropdownPos.left,
-              top: dropdownPos.top,
-              width: dropdownPos.width,
-              maxHeight: 200,
-              zIndex: 310,
-              pointerEvents: "auto",
-              overscrollBehavior: "contain",
-            }}
-            onWheel={(e) => {
-              // Radix Dialog 锁了 body scroll,portal 到 body 的下拉列表
-              // 滚轮事件会被 body overflow:hidden 吞掉。手动滚动 + 阻止冒泡。
-              e.currentTarget.scrollTop += e.deltaY;
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            className="overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg"
-          >
-          {candidates.length === 0 ? (
-            <p className="px-3 py-3 text-center text-xs text-text-tertiary">
-              {debouncedKeyword ? t("base.memberSelect.noMatch") : t("base.memberSelect.empty")}
-            </p>
-          ) : (
-            candidates.map((m) => {
-              const checked = valueSet.has(m.uid);
-              return (
-                <button
-                  key={m.uid}
-                  type="button"
-                  onClick={() => toggle(m.uid)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-bg-hover ${
-                    checked ? "bg-brand-tint/40" : ""
-                  }`}
-                >
-                  <LiteAvatar uid={m.uid} name={m.name} avatar={m.avatar} size={32} />
-                  <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>
-                  {m.isBot ? <AiBadge size="small" /> : null}
-                  {checked ? (
-                    <span className="ml-1 text-xs font-semibold text-brand">✓</span>
-                  ) : null}
-                </button>
-              );
-            })
-          )}
-          </div>,
-          document.body,
-        )
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              id="member-select-dropdown"
+              style={{
+                position: "fixed",
+                left: dropdownPos.left,
+                top: dropdownPos.top,
+                width: dropdownPos.width,
+                maxHeight: 200,
+                zIndex: "calc(var(--z-dialog) + 10)",
+                pointerEvents: "auto",
+                overscrollBehavior: "contain",
+              }}
+              onWheel={(e) => {
+                // Radix Dialog 锁了 body scroll,portal 到 body 的下拉列表
+                // 滚轮事件会被 body overflow:hidden 吞掉。手动滚动 + 阻止冒泡。
+                e.currentTarget.scrollTop += e.deltaY;
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+              className="overflow-y-auto rounded-md border border-border-default bg-bg-surface shadow-lg"
+            >
+              {candidates.length === 0 ? (
+                <p className="px-3 py-3 text-center text-xs text-text-tertiary">
+                  {debouncedKeyword ? t("base.memberSelect.noMatch") : t("base.memberSelect.empty")}
+                </p>
+              ) : (
+                candidates.map((m) => {
+                  const checked = valueSet.has(m.uid);
+                  return (
+                    <button
+                      key={m.uid}
+                      type="button"
+                      onClick={() => toggle(m.uid)}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-bg-hover ${
+                        checked ? "bg-brand-tint/40" : ""
+                      }`}
+                    >
+                      <LiteAvatar uid={m.uid} name={m.name} avatar={m.avatar} size={32} />
+                      <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>
+                      {m.isBot ? <AiBadge size="small" /> : null}
+                      {checked ? (
+                        <span className="ml-1 text-xs font-semibold text-brand">✓</span>
+                      ) : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

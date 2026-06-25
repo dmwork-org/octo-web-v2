@@ -12,7 +12,7 @@ import { messageStore } from "./store";
  * - subscribe messageStore,纯渲染 list(状态 + auto-dismiss 都在 store 内)
  * - 多条堆叠:column gap-2,从上到下 = 旧 → 新
  * - 进入/退出动画用 tailwindcss-animate(fade-in-0 + slide-in-from-top-2 / fade-out-0)
- * - z-index:`z-[60]`(高于 dialog z-50,通知不应该被 modal 遮)
+ * - z-index:`z-toast`(高于 dialog / drawer / system-overlay,通知不应该被蒙层遮)
  * - SSR 安全:document undefined 时不渲染(typeof window 守门)
  */
 export function MessageContainer() {
@@ -21,7 +21,7 @@ export function MessageContainer() {
   if (!portalTarget) return null;
   if (items.length === 0) return null;
   return createPortal(
-    <div className="pointer-events-none fixed top-4 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2">
+    <div className="pointer-events-none fixed top-4 left-1/2 z-toast flex -translate-x-1/2 flex-col items-center gap-2">
       {items.map((item) => (
         <div
           key={item.id}

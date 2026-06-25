@@ -22,8 +22,10 @@ import { GroupManagementModal } from "@/features/chat/components/group-managemen
 import { IncomingWebhookPanel } from "@/features/chat/components/incoming-webhook-panel";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
+import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { isVerifiedMember } from "@/features/chat/lib/member-realname";
 import {
   clearChannelMessages,
   deleteConversation,
@@ -159,6 +161,7 @@ function SubscriberCell({
   const tt = useT();
   const display = subscriber.remark || subscriber.name || subscriber.uid;
   const ch = new Channel(subscriber.uid, ChannelTypePerson);
+  const isVerified = isVerifiedMember(subscriber);
   return (
     <div className="flex flex-col items-center gap-1.5">
       <button
@@ -178,8 +181,9 @@ function SubscriberCell({
           </span>
         ) : null}
       </button>
-      <span className="block w-full max-w-16 truncate text-center text-[11px] text-text-secondary">
-        {display}
+      <span className="flex w-full max-w-16 items-center justify-center text-[11px] leading-[14px] text-text-secondary">
+        <span className="min-w-0 truncate">{display}</span>
+        {isVerified ? <RealnameVerifiedBadge variant="icon" className="ml-[3px]" /> : null}
       </span>
     </div>
   );

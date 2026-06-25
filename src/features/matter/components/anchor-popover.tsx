@@ -126,11 +126,15 @@ export function AnchorPopover({
   return (
     <>
       {/* 遮罩: 透明, 点击关闭 */}
-      <div className="fixed inset-0 z-[400] cursor-default" onClick={onClose} aria-hidden />
+      <div
+        className="fixed inset-0 z-dialog-secondary cursor-default"
+        onClick={onClose}
+        aria-hidden
+      />
       {/* Popover */}
       <div
-        className={`fixed z-[401] flex w-[424px] max-h-[370px] flex-col gap-3 overflow-hidden rounded-md bg-bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.06)] ${anchored ? "animate-[wk-anchor-fade-in_0.12s_ease-out_both]" : "animate-[wk-anchor-pop-in_0.12s_ease-out_both]"}`}
-        style={popStyle}
+        className={`fixed flex w-[424px] max-h-[370px] flex-col gap-3 overflow-hidden rounded-md bg-bg-surface p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.06)] ${anchored ? "animate-[wk-anchor-fade-in_0.12s_ease-out_both]" : "animate-[wk-anchor-pop-in_0.12s_ease-out_both]"}`}
+        style={{ ...popStyle, zIndex: "calc(var(--z-dialog-secondary) + 1)" }}
         role="dialog"
         aria-modal="true"
         onClick={stop}

@@ -77,8 +77,8 @@
 
   /*
    * ── Z-Index Tokens(浮动元素壳层统一规范 Phase B) ──
-   * 7 层语义化 z-index,覆盖全部浮动元素(Modal / Drawer / Popover / Tooltip / FloatingButton / System Overlay)。
-   * 用法:className="z-dialog" / "z-popover" / "z-floating" 等;**禁止** 用 z-[xxx] 任意值。
+   * 8 层语义化 z-index,覆盖全部浮动元素(Modal / Drawer / Popover / Tooltip / FloatingButton / System Overlay / Toast)。
+   * 用法:className="z-dialog" / "z-popover" / "z-toast" 等;**禁止** 用 z-[xxx] 任意值。
    *
    * 设计原则:层与层之间留 100 数值间隔,组件内部需细分(如 ContextMenu 的 mask/menu/submenu)
    * 用 `var(--z-popover)` 上下偏移 ±1 表达。
@@ -88,7 +88,8 @@
   --z-dialog: 300; /* 主 dialog + 其 mask */
   --z-dialog-secondary: 400; /* 二级 dialog(主 dialog 上又开 confirm) */
   --z-dialog-tertiary: 500; /* 三级 dialog(罕见) */
-  --z-system-overlay: 600; /* 全局通知 / changelog / settings-flyout */
+  --z-system-overlay: 600; /* changelog / settings-flyout / image-preview */
+  --z-toast: 700; /* 全局 toast/message,必须高于所有业务浮层与蒙层 */
   --z-debug: 9999; /* dev 工具(panel-splitter resize cursor) */
 }
 
@@ -113,6 +114,9 @@
 }
 @utility z-system-overlay {
   z-index: var(--z-system-overlay);
+}
+@utility z-toast {
+  z-index: var(--z-toast);
 }
 @utility z-debug {
   z-index: var(--z-debug);

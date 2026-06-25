@@ -196,7 +196,7 @@ export function BaseDialog({
                 {showCloseButton ? (
                   <DialogClose
                     aria-label={t("base.common.close")}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
+                    className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none"
                   >
                     <X size={16} />
                   </DialogClose>

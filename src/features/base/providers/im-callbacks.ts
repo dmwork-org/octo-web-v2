@@ -350,13 +350,14 @@ export function registerImCallbacks(): void {
     }
     const members = sortSubscribersForSyncCursor(raw.map(rawToSubscriber));
 
-    // robot / home_space_id 反向同步到 person channelInfo 缓存:消息列表 / 联系人页 / @提及列表
-    // 能立刻显示 AI 标识和外部标记,不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
+    // robot / home_space_id / home_space_name 反向同步到 person channelInfo 缓存:消息列表 / 联系人页 / @提及列表
+    // 能立刻显示 AI 标识和外部标记(含空间名),不用每个 uid 各自 fetchChannelInfo(对齐旧 module.ts:203-213)
     const cm = WKSDK.shared().channelManager;
     for (const member of members) {
-      const og = member.orgData as { robot?: number; home_space_id?: string } | undefined;
+      const og = member.orgData as { robot?: number; home_space_id?: string; home_space_name?: string } | undefined;
       const isRobot = og?.robot === 1;
       const memberSpaceId = og?.home_space_id;
+      const memberSpaceName = og?.home_space_name;
       if (!isRobot && !memberSpaceId) continue;
       const personChannel = new Channel(member.uid, ChannelTypePerson);
       const existing = cm.getChannelInfo(personChannel);
@@ -369,6 +370,10 @@ export function registerImCallbacks(): void {
         }
         if (memberSpaceId && !existingOg.home_space_id) {
           existingOg.home_space_id = memberSpaceId;
+          changed = true;
+        }
+        if (memberSpaceName && !existingOg.home_space_name) {
+          existingOg.home_space_name = memberSpaceName;
           changed = true;
         }
         if (changed) {

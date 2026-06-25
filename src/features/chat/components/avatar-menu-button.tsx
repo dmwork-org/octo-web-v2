@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
+import { useStore } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chatMentionRequestActions } from "@/features/chat/stores/chat-mention-request";
 import { openChatProfile } from "@/features/chat/lib/open-profile";
+import { authStore } from "@/features/base/stores/auth";
 import { useT } from "@/lib/i18n/use-t";
 
 /**
@@ -10,8 +12,10 @@ import { useT } from "@/lib/i18n/use-t";
  * avatarMenusContext 渲染):
  *
  *   头像 click → 弹 popover,2 项:
- *     1. **@TA**           — 通过 chatMentionRequestStore 通知 composer 插入 mention
+ *     1. **@TA**(非本人时) — 通过 chatMentionRequestStore 通知 composer 插入 mention
  *     2. **查看用户信息** — openChatProfile 弹 UserInfoModal / BotDetailModal
+ *
+ * **@TA 仅对他人显示**(本人不展示,因为 @自己 无意义)。
  *
  * **不区分群/Person 频道**(对齐旧仓 Conversation/index.tsx:2555-2599 — 旧仓菜单
  * 两项都无条件渲染;Person 聊天点 @TA 时 composer isMentionable=false 不实际插入,
@@ -39,6 +43,9 @@ export function AvatarMenuButton({
 }: AvatarMenuButtonProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+
+  const isSelf = myUid && senderUid === myUid;
 
   const onMentionTa = () => {
     setOpen(false);
@@ -66,13 +73,15 @@ export function AvatarMenuButton({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-32 p-1">
-        <button
-          type="button"
-          onClick={onMentionTa}
-          className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
-        >
-          @TA
-        </button>
+        {!isSelf ? (
+          <button
+            type="button"
+            onClick={onMentionTa}
+            className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+          >
+            @TA
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onShowUser}

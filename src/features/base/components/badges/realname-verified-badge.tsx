@@ -1,6 +1,7 @@
 interface RealnameVerifiedBadgeProps {
   /** "icon": 仅蓝勾;"tag": 仅"已实名"文字;"full": 并排展示(默认) */
   variant?: "icon" | "tag" | "full";
+  className?: string;
 }
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,7 +17,10 @@ import { useT } from "@/lib/i18n/use-t";
  * 用于:个人资料页(full) / 聊天气泡 + 群成员列表(icon)。
  * 仍不用于:@mention / 联系人列表 / 已读列表 / 会话列表(避免噪音)。
  */
-export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadgeProps) {
+export function RealnameVerifiedBadge({
+  variant = "full",
+  className = "",
+}: RealnameVerifiedBadgeProps) {
   const t = useT();
   const showIcon = variant !== "tag";
   const showText = variant !== "icon";
@@ -24,7 +28,7 @@ export function RealnameVerifiedBadge({ variant = "full" }: RealnameVerifiedBadg
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="ml-1.5 inline-flex shrink-0 items-center gap-[3px] text-[12px] font-medium leading-4 align-middle"
+          className={`ml-1.5 inline-flex shrink-0 items-center gap-[3px] text-[12px] leading-none font-medium align-middle ${className}`}
           style={{ color: "#2f8cff" }}
           aria-label={t("base.realname.tag")}
           role="img"

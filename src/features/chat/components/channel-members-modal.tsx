@@ -17,8 +17,10 @@ import { AddMembersModal } from "@/features/chat/components/add-members-modal";
 import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
+import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { isVerifiedMember } from "@/features/chat/lib/member-realname";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { removeGroupMembers } from "@/features/base/api/endpoints/group.api";
 import { useT } from "@/lib/i18n/use-t";
@@ -154,6 +156,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
               const isMe = m.uid === myUid;
               const og = m.orgData as { robot?: number } | undefined;
               const isBot = og?.robot === 1;
+              const isVerified = isVerifiedMember(m);
               const display = m.remark || m.name || m.uid;
               return (
                 <li
@@ -182,9 +185,8 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
                         {tt("channelMembers.manager")}
                       </span>
                     ) : null}
-                    {isBot ? (
-                      <AiBadge size="small" />
-                    ) : null}
+                    {isBot ? <AiBadge size="small" /> : null}
+                    {isVerified ? <RealnameVerifiedBadge variant="icon" /> : null}
                   </div>
                   {canKick ? (
                     <Tooltip>
@@ -235,7 +237,11 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
       {selectedMemberId ? (
         <UserInfoModal
           uid={selectedMemberId}
-          groupNo={channel.channelType === CHANNEL_TYPE_THREAD ? groupChannel?.channelID : channel.channelID}
+          groupNo={
+            channel.channelType === CHANNEL_TYPE_THREAD
+              ? groupChannel?.channelID
+              : channel.channelID
+          }
           onClose={() => setSelectedMemberId(null)}
         />
       ) : null}

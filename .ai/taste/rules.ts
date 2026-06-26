@@ -9,7 +9,7 @@
  *   - 升级 severity（warn → error）→ 改这里
  *   - 实现迁移（pending → oxlint / ts-morph）→ 改 implementedBy
  *
- * Week 3-4 会有 scripts/taste-lint.ts 消费本注册表。
+ * scripts/taste-health.ts 会消费本注册表做健康检查。
  */
 
 export type Severity = "error" | "warn" | "off";
@@ -17,7 +17,7 @@ export type Severity = "error" | "warn" | "off";
 export type Implementer =
   | "oxlint-builtin" // vp check 内置已覆盖，本注册表仅登记
   | "oxlint-plugin" // 通过 .ai/taste/oxlint-plugin/ 的 JS Plugin 实现
-  | "ts-morph" // 需要类型信息，走 scripts/taste-lint-type.ts 逃生口
+  | "ts-morph" // 需要类型信息，当前只登记候选，不提供空跑 lint 入口
   | "workflow" // 工作流/prompt 层规则，不由代码 lint 抓
   | "pending"; // Week 3-4 再实现
 

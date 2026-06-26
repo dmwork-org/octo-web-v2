@@ -32,7 +32,7 @@
 | build + lint + typecheck | `vp check --fix`                                      |
 | 查 TanStack 文档         | `tanstack doc <topic>` / `tanstack search-docs "<q>"` |
 | 加 shadcn 组件           | `pnpm dlx shadcn@latest add <component>`              |
-| 跑 taste-lint            | `pnpm run taste-lint <file>`(建设中,B11)              |
+| taste 规则注册表健康检查 | `pnpm run taste-health`(建设中,B11)                   |
 | 跑 eval                  | `pnpm run eval <eval-id>`(建设中,B13)                 |
 | 跑 wiki-lint             | `pnpm run wiki-lint`(建设中,B18)                      |
 | harness health 周报      | `pnpm run harness-health`(建设中,B20)                 |

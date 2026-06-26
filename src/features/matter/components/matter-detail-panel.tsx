@@ -6,7 +6,7 @@ import WKSDK, { Channel, ChannelTypePerson, type ChannelInfo } from "wukongimjss
 import { useT } from "@/lib/i18n/use-t";
 import { toast } from "@/components/semi-bridge/toast";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { authStore } from "@/features/base/stores/auth";
 import {
   matterDetailQueryOptions,
@@ -671,7 +671,7 @@ export function MatterDetailPanel({
         </div>
       </div>
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmDelete}
         title={t("matter.confirm.deleteTitle")}
         content={t("matter.confirm.deleteContent")}
@@ -1045,7 +1045,7 @@ function ChannelsTab({
       />
 
       {/* 解除关联确认弹窗 */}
-      <ConfirmModal
+      <ConfirmDialog
         open={!!unlinkTarget}
         title={t("matter.detail.unlinkChannelTitle")}
         content={t("matter.detail.unlinkChannelContent")}

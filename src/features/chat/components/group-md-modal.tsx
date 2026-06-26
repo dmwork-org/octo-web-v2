@@ -4,7 +4,7 @@ import { type Channel } from "wukongimjssdk";
 import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import {
   deleteGroupMd,
@@ -83,7 +83,7 @@ function useResetGroupMdPreviewMode(
  * GROUP.md 二级抽屉(对应旧 dmworkbase GroupMdEditor)。
  *
  * 浮动元素壳层统一规范 Phase D — 走 BaseDrawer side=right + ← 返回头部。
- * 内嵌 ConfirmModal(删除确认)自动 z-dialog-secondary。
+ * 内嵌 ConfirmDialog(删除确认)自动 z-dialog-secondary。
  */
 export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalProps) {
   const tt = useT();
@@ -259,7 +259,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
         </div>
       </BaseDrawer>
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmDelete}
         title={tt("groupMdModal.confirmDeleteTitle")}
         content={tt("groupMdModal.confirmDeleteContent")}

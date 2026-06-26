@@ -37,8 +37,8 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { InputModal } from "@/features/base/components/modals/input-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
+import { InputDialog } from "@/features/base/components/overlay/input-dialog";
 import { FollowEmptyState } from "@/features/chat/components/follow-empty-state";
 import { CreateGroupModal } from "@/features/chat/components/create-group-modal";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
@@ -1479,7 +1479,7 @@ export function FollowList({
         ) : null}
 
         {renaming ? (
-          <InputModal
+          <InputDialog
             open
             title={tt("followList.renameCategoryTitle")}
             placeholder={tt("followList.renameCategoryPlaceholder")}
@@ -1494,7 +1494,7 @@ export function FollowList({
         ) : null}
 
         {confirmDelete ? (
-          <ConfirmModal
+          <ConfirmDialog
             open
             title={tt("followList.deleteCategoryTitle")}
             content={tt("followList.deleteCategoryContent", {
@@ -1508,7 +1508,7 @@ export function FollowList({
           />
         ) : null}
 
-        <ConfirmModal
+        <ConfirmDialog
           open={!!confirmClear}
           title={tt("followList.confirmClearTitle")}
           content={tt("followList.confirmClearContent")}
@@ -1526,7 +1526,7 @@ export function FollowList({
         />
 
         {createCategoryOpen ? (
-          <InputModal
+          <InputDialog
             open
             title={tt("followList.newCategoryTitle")}
             placeholder={tt("followList.newCategoryPlaceholder")}

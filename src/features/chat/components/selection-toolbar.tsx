@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Plus } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { SmartCreateModal } from "@/features/matter/components/smart-create-modal";
 import { deleteMessages as deleteMessagesApi } from "@/features/base/api/endpoints/message.api";
@@ -332,7 +332,7 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
         </div>
       </div>
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmDelete}
         content={tt("selectionToolbar.confirmDeleteContent", { values: { count } })}
         okDanger

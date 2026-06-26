@@ -20,7 +20,7 @@ import { GroupQrcodeModal } from "@/features/chat/components/group-qrcode-modal"
 import { GroupMdModal } from "@/features/chat/components/group-md-modal";
 import { GroupManagementModal } from "@/features/chat/components/group-management-modal";
 import { IncomingWebhookPanel } from "@/features/chat/components/incoming-webhook-panel";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
@@ -817,7 +817,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       />
 
       {confirmClear ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tt("channelSetting.confirmClearTitle")}
           content={tt("channelSetting.confirmClearContent")}
@@ -830,7 +830,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       ) : null}
 
       {confirmClose ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tt("channelSetting.confirmActionTitle")}
           content={dangerCloseConfirm}
@@ -849,7 +849,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       ) : null}
 
       {confirmArchive ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={
             isThreadArchived
@@ -871,7 +871,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       ) : null}
 
       {ownerLeaveBlocked ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tt("channelSetting.ownerLeaveBlockedTitle")}
           content={tt("channelSetting.ownerLeaveBlockedContent")}

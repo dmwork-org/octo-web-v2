@@ -17,7 +17,7 @@ import { FollowList } from "@/features/chat/components/follow-list";
 import { FriendAddModal } from "@/features/chat/components/friend-add-modal";
 import { GlobalSearchModal } from "@/features/chat/components/global-search-modal";
 import { SidebarAddPopover } from "@/features/chat/components/sidebar-add-popover";
-import { InputModal } from "@/features/base/components/modals/input-modal";
+import { InputDialog } from "@/features/base/components/overlay/input-dialog";
 import { createCategory } from "@/features/base/api/endpoints/follow.api";
 import { categoriesQueryKey } from "@/features/chat/queries/categories.query";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
@@ -248,7 +248,7 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       <CreateGroupModal open={createGroupOpen} onClose={() => setCreateGroupOpen(false)} />
       <FriendAddModal open={friendAddOpen} onClose={() => setFriendAddOpen(false)} />
       {createCategoryOpen ? (
-        <InputModal
+        <InputDialog
           open
           title={tt("convSidebar.createCategoryTitle")}
           placeholder={tt("convSidebar.createCategoryPlaceholder")}

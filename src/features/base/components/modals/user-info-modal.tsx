@@ -23,7 +23,7 @@ import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
 import { displayName, isRealnameVerified } from "@/features/base/lib/display-name";
 import { FriendApplyModal } from "@/features/base/components/modals/friend-apply-modal";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { deleteFriend, setUserRemark } from "@/features/contacts/api/friends.api";
 import { blacklistAdd, blacklistRemove } from "@/features/base/api/endpoints/blacklist.api";
@@ -476,7 +476,7 @@ export function UserInfoModal({
         />
       ) : null}
 
-      <ConfirmModal
+      <ConfirmDialog
         open={!!confirm}
         title={confirm?.title}
         content={confirm?.content ?? ""}

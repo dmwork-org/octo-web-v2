@@ -24,8 +24,8 @@ import {
 import { toast } from "@/components/semi-bridge/toast";
 import { extractApiErrorMessage } from "@/features/base/api/api-error";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { InputModal } from "@/features/base/components/modals/input-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
+import { InputDialog } from "@/features/base/components/overlay/input-dialog";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { replyToMessage } from "@/features/chat/lib/reply-to-message";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
@@ -356,7 +356,7 @@ export function useMessageContextMenu(message: Message): {
         items={items}
         onClose={() => setMenu((m) => ({ ...m, open: false }))}
       />
-      <ConfirmModal
+      <ConfirmDialog
         open={deleteOpen}
         content={tt("messageRow.confirmDeleteContent")}
         okDanger
@@ -366,7 +366,7 @@ export function useMessageContextMenu(message: Message): {
         onCancel={() => setDeleteOpen(false)}
       />
       <ForwardModal open={forwardOpen} messages={[message]} onClose={() => setForwardOpen(false)} />
-      <InputModal
+      <InputDialog
         open={threadOpen}
         title={tt("messageRow.threadModalTitle")}
         placeholder={tt("messageRow.threadModalPlaceholder")}

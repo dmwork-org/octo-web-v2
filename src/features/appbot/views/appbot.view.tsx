@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelInfo, ChannelTypePerson } from "wukongimjssdk";
 import { RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
@@ -114,7 +114,7 @@ export function AppbotView() {
       chatSelectedActions.select(channel);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("appbot.error.connectFailed")),
+      message.error(err instanceof Error ? err.message : t("appbot.error.connectFailed")),
     onSettled: () => {
       selectingRef.current = false;
     },

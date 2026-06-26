@@ -10,7 +10,7 @@ import WKSDK, {
 import { Search, UserMinus } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
@@ -92,11 +92,11 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
     },
     onSuccess: () => {
       refreshSubs();
-      toast.success(t("channelMembers.toast.kicked"));
+      message.success(t("channelMembers.toast.kicked"));
       setConfirmKickUid(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelMembers.toast.kickFailed")),
+      message.error(err instanceof Error ? err.message : t("channelMembers.toast.kickFailed")),
   });
 
   const canKickMember = (target: Subscriber): boolean => {

@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { Edit3 } from "lucide-react";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
@@ -83,11 +83,11 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
       void qc.invalidateQueries({ queryKey: personalResultQueryKey(taskId) });
       // confirm/decline 让本任务从 WAITING_CONFIRM 退出,NavRail badge 立刻减(无需等 60s)
       void qc.invalidateQueries({ queryKey: summaryBadgeQueryKey });
-      toast.success(t("summary.personal.confirmedToast"));
+      message.success(t("summary.personal.confirmedToast"));
       onConfirmed();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.personal.confirmFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.personal.confirmFailed")),
   });
 
   const declineMu = useMutation({
@@ -95,10 +95,10 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
       void qc.invalidateQueries({ queryKey: summaryBadgeQueryKey });
-      toast.success(t("summary.personal.declinedToast"));
+      message.success(t("summary.personal.declinedToast"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.personal.declineFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.personal.declineFailed")),
   });
 
   const toggle = (id: string) => {
@@ -166,10 +166,10 @@ function MyResult({
     mutationFn: () => submitPersonalResult(taskId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: personalResultQueryKey(taskId) });
-      toast.success(t("summary.personal.submittedToast"));
+      message.success(t("summary.personal.submittedToast"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.personal.submitFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.personal.submitFailed")),
   });
 
   if (isLoading)

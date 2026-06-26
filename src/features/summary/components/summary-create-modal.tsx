@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import { X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
@@ -93,7 +93,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
     },
     onSuccess: ({ task_id }) => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success(
+      message.success(
         mode === SummaryMode.BY_PERSON
           ? t("summary.create.successPerson")
           : t("summary.create.successGroup"),
@@ -105,7 +105,8 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
       setMode(SummaryMode.BY_GROUP);
       onCreated(task_id);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : t("summary.create.failed")),
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.create.failed")),
   });
 
   if (!open) return null;
@@ -114,7 +115,7 @@ export function SummaryCreateModal({ open, onClose, onCreated }: SummaryCreateMo
     e.preventDefault();
     if (!topic.trim() || mu.isPending) return;
     if (mode === SummaryMode.BY_PERSON && participantUids.length === 0) {
-      toast.error(t("summary.create.personOnRequest"));
+      message.error(t("summary.create.personOnRequest"));
       return;
     }
     mu.mutate();

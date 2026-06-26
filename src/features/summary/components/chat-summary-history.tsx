@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { deleteSummary } from "@/features/summary/api/summary.api";
@@ -60,7 +60,7 @@ export function ChatSummaryHistory({ channel, onSelect, onCreateNew }: ChatSumma
       void qc.invalidateQueries({ queryKey: summariesQueryKey(queryParams) });
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
   });
 
   return (

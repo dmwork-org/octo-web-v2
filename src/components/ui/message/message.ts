@@ -14,8 +14,7 @@ import type { MessageOptions } from "./types";
  * **去重语义**:`opts.key` 相同时复用现有条目(更新 content + 重置 timer);
  * 多个无 key 调用各自独立堆叠。
  *
- * **底层**:semi-bridge/toast.ts 已转接到本模块(47 处既有 callsite 自动兼容)。
- * 业务新代码推荐直接 import `message` 而不是 toast,语义更清。
+ * 业务代码直接 import `message`,统一使用本模块作为提示 API。
  */
 export const message = {
   success: (content: string, opts?: MessageOptions) => show("success", content, opts),

@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { type Channel } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { uploadGroupAvatar } from "@/features/base/api/endpoints/group.api";
@@ -58,10 +58,10 @@ export function GroupAvatarModal({
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setImgVersion(Date.now());
-      toast.success(t("groupAvatar.toast.updated"));
+      message.success(t("groupAvatar.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupAvatar.toast.uploadFailed")),
+      message.error(err instanceof Error ? err.message : t("groupAvatar.toast.uploadFailed")),
   });
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,13 +69,13 @@ export function GroupAvatarModal({
     e.target.value = ""; // 允许重选同一文件
     if (!file) return;
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error(
+      message.error(
         t("groupAvatar.toast.tooLarge", { values: { mb: MAX_AVATAR_BYTES / 1024 / 1024 } }),
       );
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error(t("groupAvatar.toast.imageOnly"));
+      message.error(t("groupAvatar.toast.imageOnly"));
       return;
     }
     uploadMu.mutate(file);

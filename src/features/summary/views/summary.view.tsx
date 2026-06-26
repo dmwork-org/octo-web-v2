@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import {
   Select,
   SelectContent,
@@ -107,11 +107,11 @@ export function SummaryView() {
     mutationFn: deleteSummary,
     onSuccess: (_void, taskId) => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success(t("summary.list.deleteSuccess"));
+      message.success(t("summary.list.deleteSuccess"));
       if (selectedId === taskId) setSelectedId(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
   });
 
   const respondMu = useMutation({
@@ -119,12 +119,12 @@ export function SummaryView() {
       respondToTask(taskId, action),
     onSuccess: (_void, vars) => {
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success(
+      message.success(
         vars.action === "accept" ? t("summary.action.accepted") : t("summary.action.rejected"),
       );
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
   });
 
   if (!currentSpaceId) {

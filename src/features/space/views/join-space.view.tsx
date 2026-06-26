@@ -6,7 +6,7 @@ import { spaceActions } from "@/features/base/stores/space";
 import { getInviteInfo, type SpaceInviteInfo } from "@/features/base/api/endpoints/space.api";
 import { useJoinSpaceMutation } from "@/features/space/mutations";
 import { extractSafeErrorMessage } from "@/features/login/lib/sanitize-error";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tInst } from "@/lib/i18n/instance";
 
@@ -55,8 +55,8 @@ export function JoinSpaceView() {
 
   const handleVerify = async () => {
     const trimmed = code.trim();
-    if (!trimmed) return toast.warning(tInst("space.join.welcomePrompt"));
-    if (!INVITE_CODE_REGEX.test(trimmed)) return toast.error(tInst("space.join.invalidCode"));
+    if (!trimmed) return message.warning(tInst("space.join.welcomePrompt"));
+    if (!INVITE_CODE_REGEX.test(trimmed)) return message.error(tInst("space.join.invalidCode"));
     setVerifying(true);
     try {
       const i = await getInviteInfo(trimmed);
@@ -65,9 +65,9 @@ export function JoinSpaceView() {
     } catch (e) {
       const msg = extractSafeErrorMessage(e);
       if (msg.includes("已满")) {
-        toast.error(tInst("space.join.spaceFullVerify"));
+        message.error(tInst("space.join.spaceFullVerify"));
       } else {
-        toast.error(tInst("space.join.codeInvalidOrExpired"));
+        message.error(tInst("space.join.codeInvalidOrExpired"));
       }
     } finally {
       setVerifying(false);
@@ -79,17 +79,17 @@ export function JoinSpaceView() {
     try {
       await joinMu.mutateAsync(info.invite_code);
       spaceActions.setSpace(info.space_id);
-      toast.success(tInst("space.join.joined", { values: { name: info.space_name } }));
+      message.success(tInst("space.join.joined", { values: { name: info.space_name } }));
       void navigate({ to: "/" });
     } catch (e) {
       const msg = extractSafeErrorMessage(e);
       if (msg.includes("已满")) {
-        toast.error(tInst("space.join.spaceFull"));
+        message.error(tInst("space.join.spaceFull"));
       } else if (msg.includes("已是成员") || msg.includes("already")) {
         spaceActions.setSpace(info.space_id);
         void navigate({ to: "/" });
       } else {
-        toast.error(msg || tInst("space.join.joinFailed"));
+        message.error(msg || tInst("space.join.joinFailed"));
       }
     }
   };

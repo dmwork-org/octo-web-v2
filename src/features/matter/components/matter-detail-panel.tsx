@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { useRouter } from "@tanstack/react-router";
 import WKSDK, { Channel, ChannelTypePerson, type ChannelInfo } from "wukongimjssdk";
 import { useT } from "@/lib/i18n/use-t";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { authStore } from "@/features/base/stores/auth";
@@ -196,7 +196,7 @@ export function MatterDetailPanel({
       try {
         await downloadFile(url, att.file_name || "file");
       } catch {
-        toast.error(t("matter.outputs.downloadFailed"));
+        message.error(t("matter.outputs.downloadFailed"));
       }
     },
     [t],
@@ -317,7 +317,7 @@ export function MatterDetailPanel({
       try {
         await downloadFile(url, item.file_name || "file");
       } catch {
-        toast.error(t("matter.outputs.downloadFailed"));
+        message.error(t("matter.outputs.downloadFailed"));
       }
     },
     [t],

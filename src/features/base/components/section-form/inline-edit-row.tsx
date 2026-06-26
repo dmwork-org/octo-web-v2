@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 
 /** editing 由 false → true 时把 draft 同步成最新 value(避免上次编辑残留)。 */
@@ -91,7 +91,7 @@ export function InlineEditRow({
         type="button"
         onClick={() => {
           if (!canEdit) {
-            if (cantEditMessage) toast.warning(cantEditMessage);
+            if (cantEditMessage) message.warning(cantEditMessage);
             return;
           }
           onEnterEdit();

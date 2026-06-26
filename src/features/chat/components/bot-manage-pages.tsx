@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Search, Sparkles, ToggleLeft } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import {
   deleteRobotMentionPref,
@@ -140,7 +140,7 @@ export function MentionFreeListPage({ robotId }: { robotId: string }) {
       );
     },
     onError: (err) => {
-      toast.error(
+      message.error(
         err instanceof Error ? err.message : t("base.botManage.mentionFree.toggleFailed"),
       );
     },

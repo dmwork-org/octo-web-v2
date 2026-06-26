@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Eye, EyeOff, KeyRound, Lock } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import {
   createSecret,
@@ -86,18 +86,18 @@ export function SecretEditModal({
         if (kind !== secret.kind) body.kind = kind;
         if (value.trim()) body.key = value.trim();
         await updateSecret(secret.secret_id, body);
-        toast.success(t("base.secrets.toast.updated"));
+        message.success(t("base.secrets.toast.updated"));
       } else {
         await createSecret({ display_name: name.trim(), kind, key: value.trim() });
-        toast.success(t("base.secrets.toast.created"));
+        message.success(t("base.secrets.toast.created"));
       }
       onSaved();
       onClose();
     } catch (err) {
       if (isDuplicateError(err)) {
-        toast.error(t("base.secrets.error.duplicate"));
+        message.error(t("base.secrets.error.duplicate"));
       } else {
-        toast.error(errorMessage(err) ?? t("base.secrets.error.saveFailed"));
+        message.error(errorMessage(err) ?? t("base.secrets.error.saveFailed"));
       }
     } finally {
       setSaving(false);

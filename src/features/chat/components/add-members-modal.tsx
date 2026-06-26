@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Search } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { type SpaceMember } from "@/features/base/api/endpoints/space.api";
@@ -196,17 +196,17 @@ export function AddMembersModal({ open, channel, onClose }: AddMembersModalProps
         chatSelectedActions.select(newChannel);
         void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
         void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
-        toast.success(t("createGroup.toast.created"));
+        message.success(t("createGroup.toast.created"));
         onClose();
         return;
       }
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      toast.success(t("addMembers.toast.added", { values: { count: selected.size } }));
+      message.success(t("addMembers.toast.added", { values: { count: selected.size } }));
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("addMembers.toast.failed")),
+      message.error(err instanceof Error ? err.message : t("addMembers.toast.failed")),
   });
 
   const toggle = (uid: string) => {

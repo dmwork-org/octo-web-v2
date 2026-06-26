@@ -10,7 +10,7 @@ import WKSDK, {
 import { BellOff, BellRing, Eye, MoreHorizontal, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { InputDialog } from "@/features/base/components/overlay/input-dialog";
@@ -517,10 +517,10 @@ export function ConversationList({
     onSuccess: (_void, args) => {
       refreshChannelInfo(args.conv);
       void qc.invalidateQueries({ queryKey: conversationsQueryKey(spaceId) });
-      toast.success(args.top ? t("convList.toast.pinned") : t("convList.toast.unpinned"));
+      message.success(args.top ? t("convList.toast.pinned") : t("convList.toast.unpinned"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.opFailed")),
   });
 
   const closeChatMu = useMutation({
@@ -539,11 +539,11 @@ export function ConversationList({
       ) {
         chatSelectedActions.clear();
       }
-      toast.success(t("convList.toast.closed"));
+      message.success(t("convList.toast.closed"));
       setConfirmClose(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.closeFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.closeFailed")),
   });
 
   const { clearUnreadMu, muteMu, clearMessagesMu, unfollowMu } = useConversationActions({
@@ -565,10 +565,10 @@ export function ConversationList({
     },
     onSuccess: () => {
       invalidateFollow();
-      toast.success(t("convList.toast.followed"));
+      message.success(t("convList.toast.followed"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.followFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.followFailed")),
   });
 
   const followDmMu = useMutation({
@@ -576,20 +576,20 @@ export function ConversationList({
       followDM(args.peerUid, args.categoryId),
     onSuccess: () => {
       invalidateFollow();
-      toast.success(t("convList.toast.followed"));
+      message.success(t("convList.toast.followed"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.followFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.followFailed")),
   });
 
   const followThreadMu = useMutation({
     mutationFn: (threadChannelId: string) => followThread(threadChannelId),
     onSuccess: () => {
       invalidateFollow();
-      toast.success(t("convList.toast.followed"));
+      message.success(t("convList.toast.followed"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.followThreadFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.followThreadFailed")),
   });
 
   const followThreadWithParentMu = useMutation({
@@ -604,10 +604,10 @@ export function ConversationList({
     },
     onSuccess: () => {
       invalidateFollow();
-      toast.success(t("convList.toast.followed"));
+      message.success(t("convList.toast.followed"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.followThreadFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.followThreadFailed")),
   });
 
   const createCategoryMu = useMutation({
@@ -618,10 +618,10 @@ export function ConversationList({
     onSuccess: () => {
       invalidateFollow();
       setCreateCategoryOpen(false);
-      toast.success(t("convList.toast.categoryCreated"));
+      message.success(t("convList.toast.categoryCreated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convList.toast.createCategoryFailed")),
+      message.error(err instanceof Error ? err.message : t("convList.toast.createCategoryFailed")),
   });
 
   const onRowContextMenu = (conv: Conversation) => (e: MouseEvent) => {

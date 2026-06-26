@@ -17,13 +17,13 @@ import {
   MENTION_LABEL_HUMANS,
 } from "@/features/base/lib/mention-three-state";
 import { formatFileSize } from "@/features/chat/file-preview/config";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { t } from "@/lib/i18n/instance";
 
 /**
  * 附件总大小上限(对齐上游 `361447b6` ConversationVM.MAX_TOTAL_SIZE = 100MB)。
  * 单文件、待发送队列总大小都不能超过。三路入口(按钮 / paste / drag)共用
- * addAttachments,守卫在此处统一拦截,toast.error + 拒绝入队。
+ * addAttachments,守卫在此处统一拦截,message.error + 拒绝入队。
  */
 const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
 
@@ -50,7 +50,7 @@ export interface UseComposerAttachmentsReturn {
    *   source="paste" + image → 插入 editor inline AttachmentNode + 缩略图
    *   其它(paste 非图 / drag 拖入 / 上传按钮)→ 顶部附件区卡片
    *
-   * 守卫:单文件 > MAX_TOTAL_SIZE 或 累计 > MAX_TOTAL_SIZE → toast.error + 整批不入队
+   * 守卫:单文件 > MAX_TOTAL_SIZE 或 累计 > MAX_TOTAL_SIZE → message.error + 整批不入队
    * (对齐上游 `361447b6` 单入口校验,与扩展名黑名单同一处)。
    */
   addAttachments: (
@@ -163,7 +163,7 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
       const maxLabel = formatFileSize(MAX_TOTAL_SIZE);
       const oversized = files.find((f) => f.size > MAX_TOTAL_SIZE);
       if (oversized) {
-        toast.error(
+        message.error(
           t("composer.upload.fileTooLarge", {
             values: { name: oversized.name, max: maxLabel },
           }),
@@ -175,7 +175,7 @@ export function useComposerAttachments(): UseComposerAttachmentsReturn {
         topAttachments.reduce((acc, a) => acc + a.size, 0) +
         Array.from(filesRef.current.values()).reduce((acc, f) => acc + f.size, 0);
       if (currentTotal + incomingTotal > MAX_TOTAL_SIZE) {
-        toast.error(t("composer.upload.totalTooLarge", { values: { max: maxLabel } }));
+        message.error(t("composer.upload.totalTooLarge", { values: { max: maxLabel } }));
         return;
       }
 

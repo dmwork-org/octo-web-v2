@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
@@ -293,19 +293,19 @@ function useLocateRequestedMessage(channel: Channel, ready: boolean): void {
     async function locate() {
       let el = document.querySelector<HTMLElement>(`[data-msg-seq="${messageSeq}"]`);
       if (!el) {
-        const loadingId = toast.loading(t("messageRow.replyLoading"));
+        const loadingId = message.loading(t("messageRow.replyLoading"));
         try {
           el =
             request.strategy === "window"
               ? await locateMessageWindow(qc, channel, messageSeq)
               : await locateReplyMessage(qc, channel, messageSeq);
         } finally {
-          toast.dismiss(loadingId);
+          message.dismiss(loadingId);
         }
       }
       if (cancelled) return;
       if (!el) {
-        toast.warning(t("messageRow.replyNotFound"));
+        message.warning(t("messageRow.replyNotFound"));
         chatLocateMessageActions.clear(requestId);
         return;
       }

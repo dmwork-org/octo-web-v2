@@ -9,7 +9,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
@@ -118,45 +118,45 @@ export function UserInfoModal({
       if (uid) {
         void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
       }
-      toast.success(t("base.userInfo.saved"));
+      message.success(t("base.userInfo.saved"));
       setRemarkEditing(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.userInfo.setRemarkFailed")),
+      message.error(err instanceof Error ? err.message : t("base.userInfo.setRemarkFailed")),
   });
 
   const deleteFriendMu = useMutation({
     mutationFn: () => deleteFriend(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success(t("base.userInfo.friendDeleted"));
+      message.success(t("base.userInfo.friendDeleted"));
       setConfirm(null);
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.userInfo.deleteFriendFailed")),
+      message.error(err instanceof Error ? err.message : t("base.userInfo.deleteFriendFailed")),
   });
 
   const blacklistAddMu = useMutation({
     mutationFn: () => blacklistAdd(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success(t("base.userInfo.blacklistAdded"));
+      message.success(t("base.userInfo.blacklistAdded"));
       setConfirm(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.userInfo.blacklistAddFailed")),
+      message.error(err instanceof Error ? err.message : t("base.userInfo.blacklistAddFailed")),
   });
 
   const blacklistRemoveMu = useMutation({
     mutationFn: () => blacklistRemove(uid!),
     onSuccess: () => {
       invalidate();
-      toast.success(t("base.userInfo.blacklistRemoved"));
+      message.success(t("base.userInfo.blacklistRemoved"));
       setConfirm(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.userInfo.blacklistRemoveFailed")),
+      message.error(err instanceof Error ? err.message : t("base.userInfo.blacklistRemoveFailed")),
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;

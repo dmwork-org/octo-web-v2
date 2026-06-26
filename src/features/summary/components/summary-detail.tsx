@@ -12,7 +12,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { useT } from "@/lib/i18n/use-t";
@@ -213,20 +213,20 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     onSuccess: () => {
       setRegenerateOpen(false);
       invalidate();
-      toast.success(t("summary.detail.regenerateStarted"));
+      message.success(t("summary.detail.regenerateStarted"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.detail.regenerateFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.detail.regenerateFailed")),
   });
 
   const cancelMu = useMutation({
     mutationFn: () => cancelSummary(taskId!),
     onSuccess: () => {
       invalidate();
-      toast.success(t("summary.detail.cancelledToast"));
+      message.success(t("summary.detail.cancelledToast"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.detail.cancelFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.detail.cancelFailed")),
   });
 
   const deleteMu = useMutation({
@@ -234,11 +234,11 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     onSuccess: () => {
       setDeleteConfirmOpen(false);
       void qc.invalidateQueries({ queryKey: ["summary", "list"] });
-      toast.success(t("summary.detail.deletedToast"));
+      message.success(t("summary.detail.deletedToast"));
       onDeleted();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.detail.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.detail.deleteFailed")),
   });
 
   const forwardMatterMu = useMutation({
@@ -252,10 +252,12 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     }) => addMatterComment(matterId, content),
     onSuccess: (_void, vars) => {
       setMatterPickerOpen(false);
-      toast.success(t("summary.detail.forwardedToMatter", { values: { title: vars.matterTitle } }));
+      message.success(
+        t("summary.detail.forwardedToMatter", { values: { title: vars.matterTitle } }),
+      );
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.detail.forwardFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.detail.forwardFailed")),
   });
 
   const saveScheduleMu = useMutation({
@@ -286,12 +288,12 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     onSuccess: () => {
       setScheduleConfigOpen(false);
       invalidate();
-      toast.success(
+      message.success(
         scheduleItem ? t("summary.detail.scheduleSaved") : t("summary.detail.scheduleCreated"),
       );
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const disableScheduleMu = useMutation({
@@ -299,10 +301,10 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     onSuccess: () => {
       setScheduleConfigOpen(false);
       invalidate();
-      toast.success(t("summary.detail.scheduleDisabled"));
+      message.success(t("summary.detail.scheduleDisabled"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
   });
 
   if (taskId === null) {
@@ -353,12 +355,12 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
 
   const openForwardToChat = () => {
     if (!resultContent.trim()) {
-      toast.warning(t("summary.detail.noForwardContent"));
+      message.warning(t("summary.detail.noForwardContent"));
       return;
     }
     const messages = buildForwardMessages(resultContent);
     if (messages.length === 0) {
-      toast.warning(t("summary.detail.noForwardContent"));
+      message.warning(t("summary.detail.noForwardContent"));
       return;
     }
     setForwardMessages(messages);
@@ -366,7 +368,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
 
   const openForwardToMatter = () => {
     if (!resultContent.trim()) {
-      toast.warning(t("summary.detail.noForwardContent"));
+      message.warning(t("summary.detail.noForwardContent"));
       return;
     }
     setMatterPickerOpen(true);

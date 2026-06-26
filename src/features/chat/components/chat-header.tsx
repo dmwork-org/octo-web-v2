@@ -15,7 +15,7 @@ import {
 } from "@/features/summary/utils/chat-summary-events";
 import { isSupportedChannelType } from "@/features/summary/utils/channel-source";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tFn } from "@/lib/i18n/instance";
@@ -314,7 +314,7 @@ function SummaryEntryButton({
     const result = await fetchSummaryCount();
     if (result.state === "cancelled") return;
     if (result.state === "failed") {
-      toast.error(tFn("summary.common.loadingFailed"));
+      message.error(tFn("summary.common.loadingFailed"));
       return;
     }
     openForSummaryCount(result.hasSummaries);

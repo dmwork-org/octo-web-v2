@@ -11,7 +11,7 @@ import { LoginInput } from "@/features/login/components/login-input";
 import { SendCodeButton } from "@/features/login/components/send-code-button";
 import { LoginPrimaryButton } from "@/features/login/components/login-primary-button";
 import { PasswordStrengthMeter } from "@/features/login/components/password-strength-meter";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tInstance } from "@/lib/i18n/instance";
 
@@ -29,9 +29,9 @@ import { t as tInstance } from "@/lib/i18n/instance";
  * SSO 提示(老仓行 587-599):当 ssoProvider.resetPasswordUrl 非空时,顶部显
  * "企业统一认证账号请前往 {provider.name} 账户中心 修改密码。"(account-url 链接)
  *
- * 校验错误统一 toast.error(对齐老仓 Toast.error)。
+ * 校验错误统一 message.error(对齐老仓 Toast.error)。
  *
- * 成功后:`toast.success("密码重置成功，请登录")` + 立即跳 /login
+ * 成功后:`message.success("密码重置成功，请登录")` + 立即跳 /login
  * (1:1 对齐老仓 login.tsx 行 648-650;**无独立成功页**)。
  */
 export function ForgetPasswordView() {
@@ -48,33 +48,34 @@ export function ForgetPasswordView() {
 
   const sendCode = async () => {
     if (!isValidEmail(email)) {
-      toast.error(tInstance("login.validation.emailInvalid"));
+      message.error(tInstance("login.validation.emailInvalid"));
       throw new Error("invalid email");
     }
     try {
       await sendCodeMu.mutateAsync({ email, codeType: 2 });
       countdown.start(60);
     } catch (e) {
-      toast.error(extractSafeErrorMessage(e));
+      message.error(extractSafeErrorMessage(e));
       throw e;
     }
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isValidEmail(email)) return toast.error(tInstance("login.validation.emailInvalid"));
-    if (!code) return toast.error(tInstance("login.validation.codeRequired"));
+    if (!isValidEmail(email)) return message.error(tInstance("login.validation.emailInvalid"));
+    if (!code) return message.error(tInstance("login.validation.codeRequired"));
     const pwdErr = validatePassword(newPassword);
-    if (pwdErr) return toast.error(pwdErr);
-    if (newPassword !== confirm) return toast.error(tInstance("login.validation.passwordMismatch"));
+    if (pwdErr) return message.error(pwdErr);
+    if (newPassword !== confirm)
+      return message.error(tInstance("login.validation.passwordMismatch"));
     try {
       await resetMu.mutateAsync({ email, code, new_password: newPassword });
-      // 老仓行为(login.tsx 行 648-650):toast.success + 立即切回登录页,
+      // 老仓行为(login.tsx 行 648-650):message.success + 立即切回登录页,
       // 不显独立成功页。
-      toast.success(tInstance("login.validation.resetSuccess"));
+      message.success(tInstance("login.validation.resetSuccess"));
       void navigate({ to: "/login" });
     } catch (err) {
-      toast.error(extractSafeErrorMessage(err));
+      message.error(extractSafeErrorMessage(err));
     }
   };
 

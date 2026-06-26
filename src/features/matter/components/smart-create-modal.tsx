@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
@@ -95,7 +95,7 @@ export function SmartCreateModal({
       }));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("matter.toast.aiExtractFailed")),
+      message.error(err instanceof Error ? err.message : t("matter.toast.aiExtractFailed")),
   });
   useTriggerExtract(open, !!draftId, extractMu.mutate);
 
@@ -120,11 +120,11 @@ export function SmartCreateModal({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
       void qc.invalidateQueries({ queryKey: ["matter", "list"] });
-      toast.success(t("matter.toast.matterCreated"));
+      message.success(t("matter.toast.matterCreated"));
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const isExtracting = extractMu.isPending && !draftId;

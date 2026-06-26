@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { type Conversation } from "wukongimjssdk";
 import { Search, Plus } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import {
@@ -128,10 +128,10 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       void qc.invalidateQueries({ queryKey: categoriesQueryKey(currentSpaceId) });
       setCreateCategoryOpen(false);
       chatSidebarTabActions.setTab("follow");
-      toast.success(t("convSidebar.toast.categoryCreated"));
+      message.success(t("convSidebar.toast.categoryCreated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("convSidebar.toast.createFailed")),
+      message.error(err instanceof Error ? err.message : t("convSidebar.toast.createFailed")),
   });
 
   return (

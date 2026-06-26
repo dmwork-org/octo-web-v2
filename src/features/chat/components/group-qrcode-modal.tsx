@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type Channel } from "wukongimjssdk";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { getGroupQrcode } from "@/features/base/api/endpoints/group.api";
@@ -70,8 +70,8 @@ export function GroupQrcodeModal({
     const link = qrQ.data?.invite_url || qrQ.data?.qrcode || "";
     if (!link) return;
     const ok = await copyToClipboard(link);
-    if (ok) toast.success(t("groupQrcode.toast.copied"));
-    else toast.error(t("groupQrcode.toast.copyFailed"));
+    if (ok) message.success(t("groupQrcode.toast.copied"));
+    else message.error(t("groupQrcode.toast.copyFailed"));
   };
 
   return (

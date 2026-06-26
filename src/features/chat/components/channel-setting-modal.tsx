@@ -8,7 +8,7 @@ import WKSDK, {
   type Subscriber,
 } from "wukongimjssdk";
 import { Minus, Plus, QrCode } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -308,21 +308,21 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(currentSpaceId) });
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const muteMu = useMutation({
     mutationFn: (mute: boolean) => setChannelMute(channel, mute),
     onSuccess: refreshChannelInfo,
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const saveMu = useMutation({
     mutationFn: (save: boolean) => setChannelSave(channel, save),
     onSuccess: refreshChannelInfo,
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const renameMu = useMutation({
@@ -339,10 +339,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       WKSDK.shared().channelManager.deleteChannelInfo(channel);
       await WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setEditing(null);
-      toast.success(t("channelSetting.toast.updated"));
+      message.success(t("channelSetting.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const noticeMu = useMutation({
@@ -350,10 +350,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onSuccess: () => {
       refreshChannelInfo();
       setEditing(null);
-      toast.success(t("channelSetting.toast.updated"));
+      message.success(t("channelSetting.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const remarkMu = useMutation({
@@ -361,10 +361,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     onSuccess: () => {
       refreshChannelInfo();
       setEditing(null);
-      toast.success(t("channelSetting.toast.updated"));
+      message.success(t("channelSetting.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const myNickMu = useMutation({
@@ -373,10 +373,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       updateCachedSubscriberRemark(channel, myUid, next);
       void WKSDK.shared().channelManager.syncSubscribes(channel);
       setEditing(null);
-      toast.success(t("channelSetting.toast.updated"));
+      message.success(t("channelSetting.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.updateFailed")),
   });
 
   const clearMu = useMutation({
@@ -393,11 +393,11 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         pages: [[]],
         pageParams: [0],
       });
-      toast.success(t("channelSetting.toast.cleared"));
+      message.success(t("channelSetting.toast.cleared"));
       setConfirmClear(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.clearFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.clearFailed")),
   });
 
   const closeMu = useMutation({
@@ -446,7 +446,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       ) {
         chatSelectedActions.clear();
       }
-      toast.success(
+      message.success(
         isGroup
           ? t("channelSetting.toast.leftGroup")
           : isThread
@@ -459,7 +459,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   /**
@@ -489,7 +489,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         void qc.invalidateQueries({ queryKey: ["chat", "thread-list", threadParsed.groupNo] });
       }
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      toast.success(
+      message.success(
         isThreadArchived
           ? t("threadPanelLocal.unarchiveSuccess")
           : t("threadPanelLocal.archiveSuccess"),
@@ -497,7 +497,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       setConfirmArchive(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
   const dangerCloseTitle = isGroup

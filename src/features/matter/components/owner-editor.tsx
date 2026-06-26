@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Virtuoso } from "react-virtuoso";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { UserName } from "@/features/matter/components/user-name";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -99,14 +99,14 @@ export function OwnerEditor({
       void qc.invalidateQueries({
         queryKey: mattersQueryKey(undefined).slice(0, 2),
       });
-      toast.success(
+      message.success(
         added
           ? t("matter.assignee.added", { values: { count: 1 } })
           : t("matter.assignee.removed", { values: { count: 1 } }),
       );
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
     onSettled: (_data, _err, uid) => {
       setPending((prev) => {
         const next = new Set(prev);

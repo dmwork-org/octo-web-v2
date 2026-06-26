@@ -6,7 +6,7 @@ import {
   sidebarFollowQueryKey,
 } from "@/features/chat/queries/sidebar.query";
 import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { t } from "@/lib/i18n/instance";
 
 /**
@@ -93,7 +93,7 @@ export function useSortFollow(spaceId: string | null) {
       }
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("useSortFollow.sortFailed"));
+      message.error(err instanceof Error ? err.message : t("useSortFollow.sortFailed"));
       // 失败时 invalidate 让 UI 回到服务端真值
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },

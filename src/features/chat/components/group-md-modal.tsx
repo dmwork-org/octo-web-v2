@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Channel } from "wukongimjssdk";
 import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import {
@@ -129,10 +129,10 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
       setBaseline(draft);
       setVersion(resp.version);
       refreshChannelInfo();
-      toast.success(t("groupMdModal.toast.saved"));
+      message.success(t("groupMdModal.toast.saved"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMdModal.toast.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMdModal.toast.saveFailed")),
   });
 
   const deleteMu = useMutation({
@@ -146,10 +146,10 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
       setVersion(0);
       refreshChannelInfo();
       setConfirmDelete(false);
-      toast.success(t("groupMdModal.toast.deleted"));
+      message.success(t("groupMdModal.toast.deleted"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMdModal.toast.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMdModal.toast.deleteFailed")),
   });
 
   const byteLen = getByteLength(draft);

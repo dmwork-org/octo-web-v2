@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
 import { Copy, Download, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { triggerDownload } from "@/features/chat/lib/file-download";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -18,11 +18,9 @@ async function copyImageToClipboard(src: string): Promise<void> {
   try {
     const response = await fetch(src);
     const blob = await response.blob();
-    await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type]: blob }),
-    ]);
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
   } catch (err) {
-    throw new Error("Failed to copy image");
+    throw new Error("Failed to copy image", { cause: err });
   }
 }
 
@@ -97,9 +95,9 @@ export function ImagePreviewModal({ src, onClose }: ImagePreviewModalProps) {
     setCopying(true);
     try {
       await copyImageToClipboard(src);
-      toast.success(t("imageRenderer.copySuccess"));
+      message.success(t("imageRenderer.copySuccess"));
     } catch {
-      toast.error(t("imageRenderer.copyFailed"));
+      message.error(t("imageRenderer.copyFailed"));
     } finally {
       setCopying(false);
     }

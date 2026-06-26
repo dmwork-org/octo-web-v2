@@ -9,7 +9,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { SelectableMemberRow } from "@/features/base/components/member-select/member-select";
@@ -137,11 +137,11 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       chatSelectedActions.select(newChannel);
-      toast.success(t("createGroup.toast.created"));
+      message.success(t("createGroup.toast.created"));
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("createGroup.toast.failed")),
+      message.error(err instanceof Error ? err.message : t("createGroup.toast.failed")),
   });
 
   const toggle = (uid: string) => {

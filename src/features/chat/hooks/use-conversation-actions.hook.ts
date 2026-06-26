@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import WKSDK, { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import {
   clearChannelMessages,
   clearConversationUnread,
@@ -52,7 +52,7 @@ export function useConversationActions({
       conv.unread = 0;
       onClearUnreadSuccess?.(conv);
     },
-    onError: (err) => toast.error(errorText(err, `${scope}.toast.markReadFailed`)),
+    onError: (err) => message.error(errorText(err, `${scope}.toast.markReadFailed`)),
   });
 
   const muteMu = useMutation({
@@ -64,9 +64,9 @@ export function useConversationActions({
       } else {
         void WKSDK.shared().channelManager.fetchChannelInfo(args.conv.channel);
       }
-      toast.success(args.mute ? t(`${scope}.toast.muted`) : t(`${scope}.toast.unmuted`));
+      message.success(args.mute ? t(`${scope}.toast.muted`) : t(`${scope}.toast.unmuted`));
     },
-    onError: (err) => toast.error(errorText(err, `${scope}.toast.opFailed`)),
+    onError: (err) => message.error(errorText(err, `${scope}.toast.opFailed`)),
   });
 
   const clearMessagesMu = useMutation({
@@ -81,10 +81,10 @@ export function useConversationActions({
         pages: [[]],
         pageParams: [0],
       });
-      toast.success(t(`${scope}.toast.cleared`));
+      message.success(t(`${scope}.toast.cleared`));
       onClearMessagesSuccess?.(conv);
     },
-    onError: (err) => toast.error(errorText(err, `${scope}.toast.clearFailed`)),
+    onError: (err) => message.error(errorText(err, `${scope}.toast.clearFailed`)),
   });
 
   const unfollowMu = useMutation({
@@ -97,9 +97,9 @@ export function useConversationActions({
     },
     onSuccess: (_void, conv) => {
       onUnfollowSuccess?.(conv);
-      toast.success(t(`${scope}.toast.unfollowed`));
+      message.success(t(`${scope}.toast.unfollowed`));
     },
-    onError: (err) => toast.error(errorText(err, `${scope}.toast.unfollowFailed`)),
+    onError: (err) => message.error(errorText(err, `${scope}.toast.unfollowFailed`)),
   });
 
   return {

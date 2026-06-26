@@ -6,7 +6,7 @@ import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { searchFriends, applyFriend } from "@/features/contacts/api/friends.api";
 import type { Friend } from "@/features/contacts/types/friend.types";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -80,10 +80,10 @@ export function FriendAddForm() {
       applyFriend({ to_uid: target.uid, vercode: target.vercode, remark: "" }),
     onSuccess: (_void, target) => {
       setAppliedSet((prev) => new Set(prev).add(target.uid));
-      toast.success(t("friendAdd.toast.applySent"));
+      message.success(t("friendAdd.toast.applySent"));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("friendAdd.toast.applyFailed"));
+      message.error(err instanceof Error ? err.message : t("friendAdd.toast.applyFailed"));
     },
   });
 

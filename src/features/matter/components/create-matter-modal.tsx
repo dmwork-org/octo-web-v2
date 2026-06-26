@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
@@ -77,12 +77,12 @@ export function CreateMatterModal({
     onSuccess: (matter) => {
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(spaceId, undefined) });
       void qc.invalidateQueries({ queryKey: ["matter", "list"] });
-      toast.success(t("matter.toast.added"));
+      message.success(t("matter.toast.added"));
       onCreated?.(matter);
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("matter.toast.createMatterFailed")),
+      message.error(err instanceof Error ? err.message : t("matter.toast.createMatterFailed")),
   });
 
   // dirty:相对"打开初始态"(prefill 自己 + 空字段);只看用户主动改了什么

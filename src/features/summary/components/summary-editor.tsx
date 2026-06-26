@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { editSummary } from "@/features/summary/api/summary.api";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
@@ -60,16 +60,16 @@ export function SummaryEditor({
     setSaving(true);
     try {
       await editSummary(taskId, content, baseResultId);
-      toast.success(t("summary.editor.saveSuccess"));
+      message.success(t("summary.editor.saveSuccess"));
       onSave();
     } catch (err) {
       const status = err instanceof Error ? (err as Error & { status?: number }).status : undefined;
       if (status === 409) {
-        toast.warning(t("summary.editor.contentUpdated"));
+        message.warning(t("summary.editor.contentUpdated"));
         onSave();
         return;
       }
-      toast.error(err instanceof Error ? err.message : t("summary.editor.saveFailed"));
+      message.error(err instanceof Error ? err.message : t("summary.editor.saveFailed"));
       setSaving(false);
     }
   };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import {
   isPersonaNotDeployed,
   useDeleteGrantMutation,
@@ -119,9 +119,9 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
           active: form.active,
         },
       });
-      toast.success(tInst("persona.detail.saved"));
+      message.success(tInst("persona.detail.saved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : tInst("persona.detail.saveFailed"));
+      message.error(e instanceof Error ? e.message : tInst("persona.detail.saveFailed"));
     }
   };
 
@@ -129,7 +129,7 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
     try {
       await updateMu.mutateAsync({ id: grantId, payload: { global_enabled: v } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
+      message.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
     }
   };
 
@@ -137,25 +137,25 @@ export function PersonaDetailView({ grantId }: PersonaDetailViewProps) {
     try {
       await deleteScopeMu.mutateAsync(scopeId);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
+      message.error(e instanceof Error ? e.message : tInst("persona.detail.opFailed"));
     }
   };
 
   const onDelete = () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
-      toast.warning(tInst("persona.detail.confirmDeleteToast"));
+      message.warning(tInst("persona.detail.confirmDeleteToast"));
       return;
     }
     void deleteGrantMu
       .mutateAsync(grantId)
       .then(() => {
-        toast.success(tInst("persona.detail.deleted"));
+        message.success(tInst("persona.detail.deleted"));
         void navigate({ href: "/persona" });
       })
       .catch((e: unknown) => {
         setConfirmDelete(false);
-        toast.error(e instanceof Error ? e.message : tInst("persona.detail.deleteFailed"));
+        message.error(e instanceof Error ? e.message : tInst("persona.detail.deleteFailed"));
       });
   };
 

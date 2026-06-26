@@ -3,7 +3,9 @@ import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import type { SpaceState } from "@/features/base/stores/space";
 import { withAuthToken, withSpaceHeader, withReqId, withAcceptLanguage } from "./request";
-import { with401Redirect, withErrorToast } from "./response";
+import { with401Redirect, withErrorToast, withRequestErrorToast } from "./response";
+
+export const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
 /**
  * 拦截器工厂:把 5 个独立 interceptor 组合成 FetchOptions,供多个 ofetch client 共享。
@@ -24,12 +26,14 @@ export function createClientOptions(args: {
   const { authStore, spaceStore, baseURL } = args;
   return {
     baseURL,
+    timeout: DEFAULT_REQUEST_TIMEOUT_MS,
     onRequest: [
       withAuthToken(authStore),
       withSpaceHeader(spaceStore, authStore),
       withReqId(),
       withAcceptLanguage(),
     ],
+    onRequestError: [withRequestErrorToast()],
     onResponseError: [with401Redirect(authStore), withErrorToast()],
   };
 }

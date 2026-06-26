@@ -56,6 +56,19 @@ function isBotMessage(m: Message): boolean {
   return (info?.orgData as { robot?: number } | undefined)?.robot === 1;
 }
 
+function hasFileAttachment(m: Message): boolean {
+  switch (m.contentType) {
+    case MessageContentTypeConst.image:
+    case MessageContentTypeConst.gif:
+    case MessageContentTypeConst.smallVideo:
+    case MessageContentTypeConst.file:
+    case MessageContentTypeConst.richText:
+      return true;
+    default:
+      return false;
+  }
+}
+
 /** Person channelInfo title fallback uid(对齐旧 getSessionParticipants)。 */
 function nameOfUid(uid: string): string {
   const info = WKSDK.shared().channelManager.getChannelInfo(new Channel(uid, ChannelTypePerson));
@@ -121,6 +134,11 @@ export function buildRenderItems(messages: Message[]): RenderItem[] {
 
   for (const m of messages) {
     if (isBotMessage(m)) {
+      if (hasFileAttachment(m)) {
+        flush(false);
+        out.push({ type: "message", message: m });
+        continue;
+      }
       if (pending.length > 0) {
         const prev = pending[pending.length - 1];
         if (m.timestamp - prev.timestamp < SESSION_GAP_SEC) {

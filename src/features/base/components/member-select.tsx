@@ -5,69 +5,12 @@ import { useStore } from "@tanstack/react-store";
 import { Channel } from "wukongimjssdk";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
-import { endpointStore } from "@/features/base/stores/endpoint";
 import { useT } from "@/lib/i18n/use-t";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-/**
- * 轻量头像:直接用 avatar URL + name 首字母 fallback 渲染。
- * 不走 ChannelAvatar / channelInfo 请求,避免成员选择列表
- * 大量并发请求压垮浏览器连接池(issue #160)。
- */
-function LiteAvatar({
-  uid,
-  name,
-  avatar,
-  size,
-}: {
-  uid: string;
-  name: string;
-  avatar?: string;
-  size: number;
-}) {
-  const baseURL = useStore(endpointStore, (s) => s.baseURL);
-  const [failed, setFailed] = useState(false);
-  const src = avatar
-    ? avatar.startsWith("http") || avatar.startsWith("data:")
-      ? avatar
-      : `${baseURL}/${avatar.replace(/^\/+/, "")}`
-    : `${baseURL}/users/${uid}/avatar`;
-
-  const initial = (name || uid).slice(0, 1).toUpperCase();
-
-  if (failed) {
-    return (
-      <span
-        className="shrink-0 rounded-full bg-bg-elevated text-text-secondary"
-        style={{
-          width: size,
-          height: size,
-          fontSize: size * 0.4,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {initial}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt={name}
-      width={size}
-      height={size}
-      onError={() => setFailed(true)}
-      className="shrink-0 rounded-full bg-bg-elevated object-cover"
-      style={{ width: size, height: size }}
-    />
-  );
-}
+import { MemberAvatar } from "@/features/base/components/member-select/member-select";
 
 export interface MemberSelectProps {
   /** 已选 uid 列表(受控)。 */
@@ -325,7 +268,7 @@ export function MemberSelect({
               key={uid}
               className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-brand/[0.06] px-2 py-[3px] text-xs leading-5 font-medium text-text-primary transition-colors hover:bg-brand/10"
             >
-              <LiteAvatar uid={uid} name={name} avatar={row?.avatar} size={16} />
+              <MemberAvatar uid={uid} name={name} avatar={row?.avatar} size={16} />
               <span className="max-w-[120px] truncate">{name}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -402,7 +345,7 @@ export function MemberSelect({
                         checked ? "bg-brand-tint/40" : ""
                       }`}
                     >
-                      <LiteAvatar uid={m.uid} name={m.name} avatar={m.avatar} size={32} />
+                      <MemberAvatar uid={m.uid} name={m.name} avatar={m.avatar} size={32} />
                       <span className="min-w-0 flex-1 truncate text-text-primary">{m.name}</span>
                       {m.isBot ? <AiBadge size="small" /> : null}
                       {checked ? (

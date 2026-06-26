@@ -23,6 +23,7 @@ import { MAX_CHAT_SELECT } from "@/features/summary/constants/topic-templates";
 import type { ChatCandidate } from "@/features/summary/types/summary.types";
 import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
 import { spaceStore } from "@/features/base/stores/space";
+import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import {
   sidebarFollowQueryOptions,
   sidebarRecentQueryOptions,
@@ -58,6 +59,10 @@ interface DisplayEntry {
 
 type ChatChannelOrg = {
   displayName?: string;
+  name?: string;
+  real_name?: string;
+  remark?: string;
+  username?: string;
   member_count?: number;
   parentGroupNo?: string;
 };
@@ -99,15 +104,28 @@ function parentGroupNoOf(item: ChatCandidate): string | undefined {
   );
 }
 
-function rawChannelName(item: ChatCandidate): string {
-  const info = channelInfoOf(item);
-  const org = orgDataOf(item);
-  return org.displayName || info?.title || item.name || "";
-}
-
 function isPlaceholderName(item: ChatCandidate, name: string): boolean {
   if (!name || name === item.chat_id) return true;
   return item.chat_type === "thread" && name === t("chatHeader.thread");
+}
+
+function firstNonPlaceholderName(item: ChatCandidate, names: (string | undefined)[]): string {
+  const firstPresent = names.find((name) => !!name) ?? "";
+  return names.find((name) => !!name && !isPlaceholderName(item, name)) ?? firstPresent;
+}
+
+function rawChannelName(item: ChatCandidate): string {
+  const info = channelInfoOf(item);
+  const org = orgDataOf(item);
+  return firstNonPlaceholderName(item, [
+    org.displayName,
+    org.remark,
+    org.real_name,
+    org.name,
+    org.username,
+    info?.title,
+    item.name,
+  ]);
 }
 
 function displayNameOf(item: ChatCandidate): string {
@@ -129,6 +147,17 @@ function enrichCandidate(item: ChatCandidate): ChatCandidate {
     member_count: memberCountOf(item),
     parent_group_no: parentGroupNoOf(item),
   };
+}
+
+function applyDirectMemberNameFallback(
+  item: ChatCandidate,
+  directMemberNameByUid: ReadonlyMap<string, string>,
+): ChatCandidate {
+  if (item.chat_type !== "direct") return item;
+  if (displayNameOf(item)) return item;
+  const memberName = directMemberNameByUid.get(item.chat_id);
+  if (!memberName || isPlaceholderName(item, memberName)) return item;
+  return { ...item, name: memberName };
 }
 
 function needsChannelInfoRefresh(item: ChatCandidate): boolean {
@@ -461,11 +490,25 @@ export function ChatSelectorModal({
   });
   const sidebarFollowQ = useQuery(sidebarFollowQueryOptions(spaceId));
   const sidebarRecentQ = useQuery(sidebarRecentQueryOptions(spaceId));
+  const { data: members } = useQuery({
+    ...spaceMembersQueryOptions(spaceId),
+    enabled: open && !!spaceId,
+  });
+
+  const directMemberNameByUid = useMemo(() => {
+    const byUid = new Map<string, string>();
+    for (const member of members ?? []) {
+      byUid.set(member.uid, member.name || member.uid);
+    }
+    return byUid;
+  }, [members]);
 
   const enrichedCandidates = useMemo(() => {
     void channelInfoTick;
-    return (candidates ?? []).map(enrichCandidate);
-  }, [candidates, channelInfoTick]);
+    return (candidates ?? []).map((candidate) =>
+      enrichCandidate(applyDirectMemberNameFallback(candidate, directMemberNameByUid)),
+    );
+  }, [candidates, channelInfoTick, directMemberNameByUid]);
 
   const displayList = useMemo(
     () =>
@@ -493,7 +536,10 @@ export function ChatSelectorModal({
     if (selectedIds.has(item.chat_id)) {
       setLocalSelected((prev) => prev.filter((c) => c.chat_id !== item.chat_id));
     } else if (localSelected.length < maxSelect) {
-      setLocalSelected((prev) => [...prev, enrichCandidate(item)]);
+      setLocalSelected((prev) => [
+        ...prev,
+        enrichCandidate(applyDirectMemberNameFallback(item, directMemberNameByUid)),
+      ]);
     }
   };
 
@@ -511,7 +557,13 @@ export function ChatSelectorModal({
         <Button
           type="primary"
           theme="solid"
-          onClick={() => onConfirm(localSelected.map(enrichCandidate))}
+          onClick={() =>
+            onConfirm(
+              localSelected.map((item) =>
+                enrichCandidate(applyDirectMemberNameFallback(item, directMemberNameByUid)),
+              ),
+            )
+          }
         >
           {tr("summary.common.confirm")}
         </Button>

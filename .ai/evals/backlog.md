@@ -27,9 +27,12 @@
 
 ## Active
 
-<!-- 空。Week 3+ 开始用 pilot 项目填充 -->
-
-_暂无条目。_
+- **2026-06-26** · issue #192 · count: 1
+  - **现象**：规则 eval 骨架缺少 `_golden-output.tsx`,runner 无法执行。
+  - **触发上下文**：`.ai/evals` active 顶层目录中只有 `a6-no-useeffect-in-component`
+    有 golden。
+  - **暂判**：A1/A2/A3/A5/B1/B2/B4/D1/D2/D3/D4/D6/D7/D8 暂不具备正式 eval 条件。
+  - **动作**：moved-to `_backlog/`;补 golden 和可执行断言后再 promote-to-eval。
 
 ---
 

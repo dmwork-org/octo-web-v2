@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useStore } from "@tanstack/react-store";
 import WKSDK, {
   Channel,
   ChannelTypeGroup,
@@ -20,13 +21,20 @@ import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id
 import { getChatCandidates } from "@/features/summary/api/summary.api";
 import { MAX_CHAT_SELECT } from "@/features/summary/constants/topic-templates";
 import type { ChatCandidate } from "@/features/summary/types/summary.types";
+import { SidebarTargetType } from "@/features/base/api/endpoints/sidebar.api";
+import { spaceStore } from "@/features/base/stores/space";
+import {
+  sidebarFollowQueryOptions,
+  sidebarRecentQueryOptions,
+} from "@/features/chat/queries/sidebar.query";
 
-type Tab = "all" | "group" | "direct";
+type Tab = "followed" | "recent" | "group" | "direct";
 
 const TAB_KEY: Record<Tab, string> = {
-  all: "summary.chatSelector.all",
-  group: "summary.chatSelector.tabGroup",
-  direct: "summary.chatSelector.tabDirect",
+  followed: "summary.chatSelector.followed",
+  recent: "summary.chatSelector.recent",
+  group: "summary.chatSelector.allGroups",
+  direct: "summary.chatSelector.allDirects",
 };
 
 const CHANNEL_TYPE_THREAD = 5;
@@ -58,6 +66,16 @@ function chatTypeToChannelType(chatType: ChatCandidate["chat_type"]): number {
   if (chatType === "direct") return ChannelTypePerson;
   if (chatType === "thread") return CHANNEL_TYPE_THREAD;
   return ChannelTypeGroup;
+}
+
+function chatTypeToSidebarTargetType(chatType: ChatCandidate["chat_type"]): number {
+  if (chatType === "direct") return SidebarTargetType.DM;
+  if (chatType === "thread") return SidebarTargetType.THREAD;
+  return SidebarTargetType.CHANNEL;
+}
+
+function candidateSidebarKey(item: ChatCandidate): string {
+  return `${chatTypeToSidebarTargetType(item.chat_type)}::${item.chat_id}`;
 }
 
 function channelOfCandidate(item: ChatCandidate): Channel {
@@ -174,7 +192,14 @@ function useResetScrollOnScopeChange(
  * - "group":只 group + 缩进 thread + 孤儿 thread
  * - "direct":只 direct
  */
-function buildDisplayList(candidates: ChatCandidate[], tab: Tab, keyword: string): DisplayEntry[] {
+function buildDisplayList(
+  candidates: ChatCandidate[],
+  tab: Tab,
+  keyword: string,
+  followedKeys?: Set<string>,
+  recentKeys?: Set<string>,
+  recentOrder?: Map<string, number>,
+): DisplayEntry[] {
   const kw = keyword.trim().toLowerCase();
   const matches = (candidate: ChatCandidate) => {
     if (!kw) return true;
@@ -183,6 +208,18 @@ function buildDisplayList(candidates: ChatCandidate[], tab: Tab, keyword: string
     return name.toLowerCase().includes(kw);
   };
 
+  if (tab === "recent") {
+    return candidates
+      .filter((c) => recentKeys?.has(candidateSidebarKey(c)))
+      .filter(matches)
+      .sort(
+        (a, b) =>
+          (recentOrder?.get(candidateSidebarKey(b)) ?? 0) -
+          (recentOrder?.get(candidateSidebarKey(a)) ?? 0),
+      )
+      .map((c) => ({ item: c, indent: false }));
+  }
+
   if (tab === "direct") {
     return candidates
       .filter((c) => c.chat_type === "direct")
@@ -190,9 +227,13 @@ function buildDisplayList(candidates: ChatCandidate[], tab: Tab, keyword: string
       .map((c) => ({ item: c, indent: false }));
   }
 
-  const groups = candidates.filter((c) => c.chat_type === "group");
-  const threads = candidates.filter((c) => c.chat_type === "thread");
-  const directs = tab === "all" ? candidates.filter((c) => c.chat_type === "direct") : [];
+  const inScope = (candidate: ChatCandidate) =>
+    tab !== "followed" || !!followedKeys?.has(candidateSidebarKey(candidate));
+
+  const groups = candidates.filter((c) => c.chat_type === "group" && inScope(c));
+  const threads = candidates.filter((c) => c.chat_type === "thread" && inScope(c));
+  const directs =
+    tab === "followed" ? candidates.filter((c) => c.chat_type === "direct" && inScope(c)) : [];
 
   const groupIds = new Set(groups.map((g) => g.chat_id));
   const threadsByParent = new Map<string, ChatCandidate[]>();
@@ -384,7 +425,7 @@ function ChatCandidateList({
  *
  * - 后端 `/summary-chat-candidates` 返回当前 space 内所有授权 chat(全量,
  *   跟最近会话列表不同),按 group → thread → direct 层次展示。
- * - "全部 / 群聊 / 私聊" 三 tab 切换 + 名字模糊搜索。
+ * - "关注 / 最近 / 全部群聊 / 全部私聊" 四 tab 切换 + 名字模糊搜索。
  * - 多选,达到 maxSelect 后再点不增加(对齐老仓静默策略,不弹 toast)。
  * - 嵌套在 chat-summary-new-modal 内,BaseDialog 自动给 z-dialog-secondary。
  */
@@ -396,7 +437,8 @@ export function ChatSelectorModal({
   onCancel,
 }: ChatSelectorModalProps) {
   const tr = useT();
-  const [tab, setTab] = useState<Tab>("all");
+  const spaceId = useStore(spaceStore, (s) => s.spaceId);
+  const [tab, setTab] = useState<Tab>("followed");
   const [keyword, setKeyword] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [localSelected, setLocalSelected] = useState<ChatCandidate[]>(selected);
@@ -407,7 +449,7 @@ export function ChatSelectorModal({
   useResetOnOpen(open, () => {
     setLocalSelected(selected.map(enrichCandidate));
     setKeyword("");
-    setTab("all");
+    setTab("followed");
     setIncludeArchived(false);
   });
 
@@ -417,6 +459,8 @@ export function ChatSelectorModal({
     enabled: open,
     staleTime: 30 * 1000,
   });
+  const sidebarFollowQ = useQuery(sidebarFollowQueryOptions(spaceId));
+  const sidebarRecentQ = useQuery(sidebarRecentQueryOptions(spaceId));
 
   const enrichedCandidates = useMemo(() => {
     void channelInfoTick;
@@ -424,8 +468,23 @@ export function ChatSelectorModal({
   }, [candidates, channelInfoTick]);
 
   const displayList = useMemo(
-    () => buildDisplayList(enrichedCandidates, tab, keyword),
-    [enrichedCandidates, tab, keyword],
+    () =>
+      buildDisplayList(
+        enrichedCandidates,
+        tab,
+        keyword,
+        sidebarFollowQ.data?.followedKeys,
+        sidebarRecentQ.data?.recentKeys,
+        sidebarRecentQ.data?.recentOrder,
+      ),
+    [
+      enrichedCandidates,
+      keyword,
+      sidebarFollowQ.data?.followedKeys,
+      sidebarRecentQ.data?.recentKeys,
+      sidebarRecentQ.data?.recentOrder,
+      tab,
+    ],
   );
 
   const selectedIds = useMemo(() => new Set(localSelected.map((s) => s.chat_id)), [localSelected]);

@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
-import { createSummary } from "@/features/summary/api/summary.api";
+import { createSchedule, createSummary } from "@/features/summary/api/summary.api";
 import { ChatSelectorModal } from "@/features/summary/components/chat-selector-modal";
+import { ScheduleConfigModal } from "@/features/summary/components/schedule-config-modal";
 import { TemplateCard } from "@/features/summary/components/template-card";
 import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
 import { channelToChatCandidate, getSourceType } from "@/features/summary/utils/channel-source";
 import { notifyChatSummaryCreated } from "@/features/summary/utils/chat-summary-events";
+import { describeScheduleConfig, scheduleToParams } from "@/features/summary/utils/summary-schedule";
 import {
+  SummaryMode,
   SourceType,
   type ChatCandidate,
+  type ScheduleConfig,
   type SourceItem,
 } from "@/features/summary/types/summary.types";
 
@@ -55,6 +59,8 @@ export function ChatSummaryNewModal({
   const tr = useT();
   const [selectedChats, setSelectedChats] = useState<ChatCandidate[]>([]);
   const [showChatSelector, setShowChatSelector] = useState(false);
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(null);
+  const [showScheduleConfig, setShowScheduleConfig] = useState(false);
   const {
     inputRef,
     topic,
@@ -69,6 +75,8 @@ export function ChatSummaryNewModal({
     resetTopic();
     setSelectedChats([channelToChatCandidate(channel)]);
     setShowChatSelector(false);
+    setScheduleConfig(null);
+    setShowScheduleConfig(false);
   });
 
   const mu = useMutation({
@@ -85,12 +93,32 @@ export function ChatSummaryNewModal({
               source_name: c.name,
             }))
           : [{ source_type: sourceType, source_id: channel.channelID }];
-      return createSummary({
+      const result = await createSummary({
         topic: topic.trim(),
         origin_channel_id: channel.channelID,
         origin_channel_type: sourceType,
         sources,
       });
+      if (scheduleConfig) {
+        try {
+          await createSchedule({
+            title: topic.trim(),
+            summary_mode: SummaryMode.BY_PERSON,
+            ...scheduleToParams(scheduleConfig),
+            time_range_type: 2,
+            sources,
+            scope: "task",
+            task_id: result.task_id,
+          });
+        } catch (scheduleErr) {
+          message.error(
+            scheduleErr instanceof Error && scheduleErr.message
+              ? scheduleErr.message
+              : t("summary.create.scheduleFailed"),
+          );
+        }
+      }
+      return result;
     },
     onSuccess: ({ task_id }) => {
       notifyChatSummaryCreated({ channelId: channel.channelID, taskId: task_id });
@@ -187,6 +215,23 @@ export function ChatSummaryNewModal({
                   })
                 : `+ ${tr("summary.create.selectChat")}`}
             </button>
+            <button
+              type="button"
+              onClick={() => setShowScheduleConfig(true)}
+              className={`flex max-w-full shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors hover:bg-bg-hover ${
+                scheduleConfig ? "text-brand" : "text-text-secondary"
+              }`}
+            >
+              <Clock size={13} />
+              <span className="truncate">
+                {scheduleConfig
+                  ? describeScheduleConfig(scheduleConfig, tr)
+                  : tr("summary.schedule.config.title")}
+              </span>
+            </button>
+            <span className="min-w-0 flex-1 truncate text-xs text-text-tertiary">
+              {tr("summary.create.archivedNotice")}
+            </span>
             {selectedChats.map((c) => (
               <span
                 key={c.chat_id}
@@ -215,6 +260,15 @@ export function ChatSummaryNewModal({
           setShowChatSelector(false);
         }}
         onCancel={() => setShowChatSelector(false)}
+      />
+      <ScheduleConfigModal
+        open={showScheduleConfig}
+        value={scheduleConfig ?? { unit: "week", every: 1, time: "09:00" }}
+        onConfirm={(config) => {
+          setScheduleConfig(config);
+          setShowScheduleConfig(false);
+        }}
+        onCancel={() => setShowScheduleConfig(false)}
       />
     </>
   );

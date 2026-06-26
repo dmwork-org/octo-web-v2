@@ -34,6 +34,12 @@ export interface SidebarFollowDerived {
   followedKeys: Set<string>;
 }
 
+export interface SidebarRecentDerived {
+  items: SidebarItem[];
+  recentKeys: Set<string>;
+  recentOrder: Map<string, number>;
+}
+
 function deriveFromItems(items: SidebarItem[], followVersion: number): SidebarFollowDerived {
   const itemsByCategory = new Map<string, SidebarItem[]>();
   const dmsByCategory = new Map<string, SidebarItem[]>();
@@ -95,6 +101,32 @@ export function sidebarFollowQueryOptions(spaceId: string | null) {
       }
       const resp = await syncSidebar({ tab: "follow" });
       return deriveFromItems(resp.items ?? [], resp.follow_version ?? 0);
+    },
+    enabled: !!spaceId,
+    staleTime: 30 * 1000,
+  });
+}
+
+export const sidebarRecentQueryKey = (spaceId: string | null) =>
+  ["chat", "sidebar", "recent", spaceId ?? "_"] as const;
+
+export function sidebarRecentQueryOptions(spaceId: string | null) {
+  return queryOptions({
+    queryKey: sidebarRecentQueryKey(spaceId),
+    queryFn: async (): Promise<SidebarRecentDerived> => {
+      if (!spaceId) {
+        return { items: [], recentKeys: new Set<string>(), recentOrder: new Map<string, number>() };
+      }
+      const resp = await syncSidebar({ tab: "recent" });
+      const items = resp.items ?? [];
+      const recentKeys = new Set<string>();
+      const recentOrder = new Map<string, number>();
+      for (const it of items) {
+        const key = `${it.target_type}::${it.target_id}`;
+        recentKeys.add(key);
+        recentOrder.set(key, it.timestamp);
+      }
+      return { items, recentKeys, recentOrder };
     },
     enabled: !!spaceId,
     staleTime: 30 * 1000,

@@ -15,6 +15,7 @@ import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
 import { ClawInfoModal } from "@/features/base/components/claw/claw-info-modal";
 import { userDetailQueryKey, userDetailQueryOptions } from "@/features/base/queries/user.query";
 import { applyFriend, setUserRemark } from "@/features/contacts/api/friends.api";
+import { AvatarCropModal } from "@/features/user/components/avatar-crop-modal";
 import {
   getAgentReportStatus,
   setBotDescription,
@@ -50,6 +51,10 @@ interface BotDetailModalProps {
  */
 
 type BotDetailPage = "detail" | "manage" | "mention-free";
+
+function isGif(file: File): boolean {
+  return file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+}
 
 export function BotDetailModal({ uid, onClose }: BotDetailModalProps) {
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
@@ -148,6 +153,7 @@ function BotDetailContent({
   const [applyRemark, setApplyRemark] = useState("");
   const [remarkEditing, setRemarkEditing] = useState(false);
   const [showClawInfo, setShowClawInfo] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const invalidate = () => {
     if (uid) void qc.invalidateQueries({ queryKey: userDetailQueryKey(uid) });
@@ -167,6 +173,7 @@ function BotDetailContent({
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid!, ChannelTypePerson));
       invalidate();
+      setCropFile(null);
       message.success(t("base.botDetail.avatarUpdated"));
     },
     onError: (err) =>
@@ -280,9 +287,21 @@ function BotDetailContent({
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = "";
-            if (file) uploadAvatarMu.mutate(file);
+            if (!file) return;
+            if (isGif(file)) {
+              uploadAvatarMu.mutate(file);
+              return;
+            }
+            setCropFile(file);
           }}
           onClick={(e) => ((e.target as HTMLInputElement).value = "")}
+        />
+        <AvatarCropModal
+          open={!!cropFile}
+          file={cropFile}
+          loading={uploadAvatarMu.isPending}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(file) => uploadAvatarMu.mutate(file)}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-center gap-2">

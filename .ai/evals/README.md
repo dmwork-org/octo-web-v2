@@ -95,6 +95,8 @@ handoff §3 硬指标：**eval pass@1 ≥ 70%**。
 
 ## 当前状态（Week 0 骨架）
 
-- **18 条**骨架 eval(2026-04-26 砍 C 类 3 条 workflow 规则 + 加 A6 `no-useeffect-in-component`),与 `.ai/taste/rules.ts` 18 条规则一一对应(A1-A6 / B1-B4 / D1-D8)
-- 每条骨架只占位 `taste-rule` 主断言；PROMPT.md 具体场景和 AST / vp-check 交叉验证 Week 3-4 补
-- ⚠️ **18 条骨架均未经项目负责人确认**：目录编号为 CC 提议方案，`intent` 字段为 `rules.md` 意译。项目负责人 Week 3-4 写真实 eval 时同步确认/调整命名和 intent
+- Active eval 只保留已具备 `_golden-output.tsx` 的可运行用例。
+- 当前 active: `a6-no-useeffect-in-component`。
+- 未补 golden / runner 断言的规则骨架已移到 `_backlog/`,避免 `pnpm run eval`
+  看起来像质量门禁但实际不可运行。
+- `pnpm run eval` 默认运行全部 active eval;`pnpm run eval <eval-id>` 可单跑。

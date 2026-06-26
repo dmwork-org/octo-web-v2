@@ -51,6 +51,11 @@ interface TraceLine {
   mode: "mvp" | "live";
 }
 
+interface EvalTarget {
+  goldenAbs: string;
+  cleanup: () => void;
+}
+
 interface CliArgs {
   evalIds: string[];
   live: boolean;
@@ -64,6 +69,15 @@ function parseArgs(argv: string[]): CliArgs {
     else args.evalIds.push(a);
   }
   return args;
+}
+
+function listActiveEvalIds(): string[] {
+  return fs
+    .readdirSync(EVALS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
+    .filter((entry) => fs.existsSync(path.join(EVALS_DIR, entry.name, "EVAL.ts")))
+    .map((entry) => entry.name)
+    .sort();
 }
 
 // ==================== 断言执行 ====================
@@ -102,6 +116,26 @@ function runAssertion(a: Assertion, goldenAbs: string): AssertionResult {
   }
 }
 
+function prepareMvpTarget(evalId: string, evalDir: string): EvalTarget {
+  const golden = path.join(evalDir, "_golden-output.tsx");
+  if (!fs.existsSync(golden)) {
+    throw new Error(`missing ${golden}(Step 4 MVP 需要 _golden-output.tsx)`);
+  }
+
+  const tempDir = path.join(PROJECT_ROOT, "src/__evals__", `${evalId}-${process.pid}`);
+  fs.rmSync(tempDir, { recursive: true, force: true });
+  fs.mkdirSync(tempDir, { recursive: true });
+  for (const entry of fs.readdirSync(evalDir)) {
+    if (entry.endsWith(".tsx")) {
+      fs.copyFileSync(path.join(evalDir, entry), path.join(tempDir, entry));
+    }
+  }
+  return {
+    goldenAbs: path.join(tempDir, "_golden-output.tsx"),
+    cleanup: () => fs.rmSync(tempDir, { recursive: true, force: true }),
+  };
+}
+
 // ==================== 单 eval 跑一遍 ====================
 
 async function runOne(evalId: string, live: boolean): Promise<TraceLine> {
@@ -116,17 +150,18 @@ async function runOne(evalId: string, live: boolean): Promise<TraceLine> {
     throw new Error("--live 未实现(Step 5 接 claude -p)");
   }
 
-  // MVP: 用 _golden-output.tsx 当 CC 产出
-  const golden = path.join(evalDir, "_golden-output.tsx");
-  if (!fs.existsSync(golden)) {
-    throw new Error(`missing ${golden}(Step 4 MVP 需要 _golden-output.tsx)`);
+  const startTime = Date.now();
+  let assertionResults: AssertionResult[];
+  let durationMs: number;
+  const target = prepareMvpTarget(evalId, evalDir);
+  try {
+    assertionResults = c.assertions.map((a) => runAssertion(a, target.goldenAbs));
+    durationMs = Date.now() - startTime;
+  } finally {
+    target.cleanup();
   }
 
-  const startTime = Date.now();
   const sessionId = `eval-${evalId}-${startTime}`;
-  const assertionResults = c.assertions.map((a) => runAssertion(a, golden));
-  const durationMs = Date.now() - startTime;
-
   const allPassed = assertionResults.every((r) => r.passed);
   const vpCheckAssertion = assertionResults.find((r) => r.kind === "vp-check");
   const tasteRuleAssertions = assertionResults.filter((r) => r.kind === "taste-rule");
@@ -170,13 +205,11 @@ function writeTrace(line: TraceLine): string {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
-  if (args.evalIds.length === 0) {
-    console.error("Step 4 MVP: 请传 eval-id,例: pnpm run eval a6-no-useeffect-in-component");
-    process.exit(2);
-  }
+  const evalIds = args.evalIds.length > 0 ? args.evalIds : listActiveEvalIds();
+  if (evalIds.length === 0) throw new Error("no active evals found");
 
   let failed = 0;
-  for (const id of args.evalIds) {
+  for (const id of evalIds) {
     const line = await runOne(id, args.live);
     const tracePath = writeTrace(line);
     console.log(

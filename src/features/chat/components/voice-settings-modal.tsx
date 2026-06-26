@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -64,7 +64,7 @@ export function VoiceSettingsModal({ open, onClose }: VoiceSettingsModalProps) {
       try {
         await disableVoiceInput();
       } catch {
-        toast.error(tt("navRail.voiceSettings.operationFailed"));
+        message.error(tt("navRail.voiceSettings.operationFailed"));
       }
     }
   };
@@ -74,7 +74,7 @@ export function VoiceSettingsModal({ open, onClose }: VoiceSettingsModalProps) {
       await acceptVoiceInput(feedbackOn);
       setShowNotice(false);
     } catch {
-      toast.error(tt("navRail.voiceSettings.operationFailed"));
+      message.error(tt("navRail.voiceSettings.operationFailed"));
     }
   };
 
@@ -83,7 +83,7 @@ export function VoiceSettingsModal({ open, onClose }: VoiceSettingsModalProps) {
     try {
       await toggleVoiceFeedback(checked);
     } catch {
-      toast.error(tt("navRail.voiceSettings.operationFailed"));
+      message.error(tt("navRail.voiceSettings.operationFailed"));
     }
   };
 
@@ -252,9 +252,9 @@ function LocalAsrSection({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: async () => {
       await refreshAll();
       setDirty(false);
-      toast.success(tt("navRail.voiceSettings.saved"));
+      message.success(tt("navRail.voiceSettings.saved"));
     },
-    onError: () => toast.error(tt("navRail.voiceSettings.saveFailed")),
+    onError: () => message.error(tt("navRail.voiceSettings.saveFailed")),
   });
 
   const resetMu = useMutation({
@@ -262,9 +262,9 @@ function LocalAsrSection({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: async () => {
       await refreshAll();
       setDirty(false);
-      toast.success(tt("navRail.voiceSettings.defaultsRestored"));
+      message.success(tt("navRail.voiceSettings.defaultsRestored"));
     },
-    onError: () => toast.error(tt("navRail.voiceSettings.operationFailed")),
+    onError: () => message.error(tt("navRail.voiceSettings.operationFailed")),
   });
 
   const handleToggle = (next: boolean) => {

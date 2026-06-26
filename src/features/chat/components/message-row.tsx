@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
-import { toast } from "@/components/semi-bridge/toast";
+import { message as appMessage } from "@/components/ui/message";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
@@ -230,15 +230,15 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
     let el = document.querySelector<HTMLElement>(`[data-msg-seq="${seq}"]`);
     if (!el) {
       // 不在当前页 → 循环拉历史
-      const loadingId = toast.loading(t("messageRow.replyLoading"));
+      const loadingId = appMessage.loading(t("messageRow.replyLoading"));
       try {
         el = await locateReplyMessage(qc, message.channel, seq);
       } finally {
-        toast.dismiss(loadingId);
+        appMessage.dismiss(loadingId);
       }
     }
     if (!el) {
-      toast.warning(t("messageRow.replyNotFound"));
+      appMessage.warning(t("messageRow.replyNotFound"));
       return;
     }
     el.scrollIntoView({ behavior: "smooth", block: "center" });

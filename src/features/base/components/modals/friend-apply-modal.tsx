@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message as appMessage } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { applyFriend } from "@/features/contacts/api/friends.api";
@@ -43,11 +43,11 @@ export function FriendApplyModal({
   const mu = useMutation({
     mutationFn: () => applyFriend({ to_uid: toUid, remark: message.trim(), vercode }),
     onSuccess: () => {
-      toast.success(t("base.friendApply.sent"));
+      appMessage.success(t("base.friendApply.sent"));
       onSuccess();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.friendApply.failed")),
+      appMessage.error(err instanceof Error ? err.message : t("base.friendApply.failed")),
   });
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {

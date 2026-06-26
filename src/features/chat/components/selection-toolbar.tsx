@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { Plus } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { SmartCreateModal } from "@/features/matter/components/smart-create-modal";
@@ -88,12 +88,12 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
     },
     onSuccess: (msgs) => {
       removeFromCache(msgs);
-      toast.success(t("selectionToolbar.toast.deleted", { values: { count: msgs.length } }));
+      message.success(t("selectionToolbar.toast.deleted", { values: { count: msgs.length } }));
       setConfirmDelete(false);
       chatSelectionActions.exit();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("selectionToolbar.toast.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("selectionToolbar.toast.deleteFailed")),
   });
 
   const openForward = (mode: ForwardMode) => {
@@ -186,13 +186,13 @@ export function SelectionToolbar({ channel }: SelectionToolbarProps) {
       });
     },
     onSuccess: () => {
-      toast.success(t("selectionToolbar.toast.synced"));
+      message.success(t("selectionToolbar.toast.synced"));
       setSyncMenuOpen(false);
       chatSelectionActions.exit();
       void qc.invalidateQueries({ queryKey: mattersListInfiniteQueryKey(null, undefined) });
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("selectionToolbar.toast.syncFailed")),
+      message.error(err instanceof Error ? err.message : t("selectionToolbar.toast.syncFailed")),
   });
 
   const btn =

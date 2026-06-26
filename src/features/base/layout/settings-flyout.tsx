@@ -5,7 +5,7 @@ import { authActions } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
 import { useSsoProviders } from "@/features/login/hooks/use-sso-providers.hook";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { ChangelogModal } from "@/features/base/layout/changelog-modal";
 import { VoiceSettingsModal } from "@/features/chat/components/voice-settings-modal";
@@ -128,7 +128,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     onClose();
     if (!manageSpaceId) {
       // 理论上 canManageSpace 为真时必有可管理 Space,这里仅做兜底。
-      toast.info(t("base.settings.manageSpaceUnavailable"));
+      message.info(t("base.settings.manageSpaceUnavailable"));
       return;
     }
     // admin SPA 部署在固定域名 im.deepminer.com.cn,与本应用分开打包;
@@ -142,21 +142,21 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     const willEnable = notiOff;
     if (willEnable) {
       if (!isNotificationSupported()) {
-        toast.warning(t("base.settings.notiUnsupported"));
+        message.warning(t("base.settings.notiUnsupported"));
         return;
       }
       const perm = await requestNotificationPermission();
       if (perm !== "granted") {
-        toast.warning(t("base.settings.notiDenied"));
+        message.warning(t("base.settings.notiDenied"));
         return;
       }
       setNotiOff(false);
       setNotificationsOff(false);
-      toast.success(t("base.settings.notiOpened"));
+      message.success(t("base.settings.notiOpened"));
     } else {
       setNotiOff(true);
       setNotificationsOff(true);
-      toast.info(t("base.settings.notiClosed"));
+      message.info(t("base.settings.notiClosed"));
     }
   };
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
@@ -177,13 +177,13 @@ export function ScheduleFormModal({ open, schedule, onClose }: ScheduleFormModal
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: schedulesQueryKey });
-      toast.success(
+      message.success(
         schedule ? t("summary.schedule.updatedToast") : t("summary.schedule.createdToast"),
       );
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const canSubmit = selectedIds.size > 0 && !mu.isPending;

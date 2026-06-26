@@ -21,7 +21,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message as appMessage } from "@/components/ui/message";
 import { extractApiErrorMessage } from "@/features/base/api/api-error";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
@@ -191,9 +191,10 @@ export function useMessageContextMenu(message: Message): {
       }),
     onSuccess: () => {
       markRevokedLocally();
-      toast.success(t("messageRow.toast.revoked"));
+      appMessage.success(t("messageRow.toast.revoked"));
     },
-    onError: (err) => toast.error(extractApiErrorMessage(err, t("messageRow.toast.revokeFailed"))),
+    onError: (err) =>
+      appMessage.error(extractApiErrorMessage(err, t("messageRow.toast.revokeFailed"))),
   });
 
   const deleteMu = useMutation({
@@ -208,11 +209,11 @@ export function useMessageContextMenu(message: Message): {
       ]),
     onSuccess: () => {
       removeFromCache();
-      toast.success(t("messageRow.toast.deleted"));
+      appMessage.success(t("messageRow.toast.deleted"));
       setDeleteOpen(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("messageRow.toast.deleteFailed")),
+      appMessage.error(err instanceof Error ? err.message : t("messageRow.toast.deleteFailed")),
   });
 
   const threadMu = useMutation({
@@ -232,7 +233,7 @@ export function useMessageContextMenu(message: Message): {
       });
     },
     onSuccess: (resp) => {
-      toast.success(t("messageRow.toast.threadCreated"));
+      appMessage.success(t("messageRow.toast.threadCreated"));
       setThreadOpen(false);
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       if (resp?.channel_id) {
@@ -240,7 +241,9 @@ export function useMessageContextMenu(message: Message): {
       }
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("messageRow.toast.threadCreateFailed")),
+      appMessage.error(
+        err instanceof Error ? err.message : t("messageRow.toast.threadCreateFailed"),
+      ),
   });
 
   const isImage = message.contentType === MessageContentType.image;
@@ -281,10 +284,10 @@ export function useMessageContextMenu(message: Message): {
             : navigator.clipboard.writeText(messageText).then(() => true);
         void copied
           .then((ok) => {
-            if (ok) toast.success(t("messageRow.toast.copied"));
-            else toast.error(t("messageRow.toast.copyFailed"));
+            if (ok) appMessage.success(t("messageRow.toast.copied"));
+            else appMessage.error(t("messageRow.toast.copyFailed"));
           })
-          .catch(() => toast.error(t("messageRow.toast.copyFailed")));
+          .catch(() => appMessage.error(t("messageRow.toast.copyFailed")));
       },
     });
   }
@@ -294,8 +297,8 @@ export function useMessageContextMenu(message: Message): {
       icon: <ImageIcon size={13} />,
       onClick: () => {
         copyImageToClipboard(imageUrl)
-          .then(() => toast.success(t("messageRow.toast.imageCopied")))
-          .catch((err: Error) => toast.error(err.message || t("messageRow.toast.copyFailed")));
+          .then(() => appMessage.success(t("messageRow.toast.imageCopied")))
+          .catch((err: Error) => appMessage.error(err.message || t("messageRow.toast.copyFailed")));
       },
     });
   }

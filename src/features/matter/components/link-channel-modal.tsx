@@ -21,7 +21,7 @@ import {
   type ChannelOption,
   type LoadChannelsResult,
 } from "@/features/matter/utils/build-linkable-channels";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 
 /** 列表硬性渲染上限 */
 const VISIBLE_ROW_LIMIT = 200;
@@ -137,7 +137,7 @@ export function LinkChannelModal({
         });
       })
       .catch(() => {
-        toast.error(t("matter.linkChannels.loadFailedRetry"));
+        message.error(t("matter.linkChannels.loadFailedRetry"));
       })
       .finally(() => setLoading(false));
   }, [spaceId, t]);
@@ -202,13 +202,13 @@ export function LinkChannelModal({
         linkedCount++;
       }
       if (linkedCount === 0) {
-        toast.error(t("matter.linkChannels.selectionUnavailable"));
+        message.error(t("matter.linkChannels.selectionUnavailable"));
         return;
       }
-      toast.success(t("matter.linkChannels.linked", { values: { count: linkedCount } }));
+      message.success(t("matter.linkChannels.linked", { values: { count: linkedCount } }));
       onClose();
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || t("matter.linkChannels.failed"));
+      message.error((err as Error)?.message || t("matter.linkChannels.failed"));
     } finally {
       setSubmitting(false);
     }

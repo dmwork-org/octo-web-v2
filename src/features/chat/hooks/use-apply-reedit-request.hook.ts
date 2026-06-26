@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { useStore } from "@tanstack/react-store";
 import type { Channel } from "wukongimjssdk";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { imageBlockToPasteFile, type AddAttachment } from "@/features/chat/lib/rich-text-paste";
 import {
   chatReeditRequestActions,
@@ -78,7 +78,7 @@ export function useApplyReeditRequest(
           const file = await imageBlockToPasteFile(block);
           if (!file) {
             editor.chain().focus("end").insertContent(t("message.digest.image")).run();
-            toast.error(t("revoke.reeditAttachmentFailed"));
+            message.error(t("revoke.reeditAttachmentFailed"));
             continue;
           }
           await addAttachmentRef.current([file], "paste", editor);
@@ -86,7 +86,7 @@ export function useApplyReeditRequest(
         }
         const file = await remoteFileToFile(block);
         if (!file) {
-          toast.error(
+          message.error(
             t("revoke.reeditFileFailed", {
               values: { name: block.name, max: formatFileSize(MAX_REEDIT_FILE_BYTES) },
             }),

@@ -1,6 +1,6 @@
 import { Building2 } from "lucide-react";
 import type { Message } from "wukongimjssdk";
-import { toast } from "@/components/semi-bridge/toast";
+import { message as appMessage } from "@/components/ui/message";
 import { JoinOrganizationContent } from "@/features/base/im/join-organization-content";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -17,7 +17,7 @@ export function JoinOrganizationRenderer({ message }: { message: Message }) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        toast.info(t("joinOrganization.viewInfoNotImplemented"));
+        appMessage.info(t("joinOrganization.viewInfoNotImplemented"));
       }}
       className="flex w-72 items-center gap-3 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-left transition-colors hover:bg-bg-hover"
     >

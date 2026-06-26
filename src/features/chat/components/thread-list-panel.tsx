@@ -12,7 +12,7 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { InputDialog } from "@/features/base/components/overlay/input-dialog";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -100,13 +100,13 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
     onSuccess: () => {
       invalidate();
       setCreateOpen(false);
-      toast.success(t("threadPanelLocal.toast.created"));
+      message.success(t("threadPanelLocal.toast.created"));
       // 对齐上游 2c5eccbb:子区创建成功 → 立即 invalidate followed sidebar query,
       // 让关注 tab 列表里(如果父群已被关注 / 子区被默认加入)即时刷新。
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.createFailed")),
+      message.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.createFailed")),
   });
 
   if (!open) return null;
@@ -365,10 +365,10 @@ function DetailView({
       onInvalidate();
       onThreadUpdated?.({ name });
       setRenameOpen(false);
-      toast.success(t("threadPanelLocal.toast.updated"));
+      message.success(t("threadPanelLocal.toast.updated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.updateFailed")),
+      message.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.updateFailed")),
   });
 
   const deleteMu = useMutation({
@@ -378,10 +378,10 @@ function DetailView({
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       setDeleteOpen(false);
       onAfterDelete();
-      toast.success(t("threadPanelLocal.toast.deleted"));
+      message.success(t("threadPanelLocal.toast.deleted"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("threadPanelLocal.toast.deleteFailed")),
   });
 
   const archiveMu = useMutation({
@@ -400,14 +400,14 @@ function DetailView({
       syncThreadArchiveState(groupNo, thread.short_id, nextStatus);
       void WKSDK.shared().channelManager.fetchChannelInfo(threadChannel);
       onThreadUpdated?.({ status: nextStatus });
-      toast.success(
+      message.success(
         archiveAction === "archive"
           ? t("threadPanelLocal.toast.archived")
           : t("threadPanelLocal.toast.unarchived"),
       );
     },
     onError: (err) =>
-      toast.error(
+      message.error(
         err instanceof Error
           ? err.message
           : archiveAction === "archive"
@@ -691,7 +691,7 @@ function ThreadItem({
     },
     onMutate: ({ followed }) => setOptimisticFollowed(followed),
     onSuccess: (_void, { followed }) => {
-      toast.success(
+      message.success(
         followed ? t("threadPanelLocal.toast.followed") : t("threadPanelLocal.toast.unfollowed"),
       );
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
@@ -699,7 +699,7 @@ function ThreadItem({
     },
     onError: (err, { followed }) => {
       setOptimisticFollowed(null);
-      toast.error(
+      message.error(
         err instanceof Error
           ? err.message
           : followed
@@ -733,7 +733,7 @@ function ThreadItem({
       void WKSDK.shared().channelManager.fetchChannelInfo(
         new Channel(buildThreadChannelId(groupNo, thread.short_id), CHANNEL_TYPE_THREAD),
       );
-      toast.success(
+      message.success(
         action === "archive"
           ? t("threadPanelLocal.toast.archived")
           : t("threadPanelLocal.toast.unarchived"),
@@ -748,7 +748,7 @@ function ThreadItem({
         },
       );
     } catch (err) {
-      toast.error(
+      message.error(
         err instanceof Error
           ? err.message
           : action === "archive"

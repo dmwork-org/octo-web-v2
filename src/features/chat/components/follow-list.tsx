@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { InputDialog } from "@/features/base/components/overlay/input-dialog";
@@ -902,10 +902,10 @@ export function FollowList({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
-      toast.success(t("followList.toast.movedToCategory"));
+      message.success(t("followList.toast.movedToCategory"));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("followList.toast.moveFailed"));
+      message.error(err instanceof Error ? err.message : t("followList.toast.moveFailed"));
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },
   });
@@ -914,10 +914,10 @@ export function FollowList({
       followDM(args.peerUid, args.categoryId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
-      toast.success(t("followList.toast.movedDmToCategory"));
+      message.success(t("followList.toast.movedDmToCategory"));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("followList.toast.moveFailed"));
+      message.error(err instanceof Error ? err.message : t("followList.toast.moveFailed"));
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
     },
   });
@@ -931,7 +931,7 @@ export function FollowList({
       void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("followList.toast.sortCategoryFailed"));
+      message.error(err instanceof Error ? err.message : t("followList.toast.sortCategoryFailed"));
       void qc.invalidateQueries({ queryKey: categoriesQueryKey(spaceId) });
     },
   });
@@ -981,10 +981,10 @@ export function FollowList({
     onSuccess: () => {
       invalidateAll();
       setRenaming(null);
-      toast.success(t("followList.toast.renamed"));
+      message.success(t("followList.toast.renamed"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.renameFailed")),
+      message.error(err instanceof Error ? err.message : t("followList.toast.renameFailed")),
   });
 
   const deleteMu = useMutation({
@@ -995,10 +995,10 @@ export function FollowList({
     onSuccess: () => {
       invalidateAll();
       setConfirmDelete(null);
-      toast.success(t("followList.toast.deleted"));
+      message.success(t("followList.toast.deleted"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("followList.toast.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("followList.toast.deleteFailed")),
   });
 
   const { clearUnreadMu, muteMu, clearMessagesMu, unfollowMu } = useConversationActions({
@@ -1036,11 +1036,13 @@ export function FollowList({
       setPendingFollowAction(null);
       invalidateAll();
       setCreateCategoryOpen(false);
-      toast.success(t("followList.toast.categoryCreated"));
+      message.success(t("followList.toast.categoryCreated"));
     },
     onError: (err) => {
       setPendingFollowAction(null);
-      toast.error(err instanceof Error ? err.message : t("followList.toast.createCategoryFailed"));
+      message.error(
+        err instanceof Error ? err.message : t("followList.toast.createCategoryFailed"),
+      );
     },
   });
 

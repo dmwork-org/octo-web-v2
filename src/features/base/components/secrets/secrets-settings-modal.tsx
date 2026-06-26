@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import {
@@ -65,9 +65,9 @@ export function SecretsSettingsModal({
   const handleCopyName = async (name: string) => {
     try {
       await navigator.clipboard.writeText(name);
-      toast.success(t("base.secrets.toast.nameCopied"));
+      message.success(t("base.secrets.toast.nameCopied"));
     } catch {
-      toast.error(t("base.secrets.error.copyFailed"));
+      message.error(t("base.secrets.error.copyFailed"));
     }
   };
 
@@ -76,12 +76,12 @@ export function SecretsSettingsModal({
     setDeleting(true);
     try {
       await deleteSecret(deleteTarget.secret_id);
-      toast.success(t("base.secrets.toast.deleted"));
+      message.success(t("base.secrets.toast.deleted"));
       setDeleteTarget(null);
       refresh();
     } catch (err) {
       const msg = (err as { message?: string }).message;
-      toast.error(msg ?? t("base.secrets.error.deleteFailed"));
+      message.error(msg ?? t("base.secrets.error.deleteFailed"));
     } finally {
       setDeleting(false);
     }

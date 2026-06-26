@@ -4,7 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
 import { Camera, Check, ChevronRight, Edit2, MessageCircle, Plus } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
@@ -167,22 +167,24 @@ function BotDetailContent({
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid!, ChannelTypePerson));
       invalidate();
-      toast.success(t("base.botDetail.avatarUpdated"));
+      message.success(t("base.botDetail.avatarUpdated"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.botDetail.avatarUploadFailedRetry")),
+      message.error(
+        err instanceof Error ? err.message : t("base.botDetail.avatarUploadFailedRetry"),
+      ),
   });
 
   const updateDescMu = useMutation({
     mutationFn: (desc: string) => setBotDescription(uid!, desc),
     onSuccess: () => {
       invalidate();
-      toast.success(t("base.botDetail.descUpdated"));
+      message.success(t("base.botDetail.descUpdated"));
       setEditingDesc(false);
       setDescDraft("");
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.botDetail.descUpdateFailed")),
+      message.error(err instanceof Error ? err.message : t("base.botDetail.descUpdateFailed")),
   });
 
   const applyMu = useMutation({
@@ -190,12 +192,12 @@ function BotDetailContent({
       applyFriend({ to_uid: uid!, remark: applyRemark.trim(), vercode: data?.vercode ?? "" }),
     onSuccess: () => {
       invalidate();
-      toast.success(t("base.botDetail.applySent"));
+      message.success(t("base.botDetail.applySent"));
       setShowApplyInput(false);
       setApplyRemark("");
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.botDetail.applyFailed")),
+      message.error(err instanceof Error ? err.message : t("base.botDetail.applyFailed")),
   });
 
   const remarkMu = useMutation({
@@ -205,11 +207,11 @@ function BotDetailContent({
       if (uid) {
         void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(uid, ChannelTypePerson));
       }
-      toast.success(t("base.botDetail.remarkUpdated"));
+      message.success(t("base.botDetail.remarkUpdated"));
       setRemarkEditing(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("base.botDetail.remarkUpdateFailed")),
+      message.error(err instanceof Error ? err.message : t("base.botDetail.remarkUpdateFailed")),
   });
 
   const channel = uid ? new Channel(uid, ChannelTypePerson) : null;

@@ -11,7 +11,7 @@ import { LoginInput } from "@/features/login/components/login-input";
 import { SendCodeButton } from "@/features/login/components/send-code-button";
 import { LoginPrimaryButton } from "@/features/login/components/login-primary-button";
 import { PasswordStrengthMeter } from "@/features/login/components/password-strength-meter";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tInstance } from "@/lib/i18n/instance";
 
@@ -33,7 +33,7 @@ interface RegisterViewProps {
  *  5. 确认密码
  *  6. 主按钮 "注册"
  *
- * 校验错误统一 toast.error(对齐老仓 Toast.error);文案逐字老仓:
+ * 校验错误统一 message.error(对齐老仓 Toast.error);文案逐字老仓:
  *  - "请先输入正确的邮箱地址！" / "请输入正确的邮箱地址！"
  *  - "邮箱验证码不能为空！"
  *  - "昵称不能为空！"
@@ -57,31 +57,31 @@ export function RegisterView({ redirect, inviteCode }: RegisterViewProps) {
 
   const sendCode = async () => {
     if (!isValidEmail(email)) {
-      toast.error(tInstance("login.validation.emailInvalidBeforeSend"));
+      message.error(tInstance("login.validation.emailInvalidBeforeSend"));
       throw new Error("invalid email");
     }
     try {
       await sendCodeMu.mutateAsync({ email, codeType: 0 });
       countdown.start(60);
     } catch (e) {
-      toast.error(extractSafeErrorMessage(e));
+      message.error(extractSafeErrorMessage(e));
       throw e;
     }
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isValidEmail(email)) return toast.error(tInstance("login.validation.emailInvalid"));
-    if (!code) return toast.error(tInstance("login.validation.emailCodeRequired"));
-    if (!name) return toast.error(tInstance("login.validation.nicknameRequired"));
+    if (!isValidEmail(email)) return message.error(tInstance("login.validation.emailInvalid"));
+    if (!code) return message.error(tInstance("login.validation.emailCodeRequired"));
+    if (!name) return message.error(tInstance("login.validation.nicknameRequired"));
     const pwdErr = validatePassword(password);
-    if (pwdErr) return toast.error(pwdErr);
-    if (password !== confirm) return toast.error(tInstance("login.validation.passwordMismatch"));
+    if (pwdErr) return message.error(pwdErr);
+    if (password !== confirm) return message.error(tInstance("login.validation.passwordMismatch"));
     try {
       const resp = await registerMu.mutateAsync({ email, code, name, password });
       void finalize(resp);
     } catch (err) {
-      toast.error(extractSafeErrorMessage(err));
+      message.error(extractSafeErrorMessage(err));
     }
   };
 

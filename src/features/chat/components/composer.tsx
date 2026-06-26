@@ -29,7 +29,7 @@ import {
   Smile,
   X,
 } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { safeAiServiceText } from "@/features/chat/lib/ai-error-message";
 import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popover";
 import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
@@ -251,7 +251,9 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     return subscribers
       .filter((s) => s.uid !== myUid && !s.isDeleted)
       .map((s) => {
-        const og = s.orgData as { robot?: number; home_space_id?: string; home_space_name?: string } | undefined;
+        const og = s.orgData as
+          | { robot?: number; home_space_id?: string; home_space_name?: string }
+          | undefined;
         // 外部成员判定:成员 orgData.home_space_id 与当前 Space 不一致 → 外部。
         // home_space_id 来源:membersync 后端透传(GroupMemberRaw [key:string]:unknown)。
         // 缺失时 fallback 到 person channelInfo 缓存(channelInfoCallback 写入)。
@@ -261,7 +263,9 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
           const personInfo = WKSDK.shared().channelManager.getChannelInfo(
             new Channel(s.uid, ChannelTypePerson),
           );
-          const personOrgData = personInfo?.orgData as { home_space_id?: string; home_space_name?: string } | undefined;
+          const personOrgData = personInfo?.orgData as
+            | { home_space_id?: string; home_space_name?: string }
+            | undefined;
           memberSpaceId = personOrgData?.home_space_id;
           memberSpaceName = memberSpaceName ?? personOrgData?.home_space_name;
         }
@@ -372,7 +376,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       handlePaste: (_view, event) => {
         const pastedText = event.clipboardData?.getData("text/plain") ?? "";
         const blockedSecret = handleSecretPaste(pastedText, (value) => {
-          toast.warning(t("base.secrets.pasteGuard.content"), {
+          message.warning(t("base.secrets.pasteGuard.content"), {
             key: "secret-paste-guard",
             duration: 8000,
             action: {
@@ -473,7 +477,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
     for (const b of blocks) {
       if (b.type === "text" && b.text.length > MAX_MESSAGE_LENGTH) {
-        toast.error(t("composer.toast.tooLong", { values: { max: MAX_MESSAGE_LENGTH } }));
+        message.error(t("composer.toast.tooLong", { values: { max: MAX_MESSAGE_LENGTH } }));
         return;
       }
     }
@@ -508,7 +512,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {
-        toast.error(`图片「${file.name}」${(err as Error).message}`);
+        message.error(`图片「${file.name}」${(err as Error).message}`);
         return false;
       }
       const { width, height } = await readImageSize(file);
@@ -521,7 +525,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       try {
         await precheckUploadCredentials(file, channel, extOf(file.name));
       } catch (err) {
-        toast.error(`文件「${file.name}」${(err as Error).message}`);
+        message.error(`文件「${file.name}」${(err as Error).message}`);
         return false;
       }
       const content = new FileContent(file, file.name, extOf(file.name), file.size);
@@ -561,14 +565,14 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
             const { width, height } = await readImageSize(b.file);
             const url = await uploadChatMedia(b.file, channel, extOf(b.file.name));
             if (!isSafeUrl(url)) {
-              toast.error(`图片「${b.file.name}」URL 校验失败`);
+              message.error(`图片「${b.file.name}」URL 校验失败`);
               continue;
             }
             rtBlocks.push(
               makeImageBlock({ url, width, height, size: b.file.size, name: b.file.name }),
             );
           } catch (err) {
-            toast.error(`图片「${b.file.name}」${(err as Error).message}`);
+            message.error(`图片「${b.file.name}」${(err as Error).message}`);
           }
         }
       }
@@ -650,7 +654,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       dropDraft();
       onMessageSent?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
+      message.error(err instanceof Error ? err.message : t("composer.toast.sendFailed"));
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -726,7 +730,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         editor.chain().focus().insertContent(text).run();
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("composer.toast.transcribeFailed"));
+      message.error(err instanceof Error ? err.message : t("composer.toast.transcribeFailed"));
     } finally {
       setTranscribing(false);
     }
@@ -739,7 +743,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const voiceRec = useVoiceRecorder({
     maxDuration: VOICE_MAX_DURATION,
-    onError: (e) => toast.error(e.message || t("composer.toast.recordFailed")),
+    onError: (e) => message.error(e.message || t("composer.toast.recordFailed")),
     onAutoStop: () => {
       void (async () => {
         const file = await voiceRec.stop(false);
@@ -751,7 +755,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const afterStop = async (file: File | null) => {
     if (!file) return;
     if (voiceRec.duration < 1) {
-      toast.warning(t("composer.toast.noVoiceDetected"));
+      message.warning(t("composer.toast.noVoiceDetected"));
       return;
     }
     await transcribeAndInsert(file, currentModeRef.current);
@@ -850,7 +854,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         })
       : files.some((f) => f.type === "" && f.size === 0);
     if (hasDirectory) {
-      toast.error(t("composer.toast.folderUnsupported"));
+      message.error(t("composer.toast.folderUnsupported"));
       return;
     }
     void attachments.addAttachments(files, "upload", editor);

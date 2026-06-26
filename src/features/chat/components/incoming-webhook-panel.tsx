@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
@@ -90,7 +90,7 @@ function formatDateTime(ts: number): string {
 }
 
 function displayWebhookError(err: unknown, fallback: string): void {
-  toast.error(err instanceof Error ? err.message : fallback);
+  message.error(err instanceof Error ? err.message : fallback);
 }
 
 function useTestCooldown() {
@@ -150,7 +150,7 @@ export function IncomingWebhookPanel({
   const testMu = useMutation({
     mutationFn: (item: IncomingWebhook) => testIncomingWebhook(channel.channelID, item.webhook_id),
     onSuccess: (_void, item) => {
-      toast.success(t("channelWebhook.toast.testSent"));
+      message.success(t("channelWebhook.toast.testSent"));
       startCooldown(item.webhook_id);
     },
     onError: (err) => displayWebhookError(err, t("channelWebhook.error.testFailed")),
@@ -160,7 +160,7 @@ export function IncomingWebhookPanel({
     mutationFn: (item: IncomingWebhook) =>
       deleteIncomingWebhook(channel.channelID, item.webhook_id),
     onSuccess: () => {
-      toast.success(t("channelWebhook.toast.deleted"));
+      message.success(t("channelWebhook.toast.deleted"));
       setConfirmDelete(null);
       invalidate();
     },
@@ -457,7 +457,9 @@ function WebhookEditDialog({
       return createIncomingWebhook(channel.channelID, req);
     },
     onSuccess: (created) => {
-      toast.success(isEdit ? t("channelWebhook.toast.updated") : t("channelWebhook.toast.created"));
+      message.success(
+        isEdit ? t("channelWebhook.toast.updated") : t("channelWebhook.toast.created"),
+      );
       onSaved(created);
     },
     onError: (err) =>
@@ -563,10 +565,10 @@ function WebhookUrlDialog({
   const handleCopy = async (text: string, key: string) => {
     const ok = await copyToClipboard(text);
     if (!ok) {
-      toast.error(t("channelWebhook.toast.copyFailed"));
+      message.error(t("channelWebhook.toast.copyFailed"));
       return;
     }
-    toast.success(t("channelWebhook.toast.copied"));
+    message.success(t("channelWebhook.toast.copied"));
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 1500);
   };

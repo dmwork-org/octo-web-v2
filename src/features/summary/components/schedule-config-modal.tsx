@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useT } from "@/lib/i18n/use-t";
 import { validateScheduleConfig } from "@/features/summary/utils/summary-schedule";
@@ -68,7 +68,7 @@ export function ScheduleConfigModal({
   const handleConfirm = () => {
     const err = validateScheduleConfig(local, tr);
     if (err) {
-      toast.error(err);
+      message.error(err);
       return;
     }
     onConfirm({ ...local, every: Math.max(1, Math.floor(local.every || 1)) });

@@ -11,7 +11,7 @@ import WKSDK, {
   type Message,
 } from "wukongimjssdk";
 import { Check, Search, X } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import {
@@ -658,7 +658,7 @@ export function ForwardModal({
     },
     onSuccess: () => {
       if (isMulti) {
-        toast.success(
+        message.success(
           mode === "merge"
             ? t("forwardModalLocal.toast.mergeSuccess", {
                 values: { count: messages.length, targets: selectedIds.size },
@@ -668,7 +668,7 @@ export function ForwardModal({
               }),
         );
       } else {
-        toast.success(
+        message.success(
           t("forwardModalLocal.toast.singleSuccess", { values: { targets: selectedIds.size } }),
         );
       }
@@ -678,14 +678,14 @@ export function ForwardModal({
     onError: (err) => {
       const detail = err as Error & { failed?: number; total?: number };
       if (detail.failed && detail.total && detail.failed < detail.total) {
-        toast.error(
+        message.error(
           t("forwardModalLocal.toast.partialFailed", {
             values: { failed: detail.failed, total: detail.total },
           }),
         );
         return;
       }
-      toast.error(err instanceof Error ? err.message : t("forwardModalLocal.toast.failed"));
+      message.error(err instanceof Error ? err.message : t("forwardModalLocal.toast.failed"));
     },
   });
 

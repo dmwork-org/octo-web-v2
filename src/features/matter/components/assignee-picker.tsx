@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
@@ -77,7 +77,7 @@ export function AssigneePicker({
       const parts: string[] = [];
       if (added) parts.push(t("matter.assignee.added", { values: { count: added } }));
       if (removed) parts.push(t("matter.assignee.removed", { values: { count: removed } }));
-      toast.success(
+      message.success(
         parts.length
           ? t("matter.assignee.changeSummary", { values: { summary: parts.join(" / ") } })
           : t("matter.assignee.noChanges"),
@@ -85,7 +85,7 @@ export function AssigneePicker({
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.saveFailed")),
   });
 
   const toggle = (uid: string) => {

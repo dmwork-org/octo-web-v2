@@ -9,7 +9,7 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -142,22 +142,22 @@ export function GroupManagementModal({
     mutationFn: (uids: string[]) => addGroupManagers(channel.channelID, uids),
     onSuccess: () => {
       refreshSubs();
-      toast.success(t("groupMgmt.toast.managerAdded"));
+      message.success(t("groupMgmt.toast.managerAdded"));
       exitAddMode();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
   });
 
   const demoteMu = useMutation({
     mutationFn: (uid: string) => removeGroupManagers(channel.channelID, [uid]),
     onSuccess: () => {
       refreshSubs();
-      toast.success(t("groupMgmt.toast.managerRemoved"));
+      message.success(t("groupMgmt.toast.managerRemoved"));
       setConfirmRemove(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
   });
 
   const setBotAdminMu = useMutation({
@@ -169,14 +169,14 @@ export function GroupManagementModal({
         exitAddMode();
       }
       if (result.failed.length === 0) {
-        toast.success(t("groupMgmt.toast.botAdminAdded"));
+        message.success(t("groupMgmt.toast.botAdminAdded"));
         return;
       }
       if (result.succeeded.length === 0) {
-        toast.error(t("groupMgmt.toast.addFailed"));
+        message.error(t("groupMgmt.toast.addFailed"));
         return;
       }
-      toast.error(
+      message.error(
         t("groupMgmt.toast.botAdminPartialFailed", {
           values: {
             failed: result.failed.length,
@@ -187,7 +187,7 @@ export function GroupManagementModal({
       );
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.addFailed")),
   });
 
   const transferOwnerMu = useMutation({
@@ -195,23 +195,23 @@ export function GroupManagementModal({
     onSuccess: () => {
       refreshSubs();
       refreshChannelInfo();
-      toast.success(t("groupMgmt.toast.ownerTransferred"));
+      message.success(t("groupMgmt.toast.ownerTransferred"));
       setConfirmTransfer(null);
       exitAddMode();
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.transferOwnerFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.transferOwnerFailed")),
   });
 
   const removeBotAdminMu = useMutation({
     mutationFn: (uid: string) => removeGroupBotAdmin(channel.channelID, uid),
     onSuccess: () => {
       refreshSubs();
-      toast.success(t("groupMgmt.toast.botAdminRemoved"));
+      message.success(t("groupMgmt.toast.botAdminRemoved"));
       setConfirmRemove(null);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
   });
 
   // 群级「允许群内 Bot 免@回答」开关(对齐上游 ceffa569):缺省 1(允许),零回归
@@ -221,7 +221,7 @@ export function GroupManagementModal({
     mutationFn: (allow: boolean) => setChannelAllowNoMention(channel, allow),
     onSuccess: refreshChannelInfo,
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("groupMgmt.toast.opFailed")),
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.opFailed")),
   });
 
   const togglePick = (uid: string) => {
@@ -234,7 +234,7 @@ export function GroupManagementModal({
 
   const onFinishPick = () => {
     if (pickedUids.length === 0) {
-      toast.warning(t("groupMgmt.toast.selectMember"));
+      message.warning(t("groupMgmt.toast.selectMember"));
       return;
     }
     if (mode === "addManager") {

@@ -1,7 +1,7 @@
 import { Channel, ChannelTypePerson, type Message } from "wukongimjssdk";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
-import { toast } from "@/components/semi-bridge/toast";
+import { message as appMessage } from "@/components/ui/message";
 import { getThread } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { ThreadCreatedContent } from "@/features/base/im/thread-created-content";
@@ -38,12 +38,12 @@ export function ThreadCreatedRenderer({ message }: ThreadCreatedRendererProps) {
         // silent:跳过全局 withErrorToast,自己接管 warning 提示
         const thread = await getThread(parsed.groupNo, parsed.shortId, { silent: true });
         if (thread.status === THREAD_STATUS_DELETED) {
-          toast.warning(t("threadCreated.deleted"));
+          appMessage.warning(t("threadCreated.deleted"));
           return;
         }
         // 归档(status=2)允许进入查看,聊天界面禁用发送由 channel 层处理
       } catch {
-        toast.warning(t("threadCreated.deletedOrMissing"));
+        appMessage.warning(t("threadCreated.deletedOrMissing"));
         return;
       }
     }

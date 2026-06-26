@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { toast } from "@/components/semi-bridge/toast";
+import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
@@ -33,7 +33,7 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
     mutationFn: (next: boolean) => toggleSchedule(item.schedule_id, next),
     onSuccess: () => void invalidate(),
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.schedule.toggleFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.schedule.toggleFailed")),
   });
 
   const delMu = useMutation({
@@ -41,10 +41,10 @@ function ScheduleRow({ item, onEdit }: ScheduleRowProps) {
     onSuccess: () => {
       setDeleteConfirmOpen(false);
       void invalidate();
-      toast.success(t("summary.schedule.deleted"));
+      message.success(t("summary.schedule.deleted"));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
+      message.error(err instanceof Error ? err.message : t("summary.common.deleteFailed")),
   });
 
   const modeLabel =

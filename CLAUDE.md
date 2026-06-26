@@ -64,7 +64,7 @@ AGENTS.md                    # Schema 索引(Stack / Conventions / Skills index 
 ├── evals/                   # PROMPT.md + EVAL.ts + backlog.md
 └── traces/<date>/*.jsonl    # 含 OTel 字段(ts / session / tool / cost / duration)
 docs/                        # handoff / step4-verify-plan / 方法论
-scripts/                     # taste-lint / run-evals / wiki-lint / ingest-failure / harness-health
+scripts/                     # taste-health / run-evals / wiki-lint / ingest-failure / harness-health
 ```
 
 ## 当前阶段

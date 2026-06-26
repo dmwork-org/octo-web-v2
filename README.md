@@ -33,7 +33,7 @@ tanstack search-docs "<keyword>"
 .claude/        # hooks + rules + skills(Claude Code 自动加载)
 .ai/            # taste/ + evals/ + canonical/(品味规则 + 评估)
 .specify/specs/ # PRD 入口(spec-kit 格式)
-scripts/        # taste-lint / wiki-lint / harness-health / ...
+scripts/        # taste-health / wiki-lint / harness-health / ...
 docs/sync-log.md # 与 miaoa-fe-harness 的同步记录
 src/            # 业务代码
 ```

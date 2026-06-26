@@ -11,7 +11,7 @@
     "check": "vp check",
     "typecheck": "tsc --noEmit",
     "dupcheck": "jscpd src scripts --config .jscpd.json && node scripts/jscpd-report.mjs",
-    "taste-lint": "tsx scripts/taste-lint.ts",
+    "taste-health": "tsx scripts/taste-health.ts",
     "eval": "tsx scripts/run-evals.ts",
     "wiki-lint": "tsx scripts/wiki-lint.ts",
     "structure-lint": "tsx scripts/structure-lint.ts",

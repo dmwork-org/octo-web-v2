@@ -360,3 +360,92 @@ PreToolUse hook 真触发验证通过:
 - 文档回填:
   - `docs/upstream-batch-2-plan.md` 补充 CI 不搬依据。
   - `docs/upstream-batch-1-plan.md` 将 `39284abf` RichText clipboard round trip 从原 deferred / P3 改为“后续 issue #125 / MR !122 已完成”。
+
+## 2026-06-26 — Batch 3 新增上游发现记录
+
+- 分支: `codex/upstream-batch-3-records`
+- 老仓路径:`/Users/houmenghao/project/octo/octo-web`
+- 上次记录点:`b884e01e`(`v1.4.3`)
+- 可做截止时间:`2026-06-22 24:00:00 +0800`;可做截止 commit:`3f3059ee`
+- 本批可做范围:`b884e01e..3f3059ee`,共 20 commits / 113 files changed / +9446 / -765
+- 本批可做功能域:
+  - ChannelSearch 基础:频道 / 子区内搜索 UI,含 all/message/media/file tabs、filter、空输入保护、早期 UI polish
+  - Summary:ChatSelector tabs、sidebar quick-create schedule
+  - Chat / Thread / Message 小修:auto-follow thread、bot file attachment 不折叠、thread rename 权限、API timeout、richtext pasted mention safety
+  - 治理类:RELEASING / CONTRIBUTING / GitHub Actions 仍按新仓平台差异默认不直接搬
+- 关键发现:`594e375f` 标题是 add channel search UI,但当前老仓线性历史中为 0 文件变更;ChannelSearch 主体实际落在前置 `a812a307`。后续迁移时必须按功能域看 `a812a307 + 594e375f + follow-up fixes`,不能只 diff `594e375f`。
+- 更新计划文档:`docs/upstream-batch-3-plan.md`
+- 本次只记录,未迁移代码,未推进 sync-log 头部 baseline SHA。
+
+## 2026-06-26 — Batch 4 暂缓池记录
+
+- 分支: `codex/upstream-batch-3-records`
+- 暂缓起点:`3f3059ee`
+- 老仓当前 HEAD:`553c1710`
+- 暂缓范围:`3f3059ee..553c1710`,共 10 commits / 65 files changed / +7771 / -382
+- 暂缓原因:2026-06-23 之后合入老仓的内容本周尚未正式上线,本周末上线后再进入迁移评估
+- 暂缓功能域:
+  - ChannelSearch follow-up:locate/keyword limit、forwarded inner message、sender count、snippet emoji、media preview
+  - Summary 多人协作 UI
+  - Webhook mention config / adapter examples / modal polish / short URL alias
+  - raw HTML message、compact conversation online badge
+- 更新计划文档:`docs/upstream-batch-4-plan.md`
+
+## 2026-06-26 — Batch 3.1 ChannelSearch 基础
+
+- 覆盖上游 SHA:`a812a307` / `594e375f` / `dbeba59e` / `3f3059ee`
+- 实现:
+  - `search.api.ts` 新增 ChannelSearch types + `messages/_search_all` / `_search` / `_search_media` / `_search_files` adapter
+  - 新增 `ChannelSearchPanel`:all/message/media/file tabs、sender/date/sort filter、空输入保护、cursor pagination、file/media preview、message locate
+  - Chat header 增加搜索入口;`chat-side-panel` 增加 `channelSearch` 互斥 panel state
+  - 对齐老仓 `messages_search_on` 远程开关:后端未开启时隐藏入口并自动收起已打开面板
+  - 补 zh-CN / en-US i18n
+- 验证:
+  - `npx tsc -b` 通过
+  - touched files `vp lint ...` 通过
+  - 全仓 `vp check --fix` 仍被既有 `src/features/chat/file-preview/renderers/pdf-renderer.tsx` 裸 `useEffect` 错误阻塞;另有既有 excel/pdf warning
+  - Browser 登录态验证:强制打开面板时布局正常;当前环境真实搜索返回 `Not Found`
+  - `curl http://127.0.0.1:5173/v1/common/appconfig` 确认测试环境未下发 `messages_search_on`;补 feature gate 后会话 header 搜索入口隐藏,控制台无 error
+- 说明:实现中前向兼容了部分 Batch 4.1 ChannelSearch follow-up 能力,但 Batch 4 仍保持暂缓,上线后需逐项验收。
+
+## 2026-06-26 — Batch 3.2 Summary quick-create / selector
+
+- 覆盖上游 SHA:`1eaa7a0c` / `6ac0f936`
+- 实现:
+  - `ChatSelectorModal` tab 从「全部 / 群聊 / 私聊」改为「关注 / 最近 / 全部群聊 / 全部私聊」,默认关注
+  - 关注 / 最近复用本仓 `sidebar/sync` 查询体系:`sidebarFollowQueryOptions` + 新增 `sidebarRecentQueryOptions`
+  - `ChatSummaryNewModal` 新增定时更新入口,复用 `ScheduleConfigModal`
+  - 创建总结成功后,若配置定时,调用 `createSchedule({ scope:"task", task_id })` 绑定到新 task;定时失败仅 toast,不阻断总结创建
+- 验证:
+  - `npx tsc -b` 通过
+  - touched files `vp lint ...` 通过
+  - Browser 登录态验证:新建总结弹窗可打开定时配置;聊天选择器显示「关注 / 最近 / 全部群聊 / 全部私聊」四个 tab,默认关注列表
+
+## 2026-06-26 — Batch 3.3 Chat / Thread / Message 小修
+
+- 覆盖上游 SHA:`a109fe24` / `99fe3630` / `6aefa34c` / `b0ac8ec5` / `160706b3` / `dbae7c5b` / `199406c3` / `595d5973`
+- 实现:
+  - 新建子区自动关注:父群已关注且子区未关注时,`ThreadListPanel` 和消息右键创建入口 best-effort 调 `followThread`
+  - bot 附件消息不折叠:image / gif / smallVideo / file / richText 作为 fold session 边界,保证交付物可见
+  - thread settings 重命名权限与归档权限统一到 `canManageThread`,允许父群 owner / manager 重命名
+  - ofetch shared client 增加 20s request timeout,并补 timeout / network request error 本地化提示
+  - richtext paste mention fail-closed:广播 sentinel 永远降级纯文本;普通 mention 必须匹配当前成员 UID + label / alias
+  - draft 恢复拒绝广播 sentinel laundering;登录页 silent error 也能识别 timeout / network
+- 等价 / 不适用:
+  - `6aefa34c`:新仓会话列表未读数字已在第二行右侧,静音态已是灰色数字,无需再搬 UI
+  - `160706b3`:新仓未发现启动期 device-record 请求 / `clientMsgDeviceId` 链路,不适用
+  - `595d5973`:新仓未发现 deprecated friendApply reddot/nav badge 读取入口,不适用
+- 验证:
+  - `npx tsc -b` 通过
+  - touched files `vp lint ...` 通过
+  - `vp test run src/features/base/api/api-error.test.ts src/features/chat/lib/fold-session.test.ts src/features/chat/lib/rich-text-paste.test.ts` 通过,3 files / 8 tests
+
+## 2026-06-26 — Batch 3.4 仓库治理 / 构建 / 脚本核对
+
+- 覆盖上游 SHA:`ac80160e` / `cfa2edbe` / `3ed5fea3` / `fa3f8dae` / `8f52022a` / `68c0777e`
+- 判定:
+  - RELEASING / CONTRIBUTING / CODEOWNERS 属老仓 GitHub/org release 流程;新仓平台链路不同,不直接搬
+  - `3ed5fea3` / `fa3f8dae` 只改 GitHub Actions;新仓无 `.github`,当前不搬
+  - `68c0777e` 是 extension sidepanel forward menu;新仓无 extension app 目标,不适用
+  - `8f52022a` 修复老仓 `scripts/i18n-scan.mjs` markdown table escape;新仓无同名 i18n scan markdown report 脚本,`merge-upstream-locales.mjs` 不生成 markdown table,不适用
+- 备注:后续若把老仓 `i18n-scan.mjs` 引入新仓,必须同步 `escapeMarkdownCell` 的 backslash-before-pipe 转义规则。

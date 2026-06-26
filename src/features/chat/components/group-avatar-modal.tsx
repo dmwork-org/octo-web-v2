@@ -7,6 +7,7 @@ import { message } from "@/components/ui/message";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { uploadGroupAvatar } from "@/features/base/api/endpoints/group.api";
+import { AvatarCropModal } from "@/features/user/components/avatar-crop-modal";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -19,6 +20,10 @@ interface GroupAvatarModalProps {
 }
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
+
+function isGif(file: File): boolean {
+  return file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+}
 
 /**
  * 群头像二级抽屉(对应旧 dmworkbase ChannelAvatar)。
@@ -35,6 +40,7 @@ export function GroupAvatarModal({
   const tt = useT();
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [imgVersion, setImgVersion] = useState(0);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
@@ -58,6 +64,7 @@ export function GroupAvatarModal({
     onSuccess: () => {
       void WKSDK.shared().channelManager.fetchChannelInfo(channel);
       setImgVersion(Date.now());
+      setCropFile(null);
       message.success(t("groupAvatar.toast.updated"));
     },
     onError: (err) =>
@@ -78,52 +85,65 @@ export function GroupAvatarModal({
       message.error(t("groupAvatar.toast.imageOnly"));
       return;
     }
-    uploadMu.mutate(file);
+    if (isGif(file)) {
+      uploadMu.mutate(file);
+      return;
+    }
+    setCropFile(file);
   };
 
   return (
-    <BaseDrawer
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      side="right"
-      size="md"
-      title={tt("groupAvatar.title")}
-      showBackButton
-      showCloseButton={false}
-      onBack={onClose}
-    >
-      <div className="flex flex-1 flex-col items-center overflow-y-auto px-6 py-8">
-        <div className="flex h-50 w-50 items-center justify-center overflow-hidden rounded-lg bg-bg-elevated">
-          <img
-            src={url}
-            alt={channelTitle}
-            className="h-full w-full object-cover"
-            style={{ width: 200, height: 200 }}
-          />
-        </div>
-
-        {canEdit ? (
-          <div className="mt-6">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={onFileChange}
+    <>
+      <BaseDrawer
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        side="right"
+        size="md"
+        title={tt("groupAvatar.title")}
+        showBackButton
+        showCloseButton={false}
+        onBack={onClose}
+      >
+        <div className="flex flex-1 flex-col items-center overflow-y-auto px-6 py-8">
+          <div className="flex h-50 w-50 items-center justify-center overflow-hidden rounded-lg bg-bg-elevated">
+            <img
+              src={url}
+              alt={channelTitle}
+              className="h-full w-full object-cover"
+              style={{ width: 200, height: 200 }}
             />
-            <Button
-              type="primary"
-              theme="solid"
-              loading={uploadMu.isPending}
-              onClick={() => fileRef.current?.click()}
-            >
-              {uploadMu.isPending ? tt("groupAvatar.uploading") : tt("groupAvatar.change")}
-            </Button>
           </div>
-        ) : null}
-      </div>
-    </BaseDrawer>
+
+          {canEdit ? (
+            <div className="mt-6">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onFileChange}
+              />
+              <Button
+                type="primary"
+                theme="solid"
+                loading={uploadMu.isPending}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploadMu.isPending ? tt("groupAvatar.uploading") : tt("groupAvatar.change")}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </BaseDrawer>
+      <AvatarCropModal
+        open={!!cropFile}
+        file={cropFile}
+        loading={uploadMu.isPending}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(file) => uploadMu.mutate(file)}
+      />
+    </>
   );
 }

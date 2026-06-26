@@ -12,9 +12,9 @@
  * - onClick 缺省 → 整行 disabled;有 onClick → `hover:bg-bg-hover`
  *
  * **典型用法**:
- * - "设置备注 →"(点开 InputModal)
+ * - "设置备注 →"(点开 InputDialog)
  * - "我的二维码"(点开二维码弹层)
- * - "解除好友"(`danger`,点开 ConfirmModal)
+ * - "解除好友"(`danger`,点开 ConfirmDialog)
  * - "返回群聊「父群名」"(`center`,无 subTitle)
  *
  * **规范字号**:title `13px`,subTitle `12px`(对应老仓 ListItem)。

@@ -14,7 +14,7 @@ import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { AddMembersModal } from "@/features/chat/components/add-members-modal";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
@@ -214,7 +214,7 @@ export function ChannelMembersModal({ open, channel, onClose }: ChannelMembersDr
       </BaseDrawer>
 
       {confirmKickUid ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tt("channelMembers.confirmKickTitle")}
           content={

@@ -11,7 +11,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { authStore } from "@/features/base/stores/auth";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { ChannelMembersModal } from "@/features/chat/components/channel-members-modal";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
@@ -414,7 +414,7 @@ export function GroupManagementModal({
       />
 
       {confirmRemove ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={
             confirmRemove.kind === "manager"
@@ -442,7 +442,7 @@ export function GroupManagementModal({
       ) : null}
 
       {confirmTransfer ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tt("groupMgmt.transferOwner")}
           content={tt("groupMgmt.transferOwnerConfirm", {

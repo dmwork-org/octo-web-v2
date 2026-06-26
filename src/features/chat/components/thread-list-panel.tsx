@@ -13,8 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/semi-bridge/toast";
-import { InputModal } from "@/features/base/components/modals/input-modal";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { InputDialog } from "@/features/base/components/overlay/input-dialog";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThreadIcon } from "@/components/ui/thread-icon";
@@ -189,7 +189,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
         />
       ) : null}
 
-      <InputModal
+      <InputDialog
         open={createOpen}
         title={tt("threadPanelLocal.createTitle")}
         label={tt("threadPanelLocal.topicLabel")}
@@ -533,7 +533,7 @@ function DetailView({
         />
       </div>
 
-      <InputModal
+      <InputDialog
         open={renameOpen}
         title={tt("threadPanelLocal.editNameTitle")}
         label={tt("threadPanelLocal.topicLabel")}
@@ -550,7 +550,7 @@ function DetailView({
         onCancel={() => setRenameOpen(false)}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={archiveConfirmOpen}
         title={
           archiveAction === "archive"
@@ -572,7 +572,7 @@ function DetailView({
         onCancel={() => setArchiveConfirmOpen(false)}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={deleteOpen}
         title={tt("threadPanelLocal.deleteTitle")}
         content={tt("threadPanelLocal.deleteContent", { values: { name: thread.name } })}

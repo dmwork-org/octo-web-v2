@@ -12,8 +12,8 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { toast } from "@/components/semi-bridge/toast";
 import { ContextMenu, type ContextMenuItem } from "@/features/base/components/context-menu";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
-import { InputModal } from "@/features/base/components/modals/input-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
+import { InputDialog } from "@/features/base/components/overlay/input-dialog";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { deleteConversation } from "@/features/base/api/endpoints/conversation.api";
 import { setChannelTop } from "@/features/base/api/endpoints/channel-setting.api";
@@ -838,7 +838,7 @@ export function ConversationList({
         onClose={closeContextMenu}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={!!confirmClear}
         title={tt("convList.confirmClearTitle")}
         content={tt("convList.confirmClearContent")}
@@ -849,7 +849,7 @@ export function ConversationList({
         onCancel={() => setConfirmClear(null)}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={!!confirmClose}
         title={tt("convList.confirmCloseTitle")}
         content={tt("convList.confirmCloseContent")}
@@ -859,7 +859,7 @@ export function ConversationList({
         onCancel={() => setConfirmClose(null)}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={!!confirmCloseAndClear}
         title={tt("convList.confirmCloseAndClearTitle")}
         content={tt("convList.confirmCloseAndClearContent")}
@@ -876,7 +876,7 @@ export function ConversationList({
       />
 
       {createCategoryOpen ? (
-        <InputModal
+        <InputDialog
           open
           title={tt("convList.newCategoryTitle")}
           placeholder={tt("convList.newCategoryPlaceholder")}

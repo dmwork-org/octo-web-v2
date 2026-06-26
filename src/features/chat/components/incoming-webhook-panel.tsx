@@ -17,7 +17,7 @@ import { Button } from "@/components/semi-bridge/button";
 import { toast } from "@/components/semi-bridge/toast";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
-import { ConfirmModal } from "@/features/base/components/modals/confirm-modal";
+import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { Switch } from "@/features/base/components/section-form/toggle-row";
 import { authStore } from "@/features/base/stores/auth";
 import { endpointStore } from "@/features/base/stores/endpoint";
@@ -368,7 +368,7 @@ export function IncomingWebhookPanel({
       {urlResult ? <WebhookUrlDialog resp={urlResult} onClose={() => setUrlResult(null)} /> : null}
 
       {confirmDelete ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tr("channelWebhook.delete.title")}
           content={tr("channelWebhook.delete.content", { values: { name: confirmDelete.name } })}
@@ -381,7 +381,7 @@ export function IncomingWebhookPanel({
       ) : null}
 
       {confirmRegenerate ? (
-        <ConfirmModal
+        <ConfirmDialog
           open
           title={tr("channelWebhook.regenerate.title")}
           content={tr("channelWebhook.regenerate.content", {

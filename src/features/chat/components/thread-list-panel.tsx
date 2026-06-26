@@ -95,9 +95,22 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
 
   const invalidate = () => void qc.invalidateQueries({ queryKey });
 
+  const maybeFollowCreatedThread = async (threadChannelId: string) => {
+    const follow = sidebarFollowQ.data;
+    if (!follow?.followedGroupNos.has(groupNo)) return;
+    if (follow.followedKeys.has(`${CHANNEL_TYPE_THREAD}::${threadChannelId}`)) return;
+    try {
+      await followThread(threadChannelId);
+    } catch (err) {
+      console.warn("auto-follow created thread failed", err);
+    }
+  };
+
   const createMu = useMutation({
     mutationFn: (name: string) => createThreadByName(groupNo, name),
-    onSuccess: () => {
+    onSuccess: async (thread) => {
+      const threadChannelId = thread.channel_id ?? buildThreadChannelId(groupNo, thread.short_id);
+      await maybeFollowCreatedThread(threadChannelId);
       invalidate();
       setCreateOpen(false);
       message.success(t("threadPanelLocal.toast.created"));

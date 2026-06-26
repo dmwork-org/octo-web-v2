@@ -272,22 +272,23 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const threadCreatorUid = (
     channelInfo?.orgData as { thread?: { creator_uid?: string } } | undefined
   )?.thread?.creator_uid;
-  const canEditThreadName = isThread && (threadCreatorUid === myUid || iAmOwnerOrManager);
   // 子区 creator 不能"离开"(后端拒绝),只能"解散"— 对齐老仓 UI 分流(creator 看
   // "解散子区" → DELETE,普通成员看"离开子区" → POST leave)
   const isThreadCreator = isThread && !!threadCreatorUid && threadCreatorUid === myUid;
   const threadStatus = (channelInfo?.orgData as { thread?: { status?: number } } | undefined)
     ?.thread?.status;
   const isThreadArchived = threadStatus === THREAD_STATUS_ARCHIVED;
-  // 子区归档权限:creator / 父群 owner / 父群 manager(对齐 thread-permission.ts
-  // 跟 thread-list-panel inline 按钮共用同款判定,避免一处可见一处不可见)
-  const canArchiveThisThread =
+  // 子区管理权限:creator / 父群 owner / 父群 manager。重命名和归档共用
+  // thread-permission.ts,避免一处可编辑一处不可归档的权限撕裂。
+  const canManageThisThread =
     isThread &&
     canManageThread(
       threadCreatorUid ? { creator_uid: threadCreatorUid } : null,
       threadParsed?.groupNo ?? "",
       myUid,
     );
+  const canEditThreadName = canManageThisThread;
+  const canArchiveThisThread = canManageThisThread;
   const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
     ?.has_thread_md;
   const threadMdVersion =

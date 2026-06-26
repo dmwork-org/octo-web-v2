@@ -4,11 +4,13 @@ import {
   RichTextImagePlaceholder,
 } from "@/features/base/im/richtext-content";
 import {
-  MENTION_LABEL_AIS,
-  MENTION_LABEL_HUMANS,
-  MENTION_UID_AIS,
-  MENTION_UID_HUMANS,
+  isBroadcastSentinelUid,
 } from "@/features/base/lib/mention-three-state";
+import {
+  mentionDisplayLabel,
+  mentionNameAliases,
+  type MentionMemberSource,
+} from "@/features/chat/lib/mention-resolve";
 import type {
   OctoRichTextClipboardBlock,
   OctoRichTextClipboardMention,
@@ -41,17 +43,31 @@ function appendPlainText(nodes: unknown[], text: string) {
   });
 }
 
-function mentionLabel(uid: string, textLabel: string): string {
-  if (uid === MENTION_UID_HUMANS) return MENTION_LABEL_HUMANS;
-  if (uid === MENTION_UID_AIS) return MENTION_LABEL_AIS;
-  return textLabel.startsWith("@") ? textLabel.slice(1) : textLabel;
+function mentionAllowKey(uid: string, label: string): string {
+  return `${uid}\u0000${label}`;
+}
+
+function buildAllowedMentionKeys(
+  members?: readonly MentionMemberSource[],
+): ReadonlySet<string> {
+  const allowed = new Set<string>();
+  for (const member of members ?? []) {
+    if (!member.uid || member.isDeleted) continue;
+    const labels = [mentionDisplayLabel(member), ...mentionNameAliases(member), member.uid];
+    for (const label of labels) {
+      if (label) allowed.add(mentionAllowKey(member.uid, label));
+    }
+  }
+  return allowed;
 }
 
 export function buildInlineContentForRichTextPaste(
   text: string,
   mentions?: OctoRichTextClipboardMention[],
+  members?: readonly MentionMemberSource[],
 ): unknown[] {
   const nodes: unknown[] = [];
+  const allowedKeys = buildAllowedMentionKeys(members);
   const sortedMentions = (mentions || [])
     .filter((m) => m.offset >= 0 && m.length > 0 && m.offset + m.length <= text.length)
     .sort((a, b) => a.offset - b.offset);
@@ -61,12 +77,17 @@ export function buildInlineContentForRichTextPaste(
     if (mention.offset < cursor) continue;
     appendPlainText(nodes, text.slice(cursor, mention.offset));
     const labelText = text.slice(mention.offset, mention.offset + mention.length);
-    if (labelText.startsWith("@")) {
+    const label = labelText.startsWith("@") ? labelText.slice(1) : "";
+    if (
+      label &&
+      !isBroadcastSentinelUid(mention.uid) &&
+      allowedKeys.has(mentionAllowKey(mention.uid, label))
+    ) {
       nodes.push({
         type: "mention",
         attrs: {
           id: mention.uid,
-          label: mentionLabel(mention.uid, labelText),
+          label,
         },
       });
     } else {
@@ -161,10 +182,14 @@ export async function restoreOctoRichTextClipboardToEditor(
   payload: OctoRichTextClipboardPayload,
   editor: Editor,
   addAttachment: AddAttachment,
+  members?: readonly MentionMemberSource[],
 ): Promise<void> {
   for (const block of payload.blocks) {
     if (block.type === "text") {
-      insertInlineContent(editor, buildInlineContentForRichTextPaste(block.text, block.mentions));
+      insertInlineContent(
+        editor,
+        buildInlineContentForRichTextPaste(block.text, block.mentions, members),
+      );
       continue;
     }
 

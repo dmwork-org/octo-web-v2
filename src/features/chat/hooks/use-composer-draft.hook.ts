@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Editor, JSONContent } from "@tiptap/react";
 import type { Channel } from "wukongimjssdk";
+import { isBroadcastSentinelUid } from "@/features/base/lib/mention-three-state";
 import { chatDraftActions } from "@/features/chat/stores/chat-draft";
 
 /**
@@ -81,7 +82,11 @@ function deserializeDraft(text: string): JSONContent {
       if (matchStart > lastIndex) {
         nodes.push({ type: "text", text: line.slice(lastIndex, matchStart) });
       }
-      nodes.push({ type: "mention", attrs: { id: uid, label } });
+      if (isBroadcastSentinelUid(uid)) {
+        nodes.push({ type: "text", text: `@${label}` });
+      } else {
+        nodes.push({ type: "mention", attrs: { id: uid, label } });
+      }
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < line.length) {

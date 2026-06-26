@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n/instance";
+import { classifyTransportError } from "@/features/base/api/api-error";
 
 /**
  * 服务端错误消息白名单过滤(对齐老仓 dmworklogin/src/login.tsx `sanitizeErrorMessage`)。
@@ -41,6 +42,9 @@ export function sanitizeErrorMessage(msg: unknown): string {
  * 再走 `sanitizeErrorMessage` 白名单。统一所有 mutation onError 文案来源。
  */
 export function extractSafeErrorMessage(err: unknown): string {
+  const transportKind = classifyTransportError(err);
+  if (transportKind === "timeout") return t("api.error.timeout");
+  if (transportKind === "network") return t("api.error.network");
   if (!err || typeof err !== "object") return t("login.validation.genericError");
   const e = err as { data?: { msg?: unknown; message?: unknown }; message?: string };
   const raw = e.data?.msg ?? e.data?.message ?? e.message;

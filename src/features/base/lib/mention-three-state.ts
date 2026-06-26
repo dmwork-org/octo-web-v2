@@ -18,6 +18,9 @@ export const MENTION_UID_AIS = "-3";
 /** 老 composer 内部用过的 @所有人 sentinel(发送时等价于 LEGACY_ALL → mention.all=1)。 */
 export const MENTION_UID_OLD_ALL_ALIAS = "@all";
 
+/** 接收侧合成高亮使用过的不可点击 sentinel,不应被粘贴/草稿恢复成可路由 mention。 */
+export const MENTION_UID_RENDER_ALL = "all";
+
 export const MENTION_LABEL_HUMANS = "所有人";
 export const MENTION_LABEL_AIS = "所有AI";
 
@@ -31,6 +34,16 @@ export const STICKY_MENTION_UIDS: ReadonlySet<string> = new Set([
 
 export function isStickyMentionUid(uid: string): boolean {
   return STICKY_MENTION_UIDS.has(uid);
+}
+
+export function isBroadcastSentinelUid(uid: string): boolean {
+  return (
+    uid === MENTION_UID_LEGACY_ALL ||
+    uid === MENTION_UID_HUMANS ||
+    uid === MENTION_UID_AIS ||
+    uid === MENTION_UID_OLD_ALL_ALIAS ||
+    uid === MENTION_UID_RENDER_ALL
+  );
 }
 
 /** 用户可见的 mention 标签(发送时拼到 text 里;接收侧高亮匹配)。 */

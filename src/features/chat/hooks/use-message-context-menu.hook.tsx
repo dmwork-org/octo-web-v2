@@ -35,9 +35,13 @@ import {
   revokeMessage,
 } from "@/features/base/api/endpoints/message.api";
 import { createThread } from "@/features/base/api/endpoints/group.api";
+import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import type { RichTextContent } from "@/features/base/im/richtext-content";
-import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
+import {
+  sidebarFollowQueryKey,
+  type SidebarFollowDerived,
+} from "@/features/chat/queries/sidebar.query";
 import { spaceStore } from "@/features/base/stores/space";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { copyImageToClipboard } from "@/features/base/lib/copy-image";
@@ -216,6 +220,18 @@ export function useMessageContextMenu(message: Message): {
       appMessage.error(err instanceof Error ? err.message : t("messageRow.toast.deleteFailed")),
   });
 
+  const maybeFollowCreatedThread = async (threadChannelId: string) => {
+    const follow = qc.getQueryData<SidebarFollowDerived>(sidebarFollowQueryKey(spaceId));
+    const parentGroupNo = message.channel.channelID;
+    if (!follow?.followedGroupNos.has(parentGroupNo)) return;
+    if (follow.followedKeys.has(`${CHANNEL_TYPE_THREAD}::${threadChannelId}`)) return;
+    try {
+      await followThread(threadChannelId);
+    } catch (err) {
+      console.warn("auto-follow created thread failed", err);
+    }
+  };
+
   const threadMu = useMutation({
     mutationFn: (name: string) => {
       const content = message.content as {
@@ -232,12 +248,15 @@ export function useMessageContextMenu(message: Message): {
         source_message_payload: sourcePayload,
       });
     },
-    onSuccess: (resp) => {
+    onSuccess: async (resp) => {
       appMessage.success(t("messageRow.toast.threadCreated"));
       setThreadOpen(false);
-      void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       if (resp?.channel_id) {
+        await maybeFollowCreatedThread(resp.channel_id);
+        void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
         chatSelectedActions.select(new Channel(resp.channel_id, CHANNEL_TYPE_THREAD));
+      } else {
+        void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       }
     },
     onError: (err) =>

@@ -32,3 +32,13 @@ export function useCanCreateSpace(): boolean {
   if (!data) return true;
   return !parseRemoteBool(data.disable_user_create_space);
 }
+
+/**
+ * 会话内聊天记录搜索是否启用(对齐老仓 WKRemoteConfig.messagesSearchOn)。
+ *
+ * 后端未下发 `messages_search_on` 时默认关闭,避免前端入口早于搜索接口上线。
+ */
+export function useMessagesSearchEnabled(): boolean {
+  const { data } = useQuery(appConfigQueryOptions());
+  return parseRemoteBool(data?.messages_search_on);
+}

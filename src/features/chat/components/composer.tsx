@@ -232,6 +232,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const editorRef = useRef<Editor | null>(null);
   const addAttachmentsRef = useRef(attachments.addAttachments);
   addAttachmentsRef.current = attachments.addAttachments;
+  const mentionSourcesRef = useRef<MentionMemberSource[]>([]);
+  mentionSourcesRef.current = subscribers.map((s) => subscriberMentionSource(s));
 
   const channelName = (() => {
     const info = WKSDK.shared().channelManager.getChannelInfo(channel);
@@ -398,8 +400,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
         event.preventDefault();
         const beforePasteContent = JSON.stringify(currentEditor.getJSON());
-        restoreOctoRichTextClipboardToEditor(payload, currentEditor, (files, source, ed) =>
-          addAttachmentsRef.current(files, source, ed),
+        restoreOctoRichTextClipboardToEditor(
+          payload,
+          currentEditor,
+          (files, source, ed) => addAttachmentsRef.current(files, source, ed),
+          mentionSourcesRef.current,
         ).catch(() => {
           if (payload.plain && JSON.stringify(currentEditor.getJSON()) === beforePasteContent) {
             currentEditor.commands.insertContent(payload.plain);

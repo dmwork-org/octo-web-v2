@@ -2,9 +2,21 @@ import type { FetchContext, FetchResponse } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import { message } from "@/components/ui/message";
-import { extractResponseErrorMessage } from "@/features/base/api/api-error";
+import {
+  classifyTransportError,
+  extractResponseErrorMessage,
+} from "@/features/base/api/api-error";
+import { t } from "@/lib/i18n/instance";
 
 type ResponseCtx = FetchContext & { response: FetchResponse<unknown> };
+type RequestErrorCtx = FetchContext & { error: Error };
+
+function transportErrorMessage(error: unknown): string {
+  const kind = classifyTransportError(error);
+  if (kind === "timeout") return t("api.error.timeout");
+  if (kind === "network") return t("api.error.network");
+  return t("api.error.unknown");
+}
 
 export const with401Redirect =
   (store: Store<AuthState>) =>
@@ -41,4 +53,12 @@ export const withErrorToast =
     const msg = extractResponseErrorMessage(response);
     // 用 msg + status 当 key:相同错误同时间窗内只显一条
     message.error(msg, { key: `err:${response.status}:${msg}` });
+  };
+
+export const withRequestErrorToast =
+  () =>
+  ({ error, options }: RequestErrorCtx) => {
+    if ((options as { silent?: boolean }).silent) return;
+    const msg = transportErrorMessage(error);
+    message.error(msg, { key: `err:request:${msg}` });
   };

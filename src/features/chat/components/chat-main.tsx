@@ -15,10 +15,13 @@ import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
 import { FilePreviewPanel } from "@/features/chat/components/file-preview-panel";
 import { MatterListPanel } from "@/features/chat/components/matter-list-panel";
 import { ChatSummaryPanel } from "@/features/chat/components/chat-summary-panel";
+import { ChannelSearchPanel } from "@/features/chat/components/channel-search-panel";
 import { CreateMatterModal } from "@/features/matter/components/create-matter-modal";
 import { ChatSummaryNewModal } from "@/features/summary/components/chat-summary-new-modal";
 import { useEnsureRoleSubscribersForRevoke } from "@/features/chat/hooks/use-ensure-role-subscribers.hook";
 import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-config-loaded.hook";
+import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
+import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 
 /**
  * Channel 切换时关掉所有右侧 panel(对齐旧 ChatContentPage 用 key={channel.getChannelKey()}
@@ -40,6 +43,14 @@ function useResetSummaryCreateModalOnChannelChange(
   useEffect(() => {
     setChannel(null);
   }, [channelKey, setChannel]);
+}
+
+function useCloseChannelSearchWhenDisabled(enabled: boolean, sidePanelKind: string): void {
+  useEffect(() => {
+    if (!enabled && sidePanelKind === "channelSearch") {
+      chatSidePanelActions.close();
+    }
+  }, [enabled, sidePanelKind]);
 }
 
 /**
@@ -91,8 +102,10 @@ export function ChatMain() {
   const sidePanelKind = sidePanelState.kind;
   const [createMatterChannel, setCreateMatterChannel] = useState<Channel | null>(null);
   const [summaryCreateChannel, setSummaryCreateChannel] = useState<Channel | null>(null);
+  const messagesSearchEnabled = useMessagesSearchEnabled();
   useListenCreateMatterFromComposer(channel ?? null, setCreateMatterChannel);
   const channelKey = channel ? `${channel.channelID}_${channel.channelType}` : "_";
+  const channelSearchEnabled = messagesSearchEnabled && supportsChannelSearch(channel);
   // channel 切换 → 关掉所有右侧 panel(对齐旧 ChatContentPage key 重建语义)
   useResetSidePanelOnChannelChange(channelKey);
   useResetSummaryCreateModalOnChannelChange(channelKey, setSummaryCreateChannel);
@@ -103,6 +116,7 @@ export function ChatMain() {
   const archivedInputNotice = useArchivedThreadInputNotice(channel);
   // 预热 appConfig → message-row 同步读 revoke_second
   useEnsureAppConfigLoaded();
+  useCloseChannelSearchWhenDisabled(channelSearchEnabled, sidePanelKind);
 
   if (!channel) {
     return <ChatEmptyHologram />;
@@ -161,6 +175,9 @@ export function ChatMain() {
       {sidePanelKind === "filePreview" ? <FilePreviewPanel /> : null}
       {sidePanelKind === "summary" ? (
         <ChatSummaryPanel onCreateNew={() => setSummaryCreateChannel(channel)} />
+      ) : null}
+      {sidePanelKind === "channelSearch" && channelSearchEnabled ? (
+        <ChannelSearchPanel channel={channel} />
       ) : null}
       {createMatterChannel ? (
         <CreateMatterModal

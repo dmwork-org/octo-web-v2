@@ -9,6 +9,7 @@ import { api } from "@/features/base/api/client";
  * - `disable_user_create_space`:1 = 隐藏普通用户"创建 Space"入口(对齐上游
  *   `43e7d354`);0/缺省 = 显示。**只影响创建,不影响加入**;值用 `parseRemoteBool`
  *   解析(后端可能下发 int 或 string)。本仓现阶段无创建入口,字段透传供后续使用。
+ * - `messages_search_on`:1 = 显示会话内聊天记录搜索入口;0/缺省 = 隐藏。
  * - 其余:版本号 / android apk / 帮助链接等(本期不消费)
  *
  * 调用频率极低(单次启动 + 偶尔刷新),配 staleTime 5min 足够。
@@ -21,6 +22,8 @@ export interface AppConfigRaw {
   revoke_second?: number;
   /** 普通用户"创建 Space"入口开关:1 / "1" / true / "true" → 隐藏;走 parseRemoteBool。 */
   disable_user_create_space?: number | string | boolean;
+  /** 会话内聊天记录搜索开关:1 / "1" / true / "true" → 显示入口;缺省关闭。 */
+  messages_search_on?: number | string | boolean;
   /**
    * Aegis 登录方式变更公告开关(对齐上游 `7de93ff1`):1 → 服务端强制隐藏
    * Aegis migration modal(部署侧已通过其他渠道告知用户,前端不再二次提示);

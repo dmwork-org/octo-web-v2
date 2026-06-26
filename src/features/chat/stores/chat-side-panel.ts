@@ -27,6 +27,7 @@ import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
 export type RestorableSidePanelState =
   | { kind: "none" }
   | { kind: "threads" }
+  | { kind: "channelSearch" }
   | { kind: "matter"; matterId: string | null }
   | { kind: "summary"; taskId: number | null };
 
@@ -38,6 +39,7 @@ export const chatSidePanelStore = new Store<SidePanelState>({ kind: "none" });
 
 export const chatSidePanelActions = {
   openThreads: () => chatSidePanelStore.setState(() => ({ kind: "threads" })),
+  openChannelSearch: () => chatSidePanelStore.setState(() => ({ kind: "channelSearch" })),
   openFilePreview: (file: FilePreviewInfo) =>
     chatSidePanelStore.setState((s) => ({
       kind: "filePreview",
@@ -59,6 +61,11 @@ export const chatSidePanelActions = {
   toggleThreads: () =>
     chatSidePanelStore.setState((s) =>
       s.kind === "threads" ? { kind: "none" } : { kind: "threads" },
+    ),
+  /** channel search 按钮 toggle:当前是 channelSearch 关掉,否则打开搜索面板。 */
+  toggleChannelSearch: () =>
+    chatSidePanelStore.setState((s) =>
+      s.kind === "channelSearch" ? { kind: "none" } : { kind: "channelSearch" },
     ),
   /** matter 按钮 toggle:当前是 matter 关掉,否则打开 matter 列表。 */
   toggleMatter: () =>

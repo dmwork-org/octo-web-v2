@@ -54,6 +54,7 @@ import {
 } from "@/features/chat/lib/conversation-last-content";
 import { isConversationTop } from "@/features/chat/lib/conversation-top";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
+import { shouldShowConversationOnline } from "@/features/chat/lib/conversation-online";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -219,10 +220,7 @@ function ConversationRow({
 
   const showOnline = (() => {
     if (!isPerson || isThread || !info) return false;
-    if (info.online) return true;
-    const now = Date.now() / 1000;
-    const btw = now - (info.lastOffline ?? 0);
-    return btw > 0 && btw < 60 * 60;
+    return shouldShowConversationOnline(info);
   })();
 
   const digest = lastMessageDigest(conversation, myUid);

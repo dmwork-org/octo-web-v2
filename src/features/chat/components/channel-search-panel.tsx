@@ -1,10 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Download, FileText, Filter, ImageIcon, MessageSquareText, Search, X } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Filter,
+  ImageIcon,
+  LocateFixed,
+  MessageSquareText,
+  Play,
+  Search,
+  X,
+} from "lucide-react";
 import { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { message } from "@/components/ui/message";
+import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
 import {
   CHANNEL_SEARCH_KEYWORD_MAX_RUNES,
   countChannelSearchKeywordRunes,
@@ -19,6 +30,7 @@ import {
   type ChannelSearchTab,
 } from "@/features/base/api/endpoints/search.api";
 import { syncGroupMembers } from "@/features/base/api/endpoints/group.api";
+import { RichTextBlockType, type RichTextBlock } from "@/features/base/im/richtext-content";
 import { authStore } from "@/features/base/stores/auth";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
@@ -26,11 +38,14 @@ import { chatLocateMessageActions } from "@/features/chat/stores/chat-locate-mes
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { FileTypeIcon } from "@/features/chat/file-preview/file-type-icon";
 import { triggerDownload } from "@/features/chat/lib/file-download";
-import { sanitizeHighlight } from "@/features/base/lib/sanitize-highlight";
 import { useRightPanelResize } from "@/features/chat/hooks/use-right-panel-resize.hook";
 import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { useT } from "@/lib/i18n/use-t";
 import { CHANNEL_TYPE_THREAD, supportsChannelSearch } from "@/features/chat/lib/channel-search";
+import {
+  tokenizeChannelSearchSnippet,
+  type ChannelSearchSnippetToken,
+} from "@/features/chat/lib/channel-search-snippet";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -39,6 +54,7 @@ const TABS: ChannelSearchTab[] = ["all", "message", "media", "file"];
 
 interface ChannelSearchPanelProps {
   channel: Channel;
+  hidden?: boolean;
 }
 
 function useDebouncedValue<T>(value: T, delay = SEARCH_DEBOUNCE_MS): T {
@@ -111,7 +127,7 @@ function senderSearchQueryOptions(channel: Channel, keyword: string) {
   };
 }
 
-export function ChannelSearchPanel({ channel }: ChannelSearchPanelProps) {
+export function ChannelSearchPanel({ channel, hidden = false }: ChannelSearchPanelProps) {
   const t = useT();
   const { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick } =
     useRightPanelResize();
@@ -121,6 +137,10 @@ export function ChannelSearchPanel({ channel }: ChannelSearchPanelProps) {
   const [filters, setFilters] = useState<ChannelSearchFilters>(() => defaultChannelSearchFilters());
   const [filterOpen, setFilterOpen] = useState(false);
   const [senderKeyword, setSenderKeyword] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
+  const [imagePreviewSrc, setImagePreviewSrc] = useState<string | null>(null);
+  const isComposingRef = useRef(false);
+  const keywordLimitToastShownRef = useRef(false);
   const keyword = useDebouncedValue(keywordInput.trim());
 
   useResetChannelSearchOnChannelChange(
@@ -144,7 +164,9 @@ export function ChannelSearchPanel({ channel }: ChannelSearchPanelProps) {
     }),
     [activeTab, channel.channelID, channel.channelType, filters, keyword],
   );
-  const shouldRun = canSearch && shouldRunChannelSearch(queryInput);
+  const keywordRuneCount = countChannelSearchKeywordRunes(keywordInput);
+  const keywordAtLimit = !isComposing && keywordRuneCount >= CHANNEL_SEARCH_KEYWORD_MAX_RUNES;
+  const shouldRun = canSearch && !isComposing && shouldRunChannelSearch(queryInput);
 
   const searchQuery = useInfiniteQuery({
     queryKey: ["chat", "channel-search", queryInput],
@@ -168,148 +190,237 @@ export function ChannelSearchPanel({ channel }: ChannelSearchPanelProps) {
   const hasFilter = filters.senderUids.length > 0 || !!filters.startAt || !!filters.endAt;
 
   const onKeywordChange = (next: string) => {
-    if (countChannelSearchKeywordRunes(next) > CHANNEL_SEARCH_KEYWORD_MAX_RUNES) {
+    const nextRuneCount = countChannelSearchKeywordRunes(next);
+    if (nextRuneCount > CHANNEL_SEARCH_KEYWORD_MAX_RUNES) {
       setKeywordInput(truncateChannelSearchKeyword(next));
-      message.warning(
-        t("channelSearch.keywordLimitToast", {
-          values: { count: CHANNEL_SEARCH_KEYWORD_MAX_RUNES },
-        }),
-      );
+      if (!keywordLimitToastShownRef.current) {
+        message.warning(
+          t("channelSearch.keywordLimitToast", {
+            values: { count: CHANNEL_SEARCH_KEYWORD_MAX_RUNES },
+          }),
+        );
+        keywordLimitToastShownRef.current = true;
+      }
       return;
+    }
+    if (nextRuneCount < CHANNEL_SEARCH_KEYWORD_MAX_RUNES) {
+      keywordLimitToastShownRef.current = false;
     }
     setKeywordInput(next);
   };
 
   return (
-    <aside
-      ref={panelRef}
-      style={{ width }}
-      className="relative flex h-full shrink-0 flex-col border-l border-border-default bg-bg-base"
-    >
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-bg-surface px-3">
-        <Search size={18} className="shrink-0 text-text-tertiary" />
-        <input
-          autoFocus
-          value={keywordInput}
-          onChange={(event) => onKeywordChange(event.target.value)}
-          placeholder={t("channelSearch.placeholder")}
-          className="min-w-0 flex-1 border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary"
-        />
-        <Tooltip>
-          <TooltipTrigger asChild>
+    <>
+      <aside
+        ref={panelRef}
+        style={{ width }}
+        className={`relative h-full shrink-0 flex-col border-l border-border-default bg-bg-base ${hidden ? "hidden" : "flex"}`}
+      >
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-bg-surface px-3">
+          <Search size={18} className="shrink-0 text-text-tertiary" />
+          <input
+            autoFocus
+            value={keywordInput}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+              setIsComposing(true);
+            }}
+            onCompositionEnd={(event) => {
+              isComposingRef.current = false;
+              setIsComposing(false);
+              onKeywordChange(event.currentTarget.value);
+            }}
+            onChange={(event) => {
+              if (isComposingRef.current) {
+                setKeywordInput(event.target.value);
+                return;
+              }
+              onKeywordChange(event.target.value);
+            }}
+            placeholder={t("channelSearch.placeholder")}
+            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary"
+          />
+          {keywordAtLimit ? (
+            <span role="status" aria-live="polite" className="shrink-0 text-xs text-text-tertiary">
+              {t("channelSearch.keywordLimitHint", {
+                values: { count: CHANNEL_SEARCH_KEYWORD_MAX_RUNES },
+              })}
+            </span>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("channelSearch.filter.title")}
+                onClick={() => setFilterOpen((v) => !v)}
+                className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${
+                  filterOpen || hasFilter ? "text-brand" : "text-text-secondary"
+                }`}
+              >
+                <Filter size={17} />
+                {hasFilter ? (
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
+                ) : null}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("channelSearch.filter.title")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("channelSearch.close")}
+                onClick={() => chatSidePanelActions.close()}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <X size={18} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("channelSearch.close")}</TooltipContent>
+          </Tooltip>
+        </header>
+
+        {filterOpen ? (
+          <FilterPanel
+            filters={filters}
+            senders={senderQuery.data ?? []}
+            senderKeyword={senderKeyword}
+            onSenderKeywordChange={setSenderKeyword}
+            onChange={setFilters}
+            onClear={() => setFilters(defaultChannelSearchFilters())}
+          />
+        ) : null}
+
+        <div className="flex shrink-0 gap-1 border-b border-border-subtle bg-bg-surface px-3 py-2">
+          {TABS.map((tab) => (
             <button
+              key={tab}
               type="button"
-              aria-label={t("channelSearch.filter.title")}
-              onClick={() => setFilterOpen((v) => !v)}
-              className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${
-                filterOpen || hasFilter ? "text-brand" : "text-text-secondary"
+              onClick={() => setActiveTab(tab)}
+              className={`h-8 rounded-md px-3 text-sm transition-colors ${
+                activeTab === tab
+                  ? "bg-brand text-white"
+                  : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               }`}
             >
-              <Filter size={17} />
-              {hasFilter ? (
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
-              ) : null}
+              {t(`channelSearch.tabs.${tab}`)}
             </button>
-          </TooltipTrigger>
-          <TooltipContent>{t("channelSearch.filter.title")}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("channelSearch.close")}
-              onClick={() => chatSidePanelActions.close()}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            >
-              <X size={18} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{t("channelSearch.close")}</TooltipContent>
-        </Tooltip>
-      </header>
-
-      {filterOpen ? (
-        <FilterPanel
-          filters={filters}
-          senders={senderQuery.data ?? []}
-          senderKeyword={senderKeyword}
-          onSenderKeywordChange={setSenderKeyword}
-          onChange={setFilters}
-          onClear={() => setFilters(defaultChannelSearchFilters())}
-        />
-      ) : null}
-
-      <div className="flex shrink-0 gap-1 border-b border-border-subtle bg-bg-surface px-3 py-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`h-8 rounded-md px-3 text-sm transition-colors ${
-              activeTab === tab
-                ? "bg-brand text-white"
-                : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-            }`}
-          >
-            {t(`channelSearch.tabs.${tab}`)}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "media" && keyword ? (
-        <div className="border-b border-border-subtle px-3 py-2 text-xs text-text-tertiary">
-          {t("channelSearch.mediaKeywordTip")}
+          ))}
         </div>
-      ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {!canSearch ? (
-          <EmptyState text={t("channelSearch.unsupported")} />
-        ) : !shouldRun ? (
-          <EmptyState text={t("channelSearch.emptyHint")} />
-        ) : searchQuery.isLoading ? (
-          <LoadingState text={t("channelSearch.loading")} />
-        ) : searchQuery.isError ? (
-          <ErrorState
-            text={t("channelSearch.searchFailed")}
-            onRetry={() => searchQuery.refetch()}
-          />
-        ) : items.length === 0 ? (
-          <EmptyState text={t("channelSearch.noResults")} />
-        ) : (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <SearchResultItem key={`${item.kind}-${item.id}-${item.messageSeq}`} item={item} />
-            ))}
-            {searchQuery.hasNextPage ? (
-              <Button
-                type="tertiary"
-                theme="borderless"
-                size="small"
-                className="w-full"
-                loading={searchQuery.isFetchingNextPage}
-                onClick={() => searchQuery.fetchNextPage()}
-              >
-                {t("channelSearch.loadMore")}
-              </Button>
-            ) : (
-              <div className="py-2 text-center text-xs text-text-tertiary">
-                {t("filePreview.noMore")}
-              </div>
-            )}
+        {activeTab === "media" && keyword ? (
+          <div className="border-b border-border-subtle px-3 py-2 text-xs text-text-tertiary">
+            {t("channelSearch.mediaKeywordTip")}
           </div>
-        )}
-      </div>
+        ) : null}
 
-      <PanelSplitter
-        side="left"
-        isDragging={isDragging}
-        onMouseDown={onSplitterMouseDown}
-        onDoubleClick={onSplitterDoubleClick}
-      />
-      {isDragging ? <DragOverlay /> : null}
-    </aside>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          {!canSearch ? (
+            <EmptyState text={t("channelSearch.unsupported")} />
+          ) : !shouldRun ? (
+            <EmptyState text={t("channelSearch.emptyHint")} />
+          ) : searchQuery.isLoading ? (
+            <LoadingState text={t("channelSearch.loading")} />
+          ) : searchQuery.isError ? (
+            <ErrorState
+              text={t("channelSearch.searchFailed")}
+              onRetry={() => searchQuery.refetch()}
+            />
+          ) : items.length === 0 ? (
+            <EmptyState text={t("channelSearch.noResults")} />
+          ) : (
+            <div className={activeTab === "media" ? "space-y-4" : "space-y-2"}>
+              {activeTab === "media" ? (
+                <MediaResultGrid items={items} onOpenImagePreview={setImagePreviewSrc} />
+              ) : activeTab === "file" ? (
+                <FileResultList items={items} keyword={keyword} />
+              ) : (
+                items.map((item) => (
+                  <SearchResultItem
+                    key={`${item.kind}-${item.id}-${item.messageSeq}`}
+                    item={item}
+                    keyword={keyword}
+                    onOpenImagePreview={setImagePreviewSrc}
+                  />
+                ))
+              )}
+              {searchQuery.hasNextPage ? (
+                <Button
+                  type="tertiary"
+                  theme="borderless"
+                  size="small"
+                  className="w-full"
+                  loading={searchQuery.isFetchingNextPage}
+                  onClick={() => searchQuery.fetchNextPage()}
+                >
+                  {t("channelSearch.loadMore")}
+                </Button>
+              ) : (
+                <div className="py-2 text-center text-xs text-text-tertiary">
+                  {t("filePreview.noMore")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <PanelSplitter
+          side="left"
+          isDragging={isDragging}
+          onMouseDown={onSplitterMouseDown}
+          onDoubleClick={onSplitterDoubleClick}
+        />
+        {isDragging ? <DragOverlay /> : null}
+      </aside>
+      {imagePreviewSrc ? (
+        <ImagePreviewModal src={imagePreviewSrc} onClose={() => setImagePreviewSrc(null)} />
+      ) : null}
+    </>
   );
+}
+
+function getImagePreviewUrl(item: ChannelSearchItem): string | undefined {
+  if (item.kind !== "image") return undefined;
+  return (
+    item.media?.url || item.media?.previewUrl || item.media?.downloadUrl || item.media?.thumbUrl
+  );
+}
+
+function getVideoPreviewUrl(item: ChannelSearchItem): string | undefined {
+  if (item.kind !== "video") return undefined;
+  return item.media?.url || item.media?.previewUrl || item.media?.downloadUrl;
+}
+
+function openVideoPreview(item: ChannelSearchItem): void {
+  const mediaUrl = getVideoPreviewUrl(item);
+  if (!mediaUrl) return;
+  chatSidePanelActions.openFilePreview({
+    url: mediaUrl,
+    name: "video.mp4",
+    ext: "mp4",
+    messageId: item.messageId,
+    messageSeq: item.messageSeq,
+    fromUID: item.senderUid,
+    conversationDigest: item.text,
+    sourceChannelId: item.channelId,
+    sourceChannelType: item.channelType,
+  });
+}
+
+function openFilePreview(item: ChannelSearchItem, fallbackName: string): void {
+  if (!item.file?.url) return;
+  chatSidePanelActions.openFilePreview({
+    url: item.file.url,
+    name: item.file.name || fallbackName,
+    ext: item.file.extension || "",
+    size: item.file.size,
+    messageId: item.messageId,
+    messageSeq: item.messageSeq,
+    fromUID: item.senderUid,
+    conversationDigest: item.text,
+    sourceChannelId: item.channelId,
+    sourceChannelType: item.channelType,
+  });
 }
 
 function FilterPanel({
@@ -440,38 +551,30 @@ function DateInput({
   );
 }
 
-function SearchResultItem({ item }: { item: ChannelSearchItem }) {
+function SearchResultItem({
+  item,
+  keyword,
+  onOpenImagePreview,
+}: {
+  item: ChannelSearchItem;
+  keyword: string;
+  onOpenImagePreview: (src: string) => void;
+}) {
   const t = useT();
   const channel = new Channel(item.channelId || "", item.channelType || 0);
   const canLocate = !!item.messageSeq && !!item.channelId && item.channelType != null;
   const openPreview = () => {
     if (item.file?.url) {
-      chatSidePanelActions.openFilePreview({
-        url: item.file.url,
-        name: item.file.name || t("channelSearch.tabs.file"),
-        ext: item.file.extension || "",
-        size: item.file.size,
-        messageId: item.messageId,
-        messageSeq: item.messageSeq,
-        fromUID: item.senderUid,
-        conversationDigest: item.text,
-        sourceChannelId: item.channelId,
-        sourceChannelType: item.channelType,
-      });
+      openFilePreview(item, t("channelSearch.tabs.file"));
       return;
     }
-    if (item.media?.url) {
-      chatSidePanelActions.openFilePreview({
-        url: item.media.url,
-        name: item.kind === "video" ? "video.mp4" : "image.png",
-        ext: item.kind === "video" ? "mp4" : "png",
-        messageId: item.messageId,
-        messageSeq: item.messageSeq,
-        fromUID: item.senderUid,
-        conversationDigest: item.text,
-        sourceChannelId: item.channelId,
-        sourceChannelType: item.channelType,
-      });
+    const imageUrl = getImagePreviewUrl(item);
+    if (imageUrl) {
+      onOpenImagePreview(imageUrl);
+      return;
+    }
+    if (getVideoPreviewUrl(item)) {
+      openVideoPreview(item);
     }
   };
   return (
@@ -488,7 +591,7 @@ function SearchResultItem({ item }: { item: ChannelSearchItem }) {
         </div>
         <KindIcon kind={item.kind} />
       </div>
-      <ResultBody item={item} onPreview={openPreview} />
+      <ResultBody item={item} keyword={keyword} onPreview={openPreview} />
       <div className="mt-3 flex items-center justify-between">
         <button
           type="button"
@@ -516,8 +619,231 @@ function SearchResultItem({ item }: { item: ChannelSearchItem }) {
   );
 }
 
-function ResultBody({ item, onPreview }: { item: ChannelSearchItem; onPreview: () => void }) {
+function FileResultList({ items, keyword }: { items: ChannelSearchItem[]; keyword: string }) {
   const t = useT();
+  const fileItems = useMemo(
+    () => items.filter((item) => item.kind === "file" && item.file),
+    [items],
+  );
+
+  if (fileItems.length === 0) {
+    return <EmptyState text={t("channelSearch.noResults")} />;
+  }
+
+  return (
+    <div className="space-y-1 px-1 pb-2">
+      {fileItems.map((item) => (
+        <FileCompactItem
+          key={`${item.kind}-${item.id}-${item.messageSeq}`}
+          item={item}
+          keyword={keyword}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FileCompactItem({ item, keyword }: { item: ChannelSearchItem; keyword: string }) {
+  const t = useT();
+  const channel = new Channel(item.channelId || "", item.channelType || 0);
+  const fileName = item.file?.name || t("channelSearch.tabs.file");
+  const canLocate = !!item.messageSeq && !!item.channelId && item.channelType != null;
+  const downloadUrl = item.file?.downloadUrl || item.file?.url;
+  const preview = () => openFilePreview(item, t("channelSearch.tabs.file"));
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={preview}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        preview();
+      }}
+      className="group flex min-h-14 cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover focus-visible:outline-none"
+    >
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md">
+        <FileTypeIcon extension={item.file?.extension || fileName} size={40} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <ChannelSearchSnippetText
+          text={fileName}
+          keyword={keyword}
+          className="truncate text-sm leading-5 text-text-primary"
+        />
+        <div className="flex min-w-0 items-center gap-1 text-xs leading-5 text-text-tertiary">
+          <span className="truncate">{item.sender?.name || item.senderUid}</span>
+          <span className="shrink-0">·</span>
+          <span className="shrink-0">{compactFileSize(item.file?.size ?? 0)}</span>
+          <span className="shrink-0">·</span>
+          <span className="shrink-0">{formatDate(item.timestamp)}</span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 focus-within:opacity-100">
+        {canLocate ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("channelSearch.locateToChat")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  chatLocateMessageActions.request(channel, item.messageSeq, {
+                    strategy: "window",
+                  });
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
+              >
+                <LocateFixed size={15} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("channelSearch.locateToChat")}</TooltipContent>
+          </Tooltip>
+        ) : null}
+        {downloadUrl ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("filePreview.download")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void triggerDownload(downloadUrl, fileName);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
+              >
+                <Download size={15} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("filePreview.download")}</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MediaResultGrid({
+  items,
+  onOpenImagePreview,
+}: {
+  items: ChannelSearchItem[];
+  onOpenImagePreview: (src: string) => void;
+}) {
+  const mediaItems = useMemo(
+    () => items.filter((item) => (item.kind === "image" || item.kind === "video") && item.media),
+    [items],
+  );
+  const grouped = useMemo(() => {
+    return mediaItems.reduce<Record<string, ChannelSearchItem[]>>((acc, item) => {
+      const label = item.media?.monthBucket || formatMonth(item.timestamp);
+      acc[label] = acc[label] || [];
+      acc[label].push(item);
+      return acc;
+    }, {});
+  }, [mediaItems]);
+
+  return (
+    <div className="space-y-6 px-1 pb-2">
+      {Object.entries(grouped).map(([label, groupItems]) => (
+        <section key={label}>
+          <div className="mb-2 text-sm font-medium text-text-tertiary">{label}</div>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-2">
+            {groupItems.map((item) => (
+              <MediaGridItem
+                key={`${item.kind}-${item.id}-${item.messageSeq}`}
+                item={item}
+                onOpenImagePreview={onOpenImagePreview}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function MediaGridItem({
+  item,
+  onOpenImagePreview,
+}: {
+  item: ChannelSearchItem;
+  onOpenImagePreview: (src: string) => void;
+}) {
+  const t = useT();
+  const channel = new Channel(item.channelId || "", item.channelType || 0);
+  const canLocate = !!item.messageSeq && !!item.channelId && item.channelType != null;
+  const thumbUrl = item.media?.thumbUrl || item.media?.url || item.media?.previewUrl;
+  const imageUrl = getImagePreviewUrl(item);
+  const videoUrl = getVideoPreviewUrl(item);
+  const canPreview = !!(imageUrl || videoUrl);
+  const openPreview = () => {
+    if (imageUrl) {
+      onOpenImagePreview(imageUrl);
+      return;
+    }
+    openVideoPreview(item);
+  };
+
+  return (
+    <div className="group relative aspect-square min-w-0 overflow-hidden rounded-[5px] bg-bg-elevated shadow-[0_0_12px_rgba(15,23,42,0.14)]">
+      <button
+        type="button"
+        disabled={!canPreview}
+        aria-label={
+          item.kind === "video" ? t("channelSearch.media.video") : t("channelSearch.media.image")
+        }
+        onClick={openPreview}
+        className="absolute inset-0 flex items-center justify-center disabled:cursor-default"
+      >
+        {thumbUrl ? (
+          <img src={thumbUrl} alt="" draggable={false} className="h-full w-full object-contain" />
+        ) : (
+          <ImageIcon size={24} className="text-text-tertiary" />
+        )}
+      </button>
+      {item.kind === "video" ? (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white">
+          <Play size={18} fill="currentColor" />
+        </div>
+      ) : null}
+      {canLocate ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("channelSearch.locateToChat")}
+              onClick={() =>
+                chatLocateMessageActions.request(channel, item.messageSeq, { strategy: "window" })
+              }
+              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity hover:bg-black/60 group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <LocateFixed size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("channelSearch.locateToChat")}</TooltipContent>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+}
+
+function ResultBody({
+  item,
+  keyword,
+  onPreview,
+}: {
+  item: ChannelSearchItem;
+  keyword: string;
+  onPreview: () => void;
+}) {
+  const t = useT();
+  if (item.richText) {
+    return (
+      <RichTextSearchBody blocks={item.richText.content} fallback={item.text} keyword={keyword} />
+    );
+  }
   if (item.kind === "file" && item.file) {
     return (
       <button
@@ -584,10 +910,122 @@ function ResultBody({ item, onPreview }: { item: ChannelSearchItem; onPreview: (
     );
   }
   return (
-    <div
+    <ChannelSearchSnippetText
+      text={item.text || t("channelSearch.empty")}
+      keyword={keyword}
       className="break-words text-sm leading-6 text-text-primary"
-      dangerouslySetInnerHTML={{ __html: sanitizeHighlight(item.text || t("channelSearch.empty")) }}
     />
+  );
+}
+
+function RichTextSearchBody({
+  blocks,
+  fallback,
+  keyword,
+}: {
+  blocks: RichTextBlock[];
+  fallback?: string;
+  keyword: string;
+}) {
+  const t = useT();
+  const visibleBlocks = blocks.slice(0, 4);
+  if (visibleBlocks.length === 0) {
+    return (
+      <ChannelSearchSnippetText
+        text={fallback || t("message.digest.richText")}
+        keyword={keyword}
+        className="break-words text-sm leading-6 text-text-primary"
+      />
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-md bg-bg-elevated p-2">
+      {visibleBlocks.map((block, index) => {
+        if (block.type === RichTextBlockType.image) {
+          return (
+            <RichTextSearchImage key={`rich-image-${index}-${block.url ?? ""}`} block={block} />
+          );
+        }
+        if (block.type === RichTextBlockType.file) {
+          return (
+            <RichTextSearchFile key={`rich-file-${index}-${block.name ?? ""}`} block={block} />
+          );
+        }
+        const text = block.text || "";
+        if (!text) return null;
+        return (
+          <ChannelSearchSnippetText
+            key={`rich-text-${index}-${text.slice(0, 8)}`}
+            text={text}
+            keyword={keyword}
+            className="line-clamp-3 break-words text-sm leading-6 text-text-primary"
+          />
+        );
+      })}
+      {blocks.length > visibleBlocks.length ? (
+        <div className="text-xs text-text-tertiary">{t("channelSearch.richText.more")}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function ChannelSearchSnippetText({
+  text,
+  keyword,
+  className,
+}: {
+  text: string;
+  keyword: string;
+  className: string;
+}) {
+  const tokens = tokenizeChannelSearchSnippet(text, keyword);
+  return (
+    <div className={className}>
+      {tokens.map((token, index) => (
+        <ChannelSearchSnippetNode key={`${token.type}-${index}`} token={token} />
+      ))}
+    </div>
+  );
+}
+
+function ChannelSearchSnippetNode({ token }: { token: ChannelSearchSnippetToken }) {
+  if (token.type === "emoji") {
+    const emoji = (
+      <span className="inline-flex h-[18px] w-[18px] items-center justify-center align-sub">
+        <img src={token.url} alt={token.key} className="h-[18px] w-[18px]" draggable={false} />
+      </span>
+    );
+    if (!token.highlighted) return emoji;
+    return <mark className="bg-warning/30 text-text-primary">{emoji}</mark>;
+  }
+
+  if (!token.highlighted) return <>{token.text}</>;
+  return <mark className="bg-warning/30 text-text-primary">{token.text}</mark>;
+}
+
+function RichTextSearchImage({ block }: { block: RichTextBlock }) {
+  const t = useT();
+  if (!block.url) {
+    return (
+      <span className="inline-flex w-fit rounded bg-bg-base px-2 py-1 text-xs text-text-tertiary">
+        {t("message.digest.image")}
+      </span>
+    );
+  }
+  return (
+    <div className="flex h-16 w-20 items-center justify-center overflow-hidden rounded bg-bg-base">
+      <img src={block.url} alt={block.name || ""} className="h-full w-full object-cover" />
+    </div>
+  );
+}
+
+function RichTextSearchFile({ block }: { block: RichTextBlock }) {
+  const t = useT();
+  return (
+    <div className="inline-flex max-w-full items-center gap-2 rounded bg-bg-base px-2 py-1 text-xs text-text-secondary">
+      <FileText size={13} className="shrink-0 text-text-tertiary" />
+      <span className="truncate">{block.name || t("message.digest.file")}</span>
+    </div>
   );
 }
 
@@ -636,6 +1074,22 @@ function formatTime(seconds: number): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+  }).format(new Date(seconds * 1000));
+}
+
+function formatDate(seconds: number): string {
+  if (!seconds) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(seconds * 1000));
+}
+
+function formatMonth(seconds: number): string {
+  if (!seconds) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "2-digit",
   }).format(new Date(seconds * 1000));
 }
 

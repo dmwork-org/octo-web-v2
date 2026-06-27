@@ -30,6 +30,7 @@ export interface FilePreviewInfo {
 
 export type FileType =
   | "image"
+  | "video"
   | "pdf"
   | "markdown"
   | "text"

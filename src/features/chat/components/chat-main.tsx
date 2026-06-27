@@ -132,6 +132,9 @@ export function ChatMain() {
       : sidePanelKind === "filePreview" && sidePanelState.returnTo?.kind === "matter"
         ? sidePanelState.returnTo
         : null;
+  const preserveChannelSearch =
+    sidePanelKind === "channelSearch" ||
+    (sidePanelKind === "filePreview" && sidePanelState.returnTo?.kind === "channelSearch");
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -176,8 +179,8 @@ export function ChatMain() {
       {sidePanelKind === "summary" ? (
         <ChatSummaryPanel onCreateNew={() => setSummaryCreateChannel(channel)} />
       ) : null}
-      {sidePanelKind === "channelSearch" && channelSearchEnabled ? (
-        <ChannelSearchPanel channel={channel} />
+      {preserveChannelSearch && channelSearchEnabled ? (
+        <ChannelSearchPanel channel={channel} hidden={sidePanelKind === "filePreview"} />
       ) : null}
       {createMatterChannel ? (
         <CreateMatterModal

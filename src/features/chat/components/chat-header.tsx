@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
-import { List, MoreHorizontal, Search, Sparkles } from "lucide-react";
+import { List, MoreHorizontal, Sparkles } from "lucide-react";
 import { useStore } from "@tanstack/react-store";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
@@ -19,8 +19,6 @@ import { message } from "@/components/ui/message";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { useT } from "@/lib/i18n/use-t";
 import { t as tFn } from "@/lib/i18n/instance";
-import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
-import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 
 interface ChatHeaderProps {
   showThreadIcon?: boolean;
@@ -103,7 +101,6 @@ export function ChatHeader({
   const parentTitleLoading = !!parsed && !parentGroupTitle;
   const [settingOpen, setSettingOpen] = useState(false);
   const sidePanelKind = useStore(chatSidePanelStore, (s) => s.kind);
-  const messagesSearchEnabled = useMessagesSearchEnabled() && supportsChannelSearch(channel);
 
   // 子区主区时,父群面包屑点击 → 切回父群(对齐旧 ThreadPanel handleOpenFullView 反向)
   const goParentGroup = () => {
@@ -113,7 +110,6 @@ export function ChatHeader({
 
   // 事项面板入口:toggle chat 右侧 matter panel(对齐旧 registerChatMatterPanel)
   const onClickMatter = () => chatSidePanelActions.toggleMatter();
-  const onClickSearch = () => chatSidePanelActions.toggleChannelSearch();
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">
@@ -167,25 +163,6 @@ export function ChatHeader({
             active={sidePanelKind === "summary"}
             onCreateNew={onOpenSummaryCreate}
           />
-        ) : null}
-        {messagesSearchEnabled ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t("chatHeader.search")}
-                onClick={onClickSearch}
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-bg-hover ${
-                  sidePanelKind === "channelSearch"
-                    ? "bg-bg-elevated text-text-primary"
-                    : "text-text-secondary hover:text-text-primary"
-                }`}
-              >
-                <Search size={18} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{t("chatHeader.search")}</TooltipContent>
-          </Tooltip>
         ) : null}
         {/* 事项入口仅群聊/子区显示(对齐旧 dmworktodo registerChatHeaderIcon — 私聊不显示) */}
         {channel.channelType === ChannelTypeGroup || isThreadCh ? (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Channel, ChannelTypePerson } from "wukongimjssdk";
@@ -17,6 +17,7 @@ interface ParticipantPickerProps {
   /** 已选 participant uid 列表 */
   value: string[];
   onChange: (uids: string[]) => void;
+  trigger?: (props: { open: () => void; count: number }) => ReactNode;
 }
 
 /** modal open 翻转时把 ext selected 同步进 internal pickerSelected */
@@ -36,7 +37,7 @@ function useResetPickerOnOpen(
  * 浮动元素壳层统一规范 Phase C5 — 走 BaseDialog;通常嵌在 ScheduleFormModal 内,
  * 自动 z-dialog-secondary。
  */
-export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
+export function ParticipantPicker({ value, onChange, trigger }: ParticipantPickerProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set(value));
@@ -69,46 +70,52 @@ export function ParticipantPicker({ value, onChange }: ParticipantPickerProps) {
     setOpen(false);
   };
 
+  const openPicker = () => setOpen(true);
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex min-h-9 w-full items-center gap-2 rounded-md border border-border-default bg-bg-base px-3 py-1.5 text-left text-sm text-text-primary hover:border-brand"
-      >
-        {value.length === 0 ? (
-          <span className="text-text-tertiary">{t("summary.participant.clickPick")}</span>
-        ) : (
-          <>
-            <span className="flex shrink-0 -space-x-1">
-              {selectedMembers.slice(0, 4).map((m) => (
-                <ChannelAvatar
-                  key={m.uid}
-                  channel={new Channel(m.uid, ChannelTypePerson)}
-                  size={20}
-                  title={m.name}
-                />
-              ))}
-              {selectedMembers.length === 0 && value.length > 0
-                ? value
-                    .slice(0, 4)
-                    .map((uid) => (
-                      <ChannelAvatar
-                        key={uid}
-                        channel={new Channel(uid, ChannelTypePerson)}
-                        size={20}
-                        title={uid}
-                      />
-                    ))
-                : null}
-            </span>
-            <span className="truncate text-xs text-text-secondary">
-              {t("summary.participant.selectedCount", { values: { count: value.length } })}
-            </span>
-          </>
-        )}
-        <Pencil size={12} className="ml-auto shrink-0 text-text-tertiary" />
-      </button>
+      {trigger ? (
+        trigger({ open: openPicker, count: value.length })
+      ) : (
+        <button
+          type="button"
+          onClick={openPicker}
+          className="flex min-h-9 w-full items-center gap-2 rounded-md border border-border-default bg-bg-base px-3 py-1.5 text-left text-sm text-text-primary hover:border-brand"
+        >
+          {value.length === 0 ? (
+            <span className="text-text-tertiary">{t("summary.participant.clickPick")}</span>
+          ) : (
+            <>
+              <span className="flex shrink-0 -space-x-1">
+                {selectedMembers.slice(0, 4).map((m) => (
+                  <ChannelAvatar
+                    key={m.uid}
+                    channel={new Channel(m.uid, ChannelTypePerson)}
+                    size={20}
+                    title={m.name}
+                  />
+                ))}
+                {selectedMembers.length === 0 && value.length > 0
+                  ? value
+                      .slice(0, 4)
+                      .map((uid) => (
+                        <ChannelAvatar
+                          key={uid}
+                          channel={new Channel(uid, ChannelTypePerson)}
+                          size={20}
+                          title={uid}
+                        />
+                      ))
+                  : null}
+              </span>
+              <span className="truncate text-xs text-text-secondary">
+                {t("summary.participant.selectedCount", { values: { count: value.length } })}
+              </span>
+            </>
+          )}
+          <Pencil size={12} className="ml-auto shrink-0 text-text-tertiary" />
+        </button>
+      )}
 
       <BaseDialog
         open={open}

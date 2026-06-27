@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { Message, MessageText } from "wukongimjssdk";
 import {
+  ChevronDown,
   Clock,
+  LogOut,
   Loader2,
   MessageSquareText,
   RefreshCcw,
   Send,
   Trash2,
+  UserMinus,
   UsersRound,
   X as XIcon,
 } from "lucide-react";
@@ -17,13 +21,17 @@ import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { authStore } from "@/features/base/stores/auth";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { addMatterComment } from "@/features/matter/api/matter.api";
 import {
   cancelSummary,
   createSchedule,
   deleteSummary,
+  getMembers,
   getSchedule,
+  leaveSummary,
+  removeMember,
   regenerateSummary,
   toggleSchedule,
   updateSchedule,
@@ -42,6 +50,7 @@ import {
   SourceType,
   SummaryMode,
   TaskStatus,
+  type MemberStatus,
   type ScheduleConfig,
   type SourceItem,
   type TaskStatusType,
@@ -176,12 +185,132 @@ function SummarySourcesPanel({ sources }: { sources: SourceItem[] }) {
   );
 }
 
+function MemberStatusPanel({
+  members,
+  myUid,
+  creatorId,
+  canRemove,
+  removingUid,
+  onRemove,
+}: {
+  members: MemberStatus[];
+  myUid: string;
+  creatorId?: string;
+  canRemove: boolean;
+  removingUid?: string;
+  onRemove: (uid: string) => void;
+}) {
+  const tr = useT();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null);
+  if (members.length === 0) return null;
+  return (
+    <>
+      <section className="rounded-md border border-border-subtle bg-bg-surface">
+        <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
+          <h3 className="text-sm font-semibold text-text-primary">
+            {tr("summary.detail.memberStatus")}
+          </h3>
+          <span className="text-xs text-text-tertiary">
+            {tr("summary.detail.submittedPeople", {
+              values: { count: members.filter((member) => !!member.submitted_at).length },
+            })}
+          </span>
+        </div>
+        <div className="divide-y divide-border-subtle">
+          {members.map((member) => {
+            const content = member.content?.trim() ?? "";
+            const isExpanded = !!expanded[member.user_id];
+            const canRemoveMember =
+              canRemove && member.user_id !== myUid && member.user_id !== creatorId;
+            return (
+              <div key={member.user_id} className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!content}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover disabled:opacity-30"
+                    aria-label={
+                      isExpanded ? tr("summary.detail.collapse") : tr("summary.detail.expandAll")
+                    }
+                    onClick={() =>
+                      setExpanded((prev) => ({
+                        ...prev,
+                        [member.user_id]: !prev[member.user_id],
+                      }))
+                    }
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-text-primary">
+                      {member.user_name || member.user_id}
+                    </div>
+                    <div className="text-xs text-text-tertiary">
+                      {content
+                        ? tr("summary.detail.submitSuccess")
+                        : tr("summary.detail.waitingSubmit", {
+                            values: { name: member.user_name || member.user_id },
+                          })}
+                    </div>
+                  </div>
+                  {canRemoveMember ? (
+                    <Button
+                      type="danger"
+                      theme="borderless"
+                      size="small"
+                      loading={removingUid === member.user_id}
+                      onClick={() => setConfirmRemoveUid(member.user_id)}
+                    >
+                      <UserMinus size={13} />
+                      {tr("summary.detail.removeMember")}
+                    </Button>
+                  ) : null}
+                </div>
+                {isExpanded && content ? (
+                  <div className="mt-3 rounded-md bg-bg-base p-3">
+                    <CitationText
+                      content={content}
+                      citations={member.citations ?? []}
+                      hidePlainCitations={member.user_id !== myUid}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <ConfirmDialog
+        open={!!confirmRemoveUid}
+        onOpenChange={(next) => {
+          if (!next) setConfirmRemoveUid(null);
+        }}
+        title={tr("summary.detail.removeMember")}
+        content={tr("summary.detail.removeMemberConfirm")}
+        okText={tr("summary.detail.removeMember")}
+        cancelText={tr("summary.common.cancel")}
+        okDanger
+        okLoading={!!confirmRemoveUid && removingUid === confirmRemoveUid}
+        onOk={() => {
+          if (confirmRemoveUid) onRemove(confirmRemoveUid);
+          setConfirmRemoveUid(null);
+        }}
+      />
+    </>
+  );
+}
+
 /**
  * 总结详情面板。
  */
 export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const tr = useT();
   const qc = useQueryClient();
+  const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const [forwardMessages, setForwardMessages] = useState<Message[] | null>(null);
   const [matterPickerOpen, setMatterPickerOpen] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
@@ -199,6 +328,12 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const { data: personalResult } = useQuery(
     personalResultQueryOptions(taskId, data?.summary_mode === SummaryMode.BY_PERSON),
   );
+  const { data: members = [] } = useQuery({
+    queryKey: ["summary", "members", taskId],
+    queryFn: () => getMembers(taskId!),
+    enabled: taskId !== null && data?.summary_mode === SummaryMode.BY_PERSON,
+    staleTime: 15 * 1000,
+  });
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["summary", "list"] });
@@ -239,6 +374,28 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     },
     onError: (err) =>
       message.error(err instanceof Error ? err.message : t("summary.detail.deleteFailed")),
+  });
+
+  const leaveMu = useMutation({
+    mutationFn: () => leaveSummary(taskId!),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["summary", "list"] });
+      message.success(t("summary.detail.leaveSuccess"));
+      onDeleted();
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.detail.leaveFailed")),
+  });
+
+  const removeMemberMu = useMutation({
+    mutationFn: (uid: string) => removeMember(taskId!, uid),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ["summary", "members", taskId] });
+      message.success(t("summary.detail.removeMemberSuccess"));
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.detail.removeMemberFailed")),
   });
 
   const forwardMatterMu = useMutation({
@@ -338,8 +495,13 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const hasCitations = !!citations && citations.length > 0;
   const isPersonalMode = data.summary_mode === SummaryMode.BY_PERSON;
   const resultContent = data.result?.content ?? "";
+  const hasTeamSummary = isPersonalMode && resultContent.trim().length > 0;
   const personalReady = isPersonalMode && !!personalResult?.content?.trim();
   const canEdit = !!data.permissions?.can_edit;
+  const isCreator = data.creator_id != null && data.creator_id === myUid;
+  const isParticipant = data.participants.some((participant) => participant.user_id === myUid);
+  const canDelete = isCreator;
+  const canLeave = !isCreator && isParticipant;
   const hasActiveSchedule = !!scheduleItem && scheduleItem.is_active !== false;
   const hasSchedule = hasActiveSchedule || (!scheduleItem && !!scheduleId);
   const scheduleSummary =
@@ -466,17 +628,30 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
                 {tr("summary.detail.cancelTask")}
               </Button>
             ) : null}
-            <Button
-              type="danger"
-              theme="borderless"
-              size="small"
-              iconOnly
-              aria-label={tr("summary.common.delete")}
-              loading={deleteMu.isPending}
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              <Trash2 size={14} />
-            </Button>
+            {canDelete ? (
+              <Button
+                type="danger"
+                theme="borderless"
+                size="small"
+                iconOnly
+                aria-label={tr("summary.common.delete")}
+                loading={deleteMu.isPending}
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            ) : canLeave ? (
+              <Button
+                type="danger"
+                theme="borderless"
+                size="small"
+                loading={leaveMu.isPending}
+                onClick={() => leaveMu.mutate()}
+              >
+                <LogOut size={13} />
+                {tr("summary.detail.leaveTask")}
+              </Button>
+            ) : null}
           </div>
         </header>
 
@@ -487,7 +662,33 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
                 <SummaryProcessingPanel status={data.status} />
               ) : (
                 <>
-                  {isPersonalMode ? <PersonalSection detail={data} /> : null}
+                  {isPersonalMode ? (
+                    <>
+                      <PersonalSection detail={data} />
+                      {hasTeamSummary ? (
+                        <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
+                          <h3 className="mb-3 text-sm font-semibold text-text-primary">
+                            {tr("summary.detail.teamSummary")}
+                          </h3>
+                          <CitationText
+                            content={resultContent}
+                            citations={data.result?.citations ?? []}
+                            teamCitations={data.result?.team_citations ?? []}
+                            members={members}
+                            hidePlainCitations
+                          />
+                        </div>
+                      ) : null}
+                      <MemberStatusPanel
+                        members={members}
+                        myUid={myUid}
+                        creatorId={data.creator_id}
+                        canRemove={!!data.permissions?.can_remove_member}
+                        removingUid={removeMemberMu.variables}
+                        onRemove={(uid) => removeMemberMu.mutate(uid)}
+                      />
+                    </>
+                  ) : null}
 
                   {!isPersonalMode ? (
                     <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">

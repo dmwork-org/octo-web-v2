@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Trash2, UserRound } from "lucide-react";
+import { CalendarDays, LogOut, Trash2, UserRound } from "lucide-react";
 import { useStore } from "@tanstack/react-store";
 import { Button } from "@/components/semi-bridge/button";
 import { useT } from "@/lib/i18n/use-t";
@@ -17,15 +17,24 @@ interface SummaryCardProps {
   selected: boolean;
   onClick: () => void;
   onDelete?: () => void;
+  onLeave?: () => void;
   onRespond?: (action: "accept" | "reject") => void;
 }
 
 /**
  * 总结列表卡。业务信息对齐上游:列表只展示创建日期,不展示总结覆盖时间范围。
  */
-export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: SummaryCardProps) {
+export function SummaryCard({
+  item,
+  selected,
+  onClick,
+  onDelete,
+  onLeave,
+  onRespond,
+}: SummaryCardProps) {
   const t = useT();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const currentUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const myParticipant = item.participants?.find((p) => p.user_id === currentUid);
   const isMultiParticipant = (item.participants?.length ?? 0) > 1;
@@ -36,9 +45,15 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
   const isScheduledTask =
     (item.schedule_id != null && item.schedule_id > 0) ||
     item.trigger_type === TriggerType.SCHEDULED;
+  const isCreator = item.creator_id != null && item.creator_id === currentUid;
+  const canLeave = !isCreator && myParticipant != null && !!onLeave;
   const confirmDelete = () => {
     if (!onDelete) return;
     setDeleteConfirmOpen(true);
+  };
+  const confirmLeave = () => {
+    if (!onLeave) return;
+    setLeaveConfirmOpen(true);
   };
 
   return (
@@ -95,7 +110,7 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
             <CalendarDays size={13} className="text-text-tertiary" />
             {item.created_at?.substring(0, 10) || ""}
           </span>
-          {onDelete ? (
+          {isCreator && onDelete ? (
             <span
               role="button"
               tabIndex={0}
@@ -113,6 +128,25 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
               }}
             >
               <Trash2 size={13} />
+            </span>
+          ) : canLeave ? (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={t("summary.summaryCard.leaveTitle")}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-tertiary opacity-0 transition-colors group-hover:opacity-100 hover:bg-error/10 hover:text-error focus:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation();
+                confirmLeave();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                confirmLeave();
+              }}
+            >
+              <LogOut size={13} />
             </span>
           ) : null}
         </div>
@@ -135,6 +169,21 @@ export function SummaryCard({ item, selected, onClick, onDelete, onRespond }: Su
         onOk={() => {
           setDeleteConfirmOpen(false);
           onDelete?.();
+        }}
+      />
+      <ConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+        title={t("summary.summaryCard.leaveTitle")}
+        content={t("summary.summaryCard.leaveContent", {
+          values: { title: item.title || item.task_no },
+        })}
+        okText={t("summary.detail.leaveTask")}
+        cancelText={t("summary.common.cancel")}
+        okDanger
+        onOk={() => {
+          setLeaveConfirmOpen(false);
+          onLeave?.();
         }}
       />
     </>

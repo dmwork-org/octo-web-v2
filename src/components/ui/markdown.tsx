@@ -6,6 +6,7 @@ import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import type { Root, RootContent } from "mdast";
 import "highlight.js/styles/github-dark.css";
 import "katex/dist/katex.min.css";
 import "./markdown.css";
@@ -135,8 +136,35 @@ const mathRehypePlugins: PluginList = [
   [rehypeSanitize, sanitizeSchema],
 ];
 
-const baseRemarkPlugins: PluginList = [remarkGfm, remarkBreaks];
-const mathRemarkPlugins: PluginList = [remarkGfm, remarkBreaks, remarkMath];
+const baseRemarkPlugins: PluginList = [rawHtmlAsTextPlugin, remarkGfm, remarkBreaks];
+const mathRemarkPlugins: PluginList = [rawHtmlAsTextPlugin, remarkGfm, remarkBreaks, remarkMath];
+
+interface MutableMarkdownParent {
+  children: RootContent[];
+}
+
+function hasMarkdownChildren(
+  node: Root | RootContent,
+): node is (Root | RootContent) & MutableMarkdownParent {
+  return Array.isArray((node as { children?: unknown }).children);
+}
+
+function rawHtmlAsTextPlugin() {
+  return (tree: Root): void => {
+    const visit = (node: Root | RootContent): void => {
+      if (!hasMarkdownChildren(node)) return;
+      node.children = node.children.map((child) => {
+        if (child.type === "html") {
+          return { type: "text", value: child.value };
+        }
+        visit(child);
+        return child;
+      });
+    };
+
+    visit(tree);
+  };
+}
 
 /**
  * 预处理 Markdown:把独占一行的 `---` / `===` 补前后空行,

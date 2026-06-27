@@ -4,6 +4,7 @@ import { useStore } from "@tanstack/react-store";
 import { type Channel, type Subscriber } from "wukongimjssdk";
 import {
   AlertTriangle,
+  ChevronDown,
   CheckCircle2,
   Copy,
   Edit3,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
+import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog";
@@ -32,15 +34,24 @@ import {
   updateIncomingWebhook,
 } from "@/features/base/api/endpoints/group.api";
 import {
+  buildWebhookAdapterExamples,
   buildWebhookCurlExample,
   buildWebhookUpsertReq,
   buildWebhookUrlRows,
   canManageIncomingWebhook,
   canTestWebhook,
+  isFlagOn,
   IncomingWebhookStatus,
   INCOMING_WEBHOOK_DEFAULT_AVATAR,
+  MENTION_UID_MAX_LENGTH,
+  MENTION_UIDS_MAX,
+  normalizeMentionUids,
+  validateMentionUids,
   type IncomingWebhook,
+  type IncomingWebhookAdapterAuth,
   type IncomingWebhookCreateResp,
+  type IncomingWebhookUpsertReq,
+  type WebhookAdapterExampleRow,
   type WebhookUrlRow,
 } from "@/features/chat/lib/incoming-webhook";
 import { useT } from "@/lib/i18n/use-t";
@@ -51,13 +62,14 @@ interface IncomingWebhookPanelProps {
   channel: Channel;
   isManager: boolean;
   title: string;
+  threadShortId?: string;
   onClose: () => void;
 }
 
 const TEST_COOLDOWN_MS = 3000;
 
-function webhookQueryKey(groupNo: string) {
-  return ["chat", "incoming-webhooks", groupNo] as const;
+function webhookQueryKey(groupNo: string, threadShortId?: string) {
+  return ["chat", "incoming-webhooks", groupNo, threadShortId ?? "group"] as const;
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -115,6 +127,7 @@ export function IncomingWebhookPanel({
   channel,
   isManager,
   title,
+  threadShortId,
   onClose,
 }: IncomingWebhookPanelProps) {
   const tr = useT();
@@ -131,24 +144,30 @@ export function IncomingWebhookPanel({
   const [confirmRegenerate, setConfirmRegenerate] = useState<IncomingWebhook | null>(null);
 
   const query = useQuery({
-    queryKey: webhookQueryKey(channel.channelID),
-    queryFn: () => listIncomingWebhooks(channel.channelID),
+    queryKey: webhookQueryKey(channel.channelID, threadShortId),
+    queryFn: () => listIncomingWebhooks(channel.channelID, threadShortId),
     enabled: open,
   });
   const invalidate = () =>
-    void qc.invalidateQueries({ queryKey: webhookQueryKey(channel.channelID) });
+    void qc.invalidateQueries({ queryKey: webhookQueryKey(channel.channelID, threadShortId) });
 
   const toggleMu = useMutation({
     mutationFn: (args: { item: IncomingWebhook; enabled: boolean }) =>
-      updateIncomingWebhook(channel.channelID, args.item.webhook_id, {
-        status: args.enabled ? IncomingWebhookStatus.enabled : IncomingWebhookStatus.disabled,
-      }),
+      updateIncomingWebhook(
+        channel.channelID,
+        args.item.webhook_id,
+        {
+          status: args.enabled ? IncomingWebhookStatus.enabled : IncomingWebhookStatus.disabled,
+        },
+        threadShortId,
+      ),
     onSuccess: invalidate,
     onError: (err) => displayWebhookError(err, t("channelWebhook.error.updateFailed")),
   });
 
   const testMu = useMutation({
-    mutationFn: (item: IncomingWebhook) => testIncomingWebhook(channel.channelID, item.webhook_id),
+    mutationFn: (item: IncomingWebhook) =>
+      testIncomingWebhook(channel.channelID, item.webhook_id, threadShortId),
     onSuccess: (_void, item) => {
       message.success(t("channelWebhook.toast.testSent"));
       startCooldown(item.webhook_id);
@@ -158,7 +177,7 @@ export function IncomingWebhookPanel({
 
   const deleteMu = useMutation({
     mutationFn: (item: IncomingWebhook) =>
-      deleteIncomingWebhook(channel.channelID, item.webhook_id),
+      deleteIncomingWebhook(channel.channelID, item.webhook_id, threadShortId),
     onSuccess: () => {
       message.success(t("channelWebhook.toast.deleted"));
       setConfirmDelete(null);
@@ -169,7 +188,7 @@ export function IncomingWebhookPanel({
 
   const regenerateMu = useMutation({
     mutationFn: (item: IncomingWebhook) =>
-      regenerateIncomingWebhook(channel.channelID, item.webhook_id),
+      regenerateIncomingWebhook(channel.channelID, item.webhook_id, threadShortId),
     onSuccess: (resp) => {
       setUrlResult(resp);
       setConfirmRegenerate(null);
@@ -207,7 +226,9 @@ export function IncomingWebhookPanel({
         <div className="flex flex-1 flex-col overflow-y-auto py-2">
           <div className="mx-4 mb-3 flex items-center justify-between gap-3">
             <p className="min-w-0 flex-1 text-[12px] leading-5 text-text-tertiary">
-              {tr("channelWebhook.description")}
+              {threadShortId
+                ? tr("channelWebhook.threadScopeHint")
+                : tr("channelWebhook.description")}
             </p>
             {items.length > 0 ? (
               <Button size="small" type="primary" onClick={() => setEditTarget({ mode: "create" })}>
@@ -355,6 +376,10 @@ export function IncomingWebhookPanel({
         <WebhookEditDialog
           channel={channel}
           isManager={isManager}
+          threadShortId={threadShortId}
+          subscribers={subscribers}
+          authUserName={authUser?.name ?? ""}
+          myUid={myUid}
           webhook={editTarget.mode === "edit" ? editTarget.webhook : undefined}
           onClose={() => setEditTarget(null)}
           onSaved={(created) => {
@@ -429,15 +454,71 @@ function IconButton({
   );
 }
 
+const WEBHOOK_NAME_MAX_LENGTH = 64;
+const WEBHOOK_AVATAR_MAX_LENGTH = 255;
+
+interface MentionMemberOption {
+  uid: string;
+  name: string;
+  isBot: boolean;
+}
+
+function isBotSubscriber(sub: Subscriber): boolean {
+  const org = (sub.orgData ?? {}) as { robot?: unknown };
+  return isFlagOn(org.robot);
+}
+
+function buildMentionMemberOptions(opts: {
+  subscribers: Subscriber[];
+  mentionUids: string[];
+  myUid: string;
+  authUserName: string;
+  meLabel: string;
+}): MentionMemberOption[] {
+  const seen = new Set<string>();
+  const out: MentionMemberOption[] = [];
+  for (const sub of opts.subscribers) {
+    if (!sub.uid || seen.has(sub.uid)) continue;
+    seen.add(sub.uid);
+    out.push({
+      uid: sub.uid,
+      name: displayNameOfSubscriber(sub),
+      isBot: isBotSubscriber(sub),
+    });
+  }
+  if (opts.myUid && !seen.has(opts.myUid)) {
+    seen.add(opts.myUid);
+    out.push({
+      uid: opts.myUid,
+      name: opts.authUserName || opts.meLabel,
+      isBot: false,
+    });
+  }
+  for (const uid of normalizeMentionUids(opts.mentionUids)) {
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+    out.push({ uid, name: uid, isBot: false });
+  }
+  return out;
+}
+
 function WebhookEditDialog({
   channel,
   isManager,
+  threadShortId,
+  subscribers,
+  authUserName,
+  myUid,
   webhook,
   onClose,
   onSaved,
 }: {
   channel: Channel;
   isManager: boolean;
+  threadShortId?: string;
+  subscribers: Subscriber[];
+  authUserName: string;
+  myUid: string;
   webhook?: IncomingWebhook;
   onClose: () => void;
   onSaved: (created?: IncomingWebhookCreateResp) => void;
@@ -445,16 +526,44 @@ function WebhookEditDialog({
   const tr = useT();
   const [name, setName] = useState(webhook?.name ?? "");
   const [avatar, setAvatar] = useState(webhook?.avatar ?? "");
+  const [mentionAll, setMentionAll] = useState(isFlagOn(webhook?.allow_mention_all));
+  const [mentionBots, setMentionBots] = useState(isFlagOn(webhook?.allow_mention_bots));
+  const [mentionUids, setMentionUids] = useState<string[]>(webhook?.mention_uids ?? []);
+  const [mentionFilter, setMentionFilter] = useState("");
   const isEdit = !!webhook;
+  const memberOptions = useMemo(
+    () =>
+      buildMentionMemberOptions({
+        subscribers,
+        mentionUids,
+        myUid,
+        authUserName,
+        meLabel: tr("channelWebhook.meta.me"),
+      }),
+    [authUserName, mentionUids, myUid, subscribers, tr],
+  );
+  const optionByUid = useMemo(
+    () => new Map(memberOptions.map((item) => [item.uid, item])),
+    [memberOptions],
+  );
+  const filteredMemberOptions = useMemo(() => {
+    const q = mentionFilter.trim().toLowerCase();
+    if (!q) return memberOptions;
+    return memberOptions.filter(
+      (item) => item.uid.toLowerCase().includes(q) || item.name.toLowerCase().includes(q),
+    );
+  }, [memberOptions, mentionFilter]);
+  const selectedUids = normalizeMentionUids(mentionUids);
+  const selectedSet = new Set(selectedUids);
+  const aiOptionCount = memberOptions.filter((item) => item.isBot).length;
+
   const mu = useMutation({
-    mutationFn: async () => {
-      const req = buildWebhookUpsertReq({ isEdit, isManager, name, avatar, webhook });
-      if (!req) return undefined;
+    mutationFn: async (req: IncomingWebhookUpsertReq) => {
       if (webhook) {
-        await updateIncomingWebhook(channel.channelID, webhook.webhook_id, req);
+        await updateIncomingWebhook(channel.channelID, webhook.webhook_id, req, threadShortId);
         return undefined;
       }
-      return createIncomingWebhook(channel.channelID, req);
+      return createIncomingWebhook(channel.channelID, req, threadShortId);
     },
     onSuccess: (created) => {
       message.success(
@@ -469,6 +578,46 @@ function WebhookEditDialog({
       ),
   });
 
+  const handleSave = () => {
+    const mentionCheck = validateMentionUids(mentionUids);
+    if (!mentionCheck.ok) {
+      const isTooMany = mentionCheck.reason === "tooMany";
+      message.error(
+        t(
+          isTooMany
+            ? "channelWebhook.form.mentionUidsTooMany"
+            : "channelWebhook.form.mentionUidsTooLong",
+          { values: { max: isTooMany ? MENTION_UIDS_MAX : MENTION_UID_MAX_LENGTH } },
+        ),
+      );
+      return;
+    }
+    const req = buildWebhookUpsertReq({
+      isEdit,
+      isManager,
+      name,
+      avatar,
+      mentionAll,
+      mentionBots,
+      mentionUids: mentionCheck.uids,
+      webhook,
+    });
+    if (!req) {
+      onClose();
+      return;
+    }
+    mu.mutate(req);
+  };
+
+  const toggleMentionUid = (uid: string) => {
+    setMentionUids((prev) => {
+      const normalized = normalizeMentionUids(prev);
+      return normalized.includes(uid)
+        ? normalized.filter((item) => item !== uid)
+        : [...normalized, uid];
+    });
+  };
+
   return (
     <BaseDialog
       open
@@ -482,7 +631,7 @@ function WebhookEditDialog({
           <Button type="tertiary" theme="borderless" onClick={onClose}>
             {tr("common.cancel")}
           </Button>
-          <Button type="primary" theme="solid" loading={mu.isPending} onClick={() => mu.mutate()}>
+          <Button type="primary" theme="solid" loading={mu.isPending} onClick={handleSave}>
             {tr("base.common.save")}
           </Button>
         </div>
@@ -497,7 +646,7 @@ function WebhookEditDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={tr("channelWebhook.form.namePlaceholder")}
-            maxLength={40}
+            maxLength={WEBHOOK_NAME_MAX_LENGTH}
             className="h-9 rounded-md border border-border-default bg-bg-base px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </label>
@@ -515,6 +664,7 @@ function WebhookEditDialog({
               value={avatar}
               onChange={(e) => setAvatar(e.target.value)}
               placeholder={tr("channelWebhook.form.avatarPlaceholder")}
+              maxLength={WEBHOOK_AVATAR_MAX_LENGTH}
               className="h-9 rounded-md border border-border-default bg-bg-base px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             <span className="text-xs text-text-tertiary">
@@ -522,6 +672,109 @@ function WebhookEditDialog({
             </span>
           </label>
         ) : null}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-text-secondary">
+              {tr("channelWebhook.form.mentionUids")}
+              <span className="ml-1 font-normal text-text-tertiary">
+                {tr("channelWebhook.form.optional")}
+              </span>
+            </span>
+            <span className="text-[11px] text-text-tertiary">
+              {tr("channelWebhook.form.mentionUidsCount", {
+                values: { total: memberOptions.length, ai: aiOptionCount },
+              })}
+            </span>
+          </div>
+          <div className="rounded-md border border-border-default bg-bg-base">
+            <div className="border-b border-border-subtle p-2">
+              <input
+                value={mentionFilter}
+                onChange={(event) => setMentionFilter(event.target.value)}
+                placeholder={tr("channelWebhook.form.mentionUidsPlaceholder")}
+                className="h-8 w-full rounded-sm bg-bg-elevated px-2 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+              {selectedUids.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {selectedUids.map((uid) => {
+                    const option = optionByUid.get(uid);
+                    return (
+                      <button
+                        type="button"
+                        key={uid}
+                        onClick={() => toggleMentionUid(uid)}
+                        className="inline-flex max-w-full items-center gap-1 rounded-sm bg-bg-elevated px-1.5 py-0.5 text-[11px] text-text-secondary hover:bg-bg-hover"
+                      >
+                        <span className="truncate">{option?.name ?? uid}</span>
+                        {option?.isBot ? <AiBadge size="small" /> : null}
+                        <span className="text-text-tertiary">×</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            <div className="max-h-40 overflow-y-auto py-1">
+              {filteredMemberOptions.length > 0 ? (
+                filteredMemberOptions.map((item) => (
+                  <button
+                    type="button"
+                    key={item.uid}
+                    onClick={() => toggleMentionUid(item.uid)}
+                    className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-bg-hover"
+                  >
+                    <span
+                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border ${
+                        selectedSet.has(item.uid)
+                          ? "border-brand bg-brand text-white"
+                          : "border-border-default"
+                      }`}
+                    >
+                      {selectedSet.has(item.uid) ? "✓" : ""}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-text-primary">{item.name}</span>
+                    {item.isBot ? <AiBadge size="small" /> : null}
+                  </button>
+                ))
+              ) : (
+                <div className="px-2 py-3 text-center text-xs text-text-tertiary">
+                  {tr("channelWebhook.form.mentionUidsEmpty")}
+                </div>
+              )}
+            </div>
+          </div>
+          <span className="text-xs text-text-tertiary">
+            {tr("channelWebhook.form.mentionUidsHint", { values: { max: MENTION_UIDS_MAX } })}
+          </span>
+        </div>
+        <div className="rounded-md border border-warning/20 bg-warning/10 p-3">
+          <div className="mb-2 flex items-start gap-2 text-xs text-warning">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{tr("channelWebhook.form.broadcastNoiseHint")}</span>
+          </div>
+          <label className="flex items-center justify-between gap-3 py-1.5">
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-text-secondary">
+                {tr("channelWebhook.form.mentionBots")}
+              </span>
+              <span className="block text-xs text-text-tertiary">
+                {tr("channelWebhook.form.mentionBotsHint")}
+              </span>
+            </span>
+            <Switch checked={mentionBots} onChange={setMentionBots} />
+          </label>
+          <label className="flex items-center justify-between gap-3 py-1.5">
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-text-secondary">
+                {tr("channelWebhook.form.mentionAll")}
+              </span>
+              <span className="block text-xs text-text-tertiary">
+                {tr("channelWebhook.form.mentionAllHint")}
+              </span>
+            </span>
+            <Switch checked={mentionAll} onChange={setMentionAll} />
+          </label>
+        </div>
       </div>
     </BaseDialog>
   );
@@ -560,6 +813,27 @@ function WebhookUrlDialog({
     [apiURL, resp],
   );
   const nativeRow = rows.find((row) => row.key === "native");
+  const coreRows = rows.filter((row) => row.key === "native" || row.key === "wecom");
+  const extraRows = rows.filter((row) => row.key !== "native" && row.key !== "wecom");
+  const serverExtraExamples = useMemo(
+    () =>
+      buildWebhookAdapterExamples(resp, apiURL || "/", window.location.origin).filter(
+        (row) => row.key !== "native" && row.key !== "wecom",
+      ),
+    [apiURL, resp],
+  );
+  const useServerExamples = serverExtraExamples.length > 0;
+  const hasMore = useServerExamples || extraRows.length > 0;
+  const moreNames = useServerExamples
+    ? serverExtraExamples.map((example) => brandName(example.key, example.title, tr))
+    : extraRows.map((row) => brandName(row.key, tr(row.labelKey), tr));
+  const moreTeaser = moreNames.slice(0, 4).join(tr("channelWebhook.url.example.moreSep"));
+  const moreLabel =
+    moreNames.length > 4
+      ? tr("channelWebhook.url.example.moreEtc", { values: { names: moreTeaser } })
+      : moreTeaser;
+  const [showMore, setShowMore] = useState(false);
+  const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = async (text: string, key: string) => {
@@ -613,14 +887,70 @@ function WebhookUrlDialog({
             <div className="text-xs font-semibold text-text-secondary">
               {tr("channelWebhook.url.example.title")}
             </div>
-            {rows.map((row) => (
+            {coreRows.map((row) => (
               <WebhookExample key={row.key} row={row} copiedKey={copiedKey} onCopy={handleCopy} />
             ))}
+            {hasMore ? (
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-text-primary"
+                  aria-expanded={showMore}
+                  onClick={() => setShowMore((prev) => !prev)}
+                >
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${showMore ? "rotate-180" : ""}`}
+                  />
+                  {showMore
+                    ? tr("channelWebhook.url.example.less")
+                    : tr("channelWebhook.url.example.more", { values: { names: moreLabel } })}
+                </button>
+                {showMore
+                  ? useServerExamples
+                    ? serverExtraExamples.map((example) => (
+                        <ServerWebhookExample
+                          key={example.key}
+                          example={example}
+                          token={resp.token}
+                          copiedKey={copiedKey}
+                          openSteps={!!openSteps[example.key]}
+                          onToggleSteps={() =>
+                            setOpenSteps((prev) => ({
+                              ...prev,
+                              [example.key]: !prev[example.key],
+                            }))
+                          }
+                          onCopy={handleCopy}
+                        />
+                      ))
+                    : extraRows.map((row) => (
+                        <WebhookExample
+                          key={row.key}
+                          row={row}
+                          copiedKey={copiedKey}
+                          onCopy={handleCopy}
+                        />
+                      ))
+                  : null}
+              </div>
+            ) : null}
           </>
         )}
       </div>
     </BaseDialog>
   );
+}
+
+function brandName(
+  key: string,
+  fallback: string,
+  tr: (key: string, options?: { values?: Record<string, string | number> }) => string,
+): string {
+  if (["github", "gitlab", "feishu", "multica", "wecom"].includes(key)) {
+    return tr(`channelWebhook.url.brand.${key}`);
+  }
+  return fallback;
 }
 
 function UrlValueRow({
@@ -665,6 +995,7 @@ function WebhookExample({
 }) {
   const tr = useT();
   const feedbackKey = `example:${row.key}`;
+  const copied = copiedKey === feedbackKey;
   if (row.key === "github") {
     return (
       <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-base p-3">
@@ -675,7 +1006,7 @@ function WebhookExample({
         <UrlValueRow
           label={tr("channelWebhook.url.address")}
           value={row.url}
-          copied={copiedKey === feedbackKey}
+          copied={copied}
           onCopy={() => void onCopy(row.url, feedbackKey)}
         />
         <ol className="list-decimal space-y-1 pl-4 text-xs text-text-tertiary">
@@ -683,6 +1014,22 @@ function WebhookExample({
           <li>{tr("channelWebhook.url.example.github.step2")}</li>
           <li>{tr("channelWebhook.url.example.github.step3")}</li>
         </ol>
+      </div>
+    );
+  }
+  if (row.key !== "native" && row.key !== "wecom") {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-base p-3">
+        <div className="text-xs font-medium text-text-secondary">{tr(row.labelKey)}</div>
+        <UrlValueRow
+          label={tr("channelWebhook.url.address")}
+          value={row.url}
+          copied={copied}
+          onCopy={() => void onCopy(row.url, feedbackKey)}
+        />
+        <span className="text-xs text-text-tertiary">
+          {tr(`channelWebhook.url.example.${row.key}.note`)}
+        </span>
       </div>
     );
   }
@@ -695,7 +1042,6 @@ function WebhookExample({
       ? "channelWebhook.url.example.wecom.note"
       : "channelWebhook.url.example.native.note";
   const curl = buildWebhookCurlExample(row.key, row.url, tr(sampleKey));
-  const copied = copiedKey === feedbackKey;
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-base p-3">
       <div className="text-xs font-medium text-text-secondary">{tr(row.labelKey)}</div>
@@ -711,6 +1057,97 @@ function WebhookExample({
           </span>
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ServerWebhookExample({
+  example,
+  token,
+  copiedKey,
+  openSteps,
+  onToggleSteps,
+  onCopy,
+}: {
+  example: WebhookAdapterExampleRow;
+  token: string;
+  copiedKey: string | null;
+  openSteps: boolean;
+  onToggleSteps: () => void;
+  onCopy: (text: string, key: string) => Promise<void>;
+}) {
+  const tr = useT();
+  const feedbackKey = `example:${example.key}`;
+  const tokenFeedbackKey = `authtoken:${example.key}`;
+  const needsHeaderToken = example.auth.type === "url_token_and_header" && !!example.auth.header;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-base p-3">
+      <div className="text-xs font-medium text-text-secondary">{example.title}</div>
+      {example.description ? (
+        <span className="text-xs text-text-tertiary">{example.description}</span>
+      ) : null}
+      <UrlValueRow
+        label={tr("channelWebhook.url.address")}
+        value={example.url}
+        copied={copiedKey === feedbackKey}
+        onCopy={() => void onCopy(example.url, feedbackKey)}
+      />
+      {example.steps.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 self-start text-xs text-text-secondary hover:text-text-primary"
+            aria-expanded={openSteps}
+            onClick={onToggleSteps}
+          >
+            <ChevronDown
+              size={14}
+              className={`transition-transform ${openSteps ? "rotate-180" : ""}`}
+            />
+            {tr("channelWebhook.url.example.stepsTitle")}
+          </button>
+          {openSteps ? (
+            <ol className="list-decimal space-y-1 pl-4 text-xs text-text-tertiary">
+              {example.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+      {needsHeaderToken ? (
+        <WebhookAuthTokenHint
+          auth={example.auth}
+          token={token}
+          copied={copiedKey === tokenFeedbackKey}
+          onCopy={() => void onCopy(token, tokenFeedbackKey)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function WebhookAuthTokenHint({
+  auth,
+  token,
+  copied,
+  onCopy,
+}: {
+  auth: IncomingWebhookAdapterAuth;
+  token: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const tr = useT();
+  if (!auth.header || !token || auth.value_source !== "token") return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-text-tertiary">
+        {tr("channelWebhook.url.example.auth.headerHint", {
+          values: { header: auth.header },
+        })}
+      </span>
+      <UrlValueRow label={auth.header} value={token} copied={copied} onCopy={onCopy} />
     </div>
   );
 }

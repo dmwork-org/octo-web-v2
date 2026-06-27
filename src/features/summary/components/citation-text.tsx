@@ -15,12 +15,23 @@ import { router } from "@/lib/router";
 import { authStore } from "@/features/base/stores/auth";
 import { chatLocateMessageActions } from "@/features/chat/stores/chat-locate-message";
 import { chatSelectedActions } from "@/features/chat/stores/chat-selected";
-import { summaryMarkdownClass } from "@/features/summary/components/summary-content";
-import type { CitationContextMessage, CitationItem } from "@/features/summary/types/summary.types";
+import {
+  SummaryContent,
+  summaryMarkdownClass,
+} from "@/features/summary/components/summary-content";
+import type {
+  CitationContextMessage,
+  CitationItem,
+  MemberStatus,
+  TeamCitationItem,
+} from "@/features/summary/types/summary.types";
 
 interface CitationTextProps {
   content: string;
   citations: CitationItem[];
+  teamCitations?: TeamCitationItem[];
+  members?: MemberStatus[];
+  hidePlainCitations?: boolean;
 }
 
 interface CitationContextValue {
@@ -69,6 +80,14 @@ interface CitationGroupNode extends Node {
   data: {
     hName: "citationgroup";
     hProperties: { indices: string; badgekey: string };
+  };
+}
+
+interface TeamCitationNode extends Node {
+  type: "teamcitation";
+  data: {
+    hName: "teamcitation";
+    hProperties: { index: number; badgekey: string };
   };
 }
 
@@ -143,6 +162,48 @@ const remarkCitation: Plugin<[CitationItem[]], Root> = (citations) => {
           });
         }
         cursor = g.end;
+      }
+      if (cursor < node.value.length) {
+        parts.push({ type: "text", value: node.value.slice(cursor) });
+      }
+
+      parent.children.splice(index, 1, ...(parts as unknown as Parent["children"]));
+      return index + parts.length;
+    });
+  };
+};
+
+const remarkTeamCitation: Plugin<[], Root> = () => {
+  return (tree) => {
+    let occurrence = 0;
+    visit(tree, "text", (node: Text, index, parent: Parent | undefined) => {
+      if (!parent || index === undefined) return;
+      const regex = /\[P(\d{1,3})\]/g;
+      const matches: { start: number; end: number; idx: number }[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(node.value)) !== null) {
+        matches.push({ start: m.index, end: m.index + m[0].length, idx: parseInt(m[1], 10) });
+      }
+      if (matches.length === 0) return;
+
+      const parts: (Text | TeamCitationNode)[] = [];
+      let cursor = 0;
+      for (const match of matches) {
+        if (match.start > cursor) {
+          parts.push({ type: "text", value: node.value.slice(cursor, match.start) });
+        }
+        parts.push({
+          type: "teamcitation",
+          data: {
+            hName: "teamcitation",
+            hProperties: {
+              index: match.idx,
+              badgekey: `tc-${match.idx}-${occurrence}`,
+            },
+          },
+        });
+        occurrence += 1;
+        cursor = match.end;
       }
       if (cursor < node.value.length) {
         parts.push({ type: "text", value: node.value.slice(cursor) });
@@ -402,15 +463,73 @@ function CitationSingleBadge({ index, citations, badgeKey }: CitationSingleBadge
   );
 }
 
+interface TeamCitationBadgeProps {
+  index: number;
+  teamCitations: TeamCitationItem[];
+  members: MemberStatus[];
+  badgeKey: string;
+}
+
+function TeamCitationBadge({ index, teamCitations, members, badgeKey }: TeamCitationBadgeProps) {
+  const tr = useT();
+  const { activeKey, onBadgeClick, closeKey } = useContext(CitationCtx);
+  const citation = teamCitations.find((item) => item.index === index);
+  if (!citation) return <sup className={badgeClass}>[P{index}]</sup>;
+  const visible = activeKey === badgeKey;
+  const member = members.find((item) => item.user_id === citation.user_id);
+  const memberContent = member?.content?.trim() ?? "";
+  const cleanedContent = memberContent.replace(/\[\d+\]/g, "");
+
+  return (
+    <Popover open={visible} onOpenChange={(open) => !open && closeKey(badgeKey)}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={badgeClass}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBadgeClick(badgeKey);
+          }}
+        >
+          [P{index}]
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-[380px] max-w-[calc(100vw-32px)] overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="max-h-[360px] overflow-y-auto p-3">
+          <div className="rounded-sm border-l-2 border-text-primary bg-bg-elevated px-2.5 py-2">
+            <div className="mb-1 text-[13px] font-semibold text-text-primary">
+              {tr("summary.citation.member", { values: { name: citation.user_name } })}
+            </div>
+            {cleanedContent ? (
+              <SummaryContent content={cleanedContent} />
+            ) : (
+              <div className="text-xs text-text-tertiary">
+                {tr("summary.detail.waitingSubmit", { values: { name: citation.user_name } })}
+              </div>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── 主体 ─────────────────────────────────────────────────
 
 const citationSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "citation", "citationgroup"],
+  tagNames: [...(defaultSchema.tagNames ?? []), "citation", "citationgroup", "teamcitation"],
   attributes: {
     ...defaultSchema.attributes,
     citation: ["index", "badgekey"],
     citationgroup: ["indices", "badgekey"],
+    teamcitation: ["index", "badgekey"],
   },
 };
 
@@ -429,10 +548,22 @@ interface CitationGroupNodeProps {
   node?: { properties?: { indices?: string; badgekey?: string } };
 }
 
+interface TeamCitationNodeProps {
+  index?: number | string;
+  badgekey?: string;
+  node?: { properties?: { index?: number | string; badgekey?: string } };
+}
+
 /**
  * 总结正文(含引用 [1] [2] [3])。
  */
-export function CitationText({ content, citations }: CitationTextProps) {
+export function CitationText({
+  content,
+  citations,
+  teamCitations = [],
+  members = [],
+  hidePlainCitations = false,
+}: CitationTextProps) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const onBadgeClick = useCallback(
     (key: string) => setActiveKey((prev) => (prev === key ? null : key)),
@@ -451,6 +582,7 @@ export function CitationText({ content, citations }: CitationTextProps) {
   const components = useMemo(
     () => ({
       citation: ({ index, badgekey, node }: CitationNodeProps) => {
+        if (hidePlainCitations) return <span>[{node?.properties?.index ?? index}]</span>;
         const rawIndex = node?.properties?.index ?? index;
         const badgeKey = node?.properties?.badgekey ?? badgekey;
         if (rawIndex == null || !badgeKey) return null;
@@ -461,21 +593,42 @@ export function CitationText({ content, citations }: CitationTextProps) {
         );
       },
       citationgroup: ({ indices, badgekey, node }: CitationGroupNodeProps) => {
+        if (hidePlainCitations) return <span>[{node?.properties?.indices ?? indices}]</span>;
         const indicesText = node?.properties?.indices ?? indices;
         const badgeKey = node?.properties?.badgekey ?? badgekey;
         if (!indicesText || !badgeKey) return null;
         const arr = indicesText.split(",").map((s) => parseInt(s, 10));
         return <CitationGroupBadge indices={arr} citations={citations} badgeKey={badgeKey} />;
       },
+      teamcitation: ({ index, badgekey, node }: TeamCitationNodeProps) => {
+        const rawIndex = node?.properties?.index ?? index;
+        const badgeKey = node?.properties?.badgekey ?? badgekey;
+        if (rawIndex == null || !badgeKey) return null;
+        const parsedIndex = Number(rawIndex);
+        if (!Number.isFinite(parsedIndex)) return null;
+        return (
+          <TeamCitationBadge
+            index={parsedIndex}
+            teamCitations={teamCitations}
+            members={members}
+            badgeKey={badgeKey}
+          />
+        );
+      },
     }),
-    [citations],
+    [citations, hidePlainCitations, members, teamCitations],
   );
+  const remarkPlugins: PluggableList = [
+    ...baseRemarkPlugins,
+    ...(hidePlainCitations ? [] : ([[remarkCitation, citations]] as PluggableList)),
+    ...(teamCitations.length > 0 ? [remarkTeamCitation] : []),
+  ];
 
   return (
     <CitationCtx.Provider value={ctxValue}>
       <div className={summaryMarkdownClass} onClick={() => setActiveKey(null)}>
         <ReactMarkdown
-          remarkPlugins={[...baseRemarkPlugins, [remarkCitation, citations]]}
+          remarkPlugins={remarkPlugins}
           rehypePlugins={rehypePlugins}
           components={components as Record<string, unknown>}
         >

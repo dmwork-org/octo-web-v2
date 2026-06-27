@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, Clock, Plus, X } from "lucide-react";
+import { Bot, Clock, Plus, Users, X } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
 import { createSchedule, createSummary } from "@/features/summary/api/summary.api";
 import { ChatSelectorModal } from "@/features/summary/components/chat-selector-modal";
+import { ParticipantPicker } from "@/features/summary/components/participant-picker";
 import { ScheduleConfigModal } from "@/features/summary/components/schedule-config-modal";
 import { TemplateCard } from "@/features/summary/components/template-card";
 import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
@@ -44,6 +45,7 @@ function chatsToSources(chats: ChatCandidate[]): SourceItem[] {
 export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProps) {
   const tr = useT();
   const qc = useQueryClient();
+  const [participantUids, setParticipantUids] = useState<string[]>([]);
   const [selectedChats, setSelectedChats] = useState<ChatCandidate[]>([]);
   const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(null);
   const [showChatSelector, setShowChatSelector] = useState(false);
@@ -54,10 +56,13 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
   const mu = useMutation({
     mutationFn: async () => {
       const sources = chatsToSources(selectedChats);
+      const participants =
+        participantUids.length > 0 ? participantUids.map((uid) => ({ user_id: uid })) : undefined;
       const params: CreateSummaryParams = {
         topic: topic.trim(),
         title: topic.trim(),
         summary_mode: SummaryMode.BY_PERSON,
+        participants,
       };
       if (sources.length > 0) params.sources = sources;
       const result = await createSummary(params);
@@ -69,6 +74,7 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
             ...scheduleToParams(scheduleConfig),
             time_range_type: 2,
             sources,
+            participants,
             scope: "task",
             task_id: result.task_id,
           });
@@ -168,6 +174,24 @@ export function SummaryCreateWorkbench({ onCreated }: SummaryCreateWorkbenchProp
                     })
                   : tr("summary.create.selectChat")}
               </button>
+              <ParticipantPicker
+                value={participantUids}
+                onChange={setParticipantUids}
+                trigger={({ open, count }) => (
+                  <button
+                    type="button"
+                    onClick={open}
+                    className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors hover:bg-bg-hover ${
+                      count > 0 ? "text-brand" : "text-text-secondary"
+                    }`}
+                  >
+                    <Users size={15} />
+                    {count > 0
+                      ? tr("summary.create.selectedMembers", { values: { count } })
+                      : tr("summary.create.selectMembers")}
+                  </button>
+                )}
+              />
               <button
                 type="button"
                 onClick={() => setShowScheduleConfig(true)}

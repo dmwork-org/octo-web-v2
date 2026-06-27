@@ -8,6 +8,7 @@ import { JsonlRenderer } from "@/features/chat/file-preview/renderers/jsonl-rend
 import { MarkdownRenderer } from "@/features/chat/file-preview/renderers/markdown-renderer";
 import { PdfRenderer } from "@/features/chat/file-preview/renderers/pdf-renderer";
 import { TextRenderer } from "@/features/chat/file-preview/renderers/text-renderer";
+import { VideoRenderer } from "@/features/chat/file-preview/renderers/video-renderer";
 import {
   type FileRenderer,
   type FileType,
@@ -25,8 +26,8 @@ import {
  *   markdown / text / code     — commit 3(需 fetch 文本)
  *   json / jsonl / excel / html — commit 4(本)
  *
- * **明确不支持**(走 fallback):.docx / .xlsx / .pptx / .doc / .xls / .ppt
- * 等 Office binary、.mp3 / .mp4 等音视频(对话流内有专门 renderer)。
+ * **明确不支持**(走 fallback):.docx / .pptx / .doc / .ppt 等 Office binary、
+ * .mp3 等音频(对话流内有专门 renderer)。
  */
 
 class FileRendererRegistry {
@@ -38,6 +39,12 @@ class FileRendererRegistry {
       type: "image",
       extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg"],
       renderer: ImageRenderer,
+      needsFetch: false,
+    });
+    this.register({
+      type: "video",
+      extensions: ["mp4", "m4v", "mov", "webm", "ogv", "ogg"],
+      renderer: VideoRenderer,
       needsFetch: false,
     });
     this.register({

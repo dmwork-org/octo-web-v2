@@ -24,6 +24,7 @@ import { ConfirmDialog } from "@/features/base/components/overlay/confirm-dialog
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { RealnameVerifiedBadge } from "@/features/base/components/badges/realname-verified-badge";
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
+import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import { isVerifiedMember } from "@/features/chat/lib/member-realname";
 import {
@@ -47,12 +48,14 @@ import {
   updateThread,
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
+import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 // section-form 共享原语
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -293,9 +296,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
     ?.has_thread_md;
   const threadMdVersion =
     (channelInfo?.orgData as { thread_md_version?: number } | undefined)?.thread_md_version ?? 0;
+  const canOpenChannelSearch = useMessagesSearchEnabled() && supportsChannelSearch(channel);
 
   const refreshChannelInfo = () => {
     void WKSDK.shared().channelManager.fetchChannelInfo(channel);
+  };
+
+  const openChannelSearch = () => {
+    onClose();
+    chatSidePanelActions.openChannelSearch();
   };
 
   const topMu = useMutation({
@@ -554,6 +563,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         {isPerson ? (
           <SectionGroup>
             <NavRow title={tt("channelSetting.addMember")} onClick={() => setAddOpen(true)} />
+            {canOpenChannelSearch ? (
+              <NavRow
+                title={tt("module.channelSettings.messageHistory")}
+                onClick={openChannelSearch}
+              />
+            ) : null}
           </SectionGroup>
         ) : null}
 
@@ -627,6 +642,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               onCancel={() => setEditing(null)}
               onSave={(v) => remarkMu.mutate(v)}
             />
+            {canOpenChannelSearch ? (
+              <NavRow
+                title={tt("module.channelSettings.messageHistory")}
+                onClick={openChannelSearch}
+              />
+            ) : null}
           </SectionGroup>
         ) : null}
 
@@ -677,6 +698,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               }
               onClick={() => setSubpage("md")}
             />
+            {canOpenChannelSearch ? (
+              <NavRow
+                title={tt("module.channelSettings.messageHistory")}
+                onClick={openChannelSearch}
+              />
+            ) : null}
+            {!isThreadArchived ? (
+              <NavRow title={tt("threadPanel.webhook")} onClick={() => setSubpage("webhook")} />
+            ) : null}
           </SectionGroup>
         ) : null}
 
@@ -811,9 +841,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
 
       <IncomingWebhookPanel
         open={subpage === "webhook"}
-        channel={channel}
+        channel={isThread && threadParentChannel ? threadParentChannel : channel}
         isManager={iAmOwnerOrManager}
-        title={tt("module.channelSettings.incomingWebhook")}
+        title={isThread ? tt("threadPanel.webhook") : tt("module.channelSettings.incomingWebhook")}
+        threadShortId={threadParsed?.shortId}
         onClose={() => setSubpage(null)}
       />
 

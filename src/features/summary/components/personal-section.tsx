@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Edit3 } from "lucide-react";
+import { ChevronDown, Edit3 } from "lucide-react";
 import { ChannelTypeGroup, ChannelTypePerson, type Conversation } from "wukongimjssdk";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
@@ -160,6 +160,7 @@ function MyResult({
   const tr = useT();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const { data, isLoading, error } = useQuery(personalResultQueryOptions(taskId, true));
 
   const submitMu = useMutation({
@@ -199,9 +200,21 @@ function MyResult({
       ) : (
         <>
           <div className="flex min-h-9 items-center justify-between gap-2">
-            <h3 className="min-w-0 truncate text-sm font-semibold text-text-primary">
-              {tr("summary.detail.mySummaryPlain")}
-            </h3>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              <ChevronDown
+                size={14}
+                className={`shrink-0 text-text-tertiary transition-transform ${
+                  expanded ? "rotate-180" : ""
+                }`}
+              />
+              <h3 className="min-w-0 truncate text-sm font-semibold text-text-primary">
+                {tr("summary.detail.mySummaryPlain")}
+              </h3>
+            </button>
             {canEdit && baseResultId && data.content ? (
               <div className="flex shrink-0 items-center gap-2">
                 <Button
@@ -216,17 +229,19 @@ function MyResult({
               </div>
             ) : null}
           </div>
-          {data.content ? (
-            hasCitations ? (
-              <CitationText content={data.content} citations={data.citations!} />
+          {expanded ? (
+            data.content ? (
+              hasCitations ? (
+                <CitationText content={data.content} citations={data.citations!} />
+              ) : (
+                <SummaryContent content={data.content} />
+              )
             ) : (
-              <SummaryContent content={data.content} />
+              <p className="text-xs italic text-text-tertiary">
+                {tr("summary.personal.emptyContent")}
+              </p>
             )
-          ) : (
-            <p className="text-xs italic text-text-tertiary">
-              {tr("summary.personal.emptyContent")}
-            </p>
-          )}
+          ) : null}
         </>
       )}
       {data.worker_status === 0 && data.content && !editing ? (

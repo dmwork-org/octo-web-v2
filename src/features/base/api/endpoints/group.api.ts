@@ -443,18 +443,27 @@ export function normalizeIncomingWebhookList(resp: IncomingWebhookListResp): Inc
   return [];
 }
 
-export async function listIncomingWebhooks(groupNo: string): Promise<IncomingWebhook[]> {
-  const resp = await api<IncomingWebhookListResp>(
-    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks`,
-  );
+export function incomingWebhookBasePath(groupNo: string, threadShortId?: string): string {
+  const groupPath = `groups/${encodeURIComponent(groupNo)}`;
+  return threadShortId
+    ? `${groupPath}/threads/${encodeURIComponent(threadShortId)}/incoming-webhooks`
+    : `${groupPath}/incoming-webhooks`;
+}
+
+export async function listIncomingWebhooks(
+  groupNo: string,
+  threadShortId?: string,
+): Promise<IncomingWebhook[]> {
+  const resp = await api<IncomingWebhookListResp>(incomingWebhookBasePath(groupNo, threadShortId));
   return normalizeIncomingWebhookList(resp);
 }
 
 export async function createIncomingWebhook(
   groupNo: string,
   body: IncomingWebhookUpsertReq,
+  threadShortId?: string,
 ): Promise<IncomingWebhookCreateResp> {
-  return api<IncomingWebhookCreateResp>(`groups/${encodeURIComponent(groupNo)}/incoming-webhooks`, {
+  return api<IncomingWebhookCreateResp>(incomingWebhookBasePath(groupNo, threadShortId), {
     method: "POST",
     body,
   });
@@ -464,34 +473,45 @@ export async function updateIncomingWebhook(
   groupNo: string,
   webhookId: string,
   body: IncomingWebhookUpsertReq,
+  threadShortId?: string,
 ): Promise<IncomingWebhook> {
   return api<IncomingWebhook>(
-    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}`,
+    `${incomingWebhookBasePath(groupNo, threadShortId)}/${encodeURIComponent(webhookId)}`,
     { method: "PUT", body },
   );
 }
 
-export async function deleteIncomingWebhook(groupNo: string, webhookId: string): Promise<void> {
-  await api(
-    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}`,
-    { method: "DELETE" },
-  );
+export async function deleteIncomingWebhook(
+  groupNo: string,
+  webhookId: string,
+  threadShortId?: string,
+): Promise<void> {
+  await api(`${incomingWebhookBasePath(groupNo, threadShortId)}/${encodeURIComponent(webhookId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function regenerateIncomingWebhook(
   groupNo: string,
   webhookId: string,
+  threadShortId?: string,
 ): Promise<IncomingWebhookCreateResp> {
   return api<IncomingWebhookCreateResp>(
-    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}/regenerate`,
+    `${incomingWebhookBasePath(groupNo, threadShortId)}/${encodeURIComponent(webhookId)}/regenerate`,
     { method: "POST" },
   );
 }
 
-export async function testIncomingWebhook(groupNo: string, webhookId: string): Promise<void> {
+export async function testIncomingWebhook(
+  groupNo: string,
+  webhookId: string,
+  threadShortId?: string,
+): Promise<void> {
   await api(
-    `groups/${encodeURIComponent(groupNo)}/incoming-webhooks/${encodeURIComponent(webhookId)}/test`,
-    { method: "POST" },
+    `${incomingWebhookBasePath(groupNo, threadShortId)}/${encodeURIComponent(webhookId)}/test`,
+    {
+      method: "POST",
+    },
   );
 }
 

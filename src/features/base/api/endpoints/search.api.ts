@@ -1,4 +1,9 @@
 import { api } from "@/features/base/api/client";
+import {
+  RichTextBlockType,
+  buildRichTextPlain,
+  type RichTextBlock,
+} from "@/features/base/im/richtext-content";
 import { endpointStore } from "@/features/base/stores/endpoint";
 import { spaceStore } from "@/features/base/stores/space";
 
@@ -155,6 +160,25 @@ export interface ChannelSearchForwardInfo {
   innerMessages?: ChannelSearchForwardInnerMessage[];
 }
 
+export interface ChannelSearchRichTextMentionEntity {
+  uid: string;
+  offset: number;
+  length: number;
+}
+
+export interface ChannelSearchRichTextMention {
+  entities?: ChannelSearchRichTextMentionEntity[];
+  all?: number;
+  humans?: number;
+  ais?: number;
+}
+
+export interface ChannelSearchRichTextInfo {
+  content: RichTextBlock[];
+  plain?: string;
+  mention?: ChannelSearchRichTextMention;
+}
+
 export interface ChannelSearchItem {
   id: string;
   messageId: string;
@@ -169,6 +193,7 @@ export interface ChannelSearchItem {
   file?: ChannelSearchFileInfo;
   media?: ChannelSearchMediaInfo;
   forward?: ChannelSearchForwardInfo;
+  richText?: ChannelSearchRichTextInfo;
 }
 
 export interface ChannelSearchResponse {
@@ -194,7 +219,7 @@ type SearchEnvelope<T> =
 type MessageSearchHit = {
   message_id?: string;
   message_seq?: number;
-  message_kind?: "text" | "forward" | "quote";
+  message_kind?: "text" | "forward" | "quote" | "image" | "video";
   snippet?: string;
   sender_id?: string;
   sender_name?: string;
@@ -207,6 +232,11 @@ type MessageSearchHit = {
   inner_messages?: ForwardInnerMessageHit[];
   channel_id?: string;
   channel_type?: number;
+  thumb_url?: string;
+  width?: number;
+  height?: number;
+  duration_ms?: number;
+  rich_text?: RichTextSearchHit;
 };
 
 type ForwardInnerMessageHit = {
@@ -216,6 +246,36 @@ type ForwardInnerMessageHit = {
   sender_id?: string;
   sender_name?: string;
   sent_at?: string;
+};
+
+type RichTextSearchBlock = {
+  type?: string;
+  text?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  size?: number;
+  name?: string;
+  extension?: string;
+  mime?: string;
+  caption?: string;
+};
+
+type RichTextSearchMentionEntity = {
+  uid?: string;
+  offset?: number;
+  length?: number;
+};
+
+type RichTextSearchHit = {
+  content?: RichTextSearchBlock[];
+  plain?: string;
+  mention?: {
+    entities?: RichTextSearchMentionEntity[];
+    all?: number;
+    humans?: number;
+    ais?: number;
+  };
 };
 
 type MediaSearchHit = {
@@ -403,15 +463,111 @@ function mapForwardInnerMessage(hit: ForwardInnerMessageHit): ChannelSearchForwa
   };
 }
 
+function normalizeRichTextMention(
+  mention?: RichTextSearchHit["mention"],
+): ChannelSearchRichTextMention | undefined {
+  if (!mention) return undefined;
+  const entities = Array.isArray(mention.entities)
+    ? mention.entities
+        .filter(
+          (
+            entity,
+          ): entity is {
+            uid: string;
+            offset: number;
+            length: number;
+          } =>
+            typeof entity?.uid === "string" &&
+            typeof entity.offset === "number" &&
+            typeof entity.length === "number" &&
+            entity.offset >= 0 &&
+            entity.length > 0,
+        )
+        .map((entity) => ({
+          uid: entity.uid,
+          offset: entity.offset,
+          length: entity.length,
+        }))
+    : undefined;
+  return {
+    entities,
+    all: mention.all,
+    humans: mention.humans,
+    ais: mention.ais,
+  };
+}
+
+function normalizeRichText(richText?: RichTextSearchHit): ChannelSearchRichTextInfo | undefined {
+  if (!richText) return undefined;
+  const content: RichTextBlock[] = Array.isArray(richText.content)
+    ? richText.content
+        .filter((block): block is RichTextSearchBlock & { type: string } => {
+          return typeof block?.type === "string" && block.type.length > 0;
+        })
+        .map((block) => ({
+          type: block.type,
+          text: block.text,
+          url: resolveRemoteUrl(block.url),
+          width: block.width,
+          height: block.height,
+          size: block.size,
+          name: block.name,
+        }))
+    : [];
+  const plain = typeof richText.plain === "string" ? richText.plain : undefined;
+  if (content.length === 0 && !plain) return undefined;
+  return {
+    content,
+    plain,
+    mention: normalizeRichTextMention(richText.mention),
+  };
+}
+
+function mapMessageMediaHit(
+  hit: MessageSearchHit,
+  query: ChannelSearchQuery,
+  mediaKind: "image" | "video",
+): ChannelSearchItem {
+  const sender = senderFromHit(hit);
+  const hitChannel = channelFromHit(hit, query);
+  const thumbUrl = resolveRemoteUrl(hit.thumb_url);
+  return {
+    id: hit.message_id || `${hit.message_seq || 0}`,
+    messageId: hit.message_id || "",
+    messageSeq: hit.message_seq || 0,
+    channelId: hitChannel.channelId,
+    channelType: hitChannel.channelType,
+    senderUid: sender.uid,
+    sender,
+    timestamp: sentAtToSeconds(hit.sent_at),
+    kind: mediaKind,
+    text: hit.snippet || "",
+    media: {
+      url: mediaKind === "image" ? thumbUrl : undefined,
+      previewUrl: mediaKind === "image" ? thumbUrl : undefined,
+      thumbUrl,
+      duration:
+        typeof hit.duration_ms === "number" ? Math.round(hit.duration_ms / 1000) : undefined,
+      width: hit.width,
+      height: hit.height,
+      monthBucket: monthBucketFromSentAt(hit.sent_at),
+    },
+  };
+}
+
 function mapMessageHit(hit: MessageSearchHit, query: ChannelSearchQuery): ChannelSearchItem {
   const sender = senderFromHit(hit);
   const hitChannel = channelFromHit(hit, query);
+  const messageKind = hit.message_kind || "text";
+  if (messageKind === "image" || messageKind === "video") {
+    return mapMessageMediaHit(hit, query, messageKind);
+  }
+  const richText = normalizeRichText(hit.rich_text);
   const kind =
-    hit.message_kind === "forward"
-      ? "merge_forward"
-      : hit.message_kind === "quote"
-        ? "quote"
-        : "text";
+    messageKind === "forward" ? "merge_forward" : messageKind === "quote" ? "quote" : "text";
+  const richTextPlain = richText
+    ? richText.plain || buildRichTextPlain(richText.content)
+    : undefined;
   return {
     id: hit.message_id || `${hit.message_seq || 0}`,
     messageId: hit.message_id || "",
@@ -422,9 +578,10 @@ function mapMessageHit(hit: MessageSearchHit, query: ChannelSearchQuery): Channe
     sender,
     timestamp: sentAtToSeconds(hit.sent_at),
     kind,
-    text: hit.snippet || "",
+    text: hit.snippet || richTextPlain || "",
+    richText,
     forward:
-      hit.message_kind === "forward"
+      messageKind === "forward"
         ? {
             title: hit.outer_preview?.title || "",
             childCount: hit.outer_preview?.child_count,
@@ -499,11 +656,21 @@ function mapCombinedHit(
   hit: CombinedSearchHit,
   query: ChannelSearchQuery,
 ): ChannelSearchItem | undefined {
-  if (hit.result_type === "file" && hit.file) return mapFileHit(hit.file, query);
-  if (hit.result_type === "message" && hit.message) return mapMessageHit(hit.message, query);
-  if (hit.result_type === "media" && hit.media) return mapMediaHit(hit.media, query);
-  return undefined;
+  let item: ChannelSearchItem | undefined;
+  if (hit.result_type === "file" && hit.file) item = mapFileHit(hit.file, query);
+  else if (hit.result_type === "message" && hit.message) item = mapMessageHit(hit.message, query);
+  else if (hit.result_type === "media" && hit.media) item = mapMediaHit(hit.media, query);
+  if (item && hit.sorted_at) item.timestamp = sentAtToSeconds(hit.sorted_at);
+  return item;
 }
+
+export const channelSearchApiTestUtils = {
+  RichTextBlockType,
+  mapMessageHit,
+  mapCombinedHit,
+  normalizeRichText,
+  mapMessageMediaHit,
+};
 
 export async function searchChannelMessages(
   query: ChannelSearchQuery,

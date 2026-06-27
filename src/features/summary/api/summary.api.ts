@@ -125,6 +125,17 @@ export async function deleteSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}`, { method: "DELETE" });
 }
 
+export async function leaveSummary(taskId: number): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/leave`, { method: "POST" });
+}
+
+export async function removeMember(taskId: number, uid: string): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/members`, {
+    method: "DELETE",
+    query: { uid },
+  });
+}
+
 export async function regenerateSummary(
   taskId: number,
   body?: { topic?: string },

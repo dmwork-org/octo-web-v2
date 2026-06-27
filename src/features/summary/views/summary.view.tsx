@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { deleteSummary, respondToTask } from "@/features/summary/api/summary.api";
+import { deleteSummary, leaveSummary, respondToTask } from "@/features/summary/api/summary.api";
 import { useT } from "@/lib/i18n/use-t";
 import { spaceStore } from "@/features/base/stores/space";
 import { useResetOnSpaceChange } from "@/features/base/hooks/use-reset-on-space-change.hook";
@@ -125,6 +125,17 @@ export function SummaryView() {
     },
     onError: (err) =>
       message.error(err instanceof Error ? err.message : t("summary.common.operationFailed")),
+  });
+
+  const leaveMu = useMutation({
+    mutationFn: leaveSummary,
+    onSuccess: (_void, taskId) => {
+      void qc.invalidateQueries({ queryKey: ["summary", "list"] });
+      message.success(t("summary.detail.leaveSuccess"));
+      if (selectedId === taskId) setSelectedId(null);
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.detail.leaveFailed")),
   });
 
   if (!currentSpaceId) {
@@ -266,6 +277,7 @@ export function SummaryView() {
                     setSelectedId(item.task_id);
                   }}
                   onDelete={() => deleteMu.mutate(item.task_id)}
+                  onLeave={() => leaveMu.mutate(item.task_id)}
                   onRespond={(action) => respondMu.mutate({ taskId: item.task_id, action })}
                 />
               ))

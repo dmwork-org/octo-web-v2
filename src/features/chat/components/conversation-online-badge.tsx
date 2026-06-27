@@ -7,11 +7,13 @@
  *
  * 显示条件由调用方判定(needShowOnlineStatus:online ‖ 1h 内离线)。
  */
-export function ConversationOnlineBadge() {
+export function ConversationOnlineBadge({ compact = false }: { compact?: boolean }) {
   return (
     <span
       aria-hidden
-      className="absolute right-[-1px] bottom-[-1px] box-border h-[9px] w-[9px] rounded-full border-2 border-bg-base bg-success"
+      className={`absolute right-[-1px] bottom-[-1px] box-border rounded-full border-bg-base bg-success ${
+        compact ? "h-[7px] w-[7px] border-[1.5px]" : "h-[9px] w-[9px] border-2"
+      }`}
     />
   );
 }

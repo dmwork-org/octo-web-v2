@@ -16,24 +16,51 @@ export interface IncomingWebhook {
   last_used_at: number;
   call_count: number;
   created_at: number;
+  allow_mention_all?: number | boolean | string;
+  allow_mention_bots?: number | boolean | string;
+  mention_uids?: string[];
+  thread_short_id?: string;
 }
 
 export interface IncomingWebhookUrls {
   native?: string;
   github?: string;
   wecom?: string;
+  gitlab?: string;
+  feishu?: string;
+  multica?: string;
+}
+
+export interface IncomingWebhookAdapterAuth {
+  type: string;
+  header?: string;
+  value_source?: string;
+}
+
+export interface IncomingWebhookAdapterExample {
+  key: string;
+  title: string;
+  description: string;
+  url: string;
+  content_type: string;
+  auth: IncomingWebhookAdapterAuth;
+  steps: string[];
 }
 
 export interface IncomingWebhookCreateResp extends IncomingWebhook {
   token: string;
   url: string;
   urls?: IncomingWebhookUrls;
+  adapter_examples?: IncomingWebhookAdapterExample[];
 }
 
 export interface IncomingWebhookUpsertReq {
   name?: string;
   avatar?: string;
   status?: number;
+  allow_mention_all?: boolean;
+  allow_mention_bots?: boolean;
+  mention_uids?: string[];
 }
 
 export function canManageIncomingWebhook(
@@ -48,15 +75,64 @@ export function canTestWebhook(item: Pick<IncomingWebhook, "status">): boolean {
   return item.status === IncomingWebhookStatus.enabled;
 }
 
+export const MENTION_UIDS_MAX = 50;
+export const MENTION_UID_MAX_LENGTH = 40;
+
+export function isFlagOn(value: unknown): boolean {
+  return value === 1 || value === true || value === "1" || value === "true";
+}
+
+export function normalizeMentionUids(uids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of uids) {
+    const uid = raw.trim();
+    if (!uid || seen.has(uid)) continue;
+    seen.add(uid);
+    out.push(uid);
+  }
+  return out;
+}
+
+export function validateMentionUids(
+  uids: readonly string[],
+): { ok: true; uids: string[] } | { ok: false; reason: "tooMany" | "tooLong" } {
+  const normalized = normalizeMentionUids(uids);
+  if (normalized.length > MENTION_UIDS_MAX) return { ok: false, reason: "tooMany" };
+  if (normalized.some((uid) => uid.length > MENTION_UID_MAX_LENGTH)) {
+    return { ok: false, reason: "tooLong" };
+  }
+  return { ok: true, uids: normalized };
+}
+
+function sameMentionUids(a: readonly string[], b: readonly string[]): boolean {
+  const sa = new Set(a);
+  const sb = new Set(b);
+  if (sa.size !== sb.size) return false;
+  for (const uid of sa) {
+    if (!sb.has(uid)) return false;
+  }
+  return true;
+}
+
 export function buildWebhookUpsertReq(opts: {
   isEdit: boolean;
   isManager: boolean;
   name: string;
   avatar: string;
-  webhook?: Pick<IncomingWebhook, "name" | "avatar">;
+  mentionAll?: boolean;
+  mentionBots?: boolean;
+  mentionUids?: string[];
+  webhook?: Pick<
+    IncomingWebhook,
+    "name" | "avatar" | "allow_mention_all" | "allow_mention_bots" | "mention_uids"
+  >;
 }): IncomingWebhookUpsertReq | null {
   const trimmedName = opts.name.trim();
   const trimmedAvatar = opts.avatar.trim();
+  const mentionAll = !!opts.mentionAll;
+  const mentionBots = !!opts.mentionBots;
+  const mentionUids = normalizeMentionUids(opts.mentionUids ?? []);
   const req: IncomingWebhookUpsertReq = {};
 
   if (opts.isEdit && opts.webhook) {
@@ -64,11 +140,24 @@ export function buildWebhookUpsertReq(opts: {
     if (opts.isManager && trimmedAvatar !== (opts.webhook.avatar || "")) {
       req.avatar = trimmedAvatar;
     }
+    if (mentionAll !== isFlagOn(opts.webhook.allow_mention_all)) {
+      req.allow_mention_all = mentionAll;
+    }
+    if (mentionBots !== isFlagOn(opts.webhook.allow_mention_bots)) {
+      req.allow_mention_bots = mentionBots;
+    }
+    const originalUids = normalizeMentionUids(opts.webhook.mention_uids ?? []);
+    if (!sameMentionUids(mentionUids, originalUids)) {
+      req.mention_uids = mentionUids;
+    }
     return Object.keys(req).length === 0 ? null : req;
   }
 
   if (trimmedName) req.name = trimmedName;
   if (opts.isManager && trimmedAvatar) req.avatar = trimmedAvatar;
+  if (mentionAll) req.allow_mention_all = true;
+  if (mentionBots) req.allow_mention_bots = true;
+  if (mentionUids.length > 0) req.mention_uids = mentionUids;
   return req;
 }
 
@@ -91,8 +180,20 @@ export function buildIncomingWebhookUrl(
   return `${abs.origin}${basePath}${rel}`;
 }
 
+const CANONICAL_WEBHOOK_SEGMENT = "/v1/incoming-webhooks/";
+const SHORT_WEBHOOK_SEGMENT = "/v1/webhooks/";
+
+export function toShortWebhookAlias(url: string): string {
+  if (!url) return url;
+  const idx = url.indexOf(CANONICAL_WEBHOOK_SEGMENT);
+  if (idx < 0) return url;
+  return (
+    url.slice(0, idx) + SHORT_WEBHOOK_SEGMENT + url.slice(idx + CANONICAL_WEBHOOK_SEGMENT.length)
+  );
+}
+
 export interface WebhookUrlRow {
-  key: "native" | "github" | "wecom";
+  key: "native" | "github" | "wecom" | "gitlab" | "feishu" | "multica";
   labelKey: string;
   url: string;
 }
@@ -102,24 +203,81 @@ export function buildWebhookUrlRows(
   apiURL: string,
   origin: string,
 ): WebhookUrlRow[] {
-  const abs = (rel?: string) => (rel ? buildIncomingWebhookUrl(rel, apiURL || "/", origin) : "");
-  return [
+  const abs = (rel?: string) =>
+    rel ? buildIncomingWebhookUrl(toShortWebhookAlias(rel), apiURL || "/", origin) : "";
+  const rows: WebhookUrlRow[] = [
     {
-      key: "native" as const,
+      key: "native",
       labelKey: "channelWebhook.url.native",
       url: abs(resp.urls?.native || resp.url),
     },
     {
-      key: "github" as const,
+      key: "github",
       labelKey: "channelWebhook.url.github",
       url: abs(resp.urls?.github),
     },
     {
-      key: "wecom" as const,
+      key: "gitlab",
+      labelKey: "channelWebhook.url.gitlab",
+      url: abs(resp.urls?.gitlab),
+    },
+    {
+      key: "wecom",
       labelKey: "channelWebhook.url.wecom",
       url: abs(resp.urls?.wecom),
     },
-  ].filter((row) => !!row.url);
+    {
+      key: "feishu",
+      labelKey: "channelWebhook.url.feishu",
+      url: abs(resp.urls?.feishu),
+    },
+    {
+      key: "multica",
+      labelKey: "channelWebhook.url.multica",
+      url: abs(resp.urls?.multica),
+    },
+  ];
+  return rows.filter((row) => !!row.url);
+}
+
+export interface WebhookAdapterExampleRow {
+  key: string;
+  title: string;
+  description: string;
+  url: string;
+  contentType: string;
+  auth: IncomingWebhookAdapterAuth;
+  steps: string[];
+}
+
+export function buildWebhookAdapterExamples(
+  resp: Pick<IncomingWebhookCreateResp, "adapter_examples">,
+  apiURL: string,
+  origin: string,
+): WebhookAdapterExampleRow[] {
+  const examples = resp.adapter_examples;
+  if (!Array.isArray(examples) || examples.length === 0) return [];
+  const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+  return examples
+    .filter(
+      (example): example is IncomingWebhookAdapterExample =>
+        !!example && typeof example.key === "string" && example.key.length > 0,
+    )
+    .map((example) => ({
+      key: example.key,
+      title: text(example.title),
+      description: text(example.description),
+      url:
+        typeof example.url === "string" && example.url
+          ? buildIncomingWebhookUrl(toShortWebhookAlias(example.url), apiURL || "/", origin)
+          : "",
+      contentType: typeof example.content_type === "string" ? example.content_type : "",
+      auth: example.auth && typeof example.auth === "object" ? example.auth : { type: "" },
+      steps: Array.isArray(example.steps)
+        ? example.steps.map(text).filter((step) => step.length > 0)
+        : [],
+    }))
+    .filter((row) => !!row.url);
 }
 
 export interface WebhookMessageFrom {

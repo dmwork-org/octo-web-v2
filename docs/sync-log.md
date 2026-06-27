@@ -391,6 +391,107 @@ PreToolUse hook 真触发验证通过:
   - raw HTML message、compact conversation online badge
 - 更新计划文档:`docs/upstream-batch-4-plan.md`
 
+## 2026-06-27 — Batch 4 新增提交补录
+
+- 分支:`codex/update-batch-4-records`
+- 老仓远端 HEAD:`6055b724`
+- 新增范围:`553c1710..6055b724`,共 3 commits / 24 files changed / +1455 / -84
+- Batch 4 暂缓总范围更新为:`3f3059ee..6055b724`,共 13 commits / 72 files changed / +9200 / -440
+- 新增暂缓提交:
+  - `d1b4a8f1` thread-scoped incoming webhooks frontend — 归入 Batch 4.3 Webhook follow-up;依赖 `octo-server #454` 子区 webhook 管理端点
+  - `88e570cc` render rich channel search results — 归入 Batch 4.1 ChannelSearch follow-up;依赖搜索接口返回 rich_text / image / video 命中字段
+  - `6055b724` localized adapter examples in webhook URL modal — 归入 Batch 4.3 Webhook follow-up;依赖 `octo-server #475` 返回 `adapter_examples`,旧后端可 fallback
+- 本次只记录,未迁移代码,未推进 sync-log 头部 baseline SHA。
+- 更新计划文档:`docs/upstream-batch-4-plan.md`
+
+## 2026-06-27 — Batch 4 解锁
+
+- 分支:`codex/upstream-batch-4`
+- 老项目已确认正式上线。
+- 老仓 `main` 已 fast-forward 到 `6055b724`;再次 fetch 后本地 `main...origin/main` 一致,无新增提交。
+- Batch 4 状态从“暂缓”改为“可执行”。
+- 后续按 `docs/upstream-batch-4-plan.md` 分组拆实现 MR;每个 MR 记录覆盖 upstream SHA 和验证结果。
+
+## 2026-06-27 — Batch 4.1 ChannelSearch follow-up
+
+- 覆盖上游 SHA:
+  - `c2ea912b` locate 和 keyword limit polish
+  - `a85207a6` render forwarded channel search inner messages
+  - `7774db69` sender filter 独立计数
+  - `a9b0151a` preview channel search media results
+  - `88e570cc` render rich channel search results
+  - `c16ffb9b` channel search snippet emojis
+- 代码变更:
+  - keyword 输入保留 64 rune 前端限制,补 IME composing 保护、到顶提示和重复 toast 抑制;定位继续复用本仓 `chatLocateMessageActions`。
+  - 合并转发搜索结果映射并展示 `inner_messages`;新仓无 sender filter 数字 badge,不存在 sender 数量混淆问题。
+  - 搜索图片结果点击接入会话同款全屏图片查看器;视频结果接入 file-preview side panel;补 video renderer 和 `mp4/mov/webm/...` registry。
+  - `_search_all` / `_search` rich_text 命中映射到 `ChannelSearchItem.richText`;message_kind=image/video 命中映射为媒体结果。
+  - 搜索结果富文本摘要支持 text / image / file block 展示,保留本仓 file-preview / media-preview 路径。
+  - 图片/视频 tab 对齐老仓按月份分组平铺缩略图,默认侧栏宽度下一屏可展示多行媒体结果;all tab 保留混合结果列表。
+  - 图片缩略图点击进入会话同款全屏图片查看器；图片无原图 URL 时用 `thumbUrl` 兜底预览；视频缩略图点击进入 file-preview。
+  - 文件 tab 对齐老仓紧凑行式结果,一行展示文件名、发送人、大小、日期,hover 显示定位/下载操作;all tab 保留混合结果卡片。
+  - 搜索结果打开文件/媒体预览时保留 ChannelSearchPanel 挂载,关闭预览后恢复原 tab / keyword / filter,避免回到默认“全部”。
+  - snippet 高亮从 `dangerouslySetInnerHTML` 改为 React token 渲染;后端 `<mark>` 切开 `[有品位]` 等自定义 emoji token 时仍整图展示,其他 HTML 按文本输出。
+  - 会话内聊天记录搜索入口对齐老仓:从 chat header 独立搜索图标调整为“聊天信息 / 群信息 / 子区信息”里的“查找聊天内容”行,点击后关闭设置抽屉并打开右侧搜索面板。
+- 验证:
+  - 用户在 `http://127.0.0.1:5174/` 登录后验证频道搜索基础路径可用。
+  - `npx tsc -b`
+  - `vp test run src/features/base/api/endpoints/search.api.test.ts src/features/chat/lib/channel-search-snippet.test.ts src/features/chat/file-preview/registry.test.ts`
+  - touched-file `vp lint`
+  - 浏览器 `http://127.0.0.1:5174/` 验证 chat header 无会话搜索图标;“更多”→“查找聊天内容”可打开右侧搜索面板;图片/视频 tab 为月份分组缩略图网格,图片点击打开全屏图片查看器,关闭后仍停留在图片/视频 tab;文件 tab 为紧凑文件列表;文件预览关闭后仍停留在文件 tab;console error = 0
+
+## 2026-06-27 — Batch 4.4 Chat 小修
+
+- 覆盖上游 SHA:
+  - `6c379a18` show raw HTML in messages
+  - `5e945f52` compact conversation list online badge
+- 代码变更:
+  - 通用 `Markdown` 渲染器在 remark 阶段把 raw HTML node 转成 text node,让 `<button></button>` 等源码在聊天里可见但不会执行。
+  - 抽出 `shouldShowConversationOnline`,最近列表和关注 compact row 共用同一在线/1h 内离线判定;关注/分组紧凑行渲染缩小版在线点。
+- 验证:
+  - `npx tsc -b`
+  - `vp test run src/components/ui/markdown.test.tsx src/features/chat/lib/conversation-online.test.ts`
+  - touched-file `vp lint`
+
+## 2026-06-27 — Batch 4.3 Webhook follow-up
+
+- 覆盖上游 SHA:
+  - `4a396d00` channel webhook 管理 UI 重做:mention config / adapter examples / modal polish
+  - `553c1710` short `/v1/webhooks` alias
+  - `d1b4a8f1` thread-scoped incoming webhooks frontend
+  - `6055b724` localized adapter examples in webhook URL modal
+- 代码变更:
+  - `IncomingWebhook` 契约补 `allow_mention_all` / `allow_mention_bots` / `mention_uids` / `thread_short_id`,create/regenerate 响应补 `adapter_examples`。
+  - Webhook 表单新增自动 @ 成员、@所有AI、@所有人配置;create/edit 请求体只发送必要字段,编辑清空 mention_uids 显式发送 `[]`。
+  - 推送 URL 展示从 canonical `/v1/incoming-webhooks/...` 改写为短别名 `/v1/webhooks/...`;URL rows 支持 GitHub / GitLab / 企业微信 / 飞书 / Multica。
+  - URL 弹窗优先渲染后端本地化 `adapter_examples`,支持步骤折叠和 header token 复制;旧后端无字段时回退到 urls-based 示例。
+  - 群 Webhook API 增加可选 `threadShortId`,子区设置活跃态展示“消息推送”入口,使用父群 channel + thread short id 访问 `groups/{group}/threads/{short}/incoming-webhooks`。
+- 验证:
+  - `npx tsc -b`
+  - `vp test run src/features/chat/lib/incoming-webhook.test.ts src/features/base/api/endpoints/group.api.test.ts`
+  - touched-file `vp lint`
+  - `git diff --check`
+  - 浏览器 `http://127.0.0.1:5174/` reload 后 console error = 0
+
+## 2026-06-27 — Batch 4.2 Summary 多人协作
+
+- 覆盖上游 SHA:
+  - `690c1329` multi-person collaboration UI for smart summary
+- 代码变更:
+  - Summary 类型补 `creator_id`、`can_remove_member`、`team_citations` 等多人协作字段。
+  - API 补 `leaveSummary(taskId)` 和 `removeMember(taskId, uid)`。
+  - Summary 列表卡片按 `creator_id` fail-safe 分流:creator 显示删除整个任务,非 creator participant 显示退出协作。
+  - Summary 详情页补参与者退出、creator 移除成员、成员状态/报告折叠面板;本人个人报告也可展开/收起。
+  - 个人模式详情补团队汇总展示,不再只显示当前用户个人结果。
+  - Summary 主创建工作台补“选择参与者”操作,与“选择聊天 / 定时更新”并列;选择后创建/定时更新请求透传 `participants`。
+  - `CitationText` 支持 `[Pn]` 团队人员引用;团队汇总隐私模式只解析 `[Pn]`,普通 `[n]` 保持纯文本,避免暴露他人原文。
+- 验证:
+  - `npx tsc -b`
+  - `vp test run src/features/summary/components/citation-text.test.tsx`
+  - touched-file `vp lint`
+  - `git diff --check`
+  - 浏览器 `http://127.0.0.1:5174/summary` reload 后可见“选择参与者”;点击后可打开参与者选择弹窗;console error = 0
+
 ## 2026-06-26 — Batch 3.1 ChannelSearch 基础
 
 - 覆盖上游 SHA:`a812a307` / `594e375f` / `dbeba59e` / `3f3059ee`

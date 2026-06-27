@@ -83,6 +83,7 @@ export interface SummaryResult {
   version: number;
   generated_at: string | null;
   citations?: CitationItem[];
+  team_citations?: TeamCitationItem[];
 }
 
 // ─── Citation(Wave 3a) ───────────────────────────────────
@@ -107,6 +108,14 @@ export interface CitationItem {
   context_after?: CitationContextMessage[];
 }
 
+export interface TeamCitationItem {
+  index: number;
+  user_id: string;
+  user_name: string;
+  personal_result_id?: number;
+  task_id?: number;
+}
+
 export interface SummaryListItem {
   task_id: number;
   task_no: string;
@@ -115,6 +124,7 @@ export interface SummaryListItem {
   status: TaskStatusType;
   trigger_type: number;
   schedule_id?: number;
+  creator_id?: string;
   time_range_start: string;
   time_range_end: string;
   sources: SourceItem[];
@@ -139,6 +149,7 @@ export interface SummaryDetail {
   result: SummaryResult | null;
   error_message: string | null;
   schedule_id?: number;
+  creator_id?: string;
   origin_channel_id?: string;
   origin_channel_type?: number;
   created_at: string;
@@ -148,6 +159,12 @@ export interface SummaryDetail {
   result_is_edited?: boolean;
   permissions?: {
     can_edit: boolean;
+    can_schedule?: boolean;
+    can_edit_team?: boolean;
+    can_edit_personal?: boolean;
+    can_view_schedule?: boolean;
+    can_add_member?: boolean;
+    can_remove_member?: boolean;
   };
 }
 

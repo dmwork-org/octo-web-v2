@@ -52,6 +52,8 @@ import { ThreadIcon } from "@/components/ui/thread-icon";
 import { MuteIcon } from "@/components/ui/mute-icon";
 import { getLiveTitle, tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
+import { shouldShowConversationOnline } from "@/features/chat/lib/conversation-online";
 import {
   effectiveMute,
   isMentionMe as computeMentionMe,
@@ -339,6 +341,11 @@ function CompactRow({
   const tt = useT();
   const hasUnread = unread > 0;
   const isThread = variant === "thread";
+  const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
+  const showOnline =
+    variant === "dm" &&
+    channel.channelType === ChannelTypePerson &&
+    shouldShowConversationOnline(channelInfo);
   const onThreadTagClick = (e: MouseEvent) => {
     e.stopPropagation();
     onToggleThreads?.();
@@ -372,6 +379,7 @@ function CompactRow({
         ) : (
           <ChannelAvatar channel={channel} size={22} title={title} />
         )}
+        {showOnline ? <ConversationOnlineBadge compact /> : null}
         {hasUnread ? (
           <span
             aria-hidden

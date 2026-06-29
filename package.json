@@ -7,6 +7,7 @@
     "dev": "vp dev",
     "build": "tsc -b && vp build",
     "lint": "vp lint .",
+    "test": "vp test",
     "preview": "vp preview",
     "check": "vp check",
     "typecheck": "tsc --noEmit",

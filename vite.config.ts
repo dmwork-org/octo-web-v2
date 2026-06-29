@@ -8,8 +8,8 @@ import { cwd } from "node:process";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // 读取 .env / .env.local / .env.{mode} 三层(dev 时跟 import.meta.env 一致)。
-  // 这里把 VITE_API_URL 拿出来给 dev server proxy 用 — 生产 build 出来的静态
-  // 文件不带 proxy,部署到哪个网关由 nginx 决定,跟此处无关。
+  // 这里把 VITE_API_URL 拿出来给 dev server proxy 用。生产 build 出来的静态
+  // 文件不带 proxy,部署到哪个网关由部署环境决定,跟此处无关。
   // **必填**:不提供时直接抛错(避免无声 fallback 到一个错误目标导致联调误判)。
   const env = loadEnv(mode, cwd(), "");
   const apiTarget = env.VITE_API_URL;
@@ -150,14 +150,14 @@ export default defineConfig(({ mode }) => {
     plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
     server: {
       proxy: {
-        // Matter service — 旧项目 dev 默认 fallback 到主网关 nginx,
-        // nginx 内部把 /matter/api/v1/* 路由到 todos service。新项目同行为。
+        // Matter service — dev 默认 fallback 到主 API 网关,由网关把
+        // /matter/api/v1/* 路由到对应服务。
         "/matter/api/v1": {
           target: apiTarget,
           changeOrigin: true,
           secure: true,
         },
-        // Summary service — 同路由策略,nginx 转发到 summary service。
+        // Summary service — 同路由策略,由网关转发到 summary service。
         "/summary/api/v1": {
           target: apiTarget,
           changeOrigin: true,

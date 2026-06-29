@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  MENTION_UID_HUMANS,
-  MENTION_UID_RENDER_ALL,
-} from "../../base/lib/mention-three-state";
+import { MENTION_UID_HUMANS, MENTION_UID_RENDER_ALL } from "../../base/lib/mention-three-state";
 import { buildInlineContentForRichTextPaste } from "./rich-text-paste";
 
 describe("buildInlineContentForRichTextPaste", () => {
@@ -26,7 +23,10 @@ describe("buildInlineContentForRichTextPaste", () => {
       [{ uid: "u1", name: "Alice" }],
     );
 
-    expect(content).toEqual([{ type: "text", text: "hi " }, { type: "text", text: "@Alice" }]);
+    expect(content).toEqual([
+      { type: "text", text: "hi " },
+      { type: "text", text: "@Alice" },
+    ]);
   });
 
   it("never restores broadcast sentinel uids from clipboard metadata", () => {

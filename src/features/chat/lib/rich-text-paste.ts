@@ -3,9 +3,7 @@ import {
   RichTextFilePlaceholder,
   RichTextImagePlaceholder,
 } from "@/features/base/im/richtext-content";
-import {
-  isBroadcastSentinelUid,
-} from "@/features/base/lib/mention-three-state";
+import { isBroadcastSentinelUid } from "@/features/base/lib/mention-three-state";
 import {
   mentionDisplayLabel,
   mentionNameAliases,
@@ -47,9 +45,7 @@ function mentionAllowKey(uid: string, label: string): string {
   return `${uid}\u0000${label}`;
 }
 
-function buildAllowedMentionKeys(
-  members?: readonly MentionMemberSource[],
-): ReadonlySet<string> {
+function buildAllowedMentionKeys(members?: readonly MentionMemberSource[]): ReadonlySet<string> {
   const allowed = new Set<string>();
   for (const member of members ?? []) {
     if (!member.uid || member.isDeleted) continue;

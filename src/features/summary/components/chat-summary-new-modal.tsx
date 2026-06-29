@@ -13,7 +13,10 @@ import { TemplateCard } from "@/features/summary/components/template-card";
 import { useSummaryTopicTemplateInput } from "@/features/summary/hooks/use-summary-topic-template-input.hook";
 import { channelToChatCandidate, getSourceType } from "@/features/summary/utils/channel-source";
 import { notifyChatSummaryCreated } from "@/features/summary/utils/chat-summary-events";
-import { describeScheduleConfig, scheduleToParams } from "@/features/summary/utils/summary-schedule";
+import {
+  describeScheduleConfig,
+  scheduleToParams,
+} from "@/features/summary/utils/summary-schedule";
 import {
   SummaryMode,
   SourceType,

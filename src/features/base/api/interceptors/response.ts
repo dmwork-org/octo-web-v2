@@ -2,10 +2,7 @@ import type { FetchContext, FetchResponse } from "ofetch";
 import type { Store } from "@tanstack/react-store";
 import type { AuthState } from "@/features/base/stores/auth";
 import { message } from "@/components/ui/message";
-import {
-  classifyTransportError,
-  extractResponseErrorMessage,
-} from "@/features/base/api/api-error";
+import { classifyTransportError, extractResponseErrorMessage } from "@/features/base/api/api-error";
 import { t } from "@/lib/i18n/instance";
 
 type ResponseCtx = FetchContext & { response: FetchResponse<unknown> };

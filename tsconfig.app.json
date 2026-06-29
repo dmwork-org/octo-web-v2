@@ -24,7 +24,8 @@
 
     /* Path aliases (shadcn) */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tiptap/react": ["./node_modules/@tiptap/react/dist/index.d.ts"]
     }
   },
   "include": ["src"],

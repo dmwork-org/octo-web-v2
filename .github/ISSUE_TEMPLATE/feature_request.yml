@@ -1,0 +1,53 @@
+name: Feature Request
+description: Suggest an improvement for OCTO Web v2
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Please describe the user problem before the proposed implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What user problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should the feature work?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - Login / Auth
+        - Chat
+        - Contacts
+        - Matter
+        - Summary
+        - App Bot
+        - Persona
+        - Space / Settings
+        - File Preview
+        - API / Data Fetching
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, references, links, or technical notes.
+    validations:
+      required: false

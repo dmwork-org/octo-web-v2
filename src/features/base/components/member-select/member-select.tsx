@@ -10,7 +10,17 @@ import { cn } from "@/lib/utils";
  * 轻量头像:直接用 avatar URL 渲染,不走 ChannelAvatar / channelInfo 请求。
  * 避免 member-select 列表大量并发请求(issue #160)。
  */
-function LiteAvatar({ uid, name, avatar, size }: { uid: string; name?: string; avatar?: string; size: number }) {
+function LiteAvatar({
+  uid,
+  name,
+  avatar,
+  size,
+}: {
+  uid: string;
+  name?: string;
+  avatar?: string;
+  size: number;
+}) {
   const baseURL = useStore(endpointStore, (s) => s.baseURL);
   const [failed, setFailed] = useState(false);
   const src = avatar
@@ -25,7 +35,14 @@ function LiteAvatar({ uid, name, avatar, size }: { uid: string; name?: string; a
     return (
       <span
         className="shrink-0 rounded-full bg-bg-elevated text-text-secondary"
-        style={{ width: size, height: size, fontSize: size * 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+        style={{
+          width: size,
+          height: size,
+          fontSize: size * 0.4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
         {initial}
       </span>
@@ -51,7 +68,17 @@ interface MemberLike {
   avatar?: string;
 }
 
-export function MemberAvatar({ uid, name, avatar, size }: { uid: string; name?: string; avatar?: string; size: number }) {
+export function MemberAvatar({
+  uid,
+  name,
+  avatar,
+  size,
+}: {
+  uid: string;
+  name?: string;
+  avatar?: string;
+  size: number;
+}) {
   return <LiteAvatar uid={uid} name={name} avatar={avatar} size={size} />;
 }
 

@@ -47,6 +47,19 @@ const WORKER_URL = "/pdfjs/pdf.worker.min.js";
 
 type SidebarTab = "thumbnails" | "bookmarks";
 
+function usePdfKeyboardNavigation(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  handleKeyDown: (e: KeyboardEvent) => void,
+) {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.tabIndex = 0;
+    container.addEventListener("keydown", handleKeyDown);
+    return () => container.removeEventListener("keydown", handleKeyDown);
+  }, [containerRef, handleKeyDown]);
+}
+
 // ─── 内联 SVG 图标(对齐旧 IconMenuFold/IconMinus/IconPlus,避免引入整个 icons 文件) ───
 
 function IconMenuFold({ size = 24 }: { size?: number }) {
@@ -138,9 +151,6 @@ export function PdfRenderer({ file }: BaseRendererProps) {
   const zoomPluginInstance = zoomPluginRef.current;
   const pageNavigationPluginInstance = pageNavigationPluginRef.current;
 
-  const { Thumbnails } = thumbnailPluginInstance;
-  const { Bookmarks } = bookmarkPluginInstance;
-  const { ZoomIn: ZoomInButton, ZoomOut: ZoomOutButton } = zoomPluginInstance;
   const { jumpToPage } = pageNavigationPluginInstance;
 
   const pluginsRef = useRef([
@@ -214,13 +224,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
     [currentPage, totalPages, jumpToPage],
   );
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    container.tabIndex = 0;
-    container.addEventListener("keydown", handleKeyDown);
-    return () => container.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  usePdfKeyboardNavigation(containerRef, handleKeyDown);
 
   // ─── 提前返回 ───────────────────────────────────────────
   if (isTooLarge) {
@@ -292,7 +296,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* 缩放胶囊:白底 + 紫色细边 */}
             <div className="inline-flex h-6 items-center gap-1 rounded-full border border-brand-tint-10 bg-bg-surface px-3 py-1.5">
-              <ZoomOutButton>
+              <zoomPluginInstance.ZoomOut>
                 {(props: RenderZoomOutProps) => (
                   <button
                     type="button"
@@ -303,11 +307,11 @@ export function PdfRenderer({ file }: BaseRendererProps) {
                     <IconMinus />
                   </button>
                 )}
-              </ZoomOutButton>
+              </zoomPluginInstance.ZoomOut>
               <span className="min-w-[36px] text-center text-xs leading-5 font-semibold text-text-primary tabular-nums">
                 {Math.round(currentScale * 100)}%
               </span>
-              <ZoomInButton>
+              <zoomPluginInstance.ZoomIn>
                 {(props: RenderZoomInProps) => (
                   <button
                     type="button"
@@ -318,7 +322,7 @@ export function PdfRenderer({ file }: BaseRendererProps) {
                     <IconPlus />
                   </button>
                 )}
-              </ZoomInButton>
+              </zoomPluginInstance.ZoomIn>
             </div>
             {/* 适应宽度按钮:同款胶囊样式 */}
             <button
@@ -361,10 +365,10 @@ export function PdfRenderer({ file }: BaseRendererProps) {
               {/* tab 内容 */}
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {activeTab === "thumbnails" ? (
-                  <Thumbnails />
+                  <thumbnailPluginInstance.Thumbnails />
                 ) : hasBookmarks ? (
                   <div className="p-2">
-                    <Bookmarks />
+                    <bookmarkPluginInstance.Bookmarks />
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center px-4 text-center text-xs text-text-tertiary">

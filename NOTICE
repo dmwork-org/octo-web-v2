@@ -1,0 +1,44 @@
+OCTO Web v2
+Copyright 2026 MININGLAMP Technology and the OCTO contributors
+
+This product includes software developed by the following projects:
+
+* TangSengDaoDaoWeb
+  https://github.com/TangSengDaoDao/TangSengDaoDaoWeb
+  Copyright TangSengDaoDao contributors
+  Licensed under the Apache License, Version 2.0
+  OCTO Web v2 is a derivative work with significant modifications.
+
+* WuKongIM
+  https://github.com/WuKongIM/WuKongIM
+  Copyright WuKongIM contributors
+  Licensed under the Apache License, Version 2.0
+
+See LICENSE for full license text.
+
+--------------------------------------------------------------------
+Third-party components requiring attribution
+--------------------------------------------------------------------
+
+This project uses open-source components from the React, TanStack, Vite,
+Tailwind CSS, shadcn/ui, Radix UI, TipTap, PDF.js, React PDF Viewer,
+Highlight.js, Unified, and xlsx ecosystems.
+
+Notable dependencies include:
+
+  - React
+  - TanStack Router, Query, Store, Form, Table, Virtual, and Hotkeys
+  - Vite and Vite+
+  - Tailwind CSS
+  - shadcn/ui and Radix UI primitives
+  - ofetch
+  - WuKongIM JavaScript SDK
+  - TipTap and ProseMirror
+  - pdfjs-dist and React PDF Viewer
+  - react-markdown, remark, rehype, unified, and related plugins
+  - highlight.js and react-syntax-highlighter
+  - xlsx
+
+A complete dependency inventory is maintained by package manifests and the
+lockfile. For redistribution or commercial use, please review each upstream
+project's license terms.

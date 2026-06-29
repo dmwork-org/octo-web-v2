@@ -19,7 +19,9 @@ export function ExternalBadge({ size = "default", spaceName }: ExternalBadgeProp
     size === "small"
       ? "h-[14px] px-[3px] text-[10px] leading-[14px]"
       : "h-[16px] px-1 text-[12px] leading-[16px]";
-  const label = spaceName ? `${t("mentionList.external")} · ${spaceName}` : t("mentionList.external");
+  const label = spaceName
+    ? `${t("mentionList.external")} · ${spaceName}`
+    : t("mentionList.external");
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-[3px] bg-[#6D47D9] font-semibold tracking-[0.02em] text-white ${sizeCls}`}

@@ -1,0 +1,76 @@
+name: Bug Report
+description: Report a reproducible problem in OCTO Web v2
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include enough detail for maintainers to reproduce it.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description: Briefly describe the problem.
+      placeholder: The summary page shows an empty citation list after refresh.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the exact steps to reproduce the issue.
+      placeholder: |
+        1. Start the app with pnpm dev
+        2. Open the Summary page
+        3. Create a summary
+        4. Refresh the page
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - Login / Auth
+        - Chat
+        - Contacts
+        - Matter
+        - Summary
+        - App Bot
+        - Persona
+        - Space / Settings
+        - File Preview
+        - API / Data Fetching
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, backend version, and relevant environment variables.
+      placeholder: |
+        - Browser: Chrome 126
+        - OS: macOS 15
+        - Backend: local / staging / other
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Console errors, network responses, screenshots, or recordings. Please redact sensitive data.
+    validations:
+      required: false

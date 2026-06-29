@@ -336,6 +336,10 @@ export function registerImCallbacks(): void {
     channel: Channel,
     version: number,
   ): Promise<Subscriber[]> => {
+    // person channel（私聊/文件传输助手）没有成员列表，跳过 membersync
+    if (channel.channelType === ChannelTypePerson) {
+      return [];
+    }
     // 子区(ChannelTypeCommunityTopic)的成员就是父群成员,走父群 ID
     let groupNo = channel.channelID;
     if (channel.channelType === CHANNEL_TYPE_THREAD) {

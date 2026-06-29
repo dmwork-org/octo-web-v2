@@ -1,56 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "allow": [
-      "Bash(curl -s -H 'PRIVATE-TOKEN: glpat-0JM5X7nLBYIsKy6x7aoaOm86MQp1OjF6CA.01.0y0q07e8o' https://codex.mlamp.cn/api/v4/projects/301/issues/138)",
-      "Bash(python3 -c \"import sys, json; d=json.load\\(sys.stdin\\); print\\(f'Status: {d[\\\\\"state\\\\\"]}'\\)\")",
-      "Bash(curl -s -H \"PRIVATE-TOKEN: glpat-0JM5X7nLBYIsKy6x7aoaOm86MQp1OjF6CA.01.0y0q07e8o\" \"https://codex.mlamp.cn/api/v4/projects/frontend%2Focto-web-2/issues/182\")",
-      "Bash(python3 -m json.tool)",
-      "Bash(git checkout *)",
-      "Bash(git pull *)",
-      "Bash(git commit -m 'fix: add user info modal when clicking member list + improve AI badge styling *)"
-    ],
+    "allow": [],
     "deny": []
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-tool-use.sh",
-            "timeout": 30,
-            "statusMessage": "pre-check (structure + vp)..."
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-tool-use.sh",
-            "if": "Write(*.ts)|Write(*.tsx)|Edit(*.ts)|Edit(*.tsx)",
-            "timeout": 30,
-            "statusMessage": "post-audit (leak check)..."
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop.sh",
-            "timeout": 60,
-            "statusMessage": "wiki-lint + structure-lint + harness-health..."
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

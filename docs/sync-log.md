@@ -6,10 +6,10 @@
 - baseline SHA: `f32a1360` (2026-05-22 — `feat(matters): UI optimization aligned with Figma (#78)`)
 - last audited: 2026-06-08
 
-> 本仓不是 fork,是用 miaoa-fe-harness 全新搭建后**复刻业务**得来。
+> 本仓不是 fork,是用一套约束化前端工程模板搭建后**复刻业务**得来。
 > 上游 `Mininglamp-OSS/octo-web` 是变更源,本字段记录"业务对齐到上游哪个 commit"。
 >
-> 工作流(详见 plan `~/.claude/plans/concurrent-sparking-bengio.md`):
+> Historical sync workflow:
 >
 > 1. `pnpm scan:upstream` → 列 baseline..HEAD 未搬变更(按目录 bucket)
 > 2. 项目负责人挑要搬的 SHA → AI 按 polish 同款流程实现 → MR 合并
@@ -17,7 +17,7 @@
 
 ## 2026-05-22
 
-- from miaoa-fe-harness commit: 8e05d5a (branch: scaffold/harness-skeleton)
+- from frontend engineering template commit: 8e05d5a (branch: scaffold/harness-skeleton)
 - copied: `.claude/` `.ai/`(去掉 traces) `scripts/` `.oxlintrc.json`
 - CLAUDE.md: 原样保留约束语义,改第一行项目名+Who段一句自述,删"接 OCTO 的潜在关系"段
 - AGENTS.md: harness schema 索引作主体,末尾保留 vp 注释块
@@ -46,7 +46,7 @@ PreToolUse hook 真触发验证通过:
 ## 2026-06-08 — Batch 1.1 i18n 基础设施
 
 - MR: 旧 `0003639/octo-web-2!29` review/合并(迁仓后 path 失效);现仓 `frontend/octo-web-2` main 已含对应 commits
-- 迁仓:`git@codex.mlamp.cn:0003639/octo-web-2.git` → `git@codex.mlamp.cn:frontend/octo-web-2.git`(2026-06-08 后)
+- Internal repository path changed during migration(2026-06-08 后)
 - 搬了 2 个上游 SHA:
   - `b79eab8d` 整套 i18n runtime + locale(本仓 src/lib/i18n/,9 文件 + 2 locale JSON)
   - `fe5bbc5d` backend language contract — 只搬 Accept-Language interceptor 部分
@@ -60,7 +60,7 @@ PreToolUse hook 真触发验证通过:
 
 ## 2026-06-09 — Batch 1.2 chat 输入框 / mention
 
-- MR: <https://codex.mlamp.cn/frontend/octo-web-2/-/merge_requests/10>(已合并)
+- Internal merge request reviewed and merged.
 - 搬了 7 个上游 SHA(2 合并到 1 commit):
   - `006b2411` 粘贴列表保留多行(extractOrderedBlocks 平铺→递归)
   - `2e89e772` 语音 @所有AI/@所有人 三态拆分
@@ -78,7 +78,7 @@ PreToolUse hook 真触发验证通过:
 
 ## 2026-06-09 — Batch 1.3 chat 会话列表 / 排序 / 折叠
 
-- MR: <https://codex.mlamp.cn/frontend/octo-web-2/-/merge_requests/13>(已合并)
+- Internal merge request reviewed and merged.
 - 搬了 12 个上游 SHA(plan 内 9 + baseline 后补 3):
   - `f85ba4d0` trust backend recent(删 3 天前端硬过滤)
   - `1f8c40a2` 最近 tab 重复点击跳第一条未读(chat-recent-jump store + reactive hook)
@@ -338,7 +338,7 @@ PreToolUse hook 真触发验证通过:
 
 - 新仓已切回并同步 `main`: `frontend/octo-web-2` `origin/main` = `f9cb5e1`
 - 已从远程 `main` 创建文档分支: `docs/upstream-batch-2-plan`
-- 老仓重新 fetch: `/Users/nancy/Desktop/workspace/octo/octo-web` `origin/main` = `b884e01e`
+- 老仓重新 fetch: `<legacy-octo-web-worktree>` `origin/main` = `b884e01e`
 - 从上一正式 audit checkpoint `1906c874` 到当前老仓 `b884e01e` 共 31 个 commit；本次相对上一版计划新增 `b0c9a96d..b884e01e` 的 27 个 commit
 - 重点新增功能域:
   - Summary Schedule: interval day/week/month、source_name submit 清理、source 后缀保留、one-to-many 删除确认
@@ -364,7 +364,7 @@ PreToolUse hook 真触发验证通过:
 ## 2026-06-26 — Batch 3 新增上游发现记录
 
 - 分支: `codex/upstream-batch-3-records`
-- 老仓路径:`/Users/houmenghao/project/octo/octo-web`
+- 老仓路径:`<legacy-octo-web-worktree>`
 - 上次记录点:`b884e01e`(`v1.4.3`)
 - 可做截止时间:`2026-06-22 24:00:00 +0800`;可做截止 commit:`3f3059ee`
 - 本批可做范围:`b884e01e..3f3059ee`,共 20 commits / 113 files changed / +9446 / -765

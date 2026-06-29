@@ -55,6 +55,7 @@ pnpm dev
 | ---------------------------- | ---------------------------------------------------------------- |
 | `VITE_API_BASE_URL`          | 浏览器侧 API base path，通常是 `/v1`。                           |
 | `VITE_API_URL`               | 开发服务器代理目标，覆盖 OCTO API、Matter、Summary 等 endpoint。 |
+| `VITE_ADMIN_URL`             | 可选的管理后台 base URL。为空时隐藏空间管理跳转。                |
 | `VITE_ENABLE_ENTERPRISE_SSO` | 设为 `true` 时启用企业 SSO 登录路径。                            |
 
 `pnpm dev` 会通过 Vite proxy 做本地开发代理。生产构建产物是静态资源，需要由网关把 `/v1`、`/matter/api/v1` 和 `/summary/api/v1` 路由到对应服务。

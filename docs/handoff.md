@@ -151,8 +151,8 @@
 
 ## 七、当前 worktree / 分支拓扑
 
-- main worktree:`/Users/nancy/Desktop/workspace/octo/refactor-2/octo-web`(当前 session 在此)
-- P3-matter worktree:`/Users/nancy/Desktop/workspace/octo/refactor-2/octo-web-matter`(已 merge,可清理 — `git worktree remove`)
+- main worktree:`<local-octo-web-v2-worktree>`(historical migration note)
+- P3-matter worktree:`<local-octo-web-v2-matter-worktree>`(historical migration note)
 
 未清的本地分支:见 `git branch`,大多数已合到 main,可按需 `git branch -d` 清理。
 

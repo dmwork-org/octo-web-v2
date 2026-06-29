@@ -28,7 +28,7 @@ dist-ssr
 # Local Claude Code settings (per-user overrides, should NOT be shared)
 .claude/settings.local.json
 
-# Harness traces (runtime artifacts)
+# Assistant/runtime traces
 .ai/traces/
 .tmp/
 

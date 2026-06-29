@@ -247,7 +247,7 @@
 
 ## 跳过 — CI / ISSUE_TEMPLATE / Docs(28 commits)
 
-`Mininglamp-OSS` 仓库治理相关,本仓有自己的 harness/CI,不搬。注意 `7d1806b5 docs: add CLAUDE.md for AI agent coding guidance` 本仓也有 CLAUDE.md,**可选**参考上游内容(但本仓针对 miaoa-fe-harness 写,大概率不冲突)。
+`Mininglamp-OSS` 仓库治理相关,本仓当时有自己的工程约束/CI,不搬。注意 `7d1806b5 docs: add CLAUDE.md for AI agent coding guidance` 本仓也有 CLAUDE.md,**可选**参考上游内容。
 
 ### Files-only(跳)
 

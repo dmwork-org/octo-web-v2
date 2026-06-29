@@ -3,7 +3,7 @@
 > 生成日期: 2026-06-26；补录日期: 2026-06-27
 > 文档分支: `codex/update-batch-4-records`，基于新仓 `origin/main`
 > 新仓基线: `frontend/octo-web-2` `origin/main` = `f53a858`
-> 老仓路径: `/Users/houmenghao/project/octo/octo-web`
+> 老仓路径: `<legacy-octo-web-worktree>`
 > 老仓暂缓起点: `3f3059ee`
 > 老仓远端 HEAD: `6055b724`
 > 状态: 可执行，老项目已确认正式上线

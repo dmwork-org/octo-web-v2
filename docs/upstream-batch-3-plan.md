@@ -3,7 +3,7 @@
 > 生成日期: 2026-06-26
 > 文档分支: `codex/upstream-batch-3-records`，基于新仓 `origin/main`
 > 新仓基线: `frontend/octo-web-2` `origin/main` = `d4f8b3c`
-> 老仓路径: `/Users/houmenghao/project/octo/octo-web`
+> 老仓路径: `<legacy-octo-web-worktree>`
 > 老仓上次记录点: `b884e01e` (`v1.4.3`)
 > 本批可做截止时间: `2026-06-22 24:00:00 +0800`
 > 本批可做截止 commit: `3f3059ee`

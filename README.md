@@ -51,11 +51,12 @@ Edit `.env.local` before starting if your backend services are not available at 
 
 The app uses Vite client variables:
 
-| Variable                     | Purpose                                                              |
-| ---------------------------- | -------------------------------------------------------------------- |
-| `VITE_API_BASE_URL`          | Browser-side API base path, usually `/v1`.                           |
-| `VITE_API_URL`               | Dev server proxy target for OCTO API, Matter, and Summary endpoints. |
-| `VITE_ENABLE_ENTERPRISE_SSO` | Enables the enterprise SSO login path when set to `true`.            |
+| Variable                     | Purpose                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`          | Browser-side API base path, usually `/v1`.                                         |
+| `VITE_API_URL`               | Dev server proxy target for OCTO API, Matter, and Summary endpoints.               |
+| `VITE_ADMIN_URL`             | Optional admin console base URL. Space-management navigation is hidden when empty. |
+| `VITE_ENABLE_ENTERPRISE_SSO` | Enables the enterprise SSO login path when set to `true`.                          |
 
 `pnpm dev` uses Vite proxy rules for local development. Production builds are static assets and should be served behind a gateway that routes `/v1`, `/matter/api/v1`, and `/summary/api/v1` to the corresponding services.
 

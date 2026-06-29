@@ -3,7 +3,7 @@
 > 生成日期: 2026-06-15
 > 文档分支: `docs/upstream-batch-2-plan`，基于新仓 `origin/main`
 > 新仓基线: `frontend/octo-web-2` `origin/main` = `f9cb5e1`
-> 老仓基线: `/Users/nancy/Desktop/workspace/octo/octo-web` `origin/main` = `b884e01e`
+> 老仓基线: `<legacy-octo-web-worktree>` `origin/main` = `b884e01e`
 > 上一正式 audit checkpoint: `1906c874` (见 `docs/upstream-audit.md`)
 
 ## 目标

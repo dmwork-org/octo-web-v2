@@ -2,7 +2,7 @@
 
 > 对比对象:
 >
-> - 旧项目 `octo-web`(`/Users/nancy/Desktop/workspace/octo/octo-web`)
+> - 旧项目 `octo-web`(`<legacy-octo-web-worktree>`)
 > - 新项目 `refactor-2/octo-web`(本仓库)
 >
 > 数据采样时间:2026-05-26

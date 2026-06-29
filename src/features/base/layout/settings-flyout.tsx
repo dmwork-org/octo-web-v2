@@ -23,6 +23,8 @@ interface SettingsFlyoutProps {
   onClose: () => void;
 }
 
+const ADMIN_BASE_URL = (import.meta.env.VITE_ADMIN_URL ?? "").replace(/\/+$/, "");
+
 /** 点 mask / ESC 关闭 flyout。 */
 function useCloseOnOutside(open: boolean, onClose: () => void) {
   useEffect(() => {
@@ -86,6 +88,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
     () => (spaces ?? []).some((s) => s.role === 1 || s.role === 2),
     [spaces],
   );
+  const showManageSpace = canManageSpace && !!ADMIN_BASE_URL;
 
   const currentSpaceId = useStore(spaceStore, (s) => s.spaceId);
   /**
@@ -131,10 +134,13 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
       message.info(t("base.settings.manageSpaceUnavailable"));
       return;
     }
-    // admin SPA 部署在固定域名 im.deepminer.com.cn,与本应用分开打包;
-    // React Router 不识别,必须整页跳转。真实鉴权由 admin 后端负责,
-    // 此处仅用于 UI 可见性控制。对齐老仓 NavSettingsPanel 的 window.location.href 行为。
-    window.location.href = `https://im.deepminer.com.cn/admin/space/${manageSpaceId}/members`;
+    if (!ADMIN_BASE_URL) {
+      message.info(t("base.settings.manageSpaceUnavailable"));
+      return;
+    }
+    window.location.href = `${ADMIN_BASE_URL}/admin/space/${encodeURIComponent(
+      manageSpaceId,
+    )}/members`;
   };
 
   const onToggleDesktopNoti = async () => {
@@ -184,7 +190,7 @@ export function SettingsFlyout({ open, onClose }: SettingsFlyoutProps) {
               {t("navRail.voiceSettings.title")}
             </FlyoutItem>
             <FlyoutItem onClick={onClickSecretsSettings}>{t("base.secrets.title")}</FlyoutItem>
-            {canManageSpace ? (
+            {showManageSpace ? (
               <FlyoutItem onClick={onClickManageSpace}>{t("base.settings.manageSpace")}</FlyoutItem>
             ) : null}
             <FlyoutItem onClick={() => void onToggleDesktopNoti()}>

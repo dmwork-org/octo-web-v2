@@ -460,6 +460,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const send = async () => {
     if (!editor) return;
+    // ws 未连接时阻止发送，保留编辑器内容，避免消息静默丢失（#202）
+    if (!WKSDK.shared().connectManager.connected()) {
+      message.warning(t("composer.toast.sendFailed"));
+      return;
+    }
     if (sendingRef.current) {
       // 缓冲：把当前编辑器内容快照入队，当前发送完成后自动重放。
       // 不再 toast warning + 丢弃（GH#176 快速连发消息丢失）。

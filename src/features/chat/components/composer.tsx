@@ -475,9 +475,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       }
       return;
     }
-    // 立即占锁，防止后续 send() 在 await 期间穿透 guard（GH#176）
-    sendingRef.current = true;
-    setSending(true);
+
+    // 预校验：在占锁之前检查消息合法性，保证校验通过前锁是干净的
     const MAX_MESSAGE_LENGTH = 5000;
     const blocks = attachments.extractOrderedBlocks(editor);
     const top = attachments.topAttachments;
@@ -491,6 +490,10 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return;
       }
     }
+
+    // 立即占锁，防止后续 send() 在 await 期间穿透 guard（GH#176）
+    sendingRef.current = true;
+    setSending(true);
 
     const wrapInject = (c: MessageContent) => {
       const m = (c as { mention?: { humans?: number; ais?: number } }).mention;

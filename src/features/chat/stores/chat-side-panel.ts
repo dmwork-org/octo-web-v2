@@ -27,7 +27,7 @@ import type { FilePreviewInfo } from "@/features/chat/file-preview/types";
 export type RestorableSidePanelState =
   | { kind: "none" }
   | { kind: "threads" }
-  | { kind: "channelSearch" }
+  | { kind: "channelSearch"; preserveOnChannelChange?: boolean }
   | { kind: "matter"; matterId: string | null }
   | { kind: "summary"; taskId: number | null };
 
@@ -39,7 +39,15 @@ export const chatSidePanelStore = new Store<SidePanelState>({ kind: "none" });
 
 export const chatSidePanelActions = {
   openThreads: () => chatSidePanelStore.setState(() => ({ kind: "threads" })),
-  openChannelSearch: () => chatSidePanelStore.setState(() => ({ kind: "channelSearch" })),
+  openChannelSearch: (options?: { preserveOnChannelChange?: boolean }) =>
+    chatSidePanelStore.setState(() => ({
+      kind: "channelSearch",
+      preserveOnChannelChange: options?.preserveOnChannelChange,
+    })),
+  clearChannelSearchPreserveFlag: () =>
+    chatSidePanelStore.setState((s) =>
+      s.kind === "channelSearch" && s.preserveOnChannelChange ? { kind: "channelSearch" } : s,
+    ),
   openFilePreview: (file: FilePreviewInfo) =>
     chatSidePanelStore.setState((s) => ({
       kind: "filePreview",

@@ -32,6 +32,12 @@ import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
  */
 function useResetSidePanelOnChannelChange(channelKey: string): void {
   useEffect(() => {
+    const sidePanel = chatSidePanelStore.state;
+    // 子区右栏菜单会先切到子区会话再打开聊天记录搜索,这一次不能被通用切会话重置关掉。
+    if (sidePanel.kind === "channelSearch" && sidePanel.preserveOnChannelChange) {
+      chatSidePanelActions.clearChannelSearchPreserveFlag();
+      return;
+    }
     chatSidePanelActions.close();
   }, [channelKey]);
 }

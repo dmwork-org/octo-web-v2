@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
 import {
@@ -48,6 +49,8 @@ import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
+import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -371,6 +374,14 @@ function DetailView({
     buildThreadChannelId(groupNo, thread.short_id),
     CHANNEL_TYPE_THREAD,
   );
+  const canOpenChannelSearch = useMessagesSearchEnabled() && supportsChannelSearch(threadChannel);
+
+  const openChannelSearch = () => {
+    setMoreOpen(false);
+    chatSelectedActions.select(threadChannel, {
+      afterSelect: () => chatSidePanelActions.openChannelSearch({ preserveOnChannelChange: true }),
+    });
+  };
 
   const renameMu = useMutation({
     mutationFn: (name: string) => updateThread(groupNo, thread.short_id, { name }),
@@ -511,6 +522,15 @@ function DetailView({
                   {archiveAction === "archive"
                     ? tt("threadPanelLocal.archive")
                     : tt("threadPanelLocal.unarchive")}
+                </button>
+              ) : null}
+              {canOpenChannelSearch ? (
+                <button
+                  type="button"
+                  onClick={openChannelSearch}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {tt("module.channelSettings.messageHistory")}
                 </button>
               ) : null}
               <button

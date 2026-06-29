@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ImgHTMLAttributes,
+  type RefObject,
+} from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   Download,
@@ -49,8 +59,23 @@ import {
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
+const IMAGE_PRELOAD_ROOT_MARGIN = "160px 0px";
+const IMAGE_LOAD_BATCH_SIZE = 4;
+const IMAGE_LOAD_BATCH_DELAY_MS = 40;
+const LOAD_MORE_ROOT_MARGIN = "72px 0px";
 
 const TABS: ChannelSearchTab[] = ["all", "message", "media", "file"];
+
+interface ChannelSearchImageLoadCandidate {
+  el: HTMLImageElement;
+  load: () => void;
+}
+
+interface ChannelSearchImageLoadScheduler {
+  register: (candidate: ChannelSearchImageLoadCandidate) => () => void;
+}
+
+const ChannelSearchImageLoadContext = createContext<ChannelSearchImageLoadScheduler | null>(null);
 
 interface ChannelSearchPanelProps {
   channel: Channel;
@@ -81,6 +106,181 @@ function useResetChannelSearchOnChannelChange(
     setFilterOpen(false);
     setSenderKeyword("");
   }, [channelKey, setActiveTab, setFilterOpen, setFilters, setKeywordInput, setSenderKeyword]);
+}
+
+function useFetchNextChannelSearchPageOnInView(
+  rootRef: RefObject<HTMLDivElement | null>,
+  ref: RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  fetchNextPage: () => unknown,
+): void {
+  const armedRef = useRef(true);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const root = rootRef.current;
+    const el = ref.current;
+    if (!root || !el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isIntersecting = entries.some((entry) => entry.isIntersecting);
+        if (!isIntersecting) {
+          armedRef.current = true;
+          return;
+        }
+        if (!armedRef.current) return;
+        armedRef.current = false;
+        window.requestAnimationFrame(() => {
+          void fetchNextPage();
+        });
+      },
+      { root, rootMargin: LOAD_MORE_ROOT_MARGIN },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [enabled, fetchNextPage, ref, rootRef]);
+}
+
+function canUseIntersectionObserver(): boolean {
+  return typeof window !== "undefined" && "IntersectionObserver" in window;
+}
+
+function distanceToRootCenter(root: HTMLElement, el: HTMLElement): number {
+  const rootRect = root.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const rootCenter = rootRect.top + rootRect.height / 2;
+  const elCenter = elRect.top + elRect.height / 2;
+  return Math.abs(elCenter - rootCenter);
+}
+
+function useChannelSearchImageLoadScheduler(
+  rootRef: RefObject<HTMLDivElement | null>,
+): ChannelSearchImageLoadScheduler {
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const registeredRef = useRef(new Map<HTMLImageElement, () => void>());
+  const pendingRef = useRef(new Map<HTMLImageElement, () => void>());
+  const flushTimerRef = useRef<number | null>(null);
+
+  const flush = useCallback(() => {
+    flushTimerRef.current = null;
+    const root = rootRef.current;
+    if (!root) return;
+
+    const batch = Array.from(pendingRef.current.entries())
+      .sort(([a], [b]) => distanceToRootCenter(root, a) - distanceToRootCenter(root, b))
+      .slice(0, IMAGE_LOAD_BATCH_SIZE);
+
+    for (const [el, load] of batch) {
+      pendingRef.current.delete(el);
+      registeredRef.current.delete(el);
+      observerRef.current?.unobserve(el);
+      load();
+    }
+
+    if (pendingRef.current.size > 0) {
+      flushTimerRef.current = window.setTimeout(flush, IMAGE_LOAD_BATCH_DELAY_MS);
+    }
+  }, [rootRef]);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) return;
+    flushTimerRef.current = window.setTimeout(flush, 0);
+  }, [flush]);
+
+  useEffect(() => {
+    const registered = registeredRef.current;
+    const pending = pendingRef.current;
+    return () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+      registered.clear();
+      pending.clear();
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const register = useCallback(
+    ({ el, load }: ChannelSearchImageLoadCandidate) => {
+      if (typeof IntersectionObserver === "undefined") {
+        load();
+        return () => {};
+      }
+
+      registeredRef.current.set(el, load);
+      if (!observerRef.current) {
+        const root = rootRef.current;
+        observerRef.current = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const target = entry.target as HTMLImageElement;
+              const registeredLoad = registeredRef.current.get(target);
+              if (!registeredLoad) continue;
+              pendingRef.current.set(target, registeredLoad);
+            }
+            if (pendingRef.current.size > 0) scheduleFlush();
+          },
+          { root, rootMargin: IMAGE_PRELOAD_ROOT_MARGIN },
+        );
+      }
+
+      observerRef.current.observe(el);
+      return () => {
+        observerRef.current?.unobserve(el);
+        registeredRef.current.delete(el);
+        pendingRef.current.delete(el);
+      };
+    },
+    [rootRef, scheduleFlush],
+  );
+
+  return useMemo(() => ({ register }), [register]);
+}
+
+function useShouldLoadSearchImage(ref: RefObject<HTMLImageElement | null>): boolean {
+  const scheduler = useContext(ChannelSearchImageLoadContext);
+  const [shouldLoad, setShouldLoad] = useState(false);
+
+  useEffect(() => {
+    if (shouldLoad) return;
+    const el = ref.current;
+    if (!scheduler || !el) {
+      setShouldLoad(true);
+      return;
+    }
+
+    return scheduler.register({
+      el,
+      load: () => setShouldLoad(true),
+    });
+  }, [ref, scheduler, shouldLoad]);
+
+  return shouldLoad;
+}
+
+interface PrioritizedSearchImageProps extends Omit<
+  ImgHTMLAttributes<HTMLImageElement>,
+  "fetchPriority" | "loading" | "src"
+> {
+  src: string;
+}
+
+function PrioritizedSearchImage({ src, ...props }: PrioritizedSearchImageProps) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  const shouldLoad = useShouldLoadSearchImage(imageRef);
+  return (
+    <img
+      {...props}
+      ref={imageRef}
+      src={shouldLoad ? src : undefined}
+      loading={shouldLoad ? "eager" : "lazy"}
+      fetchPriority={shouldLoad ? "high" : "low"}
+      decoding="async"
+    />
+  );
 }
 
 function parentGroupNo(channel: Channel): string | null {
@@ -187,6 +387,18 @@ export function ChannelSearchPanel({ channel, hidden = false }: ChannelSearchPan
     () => searchQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [searchQuery.data],
   );
+  const resultScrollRef = useRef<HTMLDivElement>(null);
+  const imageLoadScheduler = useChannelSearchImageLoadScheduler(resultScrollRef);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const canAutoLoadMore = canUseIntersectionObserver();
+  useFetchNextChannelSearchPageOnInView(
+    resultScrollRef,
+    loadMoreSentinelRef,
+    canAutoLoadMore && !hidden && !!searchQuery.hasNextPage && !searchQuery.isFetchingNextPage,
+    searchQuery.fetchNextPage,
+  );
+  const showManualLoadMore =
+    !!searchQuery.hasNextPage && (!canAutoLoadMore || searchQuery.isFetchNextPageError);
   const hasFilter = filters.senderUids.length > 0 || !!filters.startAt || !!filters.endAt;
 
   const onKeywordChange = (next: string) => {
@@ -314,54 +526,62 @@ export function ChannelSearchPanel({ channel, hidden = false }: ChannelSearchPan
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {!canSearch ? (
-            <EmptyState text={t("channelSearch.unsupported")} />
-          ) : !shouldRun ? (
-            <EmptyState text={t("channelSearch.emptyHint")} />
-          ) : searchQuery.isLoading ? (
-            <LoadingState text={t("channelSearch.loading")} />
-          ) : searchQuery.isError ? (
-            <ErrorState
-              text={t("channelSearch.searchFailed")}
-              onRetry={() => searchQuery.refetch()}
-            />
-          ) : items.length === 0 ? (
-            <EmptyState text={t("channelSearch.noResults")} />
-          ) : (
-            <div className={activeTab === "media" ? "space-y-4" : "space-y-2"}>
-              {activeTab === "media" ? (
-                <MediaResultGrid items={items} onOpenImagePreview={setImagePreviewSrc} />
-              ) : activeTab === "file" ? (
-                <FileResultList items={items} keyword={keyword} />
-              ) : (
-                items.map((item) => (
-                  <SearchResultItem
-                    key={`${item.kind}-${item.id}-${item.messageSeq}`}
-                    item={item}
-                    keyword={keyword}
-                    onOpenImagePreview={setImagePreviewSrc}
-                  />
-                ))
-              )}
-              {searchQuery.hasNextPage ? (
-                <Button
-                  type="tertiary"
-                  theme="borderless"
-                  size="small"
-                  className="w-full"
-                  loading={searchQuery.isFetchingNextPage}
-                  onClick={() => searchQuery.fetchNextPage()}
-                >
-                  {t("channelSearch.loadMore")}
-                </Button>
-              ) : (
-                <div className="py-2 text-center text-xs text-text-tertiary">
-                  {t("filePreview.noMore")}
-                </div>
-              )}
-            </div>
-          )}
+        <div ref={resultScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <ChannelSearchImageLoadContext.Provider value={imageLoadScheduler}>
+            {!canSearch ? (
+              <EmptyState text={t("channelSearch.unsupported")} />
+            ) : !shouldRun ? (
+              <EmptyState text={t("channelSearch.emptyHint")} />
+            ) : searchQuery.isLoading ? (
+              <LoadingState text={t("channelSearch.loading")} />
+            ) : searchQuery.isError ? (
+              <ErrorState
+                text={t("channelSearch.searchFailed")}
+                onRetry={() => searchQuery.refetch()}
+              />
+            ) : items.length === 0 ? (
+              <EmptyState text={t("channelSearch.noResults")} />
+            ) : (
+              <div className={activeTab === "media" ? "space-y-4" : "space-y-2"}>
+                {activeTab === "media" ? (
+                  <MediaResultGrid items={items} onOpenImagePreview={setImagePreviewSrc} />
+                ) : activeTab === "file" ? (
+                  <FileResultList items={items} keyword={keyword} />
+                ) : (
+                  items.map((item) => (
+                    <SearchResultItem
+                      key={`${item.kind}-${item.id}-${item.messageSeq}`}
+                      item={item}
+                      keyword={keyword}
+                      onOpenImagePreview={setImagePreviewSrc}
+                    />
+                  ))
+                )}
+                <div ref={loadMoreSentinelRef} aria-hidden="true" className="h-px" />
+                {searchQuery.isFetchingNextPage && !showManualLoadMore ? (
+                  <div className="py-2 text-center text-xs text-text-tertiary">
+                    {t("channelSearch.loading")}
+                  </div>
+                ) : null}
+                {showManualLoadMore ? (
+                  <Button
+                    type="tertiary"
+                    theme="borderless"
+                    size="small"
+                    className="w-full"
+                    loading={searchQuery.isFetchingNextPage}
+                    onClick={() => searchQuery.fetchNextPage()}
+                  >
+                    {t("channelSearch.loadMore")}
+                  </Button>
+                ) : searchQuery.hasNextPage ? null : (
+                  <div className="py-2 text-center text-xs text-text-tertiary">
+                    {t("filePreview.noMore")}
+                  </div>
+                )}
+              </div>
+            )}
+          </ChannelSearchImageLoadContext.Provider>
         </div>
 
         <PanelSplitter
@@ -798,7 +1018,12 @@ function MediaGridItem({
         className="absolute inset-0 flex items-center justify-center disabled:cursor-default"
       >
         {thumbUrl ? (
-          <img src={thumbUrl} alt="" draggable={false} className="h-full w-full object-contain" />
+          <PrioritizedSearchImage
+            src={thumbUrl}
+            alt=""
+            draggable={false}
+            className="h-full w-full object-contain"
+          />
         ) : (
           <ImageIcon size={24} className="text-text-tertiary" />
         )}
@@ -860,6 +1085,7 @@ function ResultBody({
     );
   }
   if ((item.kind === "image" || item.kind === "video") && item.media) {
+    const thumbUrl = item.media.thumbUrl || item.media.url;
     return (
       <button
         type="button"
@@ -867,12 +1093,8 @@ function ResultBody({
         className="flex w-full items-center gap-3 rounded-md bg-bg-elevated p-2 text-left"
       >
         <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-bg-base">
-          {item.media.thumbUrl || item.media.url ? (
-            <img
-              src={item.media.thumbUrl || item.media.url}
-              alt=""
-              className="h-full w-full object-cover"
-            />
+          {thumbUrl ? (
+            <PrioritizedSearchImage src={thumbUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <ImageIcon size={22} className="text-text-tertiary" />
           )}
@@ -1014,7 +1236,11 @@ function RichTextSearchImage({ block }: { block: RichTextBlock }) {
   }
   return (
     <div className="flex h-16 w-20 items-center justify-center overflow-hidden rounded bg-bg-base">
-      <img src={block.url} alt={block.name || ""} className="h-full w-full object-cover" />
+      <PrioritizedSearchImage
+        src={block.url}
+        alt={block.name || ""}
+        className="h-full w-full object-cover"
+      />
     </div>
   );
 }

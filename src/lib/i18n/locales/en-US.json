@@ -1724,6 +1724,7 @@
   "matter.outputs.preview": "Preview",
   "matter.outputs.download": "Download",
   "matter.field.assignee": "Assignee",
+  "matter.field.deadline": "Deadline",
   "matter.field.goal": "Main goal",
   "matter.field.goalPlaceholder": "Enter the main goal",
   "matter.field.title": "Task name",

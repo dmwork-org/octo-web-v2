@@ -1,15 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Channel } from "wukongimjssdk";
 import { useT } from "@/lib/i18n/use-t";
 import { MemberSelect } from "@/features/base/components/member-select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  todayDateStr,
-  parseDateStr,
-  formatDateStr,
-  type MatterFormValues,
-} from "@/features/matter/lib/matter-form";
+import { todayDateStr, type MatterFormValues } from "@/features/matter/lib/matter-form";
 
 interface MatterFormBodyProps {
   values: MatterFormValues;
@@ -123,17 +116,13 @@ export function MatterFormBody({
         />
       </Field>
 
-      <Field label="Deadline" required>
+      <Field label={t("matter.field.deadline")} required>
         <DeadlineField value={values.deadline} onChange={(deadline) => onChange({ deadline })} />
       </Field>
     </>
   );
 }
 
-/**
- * Deadline 选择(组件化日历,对齐事项详情 DeadlinePicker 用的 Popover + Calendar,
- * 不用原生 <input type="date">)。受控值为 YYYY-MM-DD 字符串。
- */
 function DeadlineField({
   value,
   onChange,
@@ -142,39 +131,18 @@ function DeadlineField({
   onChange: (deadline: string) => void;
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
   const today = todayDateStr();
-  const selectedDate = parseDateStr(value);
-  // 禁选今天之前(对齐原 min={today})。
-  const minDate = parseDateStr(today);
-
-  const handleSelect = (d: Date | undefined) => {
-    if (!d) return;
-    onChange(formatDateStr(d));
-    setOpen(false);
-  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`flex h-8 w-full items-center rounded-sm border-0 bg-brand/[0.04] px-3 text-left text-sm transition-colors hover:bg-brand/[0.06] focus:bg-brand/[0.06] focus:outline-none ${
-            value ? "text-text-primary" : "text-brand/30"
-          }`}
-        >
-          {value || t("matter.common.selectPlaceholder")}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="z-dialog-secondary w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={handleSelect}
-          disabled={minDate ? { before: minDate } : undefined}
-          defaultMonth={selectedDate}
-        />
-      </PopoverContent>
-    </Popover>
+    <input
+      type="date"
+      value={value}
+      min={today}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={t("matter.field.deadline")}
+      className={`h-8 w-full rounded-sm border-0 bg-brand/[0.04] px-3 text-sm transition-colors hover:bg-brand/[0.06] focus:bg-brand/[0.06] focus:outline-none ${
+        value ? "text-text-primary" : "text-brand/30"
+      }`}
+    />
   );
 }

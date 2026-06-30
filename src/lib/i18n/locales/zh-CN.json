@@ -1725,6 +1725,7 @@
   "matter.outputs.preview": "预览",
   "matter.outputs.download": "下载",
   "matter.field.assignee": "负责人",
+  "matter.field.deadline": "截止日期",
   "matter.field.goal": "主要目标",
   "matter.field.goalPlaceholder": "请输入主要目标",
   "matter.field.title": "事项名称",

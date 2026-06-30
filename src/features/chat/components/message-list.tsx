@@ -30,6 +30,7 @@ import {
 } from "@/features/chat/stores/chat-locate-message";
 import {
   distanceFromBottom,
+  isNearBottomForNewer,
   getPulldownRestoredScrollTop,
   isNearTopForHistory,
 } from "@/features/chat/lib/history-scroll";
@@ -257,6 +258,36 @@ function usePulldownToLoadHistory(
   }, [pageCount, scrollRef]);
 }
 
+function usePullupToLoadNewer(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  hasPreviousPage: boolean,
+  isFetchingPreviousPage: boolean,
+  fetchPreviousPage: () => void,
+  skip: boolean,
+) {
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let lastScrollTop = el.scrollTop;
+    let wasNearBottom = isNearBottomForNewer(el);
+    const onScroll = () => {
+      const scrollingDown = el.scrollTop > lastScrollTop;
+      lastScrollTop = el.scrollTop;
+      const nearBottom = isNearBottomForNewer(el);
+      if (skip || !hasPreviousPage || isFetchingPreviousPage) return;
+      if (!nearBottom) {
+        wasNearBottom = false;
+        return;
+      }
+      if (wasNearBottom || !scrollingDown) return;
+      wasNearBottom = true;
+      fetchPreviousPage();
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scrollRef, hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage, skip]);
+}
+
 function highlightLocatedMessage(el: HTMLElement): void {
   el.scrollIntoView({ behavior: "auto", block: "center" });
   const prevRadius = el.style.borderRadius;
@@ -398,8 +429,17 @@ export function MessageList({ channel }: MessageListProps) {
   const historySplitAfterSeq = useHistorySplitAnchor(channel);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
-  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteQuery(messagesInfiniteQueryOptions(channel));
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchPreviousPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+  } = useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // typing info(per-channel)— bot CMD typing 推送 → TypingManager → 本 hook 同步
@@ -487,6 +527,13 @@ export function MessageList({ channel }: MessageListProps) {
     !!hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    pendingLocateForChannel,
+  );
+  usePullupToLoadNewer(
+    scrollRef,
+    !!hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
     pendingLocateForChannel,
   );
   useLocateRequestedMessage(channel, !isLoading && !error && !!data);

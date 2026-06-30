@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { spaceActions, spaceStore } from "@/features/base/stores/space";
 import { mySpacesQueryOptions } from "@/features/base/queries/spaces.query";
+import { useCanCreateSpace } from "@/features/base/queries/appconfig.query";
 import { useT } from "@/lib/i18n/use-t";
 import { JoinSpaceModal } from "@/features/space/components/join-space-modal";
+import { CreateSpaceModal } from "@/features/space/components/create-space-modal";
 import { BuildingIcon } from "@/components/ui/icons/building";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { JoinSpaceIcon } from "@/components/ui/icons/join-space";
@@ -163,6 +165,8 @@ export function SpaceSwitcher() {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const canCreateSpace = useCanCreateSpace();
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
   useEscClose(open, () => setOpen(false));
@@ -224,6 +228,28 @@ export function SpaceSwitcher() {
           </div>
           {/* 分割线:1px,左右 margin 12px(对齐老仓 .wk-navrail__dropdown-divider) */}
           <div className="mx-3 my-1 h-px shrink-0 bg-[rgba(28,28,35,0.15)]" />
+          {/* "创建空间"compact ActionListItem — useCanCreateSpace 门控(对齐老仓
+              NavSpaceSwitcher 的 canCreateSpace gating + 后端 disableUserCreateSpace) */}
+          {canCreateSpace ? (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setCreateOpen(true);
+              }}
+              className="relative flex h-8 cursor-pointer items-center gap-2 px-3 text-left text-[14px] text-[rgba(28,28,35,1)] transition-colors before:pointer-events-none before:absolute before:inset-y-0 before:right-1 before:left-1 before:rounded-md before:content-[''] hover:before:bg-[rgba(28,28,35,0.04)]"
+            >
+              <span className="relative z-[1] flex h-4 w-4 shrink-0 items-center justify-center text-[rgba(31,28,35,0.60)]">
+                <Plus size={14} />
+              </span>
+              <span className="relative z-[1] flex-1 font-normal">
+                {t("base.spaceSwitcher.createNew")}
+              </span>
+              <span className="relative z-[1] flex shrink-0 items-center text-[rgba(28,28,35,0.40)]">
+                <ChevronRightIcon size={16} />
+              </span>
+            </button>
+          ) : null}
           {/* "加入新 Space"compact ActionListItem(对齐老仓 .wk-action-list-item--compact) */}
           <button
             type="button"
@@ -247,6 +273,7 @@ export function SpaceSwitcher() {
       ) : null}
 
       <JoinSpaceModal open={joinOpen} onClose={() => setJoinOpen(false)} />
+      <CreateSpaceModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

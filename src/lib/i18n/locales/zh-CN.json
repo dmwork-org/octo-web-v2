@@ -242,6 +242,7 @@
   "base.sidebar.nav": "主导航",
   "base.sidebar.online": "在线",
   "base.sidebar.settings": "设置",
+  "base.spaceSwitcher.createNew": "创建空间",
   "base.spaceSwitcher.empty": "暂无空间",
   "base.spaceSwitcher.joinNew": "加入新 Space",
   "base.spaceSwitcher.joined": "已加入 Space",

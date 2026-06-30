@@ -269,27 +269,47 @@ function usePullupToLoadNewer(
   fetchPreviousPage: () => void,
   skip: boolean,
 ) {
+  // 缓存最新 props 进 ref,effect 只在 [scrollRef, skip] 变化时 attach 一次,避免
+  // fetchPreviousPage 引用每次 re-render 都变导致 listener 频繁 cleanup/attach。
+  // (issue #214)
+  const fetchRef = useRef(fetchPreviousPage);
+  fetchRef.current = fetchPreviousPage;
+  const fetchingRef = useRef(isFetchingPreviousPage);
+  fetchingRef.current = isFetchingPreviousPage;
+  const hasPrevRef = useRef(hasPreviousPage);
+  hasPrevRef.current = hasPreviousPage;
+  const skipRef = useRef(skip);
+  skipRef.current = skip;
+
+  // 250ms 节流:触摸板一次滑动会触发 30+ 个 wheel event,不节流会被后端打爆。
+  const lastFireAtRef = useRef(0);
+  // wasNearBottom 提升到 ref,避免 useEffect 重 attach 时丢失去重状态。
+  const wasNearBottomRef = useRef(false);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    wasNearBottomRef.current = isNearBottomForNewer(el);
     let lastScrollTop = el.scrollTop;
-    let wasNearBottom = isNearBottomForNewer(el);
     const onScroll = () => {
       const scrollingDown = el.scrollTop > lastScrollTop;
       lastScrollTop = el.scrollTop;
       const nearBottom = isNearBottomForNewer(el);
-      if (skip || !hasPreviousPage || isFetchingPreviousPage) return;
+      if (skipRef.current || !hasPrevRef.current || fetchingRef.current) return;
       if (!nearBottom) {
-        wasNearBottom = false;
+        wasNearBottomRef.current = false;
         return;
       }
-      if (wasNearBottom || !scrollingDown) return;
-      wasNearBottom = true;
-      fetchPreviousPage();
+      if (wasNearBottomRef.current || !scrollingDown) return;
+      const now = performance.now();
+      if (now - lastFireAtRef.current < 250) return;
+      lastFireAtRef.current = now;
+      wasNearBottomRef.current = true;
+      fetchRef.current();
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollRef, hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage, skip]);
+  }, [scrollRef]);
 }
 
 function highlightLocatedMessage(el: HTMLElement): void {

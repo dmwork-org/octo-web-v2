@@ -243,7 +243,6 @@ function useChannelSearchImageLoadScheduler(
         );
       }
 
-      observerRef.current.observe(el);
       return () => {
         observerRef.current?.unobserve(el);
         registeredRef.current.delete(el);
@@ -251,7 +250,6 @@ function useChannelSearchImageLoadScheduler(
       };
     },
     [rootRef, scheduleFlush],
-  );
   );
 
   return useMemo(() => ({ register }), [register]);

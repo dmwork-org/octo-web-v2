@@ -19,25 +19,13 @@ import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 
 /**
+ * 进入 channel 时补差 syncMessages 的去重表 (issue #216):
+ * 30s 内重复进入同 channel 跳过 syncMessages,避免切走切回反复打后端。
+ */
+const lastSyncByChannel = new Map<string, number>();
+
+/**
  * 订阅当前会话的:
- * - 新消息推送(messageListener)— append 到 InfiniteData.pages[0]
- * - 发送 ack(messageStatusListener)— 找 clientSeq 对应消息,更新 messageID/messageSeq/status
- *   (sendack 是 message.status 的唯一权威 — 对齐旧 dmworkbase/Components/Conversation/index.tsx
- *    `taskListener + ackListener` 双源 done 协议:task fail 仅影响该 send 操作的 retry 决策,
- *    不写 message.status;UI 层 image/file/video renderer 自行 subscribe task 显示进度 overlay)
- * - CMD typing(chatManager.addCMDListener)
- * - WebSocket 重连(connectStatusListener)— Connected 时 invalidate 当前 channel
- *   的 messages query 补刷首屏(对齐上游 7a42c23a / #187):staleTime=Infinity 不会
- *   自动 refetch,断连期间 bot 回复经 HTTP sync 落库但当前会话拿不到,5s 去抖避免
- *   短间隔重连多次 invalidate
- *
- * 不走 invalidate(避免重新拉一次第一页)。channel 切换 / unmount 时移除 listener。
- *
- * **空间隔离**:
- *   - MessageList 只挂在当前选中 channel 上,选中态随 Space 切换清理;
- *   - listener 层仅对 Person 私聊做 `isMessageOfSpace` 过滤
- *     (尤其 BotFather 这类全局 bot)按 message.content.contentObj.space_id 过滤。
- *
  * 当前会话不要在 hook 入口用 `isChannelOfSpace` fail-close:群聊的
  * channelSpaceMap / channelInfo 可能在首次打开时尚未回填,会导致 SDK
  * `send()` 立即触发的本地 messageListener 和后续 ack 都没订阅到,表现为
@@ -174,8 +162,17 @@ export function useMessagesSync(channel: Channel | null) {
     // 修法:进入(且 cache 已有数据)时主动 SDK syncMessages 拉最新一页,
     // append 到 firstPage 末尾,渲染时按 messageSeq 排序自动排到底部。
     // 去重靠 clientMsgNo,与 messageListener 同模式。
+    //
+    // **去重**(issue #216):切到别的 channel 再切回,useEffect 重新 attach 但 cache
+    // 仍存在 → 每次切回都重复 syncMessages 拉首屏。用 module-level Map 记录每个
+    // channel 上次 sync 时间戳,30s 内跳过。module-level 是因为同一时刻同一 channel
+    // 最多只挂一个 useMessagesSync(同一 channel 不会被两个 MessageList 同时渲染)。
     const prevData = qc.getQueryData<InfiniteData<Message[], number>>(key);
-    if (prevData && prevData.pages.length > 0) {
+    const channelKey = `${channel.channelType}::${channel.channelID}`;
+    const lastSyncAt = lastSyncByChannel.get(channelKey) ?? 0;
+    const SYNC_DEDUP_MS = 30_000;
+    if (prevData && prevData.pages.length > 0 && Date.now() - lastSyncAt > SYNC_DEDUP_MS) {
+      lastSyncByChannel.set(channelKey, Date.now());
       void (async () => {
         try {
           const latest = await WKSDK.shared().chatManager.syncMessages(channel, {

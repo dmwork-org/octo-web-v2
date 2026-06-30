@@ -114,13 +114,18 @@ function useFetchNextChannelSearchPageOnInView(
   enabled: boolean,
   fetchNextPage: () => unknown,
 ): void {
+  // 缓存 fetchNextPage / enabled 到 ref,effect 依赖只挂 [ref, rootRef],
+  // 避免每次 render 重建 IntersectionObserver (issue #215)。
+  const fetchRef = useRef(fetchNextPage);
+  fetchRef.current = fetchNextPage;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const armedRef = useRef(true);
 
   useEffect(() => {
-    if (!enabled) return;
     const root = rootRef.current;
     const el = ref.current;
-    if (!root || !el) return;
+    if (!enabledRef.current || !root || !el) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const isIntersecting = entries.some((entry) => entry.isIntersecting);
@@ -131,14 +136,14 @@ function useFetchNextChannelSearchPageOnInView(
         if (!armedRef.current) return;
         armedRef.current = false;
         window.requestAnimationFrame(() => {
-          void fetchNextPage();
+          void fetchRef.current();
         });
       },
       { root, rootMargin: LOAD_MORE_ROOT_MARGIN },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [enabled, fetchNextPage, ref, rootRef]);
+  }, [ref, rootRef]);
 }
 
 function canUseIntersectionObserver(): boolean {

@@ -249,9 +249,11 @@ function useChannelSearchImageLoadScheduler(
         registeredRef.current.delete(el);
         pendingRef.current.delete(el);
       };
-    },
     [rootRef, scheduleFlush],
   );
+  );
+
+  return useMemo(() => ({ register }), [register]);
   );
 
   return useMemo(() => ({ register }), [register]);

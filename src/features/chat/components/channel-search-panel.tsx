@@ -215,8 +215,19 @@ function useChannelSearchImageLoadScheduler(
       }
 
       registeredRef.current.set(el, load);
+
+      // root 还没挂载时懒 observer 退化为 viewport(issue #217),
+      // 退路:直接 load 一次,避免等不到 root mount。
+      const root = rootRef.current;
+      if (!root) {
+        load();
+        return () => {
+          registeredRef.current.delete(el);
+          pendingRef.current.delete(el);
+        };
+      }
+
       if (!observerRef.current) {
-        const root = rootRef.current;
         observerRef.current = new IntersectionObserver(
           (entries) => {
             for (const entry of entries) {
@@ -240,6 +251,7 @@ function useChannelSearchImageLoadScheduler(
       };
     },
     [rootRef, scheduleFlush],
+  );
   );
 
   return useMemo(() => ({ register }), [register]);

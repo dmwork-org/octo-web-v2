@@ -40,18 +40,26 @@ export function getNewerMessagesPageParam(
   return newest + 1;
 }
 
+export async function fetchMessagesPage(
+  channel: Channel,
+  pageParam: number,
+  direction: "older" | "newer",
+): Promise<Message[]> {
+  const list = await WKSDK.shared().chatManager.syncMessages(channel, {
+    startMessageSeq: pageParam,
+    endMessageSeq: 0,
+    limit: PAGE_LIMIT,
+    pullMode: direction === "newer" ? PullMode.Up : PullMode.Down,
+  });
+  return list ?? [];
+}
+
 export const messagesInfiniteQueryOptions = (channel: Channel) =>
   infiniteQueryOptions({
     queryKey: messagesQueryKey(channel.channelID, channel.channelType),
     initialPageParam: 0 as number,
     queryFn: async ({ pageParam, direction }): Promise<Message[]> => {
-      const list = await WKSDK.shared().chatManager.syncMessages(channel, {
-        startMessageSeq: pageParam,
-        endMessageSeq: 0,
-        limit: PAGE_LIMIT,
-        pullMode: direction === "backward" ? PullMode.Up : PullMode.Down,
-      });
-      return list ?? [];
+      return fetchMessagesPage(channel, pageParam, direction === "backward" ? "newer" : "older");
     },
     getNextPageParam: (lastPage): number | undefined => {
       if (lastPage.length < PAGE_LIMIT) return undefined;

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
@@ -7,7 +7,11 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
+import {
+  fetchMessagesPage,
+  messagesInfiniteQueryOptions,
+  messagesQueryKey,
+} from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
@@ -445,6 +449,8 @@ export function MessageList({ channel }: MessageListProps) {
   // typing info(per-channel)— bot CMD typing 推送 → TypingManager → 本 hook 同步
   const typing = useTypingForChannel(channel);
   const locateRequest = useStore(chatLocateMessageStore, (s) => s);
+  const qc = useQueryClient();
+  const [isJumpingToLatest, setIsJumpingToLatest] = useState(false);
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
@@ -534,7 +540,7 @@ export function MessageList({ channel }: MessageListProps) {
     !!hasPreviousPage,
     isFetchingPreviousPage,
     fetchPreviousPage,
-    pendingLocateForChannel,
+    pendingLocateForChannel || isJumpingToLatest,
   );
   useLocateRequestedMessage(channel, !isLoading && !error && !!data);
   useSyncAiCollabFoldDigest(channel, renderItems);
@@ -543,6 +549,21 @@ export function MessageList({ channel }: MessageListProps) {
   // issue #31 修复:用末尾消息稳定 id 替代 messages.length,避免向上拉历史时
   // messages.length 增加被误判为新消息)。复用 followKey 的 id + mine 标识。
   const scrollBtn = useScrollToBottomButton(scrollRef, followKey.id, followKey.mine);
+  const scrollToLatest = useCallback(async () => {
+    scrollBtn.scrollToBottom();
+    if (!hasPreviousPage || isJumpingToLatest) return;
+    setIsJumpingToLatest(true);
+    try {
+      const latestPage = await fetchMessagesPage(channel, 0, "older");
+      qc.setQueryData(messagesQueryKey(channel.channelID, channel.channelType), {
+        pages: [latestPage],
+        pageParams: [0],
+      });
+      requestAnimationFrame(() => scrollBtn.scrollToBottom());
+    } finally {
+      setIsJumpingToLatest(false);
+    }
+  }, [channel, hasPreviousPage, isJumpingToLatest, qc, scrollBtn]);
 
   if (isLoading) {
     return (
@@ -614,9 +635,10 @@ export function MessageList({ channel }: MessageListProps) {
         {typing ? <TypingIndicator info={typing} /> : null}
       </div>
       <ScrollToBottomButton
-        visible={scrollBtn.visible}
+        visible={scrollBtn.visible || isJumpingToLatest}
         unreadCount={scrollBtn.unreadCount}
-        onClick={scrollBtn.scrollToBottom}
+        loading={isJumpingToLatest}
+        onClick={() => void scrollToLatest()}
       />
     </div>
   );

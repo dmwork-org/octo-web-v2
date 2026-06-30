@@ -460,6 +460,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const send = async () => {
     if (!editor) return;
+    // ws 未连接时阻止发送，保留编辑器内容，避免消息静默丢失（#202）
+    if (!WKSDK.shared().connectManager.connected()) {
+      message.warning(t("composer.toast.sendFailed"));
+      return;
+    }
     if (sendingRef.current) {
       // 缓冲：把当前编辑器内容快照入队，当前发送完成后自动重放。
       // 不再 toast warning + 丢弃（GH#176 快速连发消息丢失）。
@@ -470,9 +475,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       }
       return;
     }
-    // 立即占锁，防止后续 send() 在 await 期间穿透 guard（GH#176）
-    sendingRef.current = true;
-    setSending(true);
+
+    // 预校验：在占锁之前检查消息合法性，保证校验通过前锁是干净的
     const MAX_MESSAGE_LENGTH = 5000;
     const blocks = attachments.extractOrderedBlocks(editor);
     const top = attachments.topAttachments;
@@ -486,6 +490,10 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return;
       }
     }
+
+    // 立即占锁，防止后续 send() 在 await 期间穿透 guard（GH#176）
+    sendingRef.current = true;
+    setSending(true);
 
     const wrapInject = (c: MessageContent) => {
       const m = (c as { mention?: { humans?: number; ais?: number } }).mention;

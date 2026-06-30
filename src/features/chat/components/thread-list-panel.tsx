@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import WKSDK, { Channel, ChannelTypePerson } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import {
   Archive,
   ArchiveRestore,
@@ -19,8 +19,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThreadIcon } from "@/components/ui/thread-icon";
 import { chatSelectedActions, chatSelectedStore } from "@/features/chat/stores/chat-selected";
+import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
+import { IncomingWebhookPanel } from "@/features/chat/components/incoming-webhook-panel";
 import {
   createThreadByName,
   deleteThread,
@@ -48,6 +50,9 @@ import { DragOverlay, PanelSplitter } from "@/components/ui/panel-splitter";
 import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
+import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
+import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
+import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -60,6 +65,8 @@ const THREAD_STATUS_ACTIVE = 1;
 const THREAD_STATUS_ARCHIVED = 2;
 const THREAD_STATUS_DELETED = 3;
 const CHANNEL_TYPE_THREAD = 5;
+const ROLE_OWNER = 1;
+const ROLE_MANAGER = 2;
 
 type View = "list" | "detail";
 
@@ -363,14 +370,28 @@ function DetailView({
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [webhookOpen, setWebhookOpen] = useState(false);
   const canEdit = canManageThread(thread, groupNo, myUid);
   const archiveAction = deriveArchiveAction(thread);
   const isArchived = thread.status === THREAD_STATUS_ARCHIVED;
 
+  const groupChannel = new Channel(groupNo, ChannelTypeGroup);
   const threadChannel = new Channel(
     buildThreadChannelId(groupNo, thread.short_id),
     CHANNEL_TYPE_THREAD,
   );
+  const subscribers = useGroupSubscribers(groupChannel, true);
+  const me = subscribers.find((s) => s.uid === myUid);
+  const myRole = me?.role ?? 0;
+  const isParentManager = myRole === ROLE_OWNER || myRole === ROLE_MANAGER;
+  const canOpenChannelSearch = useMessagesSearchEnabled() && supportsChannelSearch(threadChannel);
+
+  const openChannelSearch = () => {
+    setMoreOpen(false);
+    chatSelectedActions.select(threadChannel, {
+      afterSelect: () => chatSidePanelActions.openChannelSearch({ preserveOnChannelChange: true }),
+    });
+  };
 
   const renameMu = useMutation({
     mutationFn: (name: string) => updateThread(groupNo, thread.short_id, { name }),
@@ -489,16 +510,18 @@ function DetailView({
               >
                 {tt("threadPanelLocal.openFull")}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setRenameOpen(true);
-                }}
-                className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
-              >
-                {tt("threadPanelLocal.editName")}
-              </button>
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setRenameOpen(true);
+                  }}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {tt("threadPanelLocal.editName")}
+                </button>
+              ) : null}
               {canEdit && archiveAction ? (
                 <button
                   type="button"
@@ -511,6 +534,27 @@ function DetailView({
                   {archiveAction === "archive"
                     ? tt("threadPanelLocal.archive")
                     : tt("threadPanelLocal.unarchive")}
+                </button>
+              ) : null}
+              {canOpenChannelSearch ? (
+                <button
+                  type="button"
+                  onClick={openChannelSearch}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {tt("module.channelSettings.messageHistory")}
+                </button>
+              ) : null}
+              {!isArchived ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setWebhookOpen(true);
+                  }}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"
+                >
+                  {tt("threadPanel.webhook")}
                 </button>
               ) : null}
               <button
@@ -594,6 +638,15 @@ function DetailView({
         okLoading={deleteMu.isPending}
         onOk={() => deleteMu.mutate()}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <IncomingWebhookPanel
+        open={webhookOpen}
+        channel={groupChannel}
+        isManager={isParentManager}
+        title={tt("threadPanel.webhook")}
+        threadShortId={thread.short_id}
+        onClose={() => setWebhookOpen(false)}
       />
     </>
   );

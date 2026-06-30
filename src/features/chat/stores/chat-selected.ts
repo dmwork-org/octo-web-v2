@@ -110,6 +110,7 @@ function isSameChannel(a: Channel | null, b: Channel): boolean {
  */
 export interface SelectChannelOptions {
   fromSidebarList?: boolean;
+  afterSelect?: () => void;
 }
 
 function doSelect(channel: Channel, opts?: SelectChannelOptions): void {
@@ -118,12 +119,14 @@ function doSelect(channel: Channel, opts?: SelectChannelOptions): void {
   }
   chatSelectedStore.setState(() => ({ channel }));
   writePersistedChannel(channel);
+  opts?.afterSelect?.();
 }
 
 export const chatSelectedActions = {
   select: (channel: Channel, opts?: SelectChannelOptions) => {
     if (isSameChannel(chatSelectedStore.state.channel, channel)) {
       writePersistedChannel(channel);
+      opts?.afterSelect?.();
       return;
     }
     if (chatPendingAttachmentRegistry.hasPending()) {

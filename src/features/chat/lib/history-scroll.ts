@@ -11,6 +11,9 @@
 /** 触发顶部加载的距离阈值:scrollTop <= 250 才认为"已到顶部附近"。 */
 export const TOP_HISTORY_TRIGGER_OFFSET = 250;
 
+/** 触发底部补新消息的距离阈值:离底部 <= 800 即预加载。 */
+export const BOTTOM_NEWER_TRIGGER_OFFSET = 800;
+
 export interface PulldownScrollRestoreInput {
   previousScrollHeight: number;
   previousScrollTop: number;
@@ -42,4 +45,8 @@ export function isNearTopForHistory(scrollTop: number): boolean {
 /** 距离底部的像素(用于 isNearBottom 判断,新消息到时是否自动跟到底)。 */
 export function distanceFromBottom(el: HTMLElement): number {
   return el.scrollHeight - el.scrollTop - el.clientHeight;
+}
+
+export function isNearBottomForNewer(el: HTMLElement): boolean {
+  return distanceFromBottom(el) <= BOTTOM_NEWER_TRIGGER_OFFSET;
 }

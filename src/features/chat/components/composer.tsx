@@ -57,6 +57,7 @@ import { useApplyReeditRequest } from "@/features/chat/hooks/use-apply-reedit-re
 import { useReopenMentionPopupOnSubscribersReady } from "@/features/chat/hooks/use-reopen-mention-popup.hook";
 import { useDispatchOnPlaceholderChange } from "@/features/chat/hooks/use-reactive-tiptap-placeholder.hook";
 import { lookupNicknameLabel } from "@/features/chat/lib/reply-to-message";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { wrapSendContentForInjection } from "@/features/base/im/send-content-proxy";
 import { spaceStore } from "@/features/base/stores/space";
 import { useBotCommands } from "@/features/chat/hooks/use-bot-commands.hook";
@@ -460,6 +461,12 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const send = async () => {
     if (!editor) return;
+    // 群/子区已解散 → 只读,拦截发送(企业微信式只读归档)。本地权威态由
+    // syncGroupDisbandState 写入 channelInfo.orgData.status=2,这里同源读取。
+    if (isConversationDisbanded(channel)) {
+      message.warning(t("composer.disbandedNotice"));
+      return;
+    }
     // ws 未连接时阻止发送，保留编辑器内容，避免消息静默丢失（#202）
     if (!WKSDK.shared().connectManager.connected()) {
       message.warning(t("composer.toast.sendFailed"));

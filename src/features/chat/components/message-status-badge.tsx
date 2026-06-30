@@ -4,6 +4,8 @@ import WKSDK, { type Message, MessageStatus } from "wukongimjssdk";
 import { Loader2, AlertCircle } from "lucide-react";
 import { authStore } from "@/features/base/stores/auth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { message as toast } from "@/components/ui/message";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { useT } from "@/lib/i18n/use-t";
 
 interface MessageStatusBadgeProps {
@@ -115,6 +117,11 @@ export function MessageStatusBadge({ message }: MessageStatusBadgeProps) {
             type="button"
             aria-label={t("messageStatus.resend")}
             onClick={() => {
+              // 群解散后只读:拦截重发(target = 该消息所属频道)。
+              if (isConversationDisbanded(message.channel)) {
+                toast.warning(t("composer.disbandedNotice"));
+                return;
+              }
               void WKSDK.shared().chatManager.send(message.content, message.channel);
             }}
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-error hover:bg-error/10"

@@ -7,7 +7,7 @@ import {
   type SetStateAction,
   type WheelEvent,
 } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useT } from "@/lib/i18n/use-t";
@@ -35,6 +35,7 @@ const CROP_RATIO = 0.78;
 const OUTPUT_SIZE = 512;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.2;
 const JPEG_QUALITY = 0.92;
 
 function useObjectUrl(file: File | null): string {
@@ -192,9 +193,17 @@ export function AvatarCropModal({
   const baseScale = imageReady
     ? Math.max(cropSize / imageSize.width, cropSize / imageSize.height)
     : 1;
+  const canZoomOut = imageReady && zoom > MIN_ZOOM;
+  const canZoomIn = imageReady && zoom < MAX_ZOOM;
 
   useResetEditorState(imageUrl, setOffset, setZoom, setError);
   useClampOffsetOnGeometryChange(imageSize, cropSize, zoom, setOffset);
+
+  const updateZoom = (nextZoom: number) => {
+    const clampedZoom = clampZoom(nextZoom);
+    setZoom(clampedZoom);
+    setOffset((current) => clampOffset(current, imageSize, cropSize, clampedZoom));
+  };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!imageReady || loading) return;
@@ -226,9 +235,7 @@ export function AvatarCropModal({
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (!imageReady || loading) return;
     event.preventDefault();
-    const nextZoom = clampZoom(zoom - event.deltaY * 0.002);
-    setZoom(nextZoom);
-    setOffset((current) => clampOffset(current, imageSize, cropSize, nextZoom));
+    updateZoom(zoom - event.deltaY * 0.002);
   };
 
   const onDone = async () => {
@@ -319,6 +326,28 @@ export function AvatarCropModal({
                 transform: "translate(-50%, -50%)",
               }}
             />
+          </div>
+          <div className="mt-4 flex h-10 items-center gap-2 rounded-md bg-bg-elevated px-2">
+            <button
+              type="button"
+              aria-label={t("imageRenderer.zoomOut")}
+              title={t("imageRenderer.zoomOut")}
+              disabled={!canZoomOut || loading}
+              className="flex h-8 w-8 items-center justify-center rounded-sm border border-brand/20 bg-brand/10 text-brand shadow-sm transition-colors hover:bg-brand/15 disabled:pointer-events-none disabled:border-border-subtle disabled:bg-bg-base disabled:text-text-tertiary disabled:opacity-60"
+              onClick={() => updateZoom(zoom - ZOOM_STEP)}
+            >
+              <ZoomOut size={18} />
+            </button>
+            <button
+              type="button"
+              aria-label={t("imageRenderer.zoomIn")}
+              title={t("imageRenderer.zoomIn")}
+              disabled={!canZoomIn || loading}
+              className="flex h-8 w-8 items-center justify-center rounded-sm border border-brand/20 bg-brand/10 text-brand shadow-sm transition-colors hover:bg-brand/15 disabled:pointer-events-none disabled:border-border-subtle disabled:bg-bg-base disabled:text-text-tertiary disabled:opacity-60"
+              onClick={() => updateZoom(zoom + ZOOM_STEP)}
+            >
+              <ZoomIn size={18} />
+            </button>
           </div>
           {error ? <p className="text-xs text-error">{error}</p> : null}
         </div>

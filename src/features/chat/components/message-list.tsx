@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
@@ -7,7 +7,11 @@ import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
+import {
+  fetchMessagesPage,
+  messagesInfiniteQueryOptions,
+  messagesQueryKey,
+} from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
@@ -30,6 +34,7 @@ import {
 } from "@/features/chat/stores/chat-locate-message";
 import {
   distanceFromBottom,
+  isNearBottomForNewer,
   getPulldownRestoredScrollTop,
   isNearTopForHistory,
 } from "@/features/chat/lib/history-scroll";
@@ -257,6 +262,56 @@ function usePulldownToLoadHistory(
   }, [pageCount, scrollRef]);
 }
 
+function usePullupToLoadNewer(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  hasPreviousPage: boolean,
+  isFetchingPreviousPage: boolean,
+  fetchPreviousPage: () => void,
+  skip: boolean,
+) {
+  // 缓存最新 props 进 ref,effect 只在 [scrollRef, skip] 变化时 attach 一次,避免
+  // fetchPreviousPage 引用每次 re-render 都变导致 listener 频繁 cleanup/attach。
+  // (issue #214)
+  const fetchRef = useRef(fetchPreviousPage);
+  fetchRef.current = fetchPreviousPage;
+  const fetchingRef = useRef(isFetchingPreviousPage);
+  fetchingRef.current = isFetchingPreviousPage;
+  const hasPrevRef = useRef(hasPreviousPage);
+  hasPrevRef.current = hasPreviousPage;
+  const skipRef = useRef(skip);
+  skipRef.current = skip;
+
+  // 250ms 节流:触摸板一次滑动会触发 30+ 个 wheel event,不节流会被后端打爆。
+  const lastFireAtRef = useRef(0);
+  // wasNearBottom 提升到 ref,避免 useEffect 重 attach 时丢失去重状态。
+  const wasNearBottomRef = useRef(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    wasNearBottomRef.current = isNearBottomForNewer(el);
+    let lastScrollTop = el.scrollTop;
+    const onScroll = () => {
+      const scrollingDown = el.scrollTop > lastScrollTop;
+      lastScrollTop = el.scrollTop;
+      const nearBottom = isNearBottomForNewer(el);
+      if (skipRef.current || !hasPrevRef.current || fetchingRef.current) return;
+      if (!nearBottom) {
+        wasNearBottomRef.current = false;
+        return;
+      }
+      if (wasNearBottomRef.current || !scrollingDown) return;
+      const now = performance.now();
+      if (now - lastFireAtRef.current < 250) return;
+      lastFireAtRef.current = now;
+      wasNearBottomRef.current = true;
+      fetchRef.current();
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scrollRef]);
+}
+
 function highlightLocatedMessage(el: HTMLElement): void {
   el.scrollIntoView({ behavior: "auto", block: "center" });
   const prevRadius = el.style.borderRadius;
@@ -398,13 +453,24 @@ export function MessageList({ channel }: MessageListProps) {
   const historySplitAfterSeq = useHistorySplitAnchor(channel);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
-  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteQuery(messagesInfiniteQueryOptions(channel));
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchPreviousPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+  } = useInfiniteQuery(messagesInfiniteQueryOptions(channel));
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // typing info(per-channel)— bot CMD typing 推送 → TypingManager → 本 hook 同步
   const typing = useTypingForChannel(channel);
   const locateRequest = useStore(chatLocateMessageStore, (s) => s);
+  const qc = useQueryClient();
+  const [isJumpingToLatest, setIsJumpingToLatest] = useState(false);
 
   const messages = useMemo(() => {
     const all = (data?.pages ?? []).flat();
@@ -489,6 +555,13 @@ export function MessageList({ channel }: MessageListProps) {
     fetchNextPage,
     pendingLocateForChannel,
   );
+  usePullupToLoadNewer(
+    scrollRef,
+    !!hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
+    pendingLocateForChannel || isJumpingToLatest,
+  );
   useLocateRequestedMessage(channel, !isLoading && !error && !!data);
   useSyncAiCollabFoldDigest(channel, renderItems);
 
@@ -496,6 +569,21 @@ export function MessageList({ channel }: MessageListProps) {
   // issue #31 修复:用末尾消息稳定 id 替代 messages.length,避免向上拉历史时
   // messages.length 增加被误判为新消息)。复用 followKey 的 id + mine 标识。
   const scrollBtn = useScrollToBottomButton(scrollRef, followKey.id, followKey.mine);
+  const scrollToLatest = useCallback(async () => {
+    scrollBtn.scrollToBottom();
+    if (!hasPreviousPage || isJumpingToLatest) return;
+    setIsJumpingToLatest(true);
+    try {
+      const latestPage = await fetchMessagesPage(channel, 0, "older");
+      qc.setQueryData(messagesQueryKey(channel.channelID, channel.channelType), {
+        pages: [latestPage],
+        pageParams: [0],
+      });
+      requestAnimationFrame(() => scrollBtn.scrollToBottom());
+    } finally {
+      setIsJumpingToLatest(false);
+    }
+  }, [channel, hasPreviousPage, isJumpingToLatest, qc, scrollBtn]);
 
   if (isLoading) {
     return (
@@ -521,7 +609,10 @@ export function MessageList({ channel }: MessageListProps) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col" style={{ backgroundColor: "#f6f6f6" }}>
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-3"
+      >
         {hasNextPage ? (
           <div className="flex justify-center py-2 text-xs text-text-tertiary">
             {isFetchingNextPage ? t("messageList.loadingEarlier") : t("messageList.pullToLoadMore")}
@@ -567,9 +658,10 @@ export function MessageList({ channel }: MessageListProps) {
         {typing ? <TypingIndicator info={typing} /> : null}
       </div>
       <ScrollToBottomButton
-        visible={scrollBtn.visible}
+        visible={scrollBtn.visible || isJumpingToLatest}
         unreadCount={scrollBtn.unreadCount}
-        onClick={scrollBtn.scrollToBottom}
+        loading={isJumpingToLatest}
+        onClick={() => void scrollToLatest()}
       />
     </div>
   );

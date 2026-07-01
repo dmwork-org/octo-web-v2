@@ -27,18 +27,39 @@ const PAGE_LIMIT = 30;
 export const messagesQueryKey = (channelId: string, channelType: number) =>
   ["chat", "messages", channelType, channelId] as const;
 
+export function getNewerMessagesPageParam(
+  firstPage: Pick<Message, "messageSeq">[],
+  latestMessageSeq: number,
+): number | undefined {
+  if (firstPage.length < PAGE_LIMIT) return undefined;
+  let newest = 0;
+  for (const m of firstPage) {
+    if (m.messageSeq > newest) newest = m.messageSeq;
+  }
+  if (newest <= 0 || (latestMessageSeq > 0 && newest >= latestMessageSeq)) return undefined;
+  return newest + 1;
+}
+
+export async function fetchMessagesPage(
+  channel: Channel,
+  pageParam: number,
+  direction: "older" | "newer",
+): Promise<Message[]> {
+  const list = await WKSDK.shared().chatManager.syncMessages(channel, {
+    startMessageSeq: pageParam,
+    endMessageSeq: 0,
+    limit: PAGE_LIMIT,
+    pullMode: direction === "newer" ? PullMode.Up : PullMode.Down,
+  });
+  return list ?? [];
+}
+
 export const messagesInfiniteQueryOptions = (channel: Channel) =>
   infiniteQueryOptions({
     queryKey: messagesQueryKey(channel.channelID, channel.channelType),
     initialPageParam: 0 as number,
-    queryFn: async ({ pageParam }): Promise<Message[]> => {
-      const list = await WKSDK.shared().chatManager.syncMessages(channel, {
-        startMessageSeq: pageParam,
-        endMessageSeq: 0,
-        limit: PAGE_LIMIT,
-        pullMode: PullMode.Down,
-      });
-      return list ?? [];
+    queryFn: async ({ pageParam, direction }): Promise<Message[]> => {
+      return fetchMessagesPage(channel, pageParam, direction === "backward" ? "newer" : "older");
     },
     getNextPageParam: (lastPage): number | undefined => {
       if (lastPage.length < PAGE_LIMIT) return undefined;
@@ -52,6 +73,11 @@ export const messagesInfiniteQueryOptions = (channel: Channel) =>
       }
       // oldest=0 → 无法分页;oldest=1 → 已到最早消息
       return oldest > 1 ? oldest - 1 : undefined;
+    },
+    getPreviousPageParam: (firstPage): number | undefined => {
+      const latest =
+        WKSDK.shared().conversationManager.findConversation(channel)?.lastMessage?.messageSeq ?? 0;
+      return getNewerMessagesPageParam(firstPage, latest);
     },
     staleTime: Number.POSITIVE_INFINITY,
     // 同 conversations:Message 是 SDK mutable 实例,getter 跨 cache 取值;

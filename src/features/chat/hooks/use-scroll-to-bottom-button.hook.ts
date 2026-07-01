@@ -46,6 +46,7 @@ export function useScrollToBottomButton(
   tailKeyRef.current = tailKey;
   const atBottomRef = useRef(atBottom);
   atBottomRef.current = atBottom;
+  const suppressNextUnreadRef = useRef(false);
 
   // 首条消息到位 → baseline 直接对齐当前 tail,unread=0(避免首屏误报)
   useLayoutEffect(() => {
@@ -62,7 +63,8 @@ export function useScrollToBottomButton(
   useEffect(() => {
     if (!initRef.current || !tailKey) return;
     if (tailKey === baselineTailKey) return;
-    if (atBottomRef.current || isOwnTail) {
+    if (atBottomRef.current || isOwnTail || suppressNextUnreadRef.current) {
+      suppressNextUnreadRef.current = false;
       setBaselineTailKey(tailKey);
       setUnreadCount(0);
     } else {
@@ -97,7 +99,9 @@ export function useScrollToBottomButton(
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    suppressNextUnreadRef.current = true;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setAtBottom(true);
     setBaselineTailKey(tailKeyRef.current);
     setUnreadCount(0);
   }, [scrollRef]);

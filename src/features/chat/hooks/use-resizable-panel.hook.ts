@@ -34,6 +34,8 @@ export interface ResizablePanelApi {
   onSplitterDoubleClick: () => void;
 }
 
+const PANEL_WIDTH_EVENT = "octo:resizable-panel-width";
+
 /**
  * 通用 panel 宽度拖拽 hook,1:1 对齐老仓 WKLayout / ThreadPanel 的拖拽机制:
  *
@@ -73,6 +75,7 @@ function safeWriteStored(key: string, width: number): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(key, String(width));
+    window.dispatchEvent(new CustomEvent(PANEL_WIDTH_EVENT, { detail: { key, width } }));
   } catch {
     // ignore
   }
@@ -129,6 +132,33 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
     (w: number) => Math.max(minWidth, Math.min(cachedMaxRef.current, w)),
     [minWidth],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const applyWidth = (next: number) => {
+      const clamped = clamp(next);
+      lastWidthRef.current = clamped;
+      setWidth(clamped);
+      const el = panelRef.current;
+      if (el) el.style.width = `${clamped}px`;
+    };
+    const onPanelWidth = (event: Event) => {
+      const detail = (event as CustomEvent<{ key?: string; width?: number }>).detail;
+      if (detail?.key !== storageKey || typeof detail.width !== "number") return;
+      applyWidth(detail.width);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey || !event.newValue) return;
+      const next = parseInt(event.newValue, 10);
+      if (!Number.isNaN(next)) applyWidth(next);
+    };
+    window.addEventListener(PANEL_WIDTH_EVENT, onPanelWidth);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(PANEL_WIDTH_EVENT, onPanelWidth);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [clamp, storageKey]);
 
   const onSplitterMouseDown = useCallback(
     (e: React.MouseEvent) => {

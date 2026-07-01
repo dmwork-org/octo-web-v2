@@ -6,6 +6,8 @@ import { triggerDownload } from "@/features/chat/lib/file-download";
 import { chatSidePanelActions } from "@/features/chat/stores/chat-side-panel";
 import { getExtension } from "@/features/chat/file-preview/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { message as toast } from "@/components/ui/message";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { useT } from "@/lib/i18n/use-t";
 
 interface FileRendererProps {
@@ -188,6 +190,10 @@ export function FileRenderer({ message }: FileRendererProps) {
           aria-label={t("messageStatus.resend")}
           onClick={(e) => {
             e.stopPropagation();
+            if (isConversationDisbanded(message.channel)) {
+              toast.warning(t("composer.disbandedNotice"));
+              return;
+            }
             void WKSDK.shared().chatManager.send(message.content, message.channel);
           }}
           className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-error/20 bg-error/5 px-2 py-1.5 text-[12px] text-error transition-colors hover:bg-error/10"

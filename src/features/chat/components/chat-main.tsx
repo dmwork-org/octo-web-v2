@@ -9,6 +9,7 @@ import { ChatEmptyHologram } from "@/features/chat/components/chat-empty-hologra
 import { MessageList } from "@/features/chat/components/message-list";
 import { Composer } from "@/features/chat/components/composer";
 import { useArchivedThreadInputNotice } from "@/features/chat/hooks/use-archived-thread-input-notice.hook";
+import { useDisbandInputNotice } from "@/features/chat/hooks/use-disband-input-notice.hook";
 import { reactivateThreadInChannelInfoCache } from "@/features/chat/lib/thread-status";
 import { SelectionToolbar } from "@/features/chat/components/selection-toolbar";
 import { ThreadListPanel } from "@/features/chat/components/thread-list-panel";
@@ -120,6 +121,9 @@ export function ChatMain() {
   // issue #113:子区在主区域(完整视图)打开时,归档状态也要给 composer 顶部 notice
   // — thread-list-panel 内嵌 detail view 早已支持,主区域同步对齐
   const archivedInputNotice = useArchivedThreadInputNotice(channel);
+  // 群解散只读提示(优先于归档:解散是终态,归档是可恢复态)。
+  const disbandInputNotice = useDisbandInputNotice(channel);
+  const inputNotice = disbandInputNotice ?? archivedInputNotice;
   // 预热 appConfig → message-row 同步读 revoke_second
   useEnsureAppConfigLoaded();
   useCloseChannelSearchWhenDisabled(channelSearchEnabled, sidePanelKind);
@@ -159,9 +163,10 @@ export function ChatMain() {
           <Composer
             key={`${channel.channelID}_${channel.channelType}`}
             channel={channel}
-            inputNotice={archivedInputNotice}
+            inputNotice={inputNotice}
             // 归档子区发完消息 → 后端自动 reactivate,这里乐观本地改 channelInfo
             // 让 useArchivedThreadInputNotice 立即重算 → 顶部提示消失(issue #113)
+            // 注:已解散群是终态(无 reactivate),composer 内 send guard 直接拦截发送。
             onMessageSent={
               archivedInputNotice ? () => reactivateThreadInChannelInfoCache(channel) : undefined
             }

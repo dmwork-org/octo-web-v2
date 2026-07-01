@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import WKSDK, { MessageStatus, type Message, type MessageImage } from "wukongimjssdk";
 import { Loader2, RotateCw } from "lucide-react";
 import { ImagePreviewModal } from "@/features/chat/components/image-preview-modal";
+import { message as toast } from "@/components/ui/message";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { useT } from "@/lib/i18n/use-t";
 
 interface ImageRendererProps {
@@ -163,6 +165,10 @@ export function ImageRenderer({ message }: ImageRendererProps) {
             type="button"
             aria-label={t("messageStatus.resend")}
             onClick={() => {
+              if (isConversationDisbanded(message.channel)) {
+                toast.warning(t("composer.disbandedNotice"));
+                return;
+              }
               void WKSDK.shared().chatManager.send(message.content, message.channel);
             }}
             className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/40 text-white hover:bg-black/50"

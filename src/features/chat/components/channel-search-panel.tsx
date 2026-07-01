@@ -114,13 +114,18 @@ function useFetchNextChannelSearchPageOnInView(
   enabled: boolean,
   fetchNextPage: () => unknown,
 ): void {
+  // 缓存 fetchNextPage / enabled 到 ref,effect 依赖只挂 [ref, rootRef],
+  // 避免每次 render 重建 IntersectionObserver (issue #215)。
+  const fetchRef = useRef(fetchNextPage);
+  fetchRef.current = fetchNextPage;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const armedRef = useRef(true);
 
   useEffect(() => {
-    if (!enabled) return;
     const root = rootRef.current;
     const el = ref.current;
-    if (!root || !el) return;
+    if (!enabledRef.current || !root || !el) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const isIntersecting = entries.some((entry) => entry.isIntersecting);
@@ -131,14 +136,14 @@ function useFetchNextChannelSearchPageOnInView(
         if (!armedRef.current) return;
         armedRef.current = false;
         window.requestAnimationFrame(() => {
-          void fetchNextPage();
+          void fetchRef.current();
         });
       },
       { root, rootMargin: LOAD_MORE_ROOT_MARGIN },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [enabled, fetchNextPage, ref, rootRef]);
+  }, [ref, rootRef]);
 }
 
 function canUseIntersectionObserver(): boolean {
@@ -210,8 +215,19 @@ function useChannelSearchImageLoadScheduler(
       }
 
       registeredRef.current.set(el, load);
+
+      // root 还没挂载时懒 observer 退化为 viewport(issue #217),
+      // 退路:直接 load 一次,避免等不到 root mount。
+      const root = rootRef.current;
+      if (!root) {
+        load();
+        return () => {
+          registeredRef.current.delete(el);
+          pendingRef.current.delete(el);
+        };
+      }
+
       if (!observerRef.current) {
-        const root = rootRef.current;
         observerRef.current = new IntersectionObserver(
           (entries) => {
             for (const entry of entries) {
@@ -227,7 +243,6 @@ function useChannelSearchImageLoadScheduler(
         );
       }
 
-      observerRef.current.observe(el);
       return () => {
         observerRef.current?.unobserve(el);
         registeredRef.current.delete(el);

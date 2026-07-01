@@ -35,6 +35,7 @@ import {
 } from "@/features/base/im/mergeforward-content";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { filterArchivedThreads, THREAD_STATUS_ACTIVE } from "@/features/chat/lib/thread-status";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
@@ -594,7 +595,8 @@ export function ForwardModal({
           isThread: false,
         };
       });
-    return [...fromChats, ...fromMembers];
+    // 已解散的群/子区不可作为转发目标(只读),从候选中过滤。
+    return [...fromChats, ...fromMembers].filter((c) => !isConversationDisbanded(c.channel));
   }, [channelInfoTick, conversations, groupThreadCandidates, members, myUid]);
 
   const filtered = useMemo<ForwardCandidate[]>(() => {

@@ -38,7 +38,12 @@ import { createThread } from "@/features/base/api/endpoints/group.api";
 import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import type { RichTextContent } from "@/features/base/im/richtext-content";
+import {
+  RichTextBlockType,
+  createRichTextContent,
+  type RichTextBlock,
+  type RichTextContent,
+} from "@/features/base/im/richtext-content";
 import {
   sidebarFollowQueryKey,
   type SidebarFollowDerived,
@@ -102,6 +107,7 @@ export function useMessageContextMenu(message: Message): {
     y: 0,
     selectedText: "",
   });
+  const [targetImageUrl, setTargetImageUrl] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
@@ -123,6 +129,7 @@ export function useMessageContextMenu(message: Message): {
     const snapshot = liveSnapshot?.text.trim() ? liveSnapshot : savedSnapshot;
     selectionRootRef.current = e.currentTarget instanceof Node ? e.currentTarget : null;
     selectionSnapshotRef.current = snapshot ?? null;
+    setTargetImageUrl(getContextTargetImageUrl(e.target));
     setMenu({
       open: true,
       x: e.clientX,
@@ -266,8 +273,8 @@ export function useMessageContextMenu(message: Message): {
       ),
   });
 
-  const isImage = message.contentType === MessageContentType.image;
-  const imageUrl = isImage ? (message.content as MessageImage).url : "";
+  const imageUrl = targetImageUrl || getSingleCopyableImageUrl(message);
+  const copyableImageBlocks = getCopyableImageBlocks(message);
 
   const revokeAllowed =
     me && !isConversationDisbanded(message.channel)
@@ -312,12 +319,16 @@ export function useMessageContextMenu(message: Message): {
       },
     });
   }
-  if (isImage && imageUrl) {
+  if (imageUrl || copyableImageBlocks.length > 0) {
     items.push({
       label: t("messageRow.menu.copyImage"),
       icon: <ImageIcon size={13} />,
       onClick: () => {
-        copyImageToClipboard(imageUrl)
+        const copied =
+          imageUrl || copyableImageBlocks.length === 1
+            ? copyImageToClipboard(imageUrl || copyableImageBlocks[0].url || "").then(() => true)
+            : copyRichTextToClipboard(createRichTextContent(copyableImageBlocks), message.channel);
+        copied
           .then(() => appMessage.success(t("messageRow.toast.imageCopied")))
           .catch((err: Error) => appMessage.error(err.message || t("messageRow.toast.copyFailed")));
       },
@@ -508,10 +519,29 @@ function canForward(message: Message): boolean {
 }
 
 function canCopy(message: Message): boolean {
-  // 名片消息不支持复制(对齐老仓 contextmenus.copy — card 无可复制文本,
-  // conversationDigest 仅用于会话列表摘要,不应触发「复制」菜单项)。
-  if (message.contentType === MessageContentTypeConst.card) return false;
-  return true;
+  return (
+    message.contentType === MessageContentType.text ||
+    message.contentType === MessageContentTypeConst.richText
+  );
+}
+
+function getSingleCopyableImageUrl(message: Message): string {
+  if (message.contentType === MessageContentType.image) {
+    const image = message.content as MessageImage & { remoteUrl?: string };
+    return image.url || image.remoteUrl || "";
+  }
+  return "";
+}
+
+function getCopyableImageBlocks(message: Message): RichTextBlock[] {
+  if (message.contentType !== MessageContentTypeConst.richText) return [];
+  const richText = message.content as RichTextContent;
+  return richText.content.filter((block) => block.type === RichTextBlockType.image && block.url);
+}
+
+function getContextTargetImageUrl(target: EventTarget | null): string {
+  if (!(target instanceof Element)) return "";
+  return target.closest<HTMLElement>("[data-richtext-image-url]")?.dataset.richtextImageUrl || "";
 }
 
 function canCreateThread(message: Message): boolean {

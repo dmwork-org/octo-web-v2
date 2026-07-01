@@ -101,6 +101,7 @@ export function useMessageContextMenu(message: Message): {
     y: 0,
     selectedText: "",
   });
+  const [targetImageUrl, setTargetImageUrl] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
@@ -122,6 +123,7 @@ export function useMessageContextMenu(message: Message): {
     const snapshot = liveSnapshot?.text.trim() ? liveSnapshot : savedSnapshot;
     selectionRootRef.current = e.currentTarget instanceof Node ? e.currentTarget : null;
     selectionSnapshotRef.current = snapshot ?? null;
+    setTargetImageUrl(getContextTargetImageUrl(e.target));
     setMenu({
       open: true,
       x: e.clientX,
@@ -265,7 +267,7 @@ export function useMessageContextMenu(message: Message): {
       ),
   });
 
-  const imageUrl = getCopyableImageUrl(message);
+  const imageUrl = targetImageUrl || getCopyableImageUrl(message);
 
   const revokeAllowed = me
     ? (() => {
@@ -524,6 +526,11 @@ function getCopyableImageUrl(message: Message): string {
     );
   }
   return "";
+}
+
+function getContextTargetImageUrl(target: EventTarget | null): string {
+  if (!(target instanceof Element)) return "";
+  return target.closest<HTMLElement>("[data-richtext-image-url]")?.dataset.richtextImageUrl || "";
 }
 
 function canCreateThread(message: Message): boolean {

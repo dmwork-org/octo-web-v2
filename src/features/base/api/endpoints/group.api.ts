@@ -291,6 +291,20 @@ export async function transferGroupOwner(groupNo: string, toUid: string): Promis
 }
 
 /**
+ * 解散群聊(企业微信式只读归档)。
+ *
+ * DELETE /v1/groups/{groupNo}/disband
+ *   - 鉴权:仅群主(后端 loginMember.Role !== Creator → 403)。
+ *   - 幂等:group 不存在或已 Disband → 直接 200。
+ *   - 无 body;groupNo === channelID。
+ *   - 副作用(后端):发 Tip「{0}已解散该群聊」+ 销毁 IM 频道 + 级联清子区;
+ *     group.status 置 2。web 侧据此走只读归档(见 group-disband.ts)。
+ */
+export async function disbandGroup(groupNo: string): Promise<void> {
+  await api(`groups/${encodeURIComponent(groupNo)}/disband`, { method: "DELETE" });
+}
+
+/**
  * 修改群字段(对应旧 dmworkdatasource updateField + ChannelField 枚举):
  *
  * PUT /v1/groups/{groupNo}  body: { name?, notice?, ... }

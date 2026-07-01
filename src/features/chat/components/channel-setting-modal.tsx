@@ -26,6 +26,7 @@ import { RealnameVerifiedBadge } from "@/features/base/components/badges/realnam
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { isVerifiedMember } from "@/features/chat/lib/member-realname";
 import {
   clearChannelMessages,
@@ -39,6 +40,7 @@ import {
 } from "@/features/base/api/endpoints/channel-setting.api";
 import {
   archiveThread,
+  disbandGroup,
   exitGroup,
   leaveThread,
   deleteThread,
@@ -59,6 +61,9 @@ import {
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
+import { isConversationDisbanded, syncGroupDisbandState } from "@/features/chat/lib/group-disband";
+import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import { Button } from "@/components/ui/button";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
 import { conversationsQueryKey } from "@/features/chat/queries/conversations.query";
 import { removeThreadConversation } from "@/features/chat/lib/remove-thread-conversation";
@@ -280,7 +285,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [subpage, setSubpage] = useState<Subpage | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [ownerLeaveBlocked, setOwnerLeaveBlocked] = useState(false);
+  const [confirmDisband, setConfirmDisband] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+
+  // 会话解散态实时驱动:群/子区解散瞬间 channelInfo 变化触发重渲,
+  // 让本弹窗内所有 isGroupDisbandedNow gate 即时转为只读(即便弹窗已打开)。
+  useChannelInfoTick();
 
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
@@ -313,6 +323,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const iAmOwner = myRole === ROLE_OWNER;
   const iAmOwnerOrManager = myRole === ROLE_OWNER || myRole === ROLE_MANAGER;
   const myNickname = me?.remark || me?.name || "";
+  // 会话是否已解散(企业微信式只读归档):群直接看自身,子区随父群解散而只读;
+  // 隐藏所有写入入口,仅退群/清空历史保留。
+  const isGroupDisbandedNow = isConversationDisbanded(channel);
 
   const memberCountFromSubs = subscribers.length;
   const memberCount = memberCountFromSubs > 0 ? memberCountFromSubs : (orgData?.member_count ?? 0);
@@ -346,8 +359,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       threadParsed?.groupNo ?? "",
       myUid,
     );
-  const canEditThreadName = canManageThisThread;
-  const canArchiveThisThread = canManageThisThread;
+  // 父群解散 → 子区随之只读:重命名/归档一并禁用(isGroupDisbandedNow 对子区
+  // 经 isConversationDisbanded 解析父群,已覆盖子区场景)。
+  const canEditThreadName = canManageThisThread && !isGroupDisbandedNow;
+  const canArchiveThisThread = canManageThisThread && !isGroupDisbandedNow;
   const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
     ?.has_thread_md;
   const threadMdVersion =
@@ -539,6 +554,21 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       message.error(err instanceof Error ? err.message : t("channelSetting.toast.opFailed")),
   });
 
+  // 解散群聊(群主):本地权威写回 status=Disband 立即只读,然后把 settings 关到底回会话。
+  const disbandMu = useMutation({
+    mutationFn: () => disbandGroup(channel.channelID),
+    onSuccess: () => {
+      message.success(t("groupMgmt.toast.disbandSuccess"));
+      syncGroupDisbandState(channel);
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      setConfirmDisband(false);
+      setOwnerLeaveBlocked(false);
+      onClose();
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.disbandFailed")),
+  });
+
   /**
    * 归档 / 取消归档子区 — 按 isThreadArchived 推导动作(issue #53)。
    *
@@ -611,8 +641,8 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         {isGroup ? (
           <SubscribersGrid
             subscribers={subscribers}
-            canAdd
-            canManage={iAmOwnerOrManager}
+            canAdd={!isGroupDisbandedNow}
+            canManage={iAmOwnerOrManager && !isGroupDisbandedNow}
             onAdd={() => setAddOpen(true)}
             onKickMode={() => setKickListOpen(true)}
             onMore={() => setKickListOpen(true)}
@@ -645,7 +675,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               title={tt("channelSetting.groupName")}
               value={title}
               placeholder={tt("channelSetting.notSet")}
-              canEdit={iAmOwnerOrManager}
+              canEdit={iAmOwnerOrManager && !isGroupDisbandedNow}
               cantEditMessage={tt("channelSetting.cantEditGroupName")}
               maxLength={20}
               pending={renameMu.isPending}
@@ -659,16 +689,18 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               right={<ChannelAvatar channel={channel} size={24} title={title} />}
               onClick={() => setSubpage("avatar")}
             />
-            <NavRow
-              title={tt("channelSetting.groupQrcode")}
-              right={<QrCode size={16} className="text-text-tertiary" />}
-              onClick={() => setSubpage("qrcode")}
-            />
+            {!isGroupDisbandedNow ? (
+              <NavRow
+                title={tt("channelSetting.groupQrcode")}
+                right={<QrCode size={16} className="text-text-tertiary" />}
+                onClick={() => setSubpage("qrcode")}
+              />
+            ) : null}
             <InlineEditRow
               title={tt("channelSetting.groupNotice")}
               value={notice}
               placeholder={tt("channelSetting.notSet")}
-              canEdit={iAmOwnerOrManager}
+              canEdit={iAmOwnerOrManager && !isGroupDisbandedNow}
               cantEditMessage={tt("channelSetting.cantEditGroupNotice")}
               multiline
               maxLength={400}
@@ -693,10 +725,12 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onClick={() => setSubpage("manage")}
               />
             ) : null}
-            <NavRow
-              title={tt("module.channelSettings.incomingWebhook")}
-              onClick={() => setSubpage("webhook")}
-            />
+            {!isGroupDisbandedNow ? (
+              <NavRow
+                title={tt("module.channelSettings.incomingWebhook")}
+                onClick={() => setSubpage("webhook")}
+              />
+            ) : null}
             <InlineEditRow
               title={tt("channelSetting.remark")}
               value={remark}
@@ -771,7 +805,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onClick={openChannelSearch}
               />
             ) : null}
-            {!isThreadArchived ? (
+            {!isThreadArchived && !isGroupDisbandedNow ? (
               <NavRow title={tt("threadPanel.webhook")} onClick={() => setSubpage("webhook")} />
             ) : null}
           </SectionGroup>
@@ -822,7 +856,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               title={tt("channelSetting.myNickname")}
               value={myNickname}
               placeholder={tt("channelSetting.notSet")}
-              canEdit
+              canEdit={!isGroupDisbandedNow}
               maxLength={20}
               pending={myNickMu.isPending}
               editing={editing === "myNickname"}
@@ -881,7 +915,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         open={subpage === "avatar"}
         channel={channel}
         channelTitle={title}
-        canEdit={iAmOwnerOrManager}
+        canEdit={iAmOwnerOrManager && !isGroupDisbandedNow}
         onClose={() => setSubpage(null)}
       />
 
@@ -896,7 +930,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       <GroupMdModal
         open={subpage === "md"}
         channel={channel}
-        canEdit={iAmOwnerOrManager}
+        canEdit={iAmOwnerOrManager && !isGroupDisbandedNow}
         onClose={() => setSubpage(null)}
       />
 
@@ -907,10 +941,15 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
         isOwner={iAmOwner}
         canManage={iAmOwnerOrManager}
         onClose={() => setSubpage(null)}
+        // 在群管理面板内解散 → 关闭管理子页同时把整条 settings drawer 关到底回会话。
+        onDisbanded={() => {
+          setSubpage(null);
+          onClose();
+        }}
       />
 
       <IncomingWebhookPanel
-        open={subpage === "webhook"}
+        open={subpage === "webhook" && !isGroupDisbandedNow}
         channel={isThread && threadParentChannel ? threadParentChannel : channel}
         isManager={iAmOwnerOrManager}
         title={isThread ? tt("threadPanel.webhook") : tt("module.channelSettings.incomingWebhook")}
@@ -973,16 +1012,62 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       ) : null}
 
       {ownerLeaveBlocked ? (
+        // 群主退群死锁出口:不把群主丢进群管理面板找按钮,直接给两条明确动作。
+        // 三态语义:转让群主(群存续)/ 解散群聊(只读归档)/ 取消(退群本身被拦)。
+        <BaseDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setOwnerLeaveBlocked(false);
+          }}
+          size="sm"
+          title={tt("channelSetting.ownerLeaveBlockedTitle")}
+          showCloseButton={false}
+          contentClassName="px-5 py-4"
+          footer={
+            <div className="flex w-full flex-col gap-2">
+              <Button
+                variant="default"
+                onClick={() => {
+                  setOwnerLeaveBlocked(false);
+                  setSubpage("manage");
+                }}
+              >
+                {tt("groupMgmt.transferOwner")}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setOwnerLeaveBlocked(false);
+                  setConfirmDisband(true);
+                }}
+              >
+                {tt("channelSetting.ownerLeaveDisbandAction")}
+              </Button>
+              <Button variant="ghost" onClick={() => setOwnerLeaveBlocked(false)}>
+                {t("base.common.cancel")}
+              </Button>
+            </div>
+          }
+        >
+          <p className="text-sm text-text-primary">
+            {tt("channelSetting.ownerLeaveBlockedContent")}
+          </p>
+        </BaseDialog>
+      ) : null}
+
+      {confirmDisband ? (
         <ConfirmDialog
           open
-          title={tt("channelSetting.ownerLeaveBlockedTitle")}
-          content={tt("channelSetting.ownerLeaveBlockedContent")}
-          okText={tt("channelSetting.groupManagement")}
+          title={tt("groupMgmt.disbandTitle")}
+          content={tt("groupMgmt.disbandContent")}
+          okText={tt("groupMgmt.disbandAction")}
+          okDanger
+          // ConfirmDialog 忽略 okLoading;防重靠 onOk gate isPending。
           onOk={() => {
-            setOwnerLeaveBlocked(false);
-            setSubpage("manage");
+            if (disbandMu.isPending) return;
+            disbandMu.mutate();
           }}
-          onCancel={() => setOwnerLeaveBlocked(false)}
+          onCancel={() => setConfirmDisband(false)}
         />
       ) : null}
 

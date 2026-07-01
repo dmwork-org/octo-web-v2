@@ -18,12 +18,14 @@ import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
 import {
   addGroupManagers,
+  disbandGroup,
   removeGroupBotAdmin,
   removeGroupManagers,
   setGroupBotAdmin,
   transferGroupOwner,
 } from "@/features/base/api/endpoints/group.api";
 import { setChannelAllowNoMention } from "@/features/base/api/endpoints/channel-setting.api";
+import { isGroupDisbanded, syncGroupDisbandState } from "@/features/chat/lib/group-disband";
 import { SectionGroup } from "@/features/base/components/section-form/section-group";
 import { ToggleRow } from "@/features/base/components/section-form/toggle-row";
 import { NavRow } from "@/features/base/components/section-form/nav-row";
@@ -41,6 +43,12 @@ interface GroupManagementModalProps {
   /** owner 或 manager 都可控制群级 toggle(allow-no-mention 等);只读用户不显示 toggle section。 */
   canManage: boolean;
   onClose: () => void;
+  /**
+   * 解散成功回调(可选)。group-management 是「群设置 → 群管理」的二级抽屉,onClose
+   * 只关本级;解散后须把整条 settings drawer 关到底回会话,由父级(channel-setting-modal)
+   * 经此回调一路 pop 到根。缺省时退回 onClose(仅关本级,会话仍靠 status=2 重渲染只读)。
+   */
+  onDisbanded?: () => void;
 }
 
 const ROLE_OWNER = 1;
@@ -61,6 +69,7 @@ export function GroupManagementModal({
   isOwner,
   canManage,
   onClose,
+  onDisbanded,
 }: GroupManagementModalProps) {
   const tt = useT();
   const qc = useQueryClient();
@@ -72,11 +81,14 @@ export function GroupManagementModal({
     name: string;
   } | null>(null);
   const [confirmTransfer, setConfirmTransfer] = useState<Subscriber | null>(null);
+  const [confirmDisband, setConfirmDisband] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [pickedUids, setPickedUids] = useState<string[]>([]);
   const [keyword, setKeyword] = useState("");
 
   const subscribers = useGroupSubscribers(channel, open);
+  // 已解散群:隐藏所有写入入口(转让/加删管理员/成员管理/群级开关/解散),仅视觉只读。
+  const disbanded = isGroupDisbanded(channelInfo);
 
   const managers = useMemo(
     () =>
@@ -212,6 +224,21 @@ export function GroupManagementModal({
     },
     onError: (err) =>
       message.error(err instanceof Error ? err.message : t("groupMgmt.toast.removeFailed")),
+  });
+
+  const disbandMu = useMutation({
+    mutationFn: () => disbandGroup(channel.channelID),
+    onSuccess: () => {
+      message.success(t("groupMgmt.toast.disbandSuccess"));
+      // 操作者本人:本地权威写回 status=Disband,立即只读(规避 fetch 去重竞态)。
+      syncGroupDisbandState(channel);
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      setConfirmDisband(false);
+      // 关到底回会话(缺省退回 onClose,仅关本级)。
+      (onDisbanded ?? onClose)();
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("groupMgmt.toast.disbandFailed")),
   });
 
   // 群级「允许群内 Bot 免@回答」开关(对齐上游 ceffa569):缺省 1(允许),零回归
@@ -350,7 +377,7 @@ export function GroupManagementModal({
             <ManagerSection
               title={tt("groupMgmt.ownerManagers")}
               members={managers}
-              canEdit={isOwner}
+              canEdit={isOwner && !disbanded}
               onAdd={() => setMode("addManager")}
               onRemove={(s) =>
                 setConfirmRemove({
@@ -362,7 +389,7 @@ export function GroupManagementModal({
               addLabel={tt("groupMgmt.addManager")}
               showRoleBadge
             />
-            {isOwner ? (
+            {isOwner && !disbanded ? (
               <SectionGroup>
                 <NavRow
                   title={tt("groupMgmt.transferOwner")}
@@ -374,7 +401,7 @@ export function GroupManagementModal({
             <ManagerSection
               title={tt("groupMgmt.botAdmins")}
               members={botAdmins}
-              canEdit={canManage}
+              canEdit={canManage && !disbanded}
               onAdd={() => setMode("addBotAdmin")}
               onRemove={(s) =>
                 setConfirmRemove({
@@ -386,7 +413,7 @@ export function GroupManagementModal({
               addLabel={tt("groupMgmt.addBotAdmin")}
               emptyText={tt("groupMgmt.noBotAdmins")}
             />
-            {canManage ? (
+            {canManage && !disbanded ? (
               <SectionGroup>
                 <NavRow
                   title={tt("groupMgmt.memberManagement")}
@@ -400,6 +427,17 @@ export function GroupManagementModal({
                   checked={allowNoMention}
                   loading={allowNoMentionMu.isPending}
                   onChange={(v) => allowNoMentionMu.mutate(v)}
+                />
+              </SectionGroup>
+            ) : null}
+            {/* 危险区:解散群聊(仅群主、未解散时可见)。企业微信式只读归档。 */}
+            {isOwner && !disbanded ? (
+              <SectionGroup>
+                <NavRow
+                  title={tt("groupMgmt.disbandAction")}
+                  subTitle={tt("groupMgmt.disbandDesc")}
+                  danger
+                  onClick={() => setConfirmDisband(true)}
                 />
               </SectionGroup>
             ) : null}
@@ -454,6 +492,22 @@ export function GroupManagementModal({
           okLoading={transferOwnerMu.isPending}
           onOk={() => transferOwnerMu.mutate(confirmTransfer.uid)}
           onCancel={() => setConfirmTransfer(null)}
+        />
+      ) : null}
+
+      {confirmDisband ? (
+        <ConfirmDialog
+          open
+          title={tt("groupMgmt.disbandTitle")}
+          content={tt("groupMgmt.disbandContent")}
+          okText={tt("groupMgmt.disbandAction")}
+          okDanger
+          // ConfirmDialog 忽略 okLoading(不渲染 loading);防重靠 onOk gate isPending。
+          onOk={() => {
+            if (disbandMu.isPending) return;
+            disbandMu.mutate();
+          }}
+          onCancel={() => setConfirmDisband(false)}
         />
       ) : null}
     </>

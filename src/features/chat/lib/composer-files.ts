@@ -36,6 +36,26 @@ export function isVideoMime(type: string, name: string): boolean {
   return ["mp4", "avi", "mov", "mkv", "webm"].includes(ext);
 }
 
+export function splitClipboardFiles(items: DataTransferItemList | null | undefined): {
+  images: File[];
+  others: File[];
+} {
+  const images: File[] = [];
+  const others: File[] = [];
+  if (!items) return { images, others };
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (!file) continue;
+    const type = item.type || file.type;
+    if (type.startsWith("image/")) images.push(file);
+    else others.push(file);
+  }
+  return { images, others };
+}
+
 export function extOfName(name: string): string {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.substring(dot + 1).toLowerCase() : "";

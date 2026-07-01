@@ -266,7 +266,11 @@ export function useMessageContextMenu(message: Message): {
   });
 
   const isImage = message.contentType === MessageContentType.image;
-  const imageUrl = isImage ? (message.content as MessageImage).url : "";
+  const imageUrl = isImage
+    ? (message.content as MessageImage & { remoteUrl?: string }).url ||
+      (message.content as MessageImage & { remoteUrl?: string }).remoteUrl ||
+      ""
+    : "";
 
   const revokeAllowed = me
     ? (() => {
@@ -506,10 +510,10 @@ function canForward(message: Message): boolean {
 }
 
 function canCopy(message: Message): boolean {
-  // 名片消息不支持复制(对齐老仓 contextmenus.copy — card 无可复制文本,
-  // conversationDigest 仅用于会话列表摘要,不应触发「复制」菜单项)。
-  if (message.contentType === MessageContentTypeConst.card) return false;
-  return true;
+  return (
+    message.contentType === MessageContentType.text ||
+    message.contentType === MessageContentTypeConst.richText
+  );
 }
 
 function canCreateThread(message: Message): boolean {

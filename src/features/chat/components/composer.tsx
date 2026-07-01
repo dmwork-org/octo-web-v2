@@ -66,7 +66,7 @@ import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attac
 import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { quotedReplyPreviewText } from "@/features/chat/lib/quoted-reply-preview";
-import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
+import { isImageMime, isVideoMime, splitClipboardFiles } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import { extractOctoRichTextClipboardPayloadFromHtml } from "@/features/chat/lib/rich-text-clipboard";
 import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-text-paste";
@@ -232,6 +232,13 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const editorRef = useRef<Editor | null>(null);
   const addAttachmentsRef = useRef(attachments.addAttachments);
   addAttachmentsRef.current = attachments.addAttachments;
+  const addClipboardFiles = (clipboardData: DataTransfer | null): boolean => {
+    const { images, others } = splitClipboardFiles(clipboardData?.items);
+    if (images.length === 0 && others.length === 0) return false;
+    if (images.length > 0) void addAttachmentsRef.current(images, "paste", editorRef.current);
+    if (others.length > 0) void addAttachmentsRef.current(others, "upload", editorRef.current);
+    return true;
+  };
   const mentionSourcesRef = useRef<MentionMemberSource[]>([]);
   mentionSourcesRef.current = subscribers.map((s) => subscriberMentionSource(s));
 
@@ -376,6 +383,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return false;
       },
       handlePaste: (_view, event) => {
+        if (addClipboardFiles(event.clipboardData)) {
+          event.preventDefault();
+          return true;
+        }
+
         const pastedText = event.clipboardData?.getData("text/plain") ?? "";
         const blockedSecret = handleSecretPaste(pastedText, (value) => {
           message.warning(t("base.secrets.pasteGuard.content"), {
@@ -832,22 +844,8 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   };
 
   const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    const images: File[] = [];
-    const others: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (it.kind !== "file") continue;
-      const f = it.getAsFile();
-      if (!f) continue;
-      if (it.type.startsWith("image/")) images.push(f);
-      else others.push(f);
-    }
-    if (images.length === 0 && others.length === 0) return;
+    if (!addClipboardFiles(e.clipboardData)) return;
     e.preventDefault();
-    if (images.length > 0) void attachments.addAttachments(images, "paste", editor);
-    if (others.length > 0) void attachments.addAttachments(others, "upload", editor);
   };
 
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {

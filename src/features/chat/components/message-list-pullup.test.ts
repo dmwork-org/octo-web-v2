@@ -18,7 +18,7 @@ describe("usePullupToLoadNewer (issue #214)", () => {
 
   it("regression: 250ms 内连续 scroll 只触发一次 fetch", () => {
     const fetch = vi.fn();
-    const lastFireAtRef = { value: 0 };
+    const lastFireAtRef = { current: 0 };
     const onScroll = (now: number) => {
       if (now - lastFireAtRef.current < THROTTLE_MS && lastFireAtRef.current !== 0) return;
       lastFireAtRef.current = now;

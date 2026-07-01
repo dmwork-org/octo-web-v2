@@ -8,6 +8,7 @@ import { formatMessageTimestamp as formatTime } from "@/features/chat/lib/format
 import { useMessageContextMenu } from "@/features/chat/hooks/use-message-context-menu.hook";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
 import { isMessageSelectable } from "@/features/chat/lib/message-selection";
+import { messageRenderKey } from "@/features/chat/lib/message-identity";
 
 interface FoldSessionCardProps {
   session: FoldSession;
@@ -175,8 +176,8 @@ function FoldSessionItem({
 function FoldSessionExpanded({ messages }: { messages: Message[] }) {
   return (
     <div className="flex flex-col gap-3">
-      {messages.map((m) => (
-        <ExpandedItemWithMenu key={m.clientMsgNo || m.messageID} message={m} />
+      {messages.map((m, i) => (
+        <ExpandedItemWithMenu key={messageRenderKey(m, i)} message={m} />
       ))}
     </div>
   );

@@ -21,12 +21,16 @@ import { chatAiCollabFoldActions } from "@/features/chat/stores/ai-collab-fold";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { HistoryDivider } from "@/features/chat/components/history-divider";
-import { useHistorySplitAnchor } from "@/features/chat/hooks/use-history-split.hook";
+import {
+  hasVisibleMessageAfterHistorySplitAnchor,
+  useHistorySplitAnchor,
+} from "@/features/chat/hooks/use-history-split.hook";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
 import { buildRenderItems, type RenderItem } from "@/features/chat/lib/fold-session";
 import { shouldRenderBareContentType } from "@/features/chat/lib/message-bare";
+import { isCacheableChatMessage, messageRenderKey } from "@/features/chat/lib/message-identity";
 import { locateMessageWindow, locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
 import {
   chatLocateMessageActions,
@@ -483,6 +487,7 @@ export function MessageList({ channel }: MessageListProps) {
     // 在 channelSpaceMap 未回填时会 fail-close 误过滤。
     const isPerson = channel.channelType === ChannelTypePerson;
     const filtered = isPerson ? all.filter((m) => isMessageOfSpace(m, spaceId)) : all;
+    const cacheable = filtered.filter(isCacheableChatMessage);
     // 排序:**timestamp 主键**(秒,跨 ack/pending 一致),seq 次键(同秒消息稳定)。
     //
     // 为什么不用 messageSeq:bot 真消息 ack 后 seq=N,我刚发消息 pending(seq=0),
@@ -491,7 +496,7 @@ export function MessageList({ channel }: MessageListProps) {
     // 我消息正确显示在 bot 之前。
     //
     // timestamp 缺失(=0)的极端 case fallback 用 seq 兜底排序稳定。
-    return [...filtered].sort((a, b) => {
+    return [...cacheable].sort((a, b) => {
       const ta = a.timestamp || 0;
       const tb = b.timestamp || 0;
       if (ta !== tb) return ta - tb;
@@ -509,6 +514,10 @@ export function MessageList({ channel }: MessageListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [messages, channelInfoTick],
   );
+  const canRenderHistorySplit = useMemo(
+    () => hasVisibleMessageAfterHistorySplitAnchor(messages, historySplitAfterSeq),
+    [historySplitAfterSeq, messages],
+  );
 
   // fold session 展开收起 state(sessionId → boolean,默认折叠)
   const [expandedSessions, setExpandedSessions] = useState<Map<string, boolean>>(new Map());
@@ -521,14 +530,14 @@ export function MessageList({ channel }: MessageListProps) {
   };
 
   const firstReadyKey = useMemo(
-    () => (messages[0] ? messages[0].clientMsgNo || messages[0].messageID || "" : ""),
+    () => (messages[0] ? messageRenderKey(messages[0]) : ""),
     [messages],
   );
   const followKey = useMemo<FollowBottomKey>(() => {
     const last = messages[messages.length - 1];
     if (!last) return { id: "", mine: false };
     return {
-      id: last.clientMsgNo || last.messageID || "",
+      id: messageRenderKey(last),
       mine: !!myUid && last.fromUID === myUid,
     };
   }, [messages, myUid]);
@@ -646,9 +655,11 @@ export function MessageList({ channel }: MessageListProps) {
           const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
           // issue #32:此消息是"最后已读"时,渲染完后追加历史分割线
           const isHistorySplitAnchor =
-            historySplitAfterSeq > 0 && m.messageSeq === historySplitAfterSeq;
+            canRenderHistorySplit &&
+            historySplitAfterSeq > 0 &&
+            m.messageSeq === historySplitAfterSeq;
           return (
-            <div key={m.clientMsgNo || m.messageID}>
+            <div key={messageRenderKey(m, i)}>
               {showDivider ? <TimeDivider timestamp={currTs} /> : null}
               <MessageRow message={m} bare={bare} continueWithPrev={continueWithPrev} />
               {isHistorySplitAnchor ? <HistoryDivider /> : null}

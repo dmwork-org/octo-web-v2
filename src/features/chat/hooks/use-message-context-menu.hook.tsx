@@ -37,7 +37,7 @@ import {
 import { createThread } from "@/features/base/api/endpoints/group.api";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import type { RichTextContent } from "@/features/base/im/richtext-content";
+import { RichTextBlockType, type RichTextContent } from "@/features/base/im/richtext-content";
 import {
   sidebarFollowQueryKey,
   type SidebarFollowDerived,
@@ -265,12 +265,7 @@ export function useMessageContextMenu(message: Message): {
       ),
   });
 
-  const isImage = message.contentType === MessageContentType.image;
-  const imageUrl = isImage
-    ? (message.content as MessageImage & { remoteUrl?: string }).url ||
-      (message.content as MessageImage & { remoteUrl?: string }).remoteUrl ||
-      ""
-    : "";
+  const imageUrl = getCopyableImageUrl(message);
 
   const revokeAllowed = me
     ? (() => {
@@ -314,7 +309,7 @@ export function useMessageContextMenu(message: Message): {
       },
     });
   }
-  if (isImage && imageUrl) {
+  if (imageUrl) {
     items.push({
       label: t("messageRow.menu.copyImage"),
       icon: <ImageIcon size={13} />,
@@ -514,6 +509,21 @@ function canCopy(message: Message): boolean {
     message.contentType === MessageContentType.text ||
     message.contentType === MessageContentTypeConst.richText
   );
+}
+
+function getCopyableImageUrl(message: Message): string {
+  if (message.contentType === MessageContentType.image) {
+    const image = message.content as MessageImage & { remoteUrl?: string };
+    return image.url || image.remoteUrl || "";
+  }
+  if (message.contentType === MessageContentTypeConst.richText) {
+    const richText = message.content as RichTextContent;
+    return (
+      richText.content.find((block) => block.type === RichTextBlockType.image && block.url)?.url ||
+      ""
+    );
+  }
+  return "";
 }
 
 function canCreateThread(message: Message): boolean {

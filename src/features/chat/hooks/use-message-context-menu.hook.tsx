@@ -37,7 +37,12 @@ import {
 import { createThread } from "@/features/base/api/endpoints/group.api";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
-import { RichTextBlockType, type RichTextContent } from "@/features/base/im/richtext-content";
+import {
+  RichTextBlockType,
+  createRichTextContent,
+  type RichTextBlock,
+  type RichTextContent,
+} from "@/features/base/im/richtext-content";
 import {
   sidebarFollowQueryKey,
   type SidebarFollowDerived,
@@ -267,7 +272,8 @@ export function useMessageContextMenu(message: Message): {
       ),
   });
 
-  const imageUrl = targetImageUrl || getCopyableImageUrl(message);
+  const imageUrl = targetImageUrl || getSingleCopyableImageUrl(message);
+  const copyableImageBlocks = getCopyableImageBlocks(message);
 
   const revokeAllowed = me
     ? (() => {
@@ -311,12 +317,16 @@ export function useMessageContextMenu(message: Message): {
       },
     });
   }
-  if (imageUrl) {
+  if (imageUrl || copyableImageBlocks.length > 0) {
     items.push({
       label: t("messageRow.menu.copyImage"),
       icon: <ImageIcon size={13} />,
       onClick: () => {
-        copyImageToClipboard(imageUrl)
+        const copied =
+          imageUrl || copyableImageBlocks.length === 1
+            ? copyImageToClipboard(imageUrl || copyableImageBlocks[0].url || "").then(() => true)
+            : copyRichTextToClipboard(createRichTextContent(copyableImageBlocks), message.channel);
+        copied
           .then(() => appMessage.success(t("messageRow.toast.imageCopied")))
           .catch((err: Error) => appMessage.error(err.message || t("messageRow.toast.copyFailed")));
       },
@@ -513,19 +523,18 @@ function canCopy(message: Message): boolean {
   );
 }
 
-function getCopyableImageUrl(message: Message): string {
+function getSingleCopyableImageUrl(message: Message): string {
   if (message.contentType === MessageContentType.image) {
     const image = message.content as MessageImage & { remoteUrl?: string };
     return image.url || image.remoteUrl || "";
   }
-  if (message.contentType === MessageContentTypeConst.richText) {
-    const richText = message.content as RichTextContent;
-    return (
-      richText.content.find((block) => block.type === RichTextBlockType.image && block.url)?.url ||
-      ""
-    );
-  }
   return "";
+}
+
+function getCopyableImageBlocks(message: Message): RichTextBlock[] {
+  if (message.contentType !== MessageContentTypeConst.richText) return [];
+  const richText = message.content as RichTextContent;
+  return richText.content.filter((block) => block.type === RichTextBlockType.image && block.url);
 }
 
 function getContextTargetImageUrl(target: EventTarget | null): string {

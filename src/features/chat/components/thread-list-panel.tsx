@@ -34,6 +34,8 @@ import { followThread, unfollowThread } from "@/features/base/api/endpoints/foll
 import { authStore } from "@/features/base/stores/auth";
 import { archiveThread, unarchiveThread } from "@/features/base/api/endpoints/group.api";
 import { canManageThread } from "@/features/chat/lib/thread-permission";
+import { isChannelDisbanded } from "@/features/chat/lib/group-disband";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import {
   deriveArchiveAction,
   shouldShowArchiveButton,
@@ -85,6 +87,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   const [activeExpanded, setActiveExpanded] = useState(true);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const selectedChannel = useStore(chatSelectedStore, (s) => s.channel);
+  // 父群解散后子区随之只读:订阅 channelInfo 变化,解散瞬间即时重渲隐藏写入入口。
+  useChannelInfoTick();
+  const parentDisbanded = isChannelDisbanded(new Channel(groupNo, ChannelTypeGroup));
 
   const queryKey = ["chat", "thread-list", groupNo];
   const { data, isLoading, error } = useQuery({
@@ -191,6 +196,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
           groupNo={groupNo}
           selectedChannelId={selectedChannel?.channelID}
           onSelect={openDetail}
+          parentDisbanded={parentDisbanded}
         />
       ) : activeThread ? (
         <DetailView
@@ -206,11 +212,12 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
             setView("list");
             setActiveThread(null);
           }}
+          parentDisbanded={parentDisbanded}
         />
       ) : null}
 
       <InputDialog
-        open={createOpen}
+        open={createOpen && !parentDisbanded}
         title={tt("threadPanelLocal.createTitle")}
         label={tt("threadPanelLocal.topicLabel")}
         placeholder={tt("threadPanelLocal.topicPlaceholder")}
@@ -253,6 +260,7 @@ function ListView({
   groupNo,
   selectedChannelId,
   onSelect,
+  parentDisbanded,
 }: {
   onClose: () => void;
   onOpenCreate: () => void;
@@ -268,32 +276,35 @@ function ListView({
   groupNo: string;
   selectedChannelId: string | undefined;
   onSelect: (thread: ThreadRaw) => void;
+  parentDisbanded: boolean;
 }) {
   const tt = useT();
   return (
     <>
       <PanelHeader title={tt("threadPanelLocal.threadHeader")} onClose={onClose} />
       <div className="flex flex-1 flex-col overflow-y-auto">
-        <button
-          type="button"
-          onClick={onOpenCreate}
-          className="mx-4 my-3 flex shrink-0 items-center justify-center gap-1.5 rounded-sm border border-dashed py-2 text-[13px] font-medium text-text-accent transition-colors"
-          style={{
-            borderColor: "rgba(127, 59, 245, 0.12)",
-            backgroundColor: "rgba(127, 59, 245, 0.03)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(28, 28, 35, 0.06)";
-            e.currentTarget.style.borderColor = "rgba(127, 59, 245, 0.25)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(127, 59, 245, 0.03)";
-            e.currentTarget.style.borderColor = "rgba(127, 59, 245, 0.12)";
-          }}
-        >
-          <Plus size={16} />
-          {tt("threadPanelLocal.newThread")}
-        </button>
+        {parentDisbanded ? null : (
+          <button
+            type="button"
+            onClick={onOpenCreate}
+            className="mx-4 my-3 flex shrink-0 items-center justify-center gap-1.5 rounded-sm border border-dashed py-2 text-[13px] font-medium text-text-accent transition-colors"
+            style={{
+              borderColor: "rgba(127, 59, 245, 0.12)",
+              backgroundColor: "rgba(127, 59, 245, 0.03)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(28, 28, 35, 0.06)";
+              e.currentTarget.style.borderColor = "rgba(127, 59, 245, 0.25)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(127, 59, 245, 0.03)";
+              e.currentTarget.style.borderColor = "rgba(127, 59, 245, 0.12)";
+            }}
+          >
+            <Plus size={16} />
+            {tt("threadPanelLocal.newThread")}
+          </button>
+        )}
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
@@ -323,6 +334,7 @@ function ListView({
               groupNo={groupNo}
               selectedChannelId={selectedChannelId}
               onSelect={onSelect}
+              parentDisbanded={parentDisbanded}
             />
             {archivedThreads.length > 0 && (
               <ThreadGroup
@@ -334,6 +346,7 @@ function ListView({
                 groupNo={groupNo}
                 selectedChannelId={selectedChannelId}
                 onSelect={onSelect}
+                parentDisbanded={parentDisbanded}
               />
             )}
           </>
@@ -353,6 +366,7 @@ function DetailView({
   onInvalidate,
   onThreadUpdated,
   onAfterDelete,
+  parentDisbanded,
 }: {
   groupNo: string;
   thread: ThreadRaw;
@@ -361,6 +375,7 @@ function DetailView({
   onInvalidate: () => void;
   onThreadUpdated?: (patch: Partial<ThreadRaw>) => void;
   onAfterDelete: () => void;
+  parentDisbanded: boolean;
 }) {
   const tt = useT();
   const qc = useQueryClient();
@@ -371,7 +386,8 @@ function DetailView({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
-  const canEdit = canManageThread(thread, groupNo, myUid);
+  // 父群解散 → 子区随之只读:rename/archive/webhook 等写入入口一并禁用。
+  const canEdit = canManageThread(thread, groupNo, myUid) && !parentDisbanded;
   const archiveAction = deriveArchiveAction(thread);
   const isArchived = thread.status === THREAD_STATUS_ARCHIVED;
 
@@ -545,7 +561,7 @@ function DetailView({
                   {tt("module.channelSettings.messageHistory")}
                 </button>
               ) : null}
-              {!isArchived ? (
+              {!isArchived && !parentDisbanded ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -557,16 +573,18 @@ function DetailView({
                   {tt("threadPanel.webhook")}
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setDeleteOpen(true);
-                }}
-                className="block w-full rounded-sm px-3 py-2 text-left text-sm text-error hover:bg-bg-hover"
-              >
-                {tt("threadPanelLocal.deleteThread")}
-              </button>
+              {parentDisbanded ? null : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setDeleteOpen(true);
+                  }}
+                  className="block w-full rounded-sm px-3 py-2 text-left text-sm text-error hover:bg-bg-hover"
+                >
+                  {tt("threadPanelLocal.deleteThread")}
+                </button>
+              )}
             </PopoverContent>
           </Popover>
           <button
@@ -591,7 +609,7 @@ function DetailView({
       </div>
 
       <InputDialog
-        open={renameOpen}
+        open={renameOpen && !parentDisbanded}
         title={tt("threadPanelLocal.editNameTitle")}
         label={tt("threadPanelLocal.topicLabel")}
         placeholder={tt("threadPanelLocal.threadNamePlaceholder")}
@@ -608,7 +626,7 @@ function DetailView({
       />
 
       <ConfirmDialog
-        open={archiveConfirmOpen}
+        open={archiveConfirmOpen && !parentDisbanded}
         title={
           archiveAction === "archive"
             ? tt("threadPanelLocal.archiveConfirmTitle", { values: { name: thread.name } })
@@ -630,7 +648,7 @@ function DetailView({
       />
 
       <ConfirmDialog
-        open={deleteOpen}
+        open={deleteOpen && !parentDisbanded}
         title={tt("threadPanelLocal.deleteTitle")}
         content={tt("threadPanelLocal.deleteContent", { values: { name: thread.name } })}
         okText={tt("threadPanelLocal.deleteOk")}
@@ -641,7 +659,7 @@ function DetailView({
       />
 
       <IncomingWebhookPanel
-        open={webhookOpen}
+        open={webhookOpen && !parentDisbanded}
         channel={groupChannel}
         isManager={isParentManager}
         title={tt("threadPanel.webhook")}
@@ -683,6 +701,7 @@ function ThreadGroup({
   groupNo,
   selectedChannelId,
   onSelect,
+  parentDisbanded,
 }: {
   label: string;
   expanded: boolean;
@@ -692,6 +711,7 @@ function ThreadGroup({
   groupNo: string;
   selectedChannelId: string | undefined;
   onSelect: (thread: ThreadRaw) => void;
+  parentDisbanded: boolean;
 }) {
   return (
     <div className="mb-2">
@@ -719,6 +739,7 @@ function ThreadGroup({
                   selected={selectedChannelId === channelId}
                   onClick={() => onSelect(th)}
                   groupNo={groupNo}
+                  parentDisbanded={parentDisbanded}
                 />
               );
             })}
@@ -734,17 +755,20 @@ function ThreadItem({
   selected,
   onClick,
   groupNo,
+  parentDisbanded,
 }: {
   thread: ThreadRaw;
   selected: boolean;
   onClick: () => void;
   groupNo: string;
+  parentDisbanded: boolean;
 }) {
   const tt = useT();
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
-  const canEdit = canManageThread(thread, groupNo, myUid);
+  // 父群解散 → 子区行内归档/取消归档写入入口一并禁用。
+  const canEdit = canManageThread(thread, groupNo, myUid) && !parentDisbanded;
   const archiveAction = deriveArchiveAction(thread);
   const showArchiveBtn = shouldShowArchiveButton(thread, canEdit);
   const [optimisticFollowed, setOptimisticFollowed] = useState<boolean | null>(null);

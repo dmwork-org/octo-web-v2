@@ -26,6 +26,7 @@ import { RealnameVerifiedBadge } from "@/features/base/components/badges/realnam
 import { BaseDrawer } from "@/features/base/components/overlay/base-drawer";
 import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
 import { isVerifiedMember } from "@/features/chat/lib/member-realname";
 import {
   clearChannelMessages,
@@ -60,7 +61,7 @@ import {
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
-import { isGroupDisbanded, syncGroupDisbandState } from "@/features/chat/lib/group-disband";
+import { isConversationDisbanded, syncGroupDisbandState } from "@/features/chat/lib/group-disband";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { Button } from "@/components/ui/button";
 import { sidebarFollowQueryKey } from "@/features/chat/queries/sidebar.query";
@@ -287,6 +288,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [confirmDisband, setConfirmDisband] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
+  // 会话解散态实时驱动:群/子区解散瞬间 channelInfo 变化触发重渲,
+  // 让本弹窗内所有 isGroupDisbandedNow gate 即时转为只读(即便弹窗已打开)。
+  useChannelInfoTick();
+
   const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
   const title = channelInfo?.title || channel.channelID;
   const isGroup = channel.channelType === ChannelTypeGroup;
@@ -318,8 +323,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const iAmOwner = myRole === ROLE_OWNER;
   const iAmOwnerOrManager = myRole === ROLE_OWNER || myRole === ROLE_MANAGER;
   const myNickname = me?.remark || me?.name || "";
-  // 群是否已解散(企业微信式只读归档):隐藏所有写入入口,仅退群/清空历史保留。
-  const isGroupDisbandedNow = isGroup && isGroupDisbanded(channelInfo);
+  // 会话是否已解散(企业微信式只读归档):群直接看自身,子区随父群解散而只读;
+  // 隐藏所有写入入口,仅退群/清空历史保留。
+  const isGroupDisbandedNow = isConversationDisbanded(channel);
 
   const memberCountFromSubs = subscribers.length;
   const memberCount = memberCountFromSubs > 0 ? memberCountFromSubs : (orgData?.member_count ?? 0);
@@ -353,8 +359,10 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       threadParsed?.groupNo ?? "",
       myUid,
     );
-  const canEditThreadName = canManageThisThread;
-  const canArchiveThisThread = canManageThisThread;
+  // 父群解散 → 子区随之只读:重命名/归档一并禁用(isGroupDisbandedNow 对子区
+  // 经 isConversationDisbanded 解析父群,已覆盖子区场景)。
+  const canEditThreadName = canManageThisThread && !isGroupDisbandedNow;
+  const canArchiveThisThread = canManageThisThread && !isGroupDisbandedNow;
   const hasThreadMd = !!(channelInfo?.orgData as { has_thread_md?: boolean } | undefined)
     ?.has_thread_md;
   const threadMdVersion =
@@ -797,7 +805,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 onClick={openChannelSearch}
               />
             ) : null}
-            {!isThreadArchived ? (
+            {!isThreadArchived && !isGroupDisbandedNow ? (
               <NavRow title={tt("threadPanel.webhook")} onClick={() => setSubpage("webhook")} />
             ) : null}
           </SectionGroup>
@@ -848,7 +856,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
               title={tt("channelSetting.myNickname")}
               value={myNickname}
               placeholder={tt("channelSetting.notSet")}
-              canEdit
+              canEdit={!isGroupDisbandedNow}
               maxLength={20}
               pending={myNickMu.isPending}
               editing={editing === "myNickname"}
@@ -941,7 +949,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
       />
 
       <IncomingWebhookPanel
-        open={subpage === "webhook"}
+        open={subpage === "webhook" && !isGroupDisbandedNow}
         channel={isThread && threadParentChannel ? threadParentChannel : channel}
         isManager={iAmOwnerOrManager}
         title={isThread ? tt("threadPanel.webhook") : tt("module.channelSettings.incomingWebhook")}

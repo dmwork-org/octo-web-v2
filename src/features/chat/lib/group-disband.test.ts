@@ -38,6 +38,7 @@ import {
   isGroupDisbanded,
   isChannelDisbanded,
   isConversationDisbanded,
+  shouldBlockDisbandedSend,
   syncGroupDisbandState,
 } from "./group-disband";
 
@@ -125,6 +126,52 @@ describe("group-disband helpers", () => {
     it("null / person channel → false", () => {
       expect(isConversationDisbanded(null)).toBe(false);
       expect(isConversationDisbanded(new Channel("u1", CHANNEL_TYPE_PERSON))).toBe(false);
+    });
+  });
+
+  describe("shouldBlockDisbandedSend (composer send-guard, plan §8)", () => {
+    it("blocks send + fires onBlocked when the group conversation is disbanded", () => {
+      channelManager.getChannelInfo.mockReturnValue(infoWithStatus(GROUP_STATUS_DISBAND));
+      const onBlocked = vi.fn();
+      const blocked = shouldBlockDisbandedSend(new Channel("g1", ChannelTypeGroup), onBlocked);
+      expect(blocked).toBe(true);
+      expect(onBlocked).toHaveBeenCalledTimes(1);
+    });
+
+    it("blocks send when a topic's PARENT group is disbanded", () => {
+      channelManager.getChannelInfo.mockImplementation((ch: Channel) => {
+        if (ch.channelID === "g1" && ch.channelType === ChannelTypeGroup) {
+          return infoWithStatus(GROUP_STATUS_DISBAND);
+        }
+        return undefined;
+      });
+      const onBlocked = vi.fn();
+      const topic = new Channel(buildThreadChannelId("g1", "t99"), CHANNEL_TYPE_THREAD);
+      expect(shouldBlockDisbandedSend(topic, onBlocked)).toBe(true);
+      expect(onBlocked).toHaveBeenCalledTimes(1);
+    });
+
+    it("allows send (returns false, no onBlocked) for a normal group", () => {
+      channelManager.getChannelInfo.mockReturnValue(infoWithStatus(GROUP_STATUS_NORMAL));
+      const onBlocked = vi.fn();
+      expect(shouldBlockDisbandedSend(new Channel("g1", ChannelTypeGroup), onBlocked)).toBe(false);
+      expect(onBlocked).not.toHaveBeenCalled();
+    });
+
+    it("allows send for null / person channels and when cache misses (fail-open)", () => {
+      const onBlocked = vi.fn();
+      expect(shouldBlockDisbandedSend(null, onBlocked)).toBe(false);
+      expect(shouldBlockDisbandedSend(new Channel("u1", CHANNEL_TYPE_PERSON), onBlocked)).toBe(
+        false,
+      );
+      channelManager.getChannelInfo.mockReturnValue(undefined);
+      expect(shouldBlockDisbandedSend(new Channel("g1", ChannelTypeGroup), onBlocked)).toBe(false);
+      expect(onBlocked).not.toHaveBeenCalled();
+    });
+
+    it("is safe without an onBlocked callback", () => {
+      channelManager.getChannelInfo.mockReturnValue(infoWithStatus(GROUP_STATUS_DISBAND));
+      expect(shouldBlockDisbandedSend(new Channel("g1", ChannelTypeGroup))).toBe(true);
     });
   });
 

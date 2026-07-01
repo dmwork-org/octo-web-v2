@@ -59,6 +59,23 @@ export function isConversationDisbanded(channel?: Channel | null): boolean {
 }
 
 /**
+ * Composer 发送前的只读守卫(纯函数,便于直测)。
+ *
+ * 若当前会话(群或子区)已解散,调用 `onBlocked`(通常弹只读提示)并返回 `true`
+ * 表示「应中止发送」;否则返回 `false` 放行。把守卫判定从 composer 的 send()
+ * 闭包里抽出,使「解散 → 拦截发送」这一行为可被单测直接覆盖(plan §8 / P2-d),
+ * 而非仅经 isConversationDisbanded 间接覆盖。
+ */
+export function shouldBlockDisbandedSend(
+  channel: Channel | null | undefined,
+  onBlocked?: () => void,
+): boolean {
+  if (!isConversationDisbanded(channel)) return false;
+  onBlocked?.();
+  return true;
+}
+
+/**
  * 对「群频道」本地权威写回解散态并触发刷新,对其它频道(个人/子区等)退回 SDK
  * 的 fetchChannelInfo(行为与原先一致)。
  *

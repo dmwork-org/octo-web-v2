@@ -35,6 +35,7 @@ import {
   revokeMessage,
 } from "@/features/base/api/endpoints/message.api";
 import { createThread } from "@/features/base/api/endpoints/group.api";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import type { RichTextContent } from "@/features/base/im/richtext-content";
@@ -268,21 +269,22 @@ export function useMessageContextMenu(message: Message): {
   const isImage = message.contentType === MessageContentType.image;
   const imageUrl = isImage ? (message.content as MessageImage).url : "";
 
-  const revokeAllowed = me
-    ? (() => {
-        const { myRole, targetRole } = collectRevokeRoleContext(message, me);
-        return canShowRevokeMenu({
-          messageID: message.messageID,
-          channelType: message.channel.channelType,
-          messageSend: message.send,
-          messageTimestamp: message.timestamp,
-          revokeSecond: getRevokeSecondFromCache(qc),
-          isBotOwner: isBotOwnerOf(message, me),
-          myRole,
-          targetRole,
-        });
-      })()
-    : false;
+  const revokeAllowed =
+    me && !isConversationDisbanded(message.channel)
+      ? (() => {
+          const { myRole, targetRole } = collectRevokeRoleContext(message, me);
+          return canShowRevokeMenu({
+            messageID: message.messageID,
+            channelType: message.channel.channelType,
+            messageSend: message.send,
+            messageTimestamp: message.timestamp,
+            revokeSecond: getRevokeSecondFromCache(qc),
+            isBotOwner: isBotOwnerOf(message, me),
+            myRole,
+            targetRole,
+          });
+        })()
+      : false;
   const forwardAllowed = canForward(message);
   const replyAllowed = canForward(message);
   const threadAllowed = canCreateThread(message);
@@ -515,6 +517,8 @@ function canCopy(message: Message): boolean {
 function canCreateThread(message: Message): boolean {
   if (message.channel.channelType !== ChannelTypeGroup) return false;
   if (isSystemMessage(message)) return false;
+  // 解散群只读:禁止在已解散会话里创建子区(避免触发后端 fail-closed 的坏 affordance)。
+  if (isConversationDisbanded(message.channel)) return false;
   // 子区里再创建子区不合理(老仓 contextmenus.createThread 限 ChannelTypeGroup)
   return true;
 }

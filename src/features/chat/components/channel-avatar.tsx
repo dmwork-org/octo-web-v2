@@ -14,7 +14,7 @@ import {
   subscribeAvatarLoad,
 } from "@/features/chat/lib/avatar-load-cache";
 import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
-import { isGroupDisbanded } from "@/features/chat/lib/group-disband";
+import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 
 interface ChannelAvatarProps {
   channel: Channel;
@@ -179,7 +179,8 @@ export function ChannelAvatar({ channel, size = 32, title }: ChannelAvatarProps)
   const isGroup = channel.channelType === ChannelTypeGroup;
   const rounded = isPerson ? "rounded-full" : "rounded-md";
   // 已解散群:头像置灰(企业微信式只读归档,对齐老仓 App.tsx 灰头像)。
-  const disbandedClass = isGroup && isGroupDisbanded(channelInfo) ? "grayscale opacity-60" : "";
+  // 子区随父群解散一并置灰(isConversationDisbanded 覆盖群 + 子区)。
+  const disbandedClass = isConversationDisbanded(channel) ? "grayscale opacity-60" : "";
 
   const displayTitle = title ?? channelInfo?.title ?? channel.channelID;
   const initial = (displayTitle || "?").slice(0, 1).toUpperCase();

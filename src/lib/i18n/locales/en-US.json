@@ -242,6 +242,7 @@
   "base.sidebar.nav": "Main navigation",
   "base.sidebar.online": "Online",
   "base.sidebar.settings": "Settings",
+  "base.spaceSwitcher.createNew": "Create space",
   "base.spaceSwitcher.empty": "No spaces",
   "base.spaceSwitcher.joinNew": "Join a new space",
   "base.spaceSwitcher.joined": "Joined spaces",

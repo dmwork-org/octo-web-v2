@@ -49,6 +49,13 @@ import {
 } from "@/features/base/api/endpoints/group.api";
 import { parseThreadChannelId } from "@/features/base/im/parse-thread-channel-id";
 import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
+import {
+  isPersonaNotDeployed,
+  useCreateScopeMutation,
+  useDeleteScopeMutation,
+  usePersonaGrantsQuery,
+  usePersonaScopesQuery,
+} from "@/features/persona/mutations";
 import { canManageThread } from "@/features/chat/lib/thread-permission";
 import { refreshThreadChannelInfoCache } from "@/features/chat/lib/thread-archive-actions";
 import { THREAD_STATUS_ARCHIVED } from "@/features/chat/lib/thread-status";
@@ -204,6 +211,55 @@ function updateCachedSubscriberRemark(channel: Channel, uid: string, remark: str
 }
 
 /**
+ * Persona「分身在此会话代答」toggle — 把 per-channel 加/删 scope 闭环接上
+ * (对齐 plan YUJ-6663 项2:之前 useCreateScopeMutation 零调用方,加 scope 死)。
+ *
+ * - ON  → useCreateScopeMutation 建当前 channel 的 scope。
+ * - OFF → useDeleteScopeMutation 删已有 scope。
+ * 仅在用户已有 active grant 时由父组件渲染;grant 查询 404(后端 obo PR-A 未部署)
+ * 时父组件不渲染本行 → 降级隐藏,不报错(对齐 persona mutations 的 404 降级)。
+ */
+function PersonaReplyToggle({ grantId, channel }: { grantId: number; channel: Channel }) {
+  const tt = useT();
+  const { data: scopes } = usePersonaScopesQuery(grantId);
+  const createScopeMu = useCreateScopeMutation(grantId);
+  const deleteScopeMu = useDeleteScopeMutation(grantId);
+
+  const scopeList = Array.isArray(scopes) ? scopes : [];
+  const existing = scopeList.find(
+    (s) => s.channel_id === channel.channelID && s.channel_type === channel.channelType,
+  );
+  const pending = createScopeMu.isPending || deleteScopeMu.isPending;
+
+  const onError = (e: unknown) =>
+    message.error(e instanceof Error ? e.message : t("channelSetting.toast.opFailed"));
+
+  const onChange = (v: boolean) => {
+    if (v) {
+      createScopeMu.mutate(
+        {
+          grant_id: grantId,
+          channel_id: channel.channelID,
+          channel_type: channel.channelType,
+        },
+        { onError },
+      );
+    } else if (existing) {
+      deleteScopeMu.mutate(existing.id, { onError });
+    }
+  };
+
+  return (
+    <ToggleRow
+      title={tt("channelSetting.personaReplyTitle")}
+      checked={!!existing}
+      loading={pending}
+      onChange={onChange}
+    />
+  );
+}
+
+/**
  * 频道设置抽屉(对应旧 dmworkbase ChannelSetting,1:1 字段对齐)。
  *
  * **子区设置归档入口(issue #53)**:
@@ -297,6 +353,17 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const threadMdVersion =
     (channelInfo?.orgData as { thread_md_version?: number } | undefined)?.thread_md_version ?? 0;
   const canOpenChannelSearch = useMessagesSearchEnabled() && supportsChannelSearch(channel);
+
+  // Persona「分身在此会话代答」:取当前用户 active grant。grant 查询 404
+  // (后端 obo PR-A 未部署)走降级 → activeGrant 为空,toggle 整行不渲染。
+  // 仅群聊/私聊(非子区)显示,对齐 mute/pin 所在 SectionGroup 的 !isThread 条件。
+  // 后端互斥保证同一用户最多 1 个 active grant(obo.api.ts OboGrant.active 注释);
+  // 无 active grant 即不挂本行(plan YUJ-6663 项2「无 active grant 则不显」)。
+  const { data: personaGrants, error: personaGrantsError } = usePersonaGrantsQuery();
+  const personaNotDeployed = !!(personaGrantsError && isPersonaNotDeployed(personaGrantsError));
+  const grantList = Array.isArray(personaGrants) ? personaGrants : [];
+  const activeGrant = grantList.find((g) => g.active);
+  const showPersonaReply = !isThread && !personaNotDeployed && !personaGrantsError && !!activeGrant;
 
   const refreshChannelInfo = () => {
     void WKSDK.shared().channelManager.fetchChannelInfo(channel);
@@ -731,6 +798,9 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
                 loading={saveMu.isPending}
                 onChange={(v) => saveMu.mutate(v)}
               />
+            ) : null}
+            {showPersonaReply && activeGrant ? (
+              <PersonaReplyToggle grantId={activeGrant.id} channel={channel} />
             ) : null}
           </SectionGroup>
         ) : null}

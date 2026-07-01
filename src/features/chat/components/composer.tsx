@@ -843,11 +843,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     if (files.length > 0) void attachments.addAttachments(files, "upload", editor);
   };
 
-  const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
-    if (!addClipboardFiles(e.clipboardData)) return;
-    e.preventDefault();
-  };
-
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
     const items = Array.from(e.dataTransfer?.items ?? []);
     const files = Array.from(e.dataTransfer?.files ?? []);
@@ -924,7 +919,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       <form
         ref={formRef}
         onSubmit={onSubmit}
-        onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
         className={`relative flex w-full cursor-text flex-col rounded-[12px] border border-[#1c1c23]/10 bg-bg-surface px-4 py-2 transition-colors focus-within:border-brand ${expanded ? "min-h-[280px]" : "min-h-10"}`}

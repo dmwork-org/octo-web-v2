@@ -6,6 +6,18 @@ interface SplitCache {
   seq: number;
 }
 
+interface MessageSeqLike {
+  messageSeq?: number | null;
+}
+
+export function hasVisibleMessageAfterHistorySplitAnchor(
+  messages: MessageSeqLike[],
+  splitAfterSeq: number,
+): boolean {
+  if (splitAfterSeq <= 0) return false;
+  return messages.some((m) => typeof m.messageSeq === "number" && m.messageSeq > splitAfterSeq);
+}
+
 /**
  * "以上为历史消息" 分割线锚点 seq(issue #32):
  *

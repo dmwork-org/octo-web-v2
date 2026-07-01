@@ -21,7 +21,10 @@ import { chatAiCollabFoldActions } from "@/features/chat/stores/ai-collab-fold";
 import { MessageRow } from "@/features/chat/components/message-row";
 import { TimeDivider } from "@/features/chat/components/time-divider";
 import { HistoryDivider } from "@/features/chat/components/history-divider";
-import { useHistorySplitAnchor } from "@/features/chat/hooks/use-history-split.hook";
+import {
+  hasVisibleMessageAfterHistorySplitAnchor,
+  useHistorySplitAnchor,
+} from "@/features/chat/hooks/use-history-split.hook";
 import { FoldSessionCard } from "@/features/chat/components/fold-session-card";
 import { ScrollToBottomButton } from "@/features/chat/components/scroll-to-bottom-button";
 import { TypingIndicator } from "@/features/chat/components/typing-indicator";
@@ -511,6 +514,10 @@ export function MessageList({ channel }: MessageListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [messages, channelInfoTick],
   );
+  const canRenderHistorySplit = useMemo(
+    () => hasVisibleMessageAfterHistorySplitAnchor(messages, historySplitAfterSeq),
+    [historySplitAfterSeq, messages],
+  );
 
   // fold session 展开收起 state(sessionId → boolean,默认折叠)
   const [expandedSessions, setExpandedSessions] = useState<Map<string, boolean>>(new Map());
@@ -648,7 +655,9 @@ export function MessageList({ channel }: MessageListProps) {
           const continueWithPrev = !bare && !showDivider && isContinue(m, prevMessage);
           // issue #32:此消息是"最后已读"时,渲染完后追加历史分割线
           const isHistorySplitAnchor =
-            historySplitAfterSeq > 0 && m.messageSeq === historySplitAfterSeq;
+            canRenderHistorySplit &&
+            historySplitAfterSeq > 0 &&
+            m.messageSeq === historySplitAfterSeq;
           return (
             <div key={messageRenderKey(m, i)}>
               {showDivider ? <TimeDivider timestamp={currTs} /> : null}

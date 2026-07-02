@@ -246,6 +246,8 @@ export interface ScheduleItem {
   next_run_at: string | null;
   created_at: string;
   updated_at: string;
+  confirm_policy?: number;
+  participant_config?: ScheduleParticipantConfig | string[];
 }
 
 export interface CreateScheduleParams {
@@ -259,10 +261,11 @@ export interface CreateScheduleParams {
   run_time?: string;
   time_range_type: TimeRangeTypeValue;
   sources: SourceItem[];
-  participants?: { user_id: string }[];
+  participants?: { user_id: string; user_name?: string }[];
   /** Task-scoped create atomically binds the new schedule to a summary task. */
   scope?: "task";
   task_id?: number;
+  confirm_policy?: number;
 }
 
 export interface UpdateScheduleParams {
@@ -276,9 +279,10 @@ export interface UpdateScheduleParams {
   run_time?: string;
   time_range_type?: TimeRangeTypeValue;
   sources?: SourceItem[];
-  participants?: { user_id: string }[];
+  participants?: { user_id: string; user_name?: string }[];
   scope?: "task";
   task_id?: number;
+  confirm_policy?: number;
 }
 
 export type ScheduleUnit = "day" | "week" | "month";
@@ -290,6 +294,18 @@ export interface ScheduleConfig {
   dayOfWeek?: number;
   dayOfMonth?: number;
   legacyCron?: boolean;
+  confirm_policy?: number;
+}
+
+export interface ScheduleParticipantConfigItem {
+  user_id: string;
+  confirmed?: boolean;
+  confirmed_at?: string | null;
+}
+
+export interface ScheduleParticipantConfig {
+  participants?: ScheduleParticipantConfigItem[];
+  confirm_gate_passed?: boolean;
 }
 
 // ─── Batch status / chat-context types(Batch 1.11 chat panel) ─────────────

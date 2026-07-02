@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
-import { editSummary } from "@/features/summary/api/summary.api";
+import { editSummary, personalEditSummary } from "@/features/summary/api/summary.api";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
 
 interface SummaryEditorProps {
   taskId: number;
-  baseResultId: number;
+  baseResultId?: number;
   initialContent: string;
   title: string;
+  mode?: "team" | "personal";
   onSave: () => void;
   onCancel: () => void;
 }
@@ -36,6 +37,7 @@ export function SummaryEditor({
   baseResultId,
   initialContent,
   title,
+  mode = "team",
   onSave,
   onCancel,
 }: SummaryEditorProps) {
@@ -57,9 +59,29 @@ export function SummaryEditor({
   useAutoResizeSummaryEditor(content, adjustHeight);
 
   const handleSave = async () => {
+    if (mode === "team") {
+      if (baseResultId === undefined) return;
+      setSaving(true);
+      try {
+        await editSummary(taskId, content, baseResultId);
+        message.success(t("summary.editor.saveSuccess"));
+        onSave();
+      } catch (err) {
+        const status =
+          err instanceof Error ? (err as Error & { status?: number }).status : undefined;
+        if (status === 409) {
+          message.warning(t("summary.editor.contentUpdated"));
+          onSave();
+          return;
+        }
+        message.error(err instanceof Error ? err.message : t("summary.editor.saveFailed"));
+        setSaving(false);
+      }
+      return;
+    }
     setSaving(true);
     try {
-      await editSummary(taskId, content, baseResultId);
+      await personalEditSummary(taskId, content);
       message.success(t("summary.editor.saveSuccess"));
       onSave();
     } catch (err) {

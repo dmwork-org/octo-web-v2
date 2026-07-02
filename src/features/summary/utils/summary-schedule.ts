@@ -15,8 +15,11 @@ export function scheduleToParams(config: ScheduleConfig): {
   day_of_week: number;
   day_of_month: number;
   run_time: string;
+  confirm_policy?: number;
 } {
   const every = Math.max(1, Math.floor(config.every || 1));
+  const confirmPolicy =
+    config.confirm_policy !== undefined ? { confirm_policy: config.confirm_policy } : {};
   if (config.unit === "month") {
     return {
       cron_expr: "",
@@ -25,6 +28,7 @@ export function scheduleToParams(config: ScheduleConfig): {
       day_of_week: 0,
       day_of_month: config.dayOfMonth || 0,
       run_time: config.time,
+      ...confirmPolicy,
     };
   }
 
@@ -36,6 +40,7 @@ export function scheduleToParams(config: ScheduleConfig): {
     day_of_week: config.unit === "week" ? config.dayOfWeek || 0 : 0,
     day_of_month: 0,
     run_time: config.time,
+    ...confirmPolicy,
   };
 }
 

@@ -1,18 +1,22 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { Message, MessageText } from "wukongimjssdk";
 import {
-  ChevronDown,
+  CheckCircle2,
   Clock,
+  Edit3,
   LogOut,
   Loader2,
   MessageSquareText,
+  Plus,
   RefreshCcw,
   Send,
+  TriangleAlert,
   Trash2,
   UserMinus,
   UsersRound,
+  XCircle,
   X as XIcon,
 } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
@@ -25,6 +29,7 @@ import { authStore } from "@/features/base/stores/auth";
 import { ForwardModal } from "@/features/chat/components/forward-modal";
 import { addMatterComment } from "@/features/matter/api/matter.api";
 import {
+  addMembers,
   cancelSummary,
   createSchedule,
   deleteSummary,
@@ -33,6 +38,7 @@ import {
   leaveSummary,
   removeMember,
   regenerateSummary,
+  submitPersonalResult,
   toggleSchedule,
   updateSchedule,
 } from "@/features/summary/api/summary.api";
@@ -46,9 +52,12 @@ import { ScheduleConfigModal } from "@/features/summary/components/schedule-conf
 import { CitationText } from "@/features/summary/components/citation-text";
 import { MatterPickerModal } from "@/features/summary/components/matter-picker-modal";
 import { PersonalSection } from "@/features/summary/components/personal-section";
+import { ParticipantPicker } from "@/features/summary/components/participant-picker";
+import { SummaryEditor } from "@/features/summary/components/summary-editor";
 import {
   SourceType,
   SummaryMode,
+  ParticipantStatus,
   TaskStatus,
   type MemberStatus,
   type ScheduleConfig,
@@ -80,6 +89,19 @@ function buildForwardMessages(content: string): Message[] {
     const message = new Message();
     message.content = new MessageText(chunk);
     return message;
+  });
+}
+
+function formatSummaryDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -145,6 +167,39 @@ function SummaryProcessingPanel({ status }: { status: TaskStatusType }) {
   );
 }
 
+function SummaryFailedPanel({
+  errorMessage,
+  taskNo,
+  createdAt,
+}: {
+  errorMessage?: string | null;
+  taskNo: string;
+  createdAt: string;
+}) {
+  const tr = useT();
+  return (
+    <section className="my-2 flex flex-col items-center rounded-md border border-error/25 bg-error/10 px-8 py-12 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-error/25 bg-bg-surface text-error">
+        <TriangleAlert size={30} />
+      </div>
+      <h3 className="mt-4 text-base leading-6 font-semibold text-error">
+        {tr("summary.detail.failedTitle")}
+      </h3>
+      {errorMessage ? (
+        <div className="mt-4 w-full rounded-md border border-border-subtle bg-bg-surface px-4 py-3 text-sm leading-6 text-text-secondary">
+          {errorMessage}
+        </div>
+      ) : null}
+      <div className="mt-4 flex flex-col gap-1 text-xs leading-5 text-text-tertiary">
+        <span>{tr("summary.detail.taskNo", { values: { taskNo } })}</span>
+        <span>
+          {tr("summary.detail.createdAt", { values: { time: formatSummaryDate(createdAt) } })}
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function SummarySourcesPanel({ sources }: { sources: SourceItem[] }) {
   const tr = useT();
   const sourceIcon = (sourceType: SourceItem["source_type"]) => {
@@ -190,73 +245,111 @@ function MemberStatusPanel({
   myUid,
   creatorId,
   canRemove,
+  canAdd,
   removingUid,
+  existingParticipantIds,
+  onAdd,
   onRemove,
 }: {
   members: MemberStatus[];
   myUid: string;
   creatorId?: string;
   canRemove: boolean;
+  canAdd: boolean;
   removingUid?: string;
+  existingParticipantIds: string[];
+  onAdd: (uids: string[]) => void;
   onRemove: (uid: string) => void;
 }) {
   const tr = useT();
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null);
   if (members.length === 0) return null;
+  const submittedCount = members.filter((member) => !!member.submitted_at).length;
+  const statusConfig: Record<string, { icon: ReactNode; label: string; className: string }> = {
+    pending: {
+      icon: <Clock size={13} />,
+      label: tr("summary.memberStatus.pending"),
+      className: "border-warning/25 bg-warning/10 text-warning",
+    },
+    accepted: {
+      icon: <CheckCircle2 size={13} />,
+      label: tr("summary.memberStatus.accepted"),
+      className: "border-success/25 bg-success/10 text-success",
+    },
+    declined: {
+      icon: <XCircle size={13} />,
+      label: tr("summary.memberStatus.declined"),
+      className: "border-error/25 bg-error/10 text-error",
+    },
+    processing: {
+      icon: <Loader2 size={13} className="animate-spin" />,
+      label: tr("summary.memberStatus.processing"),
+      className: "border-border-default bg-bg-elevated text-text-secondary",
+    },
+    completed: {
+      icon: <CheckCircle2 size={13} />,
+      label: tr("summary.memberStatus.completed"),
+      className: "border-success/25 bg-success/10 text-success",
+    },
+    submitted: {
+      icon: <CheckCircle2 size={13} />,
+      label: tr("summary.memberStatus.submitted"),
+      className: "border-success/25 bg-success/10 text-success",
+    },
+  };
   return (
     <>
       <section className="rounded-md border border-border-subtle bg-bg-surface">
         <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
-          <h3 className="text-sm font-semibold text-text-primary">
-            {tr("summary.detail.memberStatus")}
-          </h3>
-          <span className="text-xs text-text-tertiary">
-            {tr("summary.detail.submittedPeople", {
-              values: { count: members.filter((member) => !!member.submitted_at).length },
-            })}
-          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-text-primary">
+              {tr("summary.detail.memberStatus")}
+            </h3>
+            <span className="text-xs text-text-tertiary">
+              {tr("summary.detail.submittedPeople", { values: { count: submittedCount } })}
+            </span>
+          </div>
+          {canAdd ? (
+            <ParticipantPicker
+              value={existingParticipantIds}
+              onChange={(uids) => {
+                const existing = new Set(existingParticipantIds);
+                const next = uids.filter((uid) => !existing.has(uid));
+                if (next.length > 0) onAdd(next);
+              }}
+              trigger={({ open }) => (
+                <Button type="tertiary" theme="borderless" size="small" onClick={open}>
+                  <Plus size={13} />
+                  {tr("summary.detail.addMember")}
+                </Button>
+              )}
+            />
+          ) : null}
         </div>
         <div className="divide-y divide-border-subtle">
           {members.map((member) => {
-            const content = member.content?.trim() ?? "";
-            const isExpanded = !!expanded[member.user_id];
             const canRemoveMember =
               canRemove && member.user_id !== myUid && member.user_id !== creatorId;
+            const status = statusConfig[member.status] ?? statusConfig.pending;
             return (
               <div key={member.user_id} className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={!content}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-text-tertiary hover:bg-bg-hover disabled:opacity-30"
-                    aria-label={
-                      isExpanded ? tr("summary.detail.collapse") : tr("summary.detail.expandAll")
-                    }
-                    onClick={() =>
-                      setExpanded((prev) => ({
-                        ...prev,
-                        [member.user_id]: !prev[member.user_id],
-                      }))
-                    }
-                  >
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    />
-                  </button>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-text-primary">
                       {member.user_name || member.user_id}
                     </div>
-                    <div className="text-xs text-text-tertiary">
-                      {content
-                        ? tr("summary.detail.submitSuccess")
-                        : tr("summary.detail.waitingSubmit", {
-                            values: { name: member.user_name || member.user_id },
-                          })}
-                    </div>
+                    {member.submitted_at ? (
+                      <div className="text-xs text-text-tertiary">
+                        {formatSummaryDate(member.submitted_at)}
+                      </div>
+                    ) : null}
                   </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-sm border px-2 py-0.5 text-xs ${status.className}`}
+                  >
+                    {status.icon}
+                    {status.label}
+                  </span>
                   {canRemoveMember ? (
                     <Button
                       type="danger"
@@ -270,15 +363,6 @@ function MemberStatusPanel({
                     </Button>
                   ) : null}
                 </div>
-                {isExpanded && content ? (
-                  <div className="mt-3 rounded-md bg-bg-base p-3">
-                    <CitationText
-                      content={content}
-                      citations={member.citations ?? []}
-                      hidePlainCitations={member.user_id !== myUid}
-                    />
-                  </div>
-                ) : null}
               </div>
             );
           })}
@@ -304,6 +388,198 @@ function MemberStatusPanel({
   );
 }
 
+function ParticipantReportsPanel({
+  taskId,
+  resultId,
+  members,
+  myUid,
+  personalContent,
+  personalCitations,
+  showMyPendingSubmit,
+  canEditPersonal,
+  submitting,
+  onSubmitMine,
+  onSaved,
+}: {
+  taskId: number;
+  resultId?: number;
+  members: MemberStatus[];
+  myUid: string;
+  personalContent: string;
+  personalCitations: MemberStatus["citations"];
+  showMyPendingSubmit: boolean;
+  canEditPersonal: boolean;
+  submitting: boolean;
+  onSubmitMine: () => void;
+  onSaved: () => void;
+}) {
+  const tr = useT();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [editingPersonal, setEditingPersonal] = useState(false);
+
+  if (members.length <= 1) return null;
+
+  const submitted = members.filter((member) => !!member.submitted_at && !!member.content?.trim());
+  const declined = members.filter((member) => member.status === "declined");
+  const pending = members.filter(
+    (member) => member.status !== "declined" && (!member.submitted_at || !member.content?.trim()),
+  );
+
+  if (submitted.length === 0 && declined.length === 0 && pending.length === 0) return null;
+
+  const submittedSorted = [
+    ...submitted.filter((member) => member.user_id === myUid),
+    ...submitted.filter((member) => member.user_id !== myUid),
+  ];
+  const pendingOthers = showMyPendingSubmit
+    ? pending.filter((member) => member.user_id !== myUid)
+    : pending;
+
+  const toggle = (uid: string) => {
+    setExpanded((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  };
+
+  const renderContent = (member: MemberStatus) => {
+    const content = member.content?.trim() ?? "";
+    const isMe = member.user_id === myUid;
+    const displayContent = isMe ? content : content.replace(/\[\d+\]/g, "");
+    const displayCitations = isMe ? (member.citations ?? []) : [];
+    const needsTruncate = displayContent.length > 100;
+    const isExpanded = !!expanded[member.user_id];
+    const shownContent =
+      isExpanded || !needsTruncate ? displayContent : `${displayContent.slice(0, 100)}...`;
+
+    return (
+      <div
+        key={member.user_id}
+        className="rounded-md border border-border-subtle bg-bg-surface p-4"
+      >
+        <div
+          className={`flex min-h-8 items-center gap-2 ${needsTruncate ? "cursor-pointer" : ""}`}
+          onClick={() => {
+            if (needsTruncate) toggle(member.user_id);
+          }}
+        >
+          <span className="truncate text-sm font-semibold text-text-primary">
+            {member.user_name || member.user_id}
+          </span>
+          <span className="text-text-tertiary">·</span>
+          <span className="shrink-0 text-xs text-text-tertiary">
+            {formatSummaryDate(member.submitted_at)}
+          </span>
+          {isMe && canEditPersonal ? (
+            <Button
+              type="tertiary"
+              theme="borderless"
+              size="small"
+              className="ml-auto"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditingPersonal(true);
+              }}
+            >
+              <Edit3 size={13} />
+              {tr("summary.detail.editMyReport")}
+            </Button>
+          ) : null}
+        </div>
+        {isMe && editingPersonal ? (
+          <div className="mt-3">
+            <SummaryEditor
+              mode="personal"
+              taskId={taskId}
+              baseResultId={resultId}
+              initialContent={content}
+              title={tr("summary.detail.mySummaryPlain")}
+              onSave={() => {
+                setEditingPersonal(false);
+                onSaved();
+              }}
+              onCancel={() => setEditingPersonal(false)}
+            />
+          </div>
+        ) : (
+          <div className="mt-3 text-sm leading-7 text-text-primary">
+            {isMe ? (
+              <CitationText content={shownContent} citations={displayCitations} />
+            ) : (
+              <SummaryContent content={shownContent} />
+            )}
+          </div>
+        )}
+        {needsTruncate && !editingPersonal ? (
+          <button
+            type="button"
+            className="mt-2 cursor-pointer text-xs text-text-tertiary hover:text-text-primary"
+            onClick={() => toggle(member.user_id)}
+          >
+            {isExpanded ? tr("summary.detail.collapse") : tr("summary.detail.expandAll")}
+          </button>
+        ) : null}
+      </div>
+    );
+  };
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-sm font-semibold text-text-primary">
+        {tr("summary.detail.participantReports")}
+      </h3>
+      {submittedSorted.map(renderContent)}
+      {showMyPendingSubmit ? (
+        <div className="rounded-md border border-info/30 bg-info/10 p-4">
+          <div className="flex min-h-8 items-center gap-2">
+            <span className="truncate text-sm font-semibold text-text-primary">
+              {tr("summary.detail.mySubmitRowName")}
+            </span>
+            <Button
+              type="primary"
+              theme="solid"
+              size="small"
+              className="ml-auto bg-info font-semibold text-white shadow-sm hover:bg-info/90"
+              loading={submitting}
+              onClick={onSubmitMine}
+            >
+              {tr("summary.detail.submitToAll")}
+            </Button>
+          </div>
+          {personalContent.trim() ? (
+            <div className="mt-3">
+              <CitationText content={personalContent} citations={personalCitations ?? []} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {pendingOthers.map((member) => (
+        <div
+          key={member.user_id}
+          className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning"
+        >
+          <Clock size={14} />
+          <span>
+            {tr("summary.detail.waitingSubmit", {
+              values: { name: member.user_name || member.user_id },
+            })}
+          </span>
+        </div>
+      ))}
+      {declined.map((member) => (
+        <div
+          key={member.user_id}
+          className="flex items-center gap-2 rounded-md border border-error/20 bg-error/10 px-4 py-3 text-sm text-error"
+        >
+          <XCircle size={14} />
+          <span>
+            {member.user_name || member.user_id}
+            <span className="text-text-tertiary"> · </span>
+            {tr("summary.confirmPage.declined")}
+          </span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /**
  * 总结详情面板。
  */
@@ -316,6 +592,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [scheduleConfigOpen, setScheduleConfigOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editingTeamSummary, setEditingTeamSummary] = useState(false);
   const [regenerateTopic, setRegenerateTopic] = useState("");
   const { data, isLoading, isFetching, error } = useQuery(summaryDetailQueryOptions(taskId));
   const scheduleId = data?.schedule_id && data.schedule_id > 0 ? data.schedule_id : null;
@@ -339,6 +616,8 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     void qc.invalidateQueries({ queryKey: ["summary", "list"] });
     if (taskId !== null) {
       void qc.invalidateQueries({ queryKey: summaryDetailQueryKey(taskId) });
+      void qc.invalidateQueries({ queryKey: ["summary", "personal", taskId] });
+      void qc.invalidateQueries({ queryKey: ["summary", "members", taskId] });
     }
     void qc.invalidateQueries({ queryKey: ["summary", "schedule"] });
   };
@@ -398,6 +677,26 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
       message.error(err instanceof Error ? err.message : t("summary.detail.removeMemberFailed")),
   });
 
+  const addMembersMu = useMutation({
+    mutationFn: (uids: string[]) => addMembers(taskId!, uids),
+    onSuccess: () => {
+      invalidate();
+      message.success(t("summary.detail.addMemberSuccess"));
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.detail.addMemberFailed")),
+  });
+
+  const submitPersonalMu = useMutation({
+    mutationFn: () => submitPersonalResult(taskId!),
+    onSuccess: () => {
+      invalidate();
+      message.success(t("summary.detail.submitSuccess"));
+    },
+    onError: (err) =>
+      message.error(err instanceof Error ? err.message : t("summary.detail.submitFailed")),
+  });
+
   const forwardMatterMu = useMutation({
     mutationFn: ({
       matterId,
@@ -420,12 +719,31 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const saveScheduleMu = useMutation({
     mutationFn: async (config: ScheduleConfig) => {
       if (!data) throw new Error(t("summary.detail.loadFailed"));
-      const params = scheduleToParams(config);
+      const isMultiPerson =
+        data.summary_mode === SummaryMode.BY_PERSON &&
+        (data.participants.length > 0 ? data.participants.length > 1 : members.length > 1);
+      const params = scheduleToParams({
+        ...config,
+        confirm_policy: isMultiPerson ? 1 : undefined,
+      });
+      const scheduleParticipants =
+        data.participants.length > 0
+          ? data.participants.map((participant) => ({
+              user_id: participant.user_id,
+              user_name: participant.user_name,
+            }))
+          : members.map((member) => ({
+              user_id: member.user_id,
+              user_name: member.user_name,
+            }));
+      const participants =
+        scheduleParticipants.length > 0 ? { participants: scheduleParticipants } : {};
       if (scheduleItem) {
         const updated = await updateSchedule(scheduleItem.schedule_id, {
           ...params,
           scope: "task",
           task_id: data.task_id,
+          ...participants,
         });
         if (scheduleItem.is_active === false) {
           await toggleSchedule(updated.schedule_id, true);
@@ -438,6 +756,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
         ...params,
         time_range_type: 2,
         sources: data.sources,
+        ...participants,
         scope: "task",
         task_id: data.task_id,
       });
@@ -495,13 +814,28 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const hasCitations = !!citations && citations.length > 0;
   const isPersonalMode = data.summary_mode === SummaryMode.BY_PERSON;
   const resultContent = data.result?.content ?? "";
-  const hasTeamSummary = isPersonalMode && resultContent.trim().length > 0;
+  const participantCount = data.participants.length > 0 ? data.participants.length : members.length;
+  const isMultiCollab = isPersonalMode && participantCount > 1;
+  const hasTeamSummary = isMultiCollab && resultContent.trim().length > 0;
   const personalReady = isPersonalMode && !!personalResult?.content?.trim();
-  const canEdit = !!data.permissions?.can_edit;
+  const canSchedule = !!data.permissions?.can_schedule;
+  const canEditTeam = !!data.permissions?.can_edit_team;
+  const canEditPersonal = !!data.permissions?.can_edit_personal;
   const isCreator = data.creator_id != null && data.creator_id === myUid;
   const isParticipant = data.participants.some((participant) => participant.user_id === myUid);
+  const myParticipant = data.participants.find((participant) => participant.user_id === myUid);
+  const shouldShowPersonalSection =
+    !isMultiCollab ||
+    myParticipant?.status === ParticipantStatus.PENDING ||
+    myParticipant?.status === ParticipantStatus.DECLINED;
   const canDelete = isCreator;
   const canLeave = !isCreator && isParticipant;
+  const showMyPendingSubmit =
+    isMultiCollab &&
+    personalResult?.worker_status === 2 &&
+    !personalResult.submitted_at &&
+    members.length > 1 &&
+    !editingTeamSummary;
   const hasActiveSchedule = !!scheduleItem && scheduleItem.is_active !== false;
   const hasSchedule = hasActiveSchedule || (!scheduleItem && !!scheduleId);
   const scheduleSummary =
@@ -551,6 +885,11 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
     setScheduleConfigOpen(true);
   };
 
+  const submitMySummary = () => {
+    if (submitPersonalMu.isPending) return;
+    submitPersonalMu.mutate();
+  };
+
   return (
     <>
       <section className="flex flex-1 flex-col overflow-hidden bg-bg-surface">
@@ -574,7 +913,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {canEdit ? (
+            {canSchedule ? (
               <Button
                 type="tertiary"
                 theme="borderless"
@@ -664,52 +1003,137 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
                 <>
                   {isPersonalMode ? (
                     <>
-                      <PersonalSection detail={data} />
-                      {hasTeamSummary ? (
-                        <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
-                          <h3 className="mb-3 text-sm font-semibold text-text-primary">
-                            {tr("summary.detail.teamSummary")}
-                          </h3>
-                          <CitationText
-                            content={resultContent}
-                            citations={data.result?.citations ?? []}
-                            teamCitations={data.result?.team_citations ?? []}
-                            members={members}
-                            hidePlainCitations
-                          />
+                      {isMultiCollab && showMyPendingSubmit ? (
+                        <div className="flex items-center gap-3 rounded-md border border-l-4 border-info/30 border-l-info bg-info/10 px-4 py-3 text-sm text-text-primary">
+                          <MessageSquareText size={16} className="shrink-0 text-info" />
+                          <span className="min-w-0 flex-1">
+                            {tr("summary.detail.mySubmitHint")}
+                          </span>
+                          <Button
+                            type="primary"
+                            theme="solid"
+                            size="small"
+                            className="bg-info font-semibold text-white shadow-sm hover:bg-info/90"
+                            loading={submitPersonalMu.isPending}
+                            onClick={submitMySummary}
+                          >
+                            {tr("summary.detail.submitToAll")}
+                          </Button>
                         </div>
                       ) : null}
-                      <MemberStatusPanel
-                        members={members}
-                        myUid={myUid}
-                        creatorId={data.creator_id}
-                        canRemove={!!data.permissions?.can_remove_member}
-                        removingUid={removeMemberMu.variables}
-                        onRemove={(uid) => removeMemberMu.mutate(uid)}
-                      />
+                      {shouldShowPersonalSection ? <PersonalSection detail={data} /> : null}
+                      {hasTeamSummary ? (
+                        <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
+                          {editingTeamSummary && data.result_id ? (
+                            <SummaryEditor
+                              taskId={data.task_id}
+                              baseResultId={data.result_id}
+                              initialContent={resultContent}
+                              title={tr("summary.detail.teamSummary")}
+                              onSave={() => {
+                                setEditingTeamSummary(false);
+                                invalidate();
+                              }}
+                              onCancel={() => setEditingTeamSummary(false)}
+                            />
+                          ) : (
+                            <>
+                              <div className="mb-3 flex items-center justify-between gap-2">
+                                <h3 className="min-w-0 truncate text-sm font-semibold text-text-primary">
+                                  {tr("summary.detail.teamSummary")}
+                                </h3>
+                                {canEditTeam && isCompleted && data.result_id ? (
+                                  <Button
+                                    type="tertiary"
+                                    theme="borderless"
+                                    size="small"
+                                    onClick={() => setEditingTeamSummary(true)}
+                                  >
+                                    <Edit3 size={13} />
+                                    {tr("summary.detail.editTeamSummary")}
+                                  </Button>
+                                ) : null}
+                              </div>
+                              <CitationText
+                                content={resultContent}
+                                citations={data.result?.citations ?? []}
+                                teamCitations={data.result?.team_citations ?? []}
+                                members={members}
+                                hidePlainCitations
+                              />
+                            </>
+                          )}
+                        </div>
+                      ) : isMultiCollab && data.status === TaskStatus.PROCESSING ? (
+                        <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-surface p-4 text-sm text-text-secondary">
+                          <Loader2 size={15} className="animate-spin" />
+                          {tr("summary.detail.teamGenerating")}
+                        </div>
+                      ) : null}
+                      {isMultiCollab ? (
+                        <>
+                          <MemberStatusPanel
+                            members={members}
+                            myUid={myUid}
+                            creatorId={data.creator_id}
+                            canRemove={!!data.permissions?.can_remove_member}
+                            canAdd={!!data.permissions?.can_add_member}
+                            removingUid={removeMemberMu.variables}
+                            existingParticipantIds={data.participants.map(
+                              (participant) => participant.user_id,
+                            )}
+                            onAdd={(uids) => addMembersMu.mutate(uids)}
+                            onRemove={(uid) => removeMemberMu.mutate(uid)}
+                          />
+                          <ParticipantReportsPanel
+                            taskId={data.task_id}
+                            resultId={data.result_id}
+                            members={members}
+                            myUid={myUid}
+                            personalContent={personalResult?.content ?? ""}
+                            personalCitations={personalResult?.citations ?? []}
+                            showMyPendingSubmit={showMyPendingSubmit}
+                            canEditPersonal={canEditPersonal && isCompleted}
+                            submitting={submitPersonalMu.isPending}
+                            onSubmitMine={submitMySummary}
+                            onSaved={invalidate}
+                          />
+                        </>
+                      ) : null}
                     </>
                   ) : null}
 
                   {!isPersonalMode ? (
-                    <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
-                      {isProcessing ? (
-                        <SummaryProcessingPanel status={data.status} />
-                      ) : isFailed ? (
-                        <p className="text-sm text-error">
-                          {data.error_message ?? tr("summary.detail.failedFallback")}
-                        </p>
-                      ) : data.result ? (
-                        hasCitations ? (
-                          <CitationText content={data.result.content} citations={citations!} />
-                        ) : (
-                          <SummaryContent content={data.result.content} />
-                        )
-                      ) : !isPersonalMode ? (
-                        <p className="text-sm italic text-text-tertiary">
-                          {tr("summary.detail.emptyContent")}
-                        </p>
-                      ) : null}
-                    </div>
+                    isFailed ? (
+                      <SummaryFailedPanel
+                        errorMessage={data.error_message}
+                        taskNo={data.task_no}
+                        createdAt={data.created_at}
+                      />
+                    ) : (
+                      <div className="min-w-0 rounded-md border border-border-subtle bg-bg-surface p-4">
+                        {isProcessing ? (
+                          <SummaryProcessingPanel status={data.status} />
+                        ) : data.result ? (
+                          hasCitations ? (
+                            <CitationText content={data.result.content} citations={citations!} />
+                          ) : (
+                            <SummaryContent content={data.result.content} />
+                          )
+                        ) : !isPersonalMode ? (
+                          <p className="text-sm italic text-text-tertiary">
+                            {tr("summary.detail.emptyContent")}
+                          </p>
+                        ) : null}
+                      </div>
+                    )
+                  ) : null}
+                  {isPersonalMode && isFailed ? (
+                    <SummaryFailedPanel
+                      errorMessage={data.error_message}
+                      taskNo={data.task_no}
+                      createdAt={data.created_at}
+                    />
                   ) : null}
                 </>
               )}
@@ -717,7 +1141,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
           </div>
 
           <div className="shrink-0 border-t border-border-subtle bg-bg-surface px-8 py-3">
-            <div className="mx-auto w-full max-w-[920px]">
+            <div className="mx-auto w-full max-w-[960px]">
               <SummarySourcesPanel sources={data.sources} />
             </div>
           </div>

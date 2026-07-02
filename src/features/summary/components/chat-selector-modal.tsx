@@ -8,10 +8,11 @@ import WKSDK, {
   ChannelTypePerson,
   type ChannelInfo,
 } from "wukongimjssdk";
-import { Check, Search } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
 import { Button } from "@/components/semi-bridge/button";
 import { Switch } from "@/features/base/components/section-form/toggle-row";
+import { SelectedPreviewPane } from "@/features/base/components/member-select/member-select";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { ThreadIcon } from "@/components/ui/thread-icon";
@@ -81,6 +82,10 @@ function chatTypeToSidebarTargetType(chatType: ChatCandidate["chat_type"]): numb
 
 function candidateSidebarKey(item: ChatCandidate): string {
   return `${chatTypeToSidebarTargetType(item.chat_type)}::${item.chat_id}`;
+}
+
+function chatKey(item: ChatCandidate): string {
+  return `${item.chat_type}::${item.chat_id}`;
 }
 
 function channelOfCandidate(item: ChatCandidate): Channel {
@@ -390,6 +395,41 @@ function ChatCandidateRow({
   );
 }
 
+function SelectedChatRow({
+  item,
+  onRemove,
+  requestedInfoRef,
+}: {
+  item: ChatCandidate;
+  onRemove: (item: ChatCandidate) => void;
+  requestedInfoRef: RefObject<Map<string, number>>;
+}) {
+  const tr = useT();
+  useFetchVisibleChatCandidateInfo(item, requestedInfoRef);
+  const memberCount = memberCountOf(item);
+
+  return (
+    <div className="group flex h-9 items-center gap-2 px-2 transition-colors hover:bg-[rgba(28,28,35,0.03)]">
+      <ChatCandidateAvatar item={item} />
+      <ChatCandidateName item={item} />
+      {memberCount != null ? (
+        <span className="shrink-0 text-[10px] text-text-tertiary">{memberCount}</span>
+      ) : null}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove(item);
+        }}
+        aria-label={tr("forwardModalLocal.remove")}
+        className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[rgba(28,28,35,0.4)] transition-colors hover:bg-[rgba(28,28,35,0.06)] hover:text-text-primary"
+      >
+        <X size={14} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
 interface ChatCandidateListProps {
   items: DisplayEntry[];
   selectedIds: Set<string>;
@@ -437,7 +477,7 @@ function ChatCandidateList({
               <ChatCandidateRow
                 item={entry.item}
                 indent={entry.indent}
-                checked={selectedIds.has(entry.item.chat_id)}
+                checked={selectedIds.has(chatKey(entry.item))}
                 onToggle={onToggle}
                 requestedInfoRef={requestedInfoRef}
               />
@@ -530,11 +570,12 @@ export function ChatSelectorModal({
     ],
   );
 
-  const selectedIds = useMemo(() => new Set(localSelected.map((s) => s.chat_id)), [localSelected]);
+  const selectedIds = useMemo(() => new Set(localSelected.map(chatKey)), [localSelected]);
 
   const toggle = (item: ChatCandidate) => {
-    if (selectedIds.has(item.chat_id)) {
-      setLocalSelected((prev) => prev.filter((c) => c.chat_id !== item.chat_id));
+    const key = chatKey(item);
+    if (selectedIds.has(key)) {
+      setLocalSelected((prev) => prev.filter((c) => chatKey(c) !== key));
     } else if (localSelected.length < maxSelect) {
       setLocalSelected((prev) => [
         ...prev,
@@ -577,71 +618,92 @@ export function ChatSelectorModal({
       onOpenChange={(o) => {
         if (!o) onCancel();
       }}
-      size="md"
-      height="md"
+      size="fit"
       title={tr("summary.chatSelector.title")}
-      contentClassName="overflow-hidden"
+      className="h-[560px] w-[625px]"
+      contentClassName="overflow-hidden p-0"
       footer={footer}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4">
-        <div className="flex shrink-0 items-center gap-2 rounded-md border border-border-default bg-bg-base px-3 py-2">
-          <Search size={14} className="shrink-0 text-text-tertiary" />
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder={tr("summary.chatSelector.searchPlaceholder")}
-            className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
-          />
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex w-[360px] shrink-0 flex-col overflow-hidden px-2 py-2">
+          <div className="flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
+            <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
+            <input
+              autoFocus
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder={tr("summary.chatSelector.searchPlaceholder")}
+              className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
+            />
+          </div>
+
+          <div className="mt-2 flex shrink-0 gap-1 rounded-md bg-bg-elevated p-1">
+            {(Object.keys(TAB_KEY) as Tab[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setTab(k)}
+                className={`flex-1 rounded-sm px-2 py-1 text-xs transition-colors ${
+                  tab === k
+                    ? "bg-bg-surface font-semibold text-text-primary shadow-sm"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {tr(TAB_KEY[k])}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-2 flex shrink-0 items-center gap-2 text-xs">
+            <Switch checked={includeArchived} disabled={isLoading} onChange={setIncludeArchived} />
+            <span className="font-medium text-text-primary">
+              {tr("summary.chatSelector.includeArchived")}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-text-tertiary">
+              {tr("summary.chatSelector.includeArchivedHelper")}
+            </span>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {isLoading ? (
+              <div className="flex flex-1 items-center justify-center text-xs text-text-tertiary">
+                {tr("summary.common.loading")}
+              </div>
+            ) : (
+              <ChatCandidateList
+                items={displayList}
+                selectedIds={selectedIds}
+                onToggle={toggle}
+                requestedInfoRef={requestedInfoRef}
+                resetKey={`${tab}:${keyword}`}
+                empty={
+                  <div className="flex h-20 items-center justify-center text-xs text-text-tertiary">
+                    {tr("summary.chatSelector.noData")}
+                  </div>
+                }
+              />
+            )}
+          </div>
         </div>
 
-        <div className="flex shrink-0 gap-1 rounded-md bg-bg-elevated p-1">
-          {(Object.keys(TAB_KEY) as Tab[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTab(k)}
-              className={`flex-1 rounded-sm px-3 py-1 text-xs transition-colors ${
-                tab === k
-                  ? "bg-bg-surface font-semibold text-text-primary shadow-sm"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {tr(TAB_KEY[k])}
-            </button>
-          ))}
-        </div>
+        <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
 
-        <div className="flex shrink-0 items-center gap-2 text-xs">
-          <Switch checked={includeArchived} disabled={isLoading} onChange={setIncludeArchived} />
-          <span className="font-medium text-text-primary">
-            {tr("summary.chatSelector.includeArchived")}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-text-tertiary">
-            {tr("summary.chatSelector.includeArchivedHelper")}
-          </span>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-xs text-text-tertiary">
-              {tr("summary.common.loading")}
-            </div>
-          ) : (
-            <ChatCandidateList
-              items={displayList}
-              selectedIds={selectedIds}
-              onToggle={toggle}
+        <SelectedPreviewPane
+          items={localSelected}
+          emptyLabel={tr("forwardModalLocal.notSelected")}
+          countLabel={tr("summary.common.selectedCount", {
+            values: { count: localSelected.length, max: maxSelect },
+          })}
+          getKey={(item) => `sel-${chatKey(item)}`}
+          renderItem={(item) => (
+            <SelectedChatRow
+              item={enrichCandidate(applyDirectMemberNameFallback(item, directMemberNameByUid))}
+              onRemove={toggle}
               requestedInfoRef={requestedInfoRef}
-              resetKey={`${tab}:${keyword}`}
-              empty={
-                <div className="flex h-20 items-center justify-center text-xs text-text-tertiary">
-                  {tr("summary.chatSelector.noData")}
-                </div>
-              }
             />
           )}
-        </div>
+        />
       </div>
     </BaseDialog>
   );

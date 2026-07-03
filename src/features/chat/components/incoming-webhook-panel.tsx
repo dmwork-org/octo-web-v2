@@ -530,6 +530,7 @@ function WebhookEditDialog({
   const [mentionBots, setMentionBots] = useState(isFlagOn(webhook?.allow_mention_bots));
   const [mentionUids, setMentionUids] = useState<string[]>(webhook?.mention_uids ?? []);
   const [mentionFilter, setMentionFilter] = useState("");
+  const [nameComposing, setNameComposing] = useState(false);
   const isEdit = !!webhook;
   const memberOptions = useMemo(
     () =>
@@ -645,16 +646,19 @@ function WebhookEditDialog({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onCompositionStart={() => setNameComposing(true)}
+            onCompositionEnd={() => setNameComposing(false)}
+            onKeyDown={(e) => {
+              if (nameComposing && e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
             placeholder={tr("channelWebhook.form.namePlaceholder")}
             maxLength={WEBHOOK_NAME_MAX_LENGTH}
             className="h-9 rounded-md border border-border-default bg-bg-base px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </label>
-        {!isManager ? (
-          <p className="-mt-1 text-xs text-text-tertiary">
-            {tr("channelWebhook.form.memberPrefixHint")}
-          </p>
-        ) : null}
         {isManager ? (
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">

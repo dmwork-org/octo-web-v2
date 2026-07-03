@@ -35,6 +35,8 @@ import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popo
 import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
 import { ComposerTopAttachmentBar } from "@/features/chat/components/composer-top-attachment-bar";
 import { FileContent } from "@/features/base/im/file-content";
+import { LottieStickerContent } from "@/features/base/im/lottie-sticker-content";
+import type { StickerItem } from "@/features/base/api/endpoints/sticker.api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authStore } from "@/features/base/stores/auth";
 import { transcribeVoice, type VoiceMode } from "@/features/base/api/endpoints/voice.api";
@@ -46,6 +48,7 @@ import {
   selectReplyForChannel,
 } from "@/features/chat/stores/chat-reply";
 import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
+import { createEmojiSuggestionExtension } from "@/features/chat/components/emoji-suggestion";
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
@@ -308,6 +311,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const slashKeyDownRef = useRef<(e: KeyboardEvent) => boolean>(() => false);
   const slashIsOpenRef = useRef<() => boolean>(() => false);
+  const emojiSuggestionActiveRef = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -360,8 +364,12 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
             }),
           ]
         : []),
+      createEmojiSuggestionExtension((active) => {
+        emojiSuggestionActiveRef.current = active;
+      }),
       createSubmitOnEnter(() => {
         if (slashIsOpenRef.current()) return;
+        if (emojiSuggestionActiveRef.current) return;
         sendRef.current();
       }),
     ],
@@ -840,6 +848,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (slash.isOpen()) return;
+    if (emojiSuggestionActiveRef.current) return;
     void send();
   };
 
@@ -881,6 +890,26 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const insertEmoji = (native: string) => {
     if (!editor) return;
     editor.chain().focus().insertContent(native).run();
+    setEmojiOpen(false);
+  };
+
+  const sendSticker = (sticker: StickerItem) => {
+    if (shouldBlockDisbandedSend(channel, () => message.warning(t("composer.disbandedNotice")))) {
+      setEmojiOpen(false);
+      return;
+    }
+    const content = new LottieStickerContent();
+    content.category = sticker.category ?? "sticker";
+    content.url = sticker.path || sticker.url || "";
+    content.placeholder = sticker.placeholder ?? "";
+    content.format = sticker.format ?? "";
+    void WKSDK.shared().chatManager.send(
+      wrapSendContentForInjection(content, {
+        spaceId: channel.channelType === ChannelTypePerson ? spaceId : null,
+      }),
+      channel,
+    );
+    onMessageSent?.();
     setEmojiOpen(false);
   };
 
@@ -1073,6 +1102,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
           open={emojiOpen}
           containerRef={formRef}
           onSelect={insertEmoji}
+          onStickerSelect={sendSticker}
           onClose={() => setEmojiOpen(false)}
         />
       </form>

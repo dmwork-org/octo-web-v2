@@ -1,8 +1,8 @@
 /**
  * Emoji 数据层 — 1:1 复刻旧 dmworkbase Service/EmojiService.ts emojiMap。
  *
- * **结构**:keyword(`[使命必达]` / `😀` / unicode 序列)→ asset 文件名(`custom_mission` / `0_0`)。
- * 静态资源放在 `public/emoji/<key>.png`,运行时 URL = `/emoji/<key>.png`。
+ * **结构**:keyword(`[使命必达]` / `😀` / unicode 序列)→ image URL。
+ * 自定义表情优先用服务端 manifest(`/v1/common/emojis`),失败时回落本地 PNG。
  *
  * **用法**:
  * - `getEmojiImageUrl(keyword)` — 单点查图,返回空表示非 emoji
@@ -12,11 +12,24 @@
  *
  * **不**自动按 emoji 字典爆破任意字符:仅 keyword 命中才替换,避免误识别。
  */
+import { getEmojiManifest, type EmojiManifestItem } from "@/features/base/api/endpoints/emoji.api";
 
-export const EMOJI_MAP = new Map<string, string>([
-  ["[使命必达]", "custom_mission"],
-  ["[崇尚行动]", "custom_action"],
-  ["[有品位]", "custom_taste"],
+export interface EmojiPickerItem {
+  key: string;
+  name: string;
+  url: string;
+}
+
+const EMOJI_MANIFEST_CACHE_KEY = "octo:emoji-manifest:v1";
+
+const BUILTIN_CUSTOM_EMOJIS: Array<{ key: string; name: string; base: string }> = [
+  { key: "[使命必达]", name: "使命必达", base: "custom_mission" },
+  { key: "[崇尚行动]", name: "崇尚行动", base: "custom_action" },
+  { key: "[有品位]", name: "有品位", base: "custom_taste" },
+  { key: "[尚方宝剑]", name: "尚方宝剑", base: "custom_shangfang" },
+];
+
+const UNICODE_EMOJI_MAP = new Map<string, string>([
   ["😀", "0_0"],
   ["😃", "0_1"],
   ["😄", "0_2"],
@@ -171,10 +184,15 @@ export const EMOJI_MAP = new Map<string, string>([
   ["💋", "0_151"],
 ]);
 
+let customEmojiItems = loadCachedCustomItems() ?? builtinCustomItems();
+const listeners = new Set<() => void>();
+
+export const EMOJI_MAP = new Map<string, string>();
+rebuildEmojiMap();
+
 /** keyword → 静态资源 URL;非 emoji 返回 ""。 */
 export function getEmojiImageUrl(keyword: string): string {
-  const key = EMOJI_MAP.get(keyword);
-  return key ? `/emoji/${key}.png` : "";
+  return EMOJI_MAP.get(keyword) ?? "";
 }
 
 /**
@@ -198,6 +216,118 @@ export function findEmojiKeywords(text: string): string[] {
 export function getSingleCustomEmoji(text: string): string | null {
   const trimmed = text?.trim();
   if (!trimmed) return null;
-  const key = EMOJI_MAP.get(trimmed);
-  return key && key.startsWith("custom_") ? trimmed : null;
+  return customEmojiItems.some((item) => item.key === trimmed) ? trimmed : null;
+}
+
+export function getAllEmojiItems(): EmojiPickerItem[] {
+  return [
+    ...customEmojiItems,
+    ...Array.from(UNICODE_EMOJI_MAP.entries()).map(([key, base]) => ({
+      key,
+      name: base,
+      url: localImage(base),
+    })),
+  ];
+}
+
+export function subscribeEmojiManifest(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export async function loadEmojiManifest(): Promise<void> {
+  try {
+    const manifest = await getEmojiManifest({ silent: true });
+    if (!Array.isArray(manifest.list)) return;
+    const next = sanitizeManifestItems(manifest.list);
+    if (sameCustomItems(next, customEmojiItems)) return;
+    customEmojiItems = next;
+    saveCachedCustomItems(next);
+    rebuildEmojiMap();
+    listeners.forEach((listener) => listener());
+  } catch {
+    // Keep the cached or built-in fallback.
+  }
+}
+
+function rebuildEmojiMap(): void {
+  EMOJI_MAP.clear();
+  for (const item of customEmojiItems) EMOJI_MAP.set(item.key, item.url);
+  for (const [key, base] of UNICODE_EMOJI_MAP) EMOJI_MAP.set(key, localImage(base));
+}
+
+function localImage(base: string): string {
+  return `/emoji/${base}.png`;
+}
+
+function builtinCustomItems(): EmojiPickerItem[] {
+  return BUILTIN_CUSTOM_EMOJIS.map((item) => ({
+    key: item.key,
+    name: item.name,
+    url: localImage(item.base),
+  }));
+}
+
+function sanitizeManifestItems(items: EmojiManifestItem[]): EmojiPickerItem[] {
+  const fallbackByKey = new Map(builtinCustomItems().map((item) => [item.key, item]));
+  const out: EmojiPickerItem[] = [];
+  const seen = new Set<string>();
+  for (const raw of items) {
+    const key = typeof raw.key === "string" ? raw.key.trim() : "";
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const fallback = fallbackByKey.get(key);
+    const url = sanitizeEmojiUrl(raw.url) || fallback?.url || "";
+    if (!url) continue;
+    out.push({
+      key,
+      name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : key,
+      url,
+    });
+  }
+  return out;
+}
+
+function sanitizeEmojiUrl(url?: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/")) return "";
+  return trimmed;
+}
+
+function loadCachedCustomItems(): EmojiPickerItem[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(EMOJI_MANIFEST_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as EmojiPickerItem[];
+    return sanitizeCachedItems(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedCustomItems(items: EmojiPickerItem[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(EMOJI_MANIFEST_CACHE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore
+  }
+}
+
+function sanitizeCachedItems(items: EmojiPickerItem[]): EmojiPickerItem[] | null {
+  if (!Array.isArray(items)) return null;
+  const normalized = items
+    .map((item) => ({
+      key: typeof item.key === "string" ? item.key : "",
+      name: typeof item.name === "string" ? item.name : "",
+      url: sanitizeEmojiUrl(item.url),
+    }))
+    .filter((item) => item.key && item.url);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function sameCustomItems(a: EmojiPickerItem[], b: EmojiPickerItem[]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }

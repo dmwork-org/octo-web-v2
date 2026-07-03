@@ -15,6 +15,7 @@ import { wireChatSelectionResetOnChannelChange } from "./features/chat/stores/ch
 import { runPostLogoutCleanupIfNeeded } from "./features/login/oidc/logout-cleanup";
 import { registerImCallbacks } from "./features/base/providers/im-callbacks";
 import { registerContentTypes } from "./features/base/im/register-content";
+import { loadEmojiManifest } from "./features/base/emoji/emoji-data";
 import "./index.css";
 
 const PRELOAD_ERROR_RELOAD_KEY = "octo:preload-error-reload-at";
@@ -49,6 +50,7 @@ wireChatSelectionResetOnChannelChange();
 // 仍可重复调,无副作用。同 registerContentTypes(自定义 MessageContent 类型)。
 registerImCallbacks();
 registerContentTypes();
+void loadEmojiManifest();
 
 spaceStore.subscribe(() => {
   queryClient.clear();

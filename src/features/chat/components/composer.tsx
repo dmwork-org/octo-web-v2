@@ -985,7 +985,15 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileChange} />
 
-        <div className={`flex gap-2 ${isMultiLine ? "flex-col items-stretch" : "items-center"}`}>
+        <div
+          className={`flex gap-2 ${
+            expanded
+              ? "min-h-0 flex-1 flex-col items-stretch"
+              : isMultiLine
+                ? "flex-col items-stretch"
+                : "items-center"
+          }`}
+        >
           {botCommands.length > 0 && editor ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1003,11 +1011,20 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
               <TooltipContent>{tt("composer.slashAria")}</TooltipContent>
             </Tooltip>
           ) : null}
-          <div className={`min-w-0 flex-1 ${expanded ? "max-h-[240px] overflow-y-auto" : ""}`}>
-            <EditorContent editor={editor} />
+          <div className={`min-w-0 flex-1 ${expanded ? "min-h-0 overflow-y-auto" : ""}`}>
+            <EditorContent
+              editor={editor}
+              className={
+                expanded
+                  ? "h-full min-h-0 flex-1 [&_.ProseMirror]:h-full [&_.ProseMirror]:!max-h-none [&_.ProseMirror]:min-h-full"
+                  : undefined
+              }
+            />
           </div>
 
-          <div className={`flex shrink-0 items-center gap-2 ${isMultiLine ? "self-end" : ""}`}>
+          <div
+            className={`flex shrink-0 items-center gap-2 ${isMultiLine || expanded ? "self-end" : ""}`}
+          >
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

@@ -83,6 +83,11 @@ function normalizeUpdateScheduleParams(params: UpdateScheduleParams): UpdateSche
 }
 
 function normalizeScheduleItem(item: ScheduleItem): ScheduleItem {
+  const active = item.is_active as unknown;
+  const isActive =
+    active === undefined || active === null
+      ? true
+      : active === true || active === 1 || active === "1" || active === "true";
   return {
     ...item,
     title: item.title ?? "",
@@ -96,7 +101,7 @@ function normalizeScheduleItem(item: ScheduleItem): ScheduleItem {
         : 2,
     sources: item.sources ?? [],
     participants: item.participants ?? [],
-    is_active: item.is_active ?? true,
+    is_active: isActive,
     next_run_at: item.next_run_at ?? null,
   };
 }
@@ -189,6 +194,16 @@ export async function editSummary(
   return unwrapEditSummary(response._data);
 }
 
+export async function personalEditSummary(
+  taskId: number,
+  content: string,
+): Promise<EditSummaryResponse> {
+  return summaryApi<EditSummaryResponse>(`/summaries/${taskId}/personal-edit`, {
+    method: "PUT",
+    body: { content },
+  });
+}
+
 export async function cancelSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
 }
@@ -252,6 +267,10 @@ export async function toggleSchedule(scheduleId: number, isActive: boolean): Pro
   return normalizeScheduleItem(data);
 }
 
+export async function confirmSchedule(scheduleId: number): Promise<void> {
+  await summaryApi(`/summary-schedules/${scheduleId}/confirm`, { method: "POST" });
+}
+
 // ─── BY_PERSON / Personal Mode(Wave 3c) ────────────────
 
 /** 个人模式被邀请用户确认参与 + 选定参与来源 */
@@ -285,6 +304,13 @@ export async function getMembers(taskId: number): Promise<MemberStatus[]> {
     `/summaries/${taskId}/members`,
   );
   return data?.members ?? [];
+}
+
+export async function addMembers(taskId: number, userIds: string[]): Promise<void> {
+  await summaryApi(`/summaries/${taskId}/members`, {
+    method: "POST",
+    body: { user_ids: userIds },
+  });
 }
 
 // ─── Chat-context candidates + templates(Batch 1.11) ────

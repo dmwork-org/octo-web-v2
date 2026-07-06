@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
+import { Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 import { spaceStore } from "@/features/base/stores/space";
 import { authStore } from "@/features/base/stores/auth";
-import { MemberChoiceList } from "@/features/base/components/member-select/member-select";
-import { toggleMemberSelection } from "@/features/base/components/member-select/member-select-utils";
+import {
+  SelectableMemberRow,
+  SelectedMemberRow,
+  SelectedPreviewPane,
+} from "@/features/base/components/member-select/member-select";
+import {
+  filterMembersByKeyword,
+  toggleMemberSelection,
+} from "@/features/base/components/member-select/member-select-utils";
 import { spaceMembersQueryOptions } from "@/features/contacts/queries/directory.query";
 import { matterDetailQueryKey, mattersQueryKey } from "@/features/matter/queries/matters.query";
 import { addAssignee, removeAssignee } from "@/features/matter/api/matter.api";
@@ -27,10 +35,14 @@ function useResetSelectionOnOpen(
   open: boolean,
   currentUids: string[],
   setSelected: (s: Set<string>) => void,
+  setKeyword: (s: string) => void,
 ) {
   useEffect(() => {
-    if (open) setSelected(new Set(currentUids));
-  }, [open, currentUids, setSelected]);
+    if (open) {
+      setSelected(new Set(currentUids));
+      setKeyword("");
+    }
+  }, [open, currentUids, setSelected, setKeyword]);
 }
 
 /**
@@ -48,8 +60,9 @@ export function AssigneePicker({
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
+  const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set(currentAssigneeUids));
-  useResetSelectionOnOpen(open, currentAssigneeUids, setSelected);
+  useResetSelectionOnOpen(open, currentAssigneeUids, setSelected, setKeyword);
 
   const { data: members } = useQuery({
     ...spaceMembersQueryOptions(spaceId),
@@ -59,6 +72,16 @@ export function AssigneePicker({
   const candidates = useMemo(() => {
     return (members ?? []).filter((m) => m.uid !== myUid && m.robot !== 1);
   }, [members, myUid]);
+
+  const filtered = useMemo(
+    () => filterMembersByKeyword(candidates, keyword),
+    [candidates, keyword],
+  );
+
+  const selectedCandidates = useMemo(
+    () => (members ?? []).filter((m) => selected.has(m.uid)),
+    [members, selected],
+  );
 
   const mu = useMutation({
     mutationFn: async () => {
@@ -104,10 +127,10 @@ export function AssigneePicker({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      size="md"
-      height="md"
+      size="fit"
       title={tr("matter.assignee.pickerTitle")}
-      contentClassName="overflow-hidden"
+      className="h-[560px] w-[625px]"
+      contentClassName="overflow-hidden p-0"
       footer={
         <>
           <Button type="tertiary" theme="borderless" onClick={onClose}>
@@ -130,19 +153,60 @@ export function AssigneePicker({
         onSubmit={onSubmit}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <div className="shrink-0 px-5 pt-3 pb-2 text-xs text-text-tertiary">
-          {tr("matter.assignee.selectedPeople", { values: { count: selected.size } })}
-        </div>
-        <MemberChoiceList
-          items={candidates}
-          selectedIds={selected}
-          onToggle={toggle}
-          empty={
-            <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-              {tr("matter.assignee.noSpaceMembers")}
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
+            <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
+              <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
+              <input
+                autoFocus
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder={tr("matter.member.searchPlaceholder")}
+                className="flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
+              />
             </div>
-          }
-        />
+
+            <ul className="flex flex-1 flex-col overflow-y-auto py-1">
+              {filtered.length === 0 ? (
+                <li className="flex flex-1 items-center justify-center px-4 text-center text-[13px] text-[rgba(28,28,35,0.35)]">
+                  {keyword ? tr("matter.member.noMatches") : tr("matter.assignee.noSpaceMembers")}
+                </li>
+              ) : (
+                filtered.map((member) => (
+                  <li key={member.uid} className="px-2">
+                    <SelectableMemberRow
+                      uid={member.uid}
+                      name={member.name}
+                      avatar={member.avatar}
+                      checked={selected.has(member.uid)}
+                      onToggle={toggle}
+                    />
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+
+          <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
+
+          <SelectedPreviewPane
+            items={selectedCandidates}
+            emptyLabel={tr("forwardModalLocal.notSelected")}
+            countLabel={tr("forwardModalLocal.selectedCount", {
+              values: { count: selectedCandidates.length },
+            })}
+            getKey={(member) => `sel-${member.uid}`}
+            renderItem={(member) => (
+              <SelectedMemberRow
+                uid={member.uid}
+                name={member.name}
+                avatar={member.avatar}
+                onRemove={toggle}
+                removeLabel={tr("forwardModalLocal.remove")}
+              />
+            )}
+          />
+        </div>
       </form>
     </BaseDialog>
   );

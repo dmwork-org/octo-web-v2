@@ -10,11 +10,7 @@ import { t } from "@/lib/i18n/instance";
 import { authStore } from "@/features/base/stores/auth";
 import { spaceStore } from "@/features/base/stores/space";
 import { conversationsQueryOptions } from "@/features/chat/queries/conversations.query";
-import {
-  confirmParticipation,
-  declineParticipation,
-  submitPersonalResult,
-} from "@/features/summary/api/summary.api";
+import { confirmParticipation, declineParticipation } from "@/features/summary/api/summary.api";
 import { CitationText } from "@/features/summary/components/citation-text";
 import { SummarySourcePicker } from "@/features/summary/components/summary-source-picker";
 import { SummaryContent } from "@/features/summary/components/summary-content";
@@ -148,30 +144,12 @@ function ConfirmStep({ taskId, onConfirmed }: { taskId: number; onConfirmed: () 
 }
 
 /** MyResult 渲染当前用户的 personalResult(待提交 / 已提交 / 生成中 / 完成) */
-function MyResult({
-  taskId,
-  canEdit,
-  baseResultId,
-}: {
-  taskId: number;
-  canEdit: boolean;
-  baseResultId?: number;
-}) {
+function MyResult({ taskId, canEdit }: { taskId: number; canEdit: boolean }) {
   const tr = useT();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const { data, isLoading, error } = useQuery(personalResultQueryOptions(taskId, true));
-
-  const submitMu = useMutation({
-    mutationFn: () => submitPersonalResult(taskId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: personalResultQueryKey(taskId) });
-      message.success(t("summary.personal.submittedToast"));
-    },
-    onError: (err) =>
-      message.error(err instanceof Error ? err.message : t("summary.personal.submitFailed")),
-  });
 
   if (isLoading)
     return <p className="text-xs text-text-tertiary">{tr("summary.personal.loadMine")}</p>;
@@ -188,10 +166,10 @@ function MyResult({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-subtle bg-bg-surface p-3">
-      {editing && baseResultId ? (
+      {editing ? (
         <SummaryEditor
+          mode="personal"
           taskId={taskId}
-          baseResultId={baseResultId}
           initialContent={data.content || ""}
           title={tr("summary.detail.mySummaryPlain")}
           onSave={handleEditSaved}
@@ -215,7 +193,7 @@ function MyResult({
                 {tr("summary.detail.mySummaryPlain")}
               </h3>
             </button>
-            {canEdit && baseResultId && data.content ? (
+            {canEdit && data.content ? (
               <div className="flex shrink-0 items-center gap-2">
                 <Button
                   type="tertiary"
@@ -244,19 +222,6 @@ function MyResult({
           ) : null}
         </>
       )}
-      {data.worker_status === 0 && data.content && !editing ? (
-        <div className="flex justify-end">
-          <Button
-            type="primary"
-            theme="solid"
-            size="small"
-            loading={submitMu.isPending}
-            onClick={() => submitMu.mutate()}
-          >
-            {tr("summary.personal.submitMine")}
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -269,7 +234,8 @@ export function PersonalSection({ detail }: PersonalSectionProps) {
   const myUid = useStore(authStore, (s) => s.user?.uid ?? "");
   const my = findMyParticipant(detail, myUid);
   const canEdit =
-    detail.status === TaskStatus.COMPLETED && !!detail.permissions?.can_edit && !!detail.result_id;
+    detail.status === TaskStatus.COMPLETED &&
+    (!!detail.permissions?.can_edit_personal || !!detail.permissions?.can_edit);
 
   // 当前用户被邀且未确认
   if (my?.status === ParticipantStatus.PENDING) {
@@ -298,7 +264,7 @@ export function PersonalSection({ detail }: PersonalSectionProps) {
 
   return (
     <div className="mt-3 flex flex-col gap-3">
-      <MyResult taskId={detail.task_id} canEdit={canEdit} baseResultId={detail.result_id} />
+      <MyResult taskId={detail.task_id} canEdit={canEdit} />
     </div>
   );
 }

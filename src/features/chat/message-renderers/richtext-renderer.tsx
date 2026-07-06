@@ -117,6 +117,7 @@ function RichTextImage({ block }: { block: RichTextBlock }) {
       <button
         type="button"
         onClick={() => setPreview(true)}
+        data-richtext-image-url={url}
         className="block w-fit overflow-hidden rounded-lg bg-bg-elevated transition-opacity hover:opacity-90"
         aria-label={t("imageRenderer.viewLargeImage")}
       >

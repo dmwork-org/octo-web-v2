@@ -16,6 +16,7 @@ import { LocationRenderer } from "@/features/chat/message-renderers/location-ren
 import { ScreenshotRenderer } from "@/features/chat/message-renderers/screenshot-renderer";
 import { JoinOrganizationRenderer } from "@/features/chat/message-renderers/join-organization-renderer";
 import { TypingRenderer } from "@/features/chat/message-renderers/typing-renderer";
+import { LottieStickerRenderer } from "@/features/chat/message-renderers/lottie-sticker-renderer";
 import { useT } from "@/lib/i18n/use-t";
 
 /**
@@ -57,6 +58,9 @@ export function MessageDispatch({ message }: { message: Message }) {
       return <MergeforwardRenderer message={message} />;
     case MessageContentTypeConst.richText:
       return <RichTextRenderer message={message} />;
+    case MessageContentTypeConst.lottieSticker:
+    case MessageContentTypeConst.lottieEmojiSticker:
+      return <LottieStickerRenderer message={message} />;
     case MessageContentTypeConst.card:
       return <CardRenderer message={message} />;
     case MessageContentTypeConst.location:

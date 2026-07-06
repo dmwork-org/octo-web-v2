@@ -14,9 +14,12 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
-import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import { messagesQueryKey } from "@/features/chat/queries/messages.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
+import {
+  isCacheableChatMessage,
+  isSameMessageIdentity,
+} from "@/features/chat/lib/message-identity";
 
 /**
  * 进入 channel 时补差 syncMessages 的去重表 (issue #216):
@@ -34,8 +37,8 @@ const lastSyncByChannel = new Map<string, number>();
  * **typing 联动**(对齐旧 dmworkbase TypingManager):
  *   - CMD `cmd: 'typing'` → TypingManager.addTyping(对齐旧 module.tsx:290)
  *   - bot 真消息到达 → TypingManager.removeTyping(对齐旧 module.tsx:433)
- *   - typing 消息(理论上走 CMD 不走 message listener)如果 server 误推普通 msg,
- *     skip 写 cache 避免被当历史消息保留
+ *   - typing / time / historySplit 这类 UI marker 如果进入 listener,
+ *     skip 写 cache 避免顶掉真实消息
  */
 export function useMessagesSync(channel: Channel | null) {
   const qc = useQueryClient();
@@ -65,8 +68,8 @@ export function useMessagesSync(channel: Channel | null) {
 
     const messageListener = (message: Message) => {
       if (!message.channel.isEqual(channel)) return;
-      // typing 消息(理论上走 CMD,兜底):不写 cache
-      if (message.contentType === MessageContentTypeConst.typing) return;
+      // typing/time/historySplit 是 UI marker,不进入真实消息 cache。
+      if (!isCacheableChatMessage(message)) return;
       // Person 私聊跨 Space 守门(BotFather 等全局 bot 看 contentObj.space_id);
       // Group/Thread 不二次守:当前 MessageList 已绑定选中会话;在 listener 内
       // 重复 isChannelOfSpace 风险是 channelSpaceMap / channelInfo 还没填充时
@@ -86,7 +89,7 @@ export function useMessagesSync(channel: Channel | null) {
           return { pages: [[message]], pageParams: [0] };
         }
         for (const page of prev.pages) {
-          if (page.some((m) => m.clientMsgNo === message.clientMsgNo)) return prev;
+          if (page.some((m) => isSameMessageIdentity(m, message))) return prev;
         }
         const firstPage = prev.pages[0] ?? [];
         return {
@@ -185,8 +188,10 @@ export function useMessagesSync(channel: Channel | null) {
           qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
             if (!prev || prev.pages.length === 0) return prev;
             const firstPage = prev.pages[0];
-            const existingClientNos = new Set(prev.pages.flat().map((m) => m.clientMsgNo));
-            const newOnes = latest.filter((m) => !existingClientNos.has(m.clientMsgNo));
+            const existing = prev.pages.flat();
+            const newOnes = latest
+              .filter(isCacheableChatMessage)
+              .filter((m) => !existing.some((old) => isSameMessageIdentity(old, m)));
             if (newOnes.length === 0) return prev;
             return {
               ...prev,

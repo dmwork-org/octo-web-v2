@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -7,7 +7,7 @@ import WKSDK, {
   ConversationAction,
   type Conversation,
 } from "wukongimjssdk";
-import { Search } from "lucide-react";
+import { Palette, Search } from "lucide-react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
 import { authStore } from "@/features/base/stores/auth";
@@ -29,6 +29,13 @@ import { createGroup } from "@/features/base/api/endpoints/group.api";
 import { clearConversationUnread } from "@/features/base/api/endpoints/conversation.api";
 import { moveGroupToCategory } from "@/features/base/api/endpoints/follow.api";
 import { BaseDialog } from "@/features/base/components/overlay/base-dialog";
+import {
+  cleanGroupAvatarText,
+  colorIndexForName,
+  groupAvatarFallbackText,
+  groupAvatarLines,
+  GROUP_AVATAR_COLORS,
+} from "@/features/chat/lib/group-avatar-preview";
 import { useT } from "@/lib/i18n/use-t";
 import { t } from "@/lib/i18n/instance";
 
@@ -44,13 +51,67 @@ function useResetOnOpen(
   open: boolean,
   setSelected: (v: Set<string>) => void,
   setKeyword: (s: string) => void,
+  resetMeta: () => void,
 ) {
+  const resetMetaRef = useRef(resetMeta);
+  resetMetaRef.current = resetMeta;
   useEffect(() => {
     if (open) {
       setSelected(new Set());
       setKeyword("");
+      resetMetaRef.current();
     }
   }, [open, setSelected, setKeyword]);
+}
+
+function GroupAvatarPreview({
+  name,
+  avatarText,
+  colorIndex,
+  size = 48,
+}: {
+  name: string;
+  avatarText: string;
+  colorIndex?: number;
+  size?: number;
+}) {
+  const effectiveText = cleanGroupAvatarText(avatarText) || groupAvatarFallbackText(name);
+  const idx = colorIndex ?? colorIndexForName(name);
+  const color = GROUP_AVATAR_COLORS[idx % GROUP_AVATAR_COLORS.length] ?? GROUP_AVATAR_COLORS[0];
+  const lines = groupAvatarLines(effectiveText);
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-md border"
+      style={{
+        width: size,
+        height: size,
+        background: color.fill,
+        borderColor: color.main,
+      }}
+    >
+      {effectiveText ? (
+        <span
+          className="flex flex-col items-center justify-center font-semibold leading-none"
+          style={{ color: color.main, fontSize: lines.length > 1 ? size * 0.28 : size * 0.36 }}
+        >
+          {lines.map((line, index) => (
+            <span key={index}>{line}</span>
+          ))}
+        </span>
+      ) : (
+        <svg viewBox="0 0 24 24" width={size * 0.62} height={size * 0.62} aria-hidden="true">
+          <g fill={color.iconBack}>
+            <circle cx="15.5" cy="8.2" r="3.1" />
+            <path d="M15.5 12.2c-3 0-5.4 1.9-6 4.4-.2.8.4 1.6 1.3 1.6h9.4c.9 0 1.5-.8 1.3-1.6-.6-2.5-3-4.4-6-4.4Z" />
+          </g>
+          <g fill={color.main}>
+            <circle cx="9" cy="8.8" r="3.4" />
+            <path d="M9 13c-3.3 0-6 2.1-6.6 4.9-.2.9.5 1.7 1.4 1.7h10.4c.9 0 1.6-.8 1.4-1.7C15 15.1 12.3 13 9 13Z" />
+          </g>
+        </svg>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -70,7 +131,16 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  useResetOnOpen(open, setSelected, setKeyword);
+  const [groupName, setGroupName] = useState("");
+  const [avatarText, setAvatarText] = useState("");
+  const [avatarColorIndex, setAvatarColorIndex] = useState<number | undefined>();
+  const [avatarEditOpen, setAvatarEditOpen] = useState(false);
+  useResetOnOpen(open, setSelected, setKeyword, () => {
+    setGroupName("");
+    setAvatarText("");
+    setAvatarColorIndex(undefined);
+    setAvatarEditOpen(false);
+  });
 
   const { data: members, isLoading } = useQuery({
     ...spaceMembersQueryOptions(spaceId),
@@ -91,10 +161,17 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
 
   const mu = useMutation({
     mutationFn: () => {
+      const name = groupName.trim();
+      if (!name) {
+        return Promise.reject(new Error(t("createGroup.nameRequired")));
+      }
       const uids = [myUid, ...selected];
       return createGroup({
         members: uids,
         space_id: spaceId || undefined,
+        name,
+        avatar_text: cleanGroupAvatarText(avatarText) || undefined,
+        avatar_color: avatarColorIndex,
       });
     },
     onSuccess: async (resp) => {
@@ -168,7 +245,7 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
           ? tt("createGroup.titleWithCount", { values: { count: selected.size } })
           : tt("createGroup.title")
       }
-      className="h-[560px] w-[625px]"
+      className="h-[620px] w-[665px]"
       contentClassName="overflow-hidden p-0"
       footer={
         <>
@@ -179,8 +256,14 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             type="primary"
             theme="solid"
             loading={mu.isPending}
-            disabled={selected.size === 0}
-            onClick={() => mu.mutate()}
+            disabled={selected.size === 0 || !groupName.trim()}
+            onClick={() => {
+              if (!groupName.trim()) {
+                message.warning(t("createGroup.nameRequired"));
+                return;
+              }
+              mu.mutate();
+            }}
           >
             {selected.size > 0
               ? tt("createGroup.createWithCount", { values: { count: selected.size + 1 } })
@@ -189,7 +272,35 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
         </>
       }
     >
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setAvatarEditOpen(true)}
+            className="relative rounded-md focus:outline-none focus:ring-2 focus:ring-brand/35"
+            aria-label={tt("createGroup.avatarEdit")}
+          >
+            <GroupAvatarPreview
+              name={groupName}
+              avatarText={avatarText}
+              colorIndex={avatarColorIndex}
+            />
+            <span className="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-surface text-text-secondary shadow">
+              <Palette size={12} />
+            </span>
+          </button>
+          <div className="min-w-0 flex-1">
+            <label className="mb-1 block text-xs text-text-tertiary">{tt("createGroup.name")}</label>
+            <input
+              value={groupName}
+              maxLength={20}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder={tt("createGroup.namePlaceholder")}
+              className="h-9 w-full rounded-md border border-border-subtle bg-bg-base px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="flex flex-1 overflow-hidden">
         <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
           <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
             <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
@@ -249,7 +360,54 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             />
           )}
         />
+        </div>
       </div>
+      <BaseDialog
+        open={avatarEditOpen}
+        onOpenChange={(next) => setAvatarEditOpen(next)}
+        size="sm"
+        title={tt("createGroup.avatarEdit")}
+        footer={
+          <Button type="primary" theme="solid" onClick={() => setAvatarEditOpen(false)}>
+            {tt("base.common.confirm")}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-center">
+            <GroupAvatarPreview
+              name={groupName}
+              avatarText={avatarText}
+              colorIndex={avatarColorIndex}
+              size={64}
+            />
+          </div>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-text-secondary">{tt("createGroup.avatarText")}</span>
+            <input
+              value={avatarText}
+              onChange={(e) => setAvatarText(cleanGroupAvatarText(e.target.value))}
+              placeholder={tt("createGroup.avatarTextPlaceholder")}
+              className="h-9 rounded-md border border-border-subtle bg-bg-base px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none"
+            />
+          </label>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-text-secondary">{tt("createGroup.avatarColor")}</span>
+            <div className="flex flex-wrap gap-2">
+              {GROUP_AVATAR_COLORS.map((color, index) => (
+                <button
+                  key={color.main}
+                  type="button"
+                  aria-label={`avatar-color-${index}`}
+                  onClick={() => setAvatarColorIndex(index)}
+                  className={`h-7 w-7 rounded-full border-2 ${avatarColorIndex === index ? "border-text-primary" : "border-transparent"}`}
+                  style={{ background: color.fill, boxShadow: `inset 0 0 0 6px ${color.main}` }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </BaseDialog>
     </BaseDialog>
   );
 }

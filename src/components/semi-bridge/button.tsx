@@ -63,7 +63,7 @@ export function Button({
       variant={resolveVariant(type, theme)}
       size={resolveSize(size, iconOnly)}
       disabled={disabled || loading}
-      className={cn(className)}
+      className={cn("cursor-pointer disabled:cursor-not-allowed", className)}
       {...rest}
     >
       {loading ? <Loader2 className="animate-spin" /> : null}

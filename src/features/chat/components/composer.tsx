@@ -35,6 +35,8 @@ import { EmojiPickerPopover } from "@/features/chat/components/emoji-picker-popo
 import { SlashCommandMenu } from "@/features/chat/components/slash-command-menu";
 import { ComposerTopAttachmentBar } from "@/features/chat/components/composer-top-attachment-bar";
 import { FileContent } from "@/features/base/im/file-content";
+import { LottieStickerContent } from "@/features/base/im/lottie-sticker-content";
+import type { StickerItem } from "@/features/base/api/endpoints/sticker.api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authStore } from "@/features/base/stores/auth";
 import { transcribeVoice, type VoiceMode } from "@/features/base/api/endpoints/voice.api";
@@ -46,6 +48,7 @@ import {
   selectReplyForChannel,
 } from "@/features/chat/stores/chat-reply";
 import { createMentionSuggestion } from "@/features/chat/components/mention-suggestion";
+import { createEmojiSuggestionExtension } from "@/features/chat/components/emoji-suggestion";
 import type { MentionItem } from "@/features/chat/components/mention-list";
 import { useComposerDraft } from "@/features/chat/hooks/use-composer-draft.hook";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
@@ -67,7 +70,7 @@ import { useComposerAttachments } from "@/features/chat/hooks/use-composer-attac
 import { usePendingAttachmentGuard } from "@/features/chat/hooks/use-pending-attachment-guard.hook";
 import { AttachmentNode } from "@/features/chat/lib/composer-attachment-node";
 import { quotedReplyPreviewText } from "@/features/chat/lib/quoted-reply-preview";
-import { isImageMime, isVideoMime } from "@/features/chat/lib/composer-files";
+import { isImageMime, isVideoMime, splitClipboardFiles } from "@/features/chat/lib/composer-files";
 import { precheckUploadCredentials } from "@/features/chat/services/upload-preflight";
 import { extractOctoRichTextClipboardPayloadFromHtml } from "@/features/chat/lib/rich-text-clipboard";
 import { restoreOctoRichTextClipboardToEditor } from "@/features/chat/lib/rich-text-paste";
@@ -233,6 +236,13 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const editorRef = useRef<Editor | null>(null);
   const addAttachmentsRef = useRef(attachments.addAttachments);
   addAttachmentsRef.current = attachments.addAttachments;
+  const addClipboardFiles = (clipboardData: DataTransfer | null): boolean => {
+    const { images, others } = splitClipboardFiles(clipboardData?.items);
+    if (images.length === 0 && others.length === 0) return false;
+    if (images.length > 0) void addAttachmentsRef.current(images, "paste", editorRef.current);
+    if (others.length > 0) void addAttachmentsRef.current(others, "upload", editorRef.current);
+    return true;
+  };
   const mentionSourcesRef = useRef<MentionMemberSource[]>([]);
   mentionSourcesRef.current = subscribers.map((s) => subscriberMentionSource(s));
 
@@ -301,6 +311,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
 
   const slashKeyDownRef = useRef<(e: KeyboardEvent) => boolean>(() => false);
   const slashIsOpenRef = useRef<() => boolean>(() => false);
+  const emojiSuggestionActiveRef = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -353,8 +364,12 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
             }),
           ]
         : []),
+      createEmojiSuggestionExtension((active) => {
+        emojiSuggestionActiveRef.current = active;
+      }),
       createSubmitOnEnter(() => {
         if (slashIsOpenRef.current()) return;
+        if (emojiSuggestionActiveRef.current) return;
         sendRef.current();
       }),
     ],
@@ -377,6 +392,11 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
         return false;
       },
       handlePaste: (_view, event) => {
+        if (addClipboardFiles(event.clipboardData)) {
+          event.preventDefault();
+          return true;
+        }
+
         const pastedText = event.clipboardData?.getData("text/plain") ?? "";
         const blockedSecret = handleSecretPaste(pastedText, (value) => {
           message.warning(t("base.secrets.pasteGuard.content"), {
@@ -828,6 +848,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (slash.isOpen()) return;
+    if (emojiSuggestionActiveRef.current) return;
     void send();
   };
 
@@ -835,25 +856,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (files.length > 0) void attachments.addAttachments(files, "upload", editor);
-  };
-
-  const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    const images: File[] = [];
-    const others: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (it.kind !== "file") continue;
-      const f = it.getAsFile();
-      if (!f) continue;
-      if (it.type.startsWith("image/")) images.push(f);
-      else others.push(f);
-    }
-    if (images.length === 0 && others.length === 0) return;
-    e.preventDefault();
-    if (images.length > 0) void attachments.addAttachments(images, "paste", editor);
-    if (others.length > 0) void attachments.addAttachments(others, "upload", editor);
   };
 
   const onDrop = (e: React.DragEvent<HTMLFormElement>) => {
@@ -888,6 +890,26 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
   const insertEmoji = (native: string) => {
     if (!editor) return;
     editor.chain().focus().insertContent(native).run();
+    setEmojiOpen(false);
+  };
+
+  const sendSticker = (sticker: StickerItem) => {
+    if (shouldBlockDisbandedSend(channel, () => message.warning(t("composer.disbandedNotice")))) {
+      setEmojiOpen(false);
+      return;
+    }
+    const content = new LottieStickerContent();
+    content.category = sticker.category ?? "sticker";
+    content.url = sticker.path || sticker.url || "";
+    content.placeholder = sticker.placeholder ?? "";
+    content.format = sticker.format ?? "";
+    void WKSDK.shared().chatManager.send(
+      wrapSendContentForInjection(content, {
+        spaceId: channel.channelType === ChannelTypePerson ? spaceId : null,
+      }),
+      channel,
+    );
+    onMessageSent?.();
     setEmojiOpen(false);
   };
 
@@ -932,7 +954,6 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
       <form
         ref={formRef}
         onSubmit={onSubmit}
-        onPaste={onPaste}
         onDrop={onDrop}
         onDragOver={onDragOver}
         className={`relative flex w-full cursor-text flex-col rounded-[12px] border border-[#1c1c23]/10 bg-bg-surface px-4 py-2 transition-colors focus-within:border-brand ${expanded ? "min-h-[280px]" : "min-h-10"}`}
@@ -1081,6 +1102,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
           open={emojiOpen}
           containerRef={formRef}
           onSelect={insertEmoji}
+          onStickerSelect={sendSticker}
           onClose={() => setEmojiOpen(false)}
         />
       </form>

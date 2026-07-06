@@ -48,6 +48,9 @@ export interface CreateGroupBody {
   members: string[];
   space_id?: string;
   category_id?: string;
+  name?: string;
+  avatar_text?: string;
+  avatar_color?: number;
 }
 
 export interface CreateGroupResp {

@@ -550,3 +550,31 @@ PreToolUse hook 真触发验证通过:
   - `68c0777e` 是 extension sidepanel forward menu;新仓无 extension app 目标,不适用
   - `8f52022a` 修复老仓 `scripts/i18n-scan.mjs` markdown table escape;新仓无同名 i18n scan markdown report 脚本,`merge-upstream-locales.mjs` 不生成 markdown table,不适用
 - 备注:后续若把老仓 `i18n-scan.mjs` 引入新仓,必须同步 `escapeMarkdownCell` 的 backslash-before-pipe 转义规则。
+
+## 2026-07-03 — Batch 5 org main 增量搬运
+
+- 分支:`codex/upstream-batch-5-port`
+- 老仓对照范围:`6055b724..4c4e9191`
+- 本批覆盖上游 SHA:
+  - `2bb0b45b` 自定义 emoji「尚方宝剑」:补 `public/emoji/custom_shangfang.png`,并纳入自定义 emoji fallback。
+  - `fb4afa95` 服务端 emoji manifest:新增 `common/emojis` 拉取、localStorage 缓存、失败本地兜底、manifest 变更订阅;文本渲染和 picker 共用同一数据源。
+  - `ac81b338` 输入框 emoji 前缀联想:新增 Tiptap Suggestion 扩展,中文自定义表情名两字前缀触发,Enter 选中时不发送。
+  - `df69203a` 自定义贴纸面板:表情面板新增「我的贴纸」tab,支持 `sticker/user` 拉取、预签名上传、创建和删除贴纸;面板继续固定 460x372,贴纸首次切 tab 懒加载。
+  - `05051d3c` `lottieSticker` 消息渲染:新增 content 注册和 renderer,bitmap 格式直接按 MessageRow 消息渲染,未知格式 fail-safe 文案。
+  - `bdb24e6f` 建群弹窗升级:新增群名必填、群头像文字/颜色预览编辑,创建请求透传 `name/avatar_text/avatar_color`。
+  - `abd91d47` webhook 名称输入 IME Enter guard。
+  - `d85b885d` 删除普通成员 webhook 名称 `Webhook-` 前缀提示和 i18n key。
+- 等效 / 不搬:
+  - `f43d539c` 群解散已由 `codex/issue-218-disband-group` 覆盖。
+  - `3a10056e` summary declined participant pending 口径已由后续 summary collaboration detail 覆盖。
+  - `5819f3fc` folded message selected-text copy 已由 `ceb804b` 覆盖。
+  - `21e62fa4` add/remove group members 后刷新本地 subscribers 已由加人/踢人成功后的 `syncSubscribes` 覆盖。
+  - `ca6a5fa5` runtimes 管理后续在老仓 `4c4e9191` revert,本仓不搬。
+  - `66ecb56d` / `2a30fd46` `@octo/docs` editor line:本仓无 `packages/docs` 目标,本批不搬;若 codex 也要承载 docs,需单独立项。
+  - `b7b283bd` / `8cd94fcf` / `a3228c58` / `65eb9375` / `454fb793` 只涉及 GitHub Actions / org CI 治理,本仓 GitLab CI 平台差异,不直接搬。
+- 验证:
+  - `node -e` 解析 zh-CN/en-US locale JSON 通过。
+  - `corepack pnpm exec tsc --noEmit` 通过。
+  - `corepack pnpm exec vp lint` 触及文件通过。
+  - `git diff --check` 通过。
+  - 后续由项目负责人在远程分支上做浏览器验证。

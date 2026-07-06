@@ -290,7 +290,9 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
             </span>
           </button>
           <div className="min-w-0 flex-1">
-            <label className="mb-1 block text-xs text-text-tertiary">{tt("createGroup.name")}</label>
+            <label className="mb-1 block text-xs text-text-tertiary">
+              {tt("createGroup.name")}
+            </label>
             <input
               value={groupName}
               maxLength={20}
@@ -301,65 +303,65 @@ export function CreateGroupModal({ open, onClose, categoryId }: CreateGroupModal
           </div>
         </div>
         <div className="flex flex-1 overflow-hidden">
-        <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
-          <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
-            <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
-            <input
-              autoFocus
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder={tt("createGroup.searchPlaceholder")}
-              className="flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
-            />
+          <div className="flex w-[296px] shrink-0 flex-col overflow-hidden">
+            <div className="mx-2 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-full bg-bg-elevated px-3">
+              <Search size={14} className="shrink-0 text-[rgba(28,28,35,0.4)]" />
+              <input
+                autoFocus
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder={tt("createGroup.searchPlaceholder")}
+                className="flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-[rgba(28,28,35,0.35)] focus:outline-none"
+              />
+            </div>
+
+            <ul className="flex flex-1 flex-col overflow-y-auto py-1">
+              {isLoading ? (
+                <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+                  {tt("createGroup.loading")}
+                </li>
+              ) : filtered.length === 0 ? (
+                <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+                  {keyword ? tt("createGroup.noMatches") : tt("createGroup.noOtherMembers")}
+                </li>
+              ) : (
+                filtered.map((m) => {
+                  const checked = selected.has(m.uid);
+                  return (
+                    <li key={m.uid} className="px-2">
+                      <SelectableMemberRow
+                        uid={m.uid}
+                        name={m.name}
+                        avatar={m.avatar}
+                        checked={checked}
+                        onToggle={toggle}
+                      />
+                    </li>
+                  );
+                })
+              )}
+            </ul>
           </div>
 
-          <ul className="flex flex-1 flex-col overflow-y-auto py-1">
-            {isLoading ? (
-              <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                {tt("createGroup.loading")}
-              </li>
-            ) : filtered.length === 0 ? (
-              <li className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
-                {keyword ? tt("createGroup.noMatches") : tt("createGroup.noOtherMembers")}
-              </li>
-            ) : (
-              filtered.map((m) => {
-                const checked = selected.has(m.uid);
-                return (
-                  <li key={m.uid} className="px-2">
-                    <SelectableMemberRow
-                      uid={m.uid}
-                      name={m.name}
-                      avatar={m.avatar}
-                      checked={checked}
-                      onToggle={toggle}
-                    />
-                  </li>
-                );
-              })
+          <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
+
+          <SelectedPreviewPane
+            items={selectedCandidates}
+            emptyLabel={tt("forwardModalLocal.notSelected")}
+            countLabel={tt("forwardModalLocal.selectedCount", {
+              values: { count: selectedCandidates.length },
+            })}
+            getKey={(member) => `sel-${member.uid}`}
+            renderItem={(member) => (
+              <SelectedMemberRow
+                uid={member.uid}
+                name={member.name}
+                avatar={member.avatar}
+                onRemove={toggle}
+                removeLabel={tt("forwardModalLocal.remove")}
+              />
             )}
-          </ul>
-        </div>
-
-        <div className="w-px shrink-0 bg-[rgba(46,50,56,0.09)]" />
-
-        <SelectedPreviewPane
-          items={selectedCandidates}
-          emptyLabel={tt("forwardModalLocal.notSelected")}
-          countLabel={tt("forwardModalLocal.selectedCount", {
-            values: { count: selectedCandidates.length },
-          })}
-          getKey={(member) => `sel-${member.uid}`}
-          renderItem={(member) => (
-            <SelectedMemberRow
-              uid={member.uid}
-              name={member.name}
-              avatar={member.avatar}
-              onRemove={toggle}
-              removeLabel={tt("forwardModalLocal.remove")}
-            />
-          )}
-        />
+          />
         </div>
       </div>
       <BaseDialog

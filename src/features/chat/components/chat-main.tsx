@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 import { chatSelectedStore } from "@/features/chat/stores/chat-selected";
@@ -23,6 +24,7 @@ import { useEnsureRoleSubscribersForRevoke } from "@/features/chat/hooks/use-ens
 import { useEnsureAppConfigLoaded } from "@/features/chat/hooks/use-ensure-app-config-loaded.hook";
 import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
+import { refreshThreadListAfterSend } from "@/features/chat/lib/thread-list-cache";
 
 /**
  * Channel 切换时关掉所有右侧 panel(对齐旧 ChatContentPage 用 key={channel.getChannelKey()}
@@ -103,6 +105,7 @@ function useListenCreateMatterFromComposer(
  *   本地 state,不在本组件管,触发 AI extract)
  */
 export function ChatMain() {
+  const qc = useQueryClient();
   const channel = useStore(chatSelectedStore, (s) => s.channel);
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
   const sidePanelState = useStore(chatSidePanelStore, (s) => s);
@@ -131,6 +134,11 @@ export function ChatMain() {
   if (!channel) {
     return <ChatEmptyHologram />;
   }
+
+  const handleMessageSent = () => {
+    if (archivedInputNotice) reactivateThreadInChannelInfoCache(channel);
+    refreshThreadListAfterSend(qc, channel, { reactivate: !!archivedInputNotice });
+  };
 
   const showThreadIcon = channel.channelType === ChannelTypeGroup;
   const createMatterChannelName = createMatterChannel
@@ -167,9 +175,7 @@ export function ChatMain() {
             // 归档子区发完消息 → 后端自动 reactivate,这里乐观本地改 channelInfo
             // 让 useArchivedThreadInputNotice 立即重算 → 顶部提示消失(issue #113)
             // 注:已解散群是终态(无 reactivate),composer 内 send guard 直接拦截发送。
-            onMessageSent={
-              archivedInputNotice ? () => reactivateThreadInChannelInfoCache(channel) : undefined
-            }
+            onMessageSent={handleMessageSent}
           />
         )}
       </section>

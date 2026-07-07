@@ -60,6 +60,10 @@ import {
   threadActiveTime,
   threadActiveTimeMs,
 } from "@/features/chat/lib/thread-active-time";
+import {
+  refreshThreadListAfterSend,
+  threadListQueryKey,
+} from "@/features/chat/lib/thread-list-cache";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -96,7 +100,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   useChannelInfoTick();
   const parentDisbanded = isChannelDisbanded(new Channel(groupNo, ChannelTypeGroup));
 
-  const queryKey = ["chat", "thread-list", groupNo];
+  const queryKey = threadListQueryKey(groupNo);
   const { data, isLoading, error } = useQuery({
     queryKey,
     // status:"all" 必传 — 默认后端只返活跃子区,thread panel 需要活跃 + 已归档两组
@@ -207,7 +211,6 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
           thread={activeThread}
           onBack={() => setView("list")}
           onClose={close}
-          onInvalidate={invalidate}
           onThreadUpdated={(patch) =>
             setActiveThread((prev) => (prev ? { ...prev, ...patch } : prev))
           }
@@ -366,7 +369,6 @@ function DetailView({
   thread,
   onBack,
   onClose,
-  onInvalidate,
   onThreadUpdated,
   onAfterDelete,
   parentDisbanded,
@@ -375,7 +377,6 @@ function DetailView({
   thread: ThreadRaw;
   onBack: () => void;
   onClose: () => void;
-  onInvalidate: () => void;
   onThreadUpdated?: (patch: Partial<ThreadRaw>) => void;
   onAfterDelete: () => void;
   parentDisbanded: boolean;
@@ -415,7 +416,7 @@ function DetailView({
   const renameMu = useMutation({
     mutationFn: (name: string) => updateThread(groupNo, thread.short_id, { name }),
     onSuccess: (_data, name) => {
-      onInvalidate();
+      void qc.invalidateQueries({ queryKey: threadListQueryKey(groupNo) });
       onThreadUpdated?.({ name });
       setRenameOpen(false);
       message.success(t("threadPanelLocal.toast.updated"));
@@ -446,7 +447,7 @@ function DetailView({
     },
     onSuccess: () => {
       setArchiveConfirmOpen(false);
-      onInvalidate();
+      void qc.invalidateQueries({ queryKey: threadListQueryKey(groupNo) });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       const nextStatus =
         archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
@@ -474,23 +475,8 @@ function DetailView({
    * 600ms 后再拉权威状态,避开后端事务未落盘时的旧列表覆盖。
    */
   const handleMessageSent = () => {
-    const activeAt = new Date().toISOString();
-    const patch: Partial<ThreadRaw> = {
-      last_message_at: activeAt,
-      updated_at: activeAt,
-      ...(isArchived ? { status: THREAD_STATUS_ACTIVE } : {}),
-    };
-    qc.setQueryData<ThreadRaw[]>(["chat", "thread-list", groupNo], (old) =>
-      Array.isArray(old)
-        ? old.map((item) =>
-            item.short_id === thread.short_id || item.channel_id === threadChannel.channelID
-              ? { ...item, ...patch }
-              : item,
-          )
-        : old,
-    );
-    onThreadUpdated?.(patch);
-    setTimeout(onInvalidate, 600);
+    const result = refreshThreadListAfterSend(qc, threadChannel, { reactivate: isArchived });
+    if (result) onThreadUpdated?.(result.patch);
   };
 
   return (

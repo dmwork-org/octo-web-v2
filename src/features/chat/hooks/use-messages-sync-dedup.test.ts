@@ -17,11 +17,36 @@ describe("useMessagesSync syncMessages dedup (issues #216/#222)", () => {
     expect(
       shouldSyncMessagesOnEnter({
         pages: [[{ messageSeq: 10 }]],
+        latestMessage: { messageSeq: 11 },
         latestMessageSeq: 11,
         now: 10_000,
         lastSyncAt: 9_000,
       }),
     ).toBe(true);
+  });
+
+  it("syncs within 30s when latest message identity is missing from cache", () => {
+    expect(
+      shouldSyncMessagesOnEnter({
+        pages: [[{ messageSeq: 0, messageID: "old" }]],
+        latestMessage: { messageSeq: 0, messageID: "new" },
+        latestMessageSeq: 0,
+        now: 10_000,
+        lastSyncAt: 9_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps the dedup window when latest message identity is already cached", () => {
+    expect(
+      shouldSyncMessagesOnEnter({
+        pages: [[{ messageSeq: 0, messageID: "same" }]],
+        latestMessage: { messageSeq: 0, messageID: "same" },
+        latestMessageSeq: 0,
+        now: 10_000,
+        lastSyncAt: 9_000,
+      }),
+    ).toBe(false);
   });
 
   it("syncs after the dedup window as a fallback", () => {

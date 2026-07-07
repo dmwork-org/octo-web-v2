@@ -55,6 +55,11 @@ import { t } from "@/lib/i18n/instance";
 import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import {
+  parseThreadTimeMs,
+  threadActiveTime,
+  threadActiveTimeMs,
+} from "@/features/chat/lib/thread-active-time";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -152,11 +157,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
       followedThreadChannels.has(buildThreadChannelId(groupNo, th.short_id)) || !!th.is_followed,
   }));
   // 排序口径:last_message_at(有消息时)→ updated_at → created_at(对齐老仓 threadSortTime)
-  const threadSortTime = (th: ThreadRaw): number => {
-    const raw = th.last_message_at || th.updated_at || th.created_at;
-    return raw ? new Date(raw).getTime() : 0;
-  };
-  const threads = threadsWithFollow.slice().sort((a, b) => threadSortTime(b) - threadSortTime(a));
+  const threads = threadsWithFollow
+    .slice()
+    .sort((a, b) => threadActiveTimeMs(b) - threadActiveTimeMs(a));
   const visibleThreads = threads.filter((th) => th.status !== THREAD_STATUS_DELETED);
   const activeThreads = visibleThreads.filter(
     (th) => !th.status || th.status === THREAD_STATUS_ACTIVE,
@@ -918,7 +921,7 @@ function ThreadItem({
             </button>
           ) : null}
           <span className="text-[12px] text-text-tertiary">
-            {formatRelativeTime(thread.updated_at)}
+            {formatRelativeTime(threadActiveTime(thread))}
           </span>
         </div>
       </div>
@@ -963,9 +966,11 @@ function getCreatorName(thread: ThreadRaw): string {
  */
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return "";
-  const date = new Date(dateStr);
+  const timestamp = parseThreadTimeMs(dateStr);
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = now.getTime() - timestamp;
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);

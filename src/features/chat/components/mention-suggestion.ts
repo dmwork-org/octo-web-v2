@@ -11,8 +11,35 @@ import { MentionList, type MentionItem, type MentionListRef } from "./mention-li
 
 type MentionPopupInstance = Pick<TippyInstance, "popper" | "state">;
 
+const MENTION_POPUP_MAX_HEIGHT = 220;
+const MENTION_POPUP_MAX_WIDTH = 420;
+const MENTION_POPUP_VIEWPORT_PADDING = 8;
+
 export function canHideMentionPopup(instance: MentionPopupInstance | null | undefined): boolean {
   return !!instance && !instance.state.isDestroyed && !!instance.popper.firstElementChild;
+}
+
+export function getMentionPopupMaxHeight(
+  rect: Pick<DOMRect, "top" | "bottom">,
+  viewportHeight = window.innerHeight,
+): number {
+  const above = Math.max(0, rect.top - MENTION_POPUP_VIEWPORT_PADDING);
+  const below = Math.max(0, viewportHeight - rect.bottom - MENTION_POPUP_VIEWPORT_PADDING);
+  return Math.floor(Math.min(MENTION_POPUP_MAX_HEIGHT, Math.max(above, below)));
+}
+
+export function getMentionPopupWidth(viewportWidth = window.innerWidth): number {
+  return Math.floor(Math.max(0, Math.min(MENTION_POPUP_MAX_WIDTH, viewportWidth - 16)));
+}
+
+export function getMentionPopupPlacement(
+  rect: Pick<DOMRect, "left">,
+  viewportWidth = window.innerWidth,
+): "top-start" | "top-end" {
+  return rect.left + getMentionPopupWidth(viewportWidth) >
+    viewportWidth - MENTION_POPUP_VIEWPORT_PADDING
+    ? "top-end"
+    : "top-start";
 }
 
 /**
@@ -99,6 +126,15 @@ export function createMentionSuggestion(
         const r = props.clientRect?.();
         return r ?? new DOMRect(0, 0, 0, 0);
       };
+      const syncPopupLayout = (props: SuggestionProps<MentionItem>) => {
+        const rect = getRect(props);
+        component?.element.style.setProperty(
+          "--mention-list-max-height",
+          `${getMentionPopupMaxHeight(rect)}px`,
+        );
+        component?.element.style.setProperty("--mention-list-width", `${getMentionPopupWidth()}px`);
+        return getMentionPopupPlacement(rect);
+      };
 
       return {
         onStart: (props) => {
@@ -107,6 +143,7 @@ export function createMentionSuggestion(
             props,
             editor: props.editor,
           });
+          const placement = syncPopupLayout(props);
           if (!props.clientRect) return;
           props.editor.on("blur", hidePopup);
           popup = tippy("body", {
@@ -116,13 +153,36 @@ export function createMentionSuggestion(
             showOnCreate: props.items.length > 0,
             interactive: true,
             trigger: "manual",
-            placement: "top-start",
+            placement,
+            maxWidth: "none",
+            popperOptions: {
+              modifiers: [
+                {
+                  name: "flip",
+                  options: {
+                    fallbackPlacements: placement.endsWith("end")
+                      ? ["bottom-end", "top-start", "bottom-start"]
+                      : ["bottom-start", "top-end", "bottom-end"],
+                  },
+                },
+                {
+                  name: "preventOverflow",
+                  options: {
+                    altAxis: true,
+                    boundary: "viewport",
+                    padding: MENTION_POPUP_VIEWPORT_PADDING,
+                    rootBoundary: "viewport",
+                  },
+                },
+              ],
+            },
           });
         },
 
         onUpdate: (props) => {
           if (!component) return;
           component.updateProps(props);
+          const placement = syncPopupLayout(props);
           if (!props.editor.isFocused) {
             hidePopup();
             return;
@@ -135,7 +195,7 @@ export function createMentionSuggestion(
           if (!instance || !canHideMentionPopup(instance)) return;
           instance.show();
           if (!props.clientRect) return;
-          instance.setProps({ getReferenceClientRect: () => getRect(props) });
+          instance.setProps({ getReferenceClientRect: () => getRect(props), placement });
         },
 
         onKeyDown: (props: SuggestionKeyDownProps) => {

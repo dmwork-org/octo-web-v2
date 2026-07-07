@@ -126,7 +126,11 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
       <ul
         ref={listRef}
         role="listbox"
-        className="max-h-[220px] min-w-[420px] overflow-y-auto rounded-md bg-bg-surface py-[5px] shadow-lg"
+        style={{
+          maxHeight: "var(--mention-list-max-height, 220px)",
+          width: "var(--mention-list-width, 420px)",
+        }}
+        className="overflow-y-auto rounded-md bg-bg-surface py-[5px] shadow-lg"
       >
         {items.map((c, i) => {
           const active = i === activeIndex;

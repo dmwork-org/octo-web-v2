@@ -470,18 +470,28 @@ function DetailView({
   });
 
   /**
-   * 已归档子区发消息后,后端会自动 reactivate 为 Active(对齐上游 23b59a41)。
-   * Composer onMessageSent → 短 delay 后 invalidate thread query 拿权威状态。
-   * 延迟是为了等后端事务落盘,避免立即 GET 仍返 Archived。
+   * 发消息后先本地刷新子区活跃时间,让返回列表时立即重排。
+   * 600ms 后再拉权威状态,避开后端事务未落盘时的旧列表覆盖。
    */
-  const handleMessageSent = isArchived
-    ? () => {
-        setTimeout(() => {
-          onInvalidate();
-          onThreadUpdated?.({ status: THREAD_STATUS_ACTIVE });
-        }, 600);
-      }
-    : undefined;
+  const handleMessageSent = () => {
+    const activeAt = new Date().toISOString();
+    const patch: Partial<ThreadRaw> = {
+      last_message_at: activeAt,
+      updated_at: activeAt,
+      ...(isArchived ? { status: THREAD_STATUS_ACTIVE } : {}),
+    };
+    qc.setQueryData<ThreadRaw[]>(["chat", "thread-list", groupNo], (old) =>
+      Array.isArray(old)
+        ? old.map((item) =>
+            item.short_id === thread.short_id || item.channel_id === threadChannel.channelID
+              ? { ...item, ...patch }
+              : item,
+          )
+        : old,
+    );
+    onThreadUpdated?.(patch);
+    setTimeout(onInvalidate, 600);
+  };
 
   return (
     <>

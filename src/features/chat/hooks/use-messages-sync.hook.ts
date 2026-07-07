@@ -21,11 +21,35 @@ import {
   isSameMessageIdentity,
 } from "@/features/chat/lib/message-identity";
 
-/**
- * 进入 channel 时补差 syncMessages 的去重表 (issue #216):
- * 30s 内重复进入同 channel 跳过 syncMessages,避免切走切回反复打后端。
- */
+export const SYNC_DEDUP_MS = 30_000;
+
 const lastSyncByChannel = new Map<string, number>();
+
+interface SyncGapMessage {
+  messageSeq?: number | null;
+}
+
+function newestCachedMessageSeq(pages: SyncGapMessage[][]): number {
+  let newest = 0;
+  for (const page of pages) {
+    for (const message of page) {
+      const seq = message.messageSeq ?? 0;
+      if (seq > newest) newest = seq;
+    }
+  }
+  return newest;
+}
+
+export function shouldSyncMessagesOnEnter(args: {
+  pages: SyncGapMessage[][];
+  latestMessageSeq: number;
+  now: number;
+  lastSyncAt: number;
+}): boolean {
+  if (args.pages.length === 0) return false;
+  if (args.latestMessageSeq > newestCachedMessageSeq(args.pages)) return true;
+  return args.now - args.lastSyncAt > SYNC_DEDUP_MS;
+}
 
 /**
  * 订阅当前会话的:
@@ -166,16 +190,24 @@ export function useMessagesSync(channel: Channel | null) {
     // append 到 firstPage 末尾,渲染时按 messageSeq 排序自动排到底部。
     // 去重靠 clientMsgNo,与 messageListener 同模式。
     //
-    // **去重**(issue #216):切到别的 channel 再切回,useEffect 重新 attach 但 cache
-    // 仍存在 → 每次切回都重复 syncMessages 拉首屏。用 module-level Map 记录每个
-    // channel 上次 sync 时间戳,30s 内跳过。module-level 是因为同一时刻同一 channel
-    // 最多只挂一个 useMessagesSync(同一 channel 不会被两个 MessageList 同时渲染)。
+    // **去重**(issue #216 + #222):若 conversation latest seq 已超过本地 cache,
+    // 即使 30s 内也必须补差;否则才用时间窗限流,避免切走切回反复打后端。
     const prevData = qc.getQueryData<InfiniteData<Message[], number>>(key);
     const channelKey = `${channel.channelType}::${channel.channelID}`;
     const lastSyncAt = lastSyncByChannel.get(channelKey) ?? 0;
-    const SYNC_DEDUP_MS = 30_000;
-    if (prevData && prevData.pages.length > 0 && Date.now() - lastSyncAt > SYNC_DEDUP_MS) {
-      lastSyncByChannel.set(channelKey, Date.now());
+    const latestMessageSeq =
+      WKSDK.shared().conversationManager.findConversation(channel)?.lastMessage?.messageSeq ?? 0;
+    const now = Date.now();
+    if (
+      prevData &&
+      shouldSyncMessagesOnEnter({
+        pages: prevData.pages,
+        latestMessageSeq,
+        now,
+        lastSyncAt,
+      })
+    ) {
+      lastSyncByChannel.set(channelKey, now);
       void (async () => {
         try {
           const latest = await WKSDK.shared().chatManager.syncMessages(channel, {

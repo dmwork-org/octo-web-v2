@@ -8,12 +8,15 @@ describe("getNewerMessagesPageParam", () => {
     expect(getNewerMessagesPageParam(page(Array.from({ length: 30 }, (_, i) => i + 10)), 50)).toBe(
       40,
     );
+    expect(getNewerMessagesPageParam(page([10, 11]), 50)).toBe(12);
+    expect(getNewerMessagesPageParam(page([10, 11]), 11, { forceNewer: true })).toBe(12);
   });
 
-  it("stops on short pages or when latest is already loaded", () => {
-    expect(getNewerMessagesPageParam(page([10, 11]), 50)).toBeUndefined();
+  it("stops when latest is already loaded or unknown", () => {
     expect(
       getNewerMessagesPageParam(page(Array.from({ length: 30 }, (_, i) => i + 21)), 50),
     ).toBeUndefined();
+    expect(getNewerMessagesPageParam(page([10, 11]), 0)).toBeUndefined();
+    expect(getNewerMessagesPageParam([], 50, { forceNewer: true })).toBeUndefined();
   });
 });

@@ -1,6 +1,9 @@
 import type { QueryClient, InfiniteData } from "@tanstack/react-query";
 import WKSDK, { PullMode, type Channel, type Message } from "wukongimjssdk";
-import { messagesInfiniteQueryOptions } from "@/features/chat/queries/messages.query";
+import {
+  messagesInfiniteQueryOptions,
+  type MessagesPageParam,
+} from "@/features/chat/queries/messages.query";
 
 /** 历史拉取页数封顶(10 × 30 = 300 条),避免引用 500 条前消息时无限拉。 */
 const MAX_PAGES_TO_PULL = 10;
@@ -60,9 +63,9 @@ export async function locateMessageWindow(
   if (signal?.aborted) return null;
 
   const opts = messagesInfiniteQueryOptions(channel);
-  qc.setQueryData<InfiniteData<Message[], number>>(opts.queryKey, {
+  qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(opts.queryKey, {
     pages: [page],
-    pageParams: [locateWindowStart(messageSeq)],
+    pageParams: [{ seq: locateWindowStart(messageSeq), forceNewer: true }],
   });
 
   await sleep(RENDER_WAIT_MS);
@@ -97,7 +100,7 @@ async function fetchLocateWindow(channel: Channel, messageSeq: number): Promise<
  */
 async function fetchOneMorePage(qc: QueryClient, channel: Channel): Promise<boolean> {
   const opts = messagesInfiniteQueryOptions(channel);
-  const data = qc.getQueryData<InfiniteData<Message[], number>>(opts.queryKey);
+  const data = qc.getQueryData<InfiniteData<Message[], MessagesPageParam>>(opts.queryKey);
   if (!data || data.pages.length === 0) return false;
   const lastPage = data.pages[data.pages.length - 1];
   const lastParam = data.pageParams[data.pageParams.length - 1];
@@ -110,7 +113,7 @@ async function fetchOneMorePage(qc: QueryClient, channel: Channel): Promise<bool
     meta: undefined,
     direction: "forward",
   } as never)) as Message[];
-  qc.setQueryData<InfiniteData<Message[], number>>(opts.queryKey, (old) => {
+  qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(opts.queryKey, (old) => {
     if (!old) return old;
     return {
       ...old,

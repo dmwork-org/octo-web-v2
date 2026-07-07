@@ -3,6 +3,8 @@ import WKSDK, { type Channel, type Message, PullMode } from "wukongimjssdk";
 
 const PAGE_LIMIT = 30;
 
+export type MessagesPageParam = number | { seq: number; forceNewer?: boolean };
+
 /**
  * 单会话历史消息 — 无限滚动 query。
  *
@@ -30,14 +32,34 @@ export const messagesQueryKey = (channelId: string, channelType: number) =>
 export function getNewerMessagesPageParam(
   firstPage: Pick<Message, "messageSeq">[],
   latestMessageSeq: number,
+  opts?: { forceNewer?: boolean },
 ): number | undefined {
-  if (firstPage.length < PAGE_LIMIT) return undefined;
   let newest = 0;
   for (const m of firstPage) {
     if (m.messageSeq > newest) newest = m.messageSeq;
   }
-  if (newest <= 0 || (latestMessageSeq > 0 && newest >= latestMessageSeq)) return undefined;
+  if (newest <= 0) return undefined;
+  if (!opts?.forceNewer && (latestMessageSeq <= 0 || newest >= latestMessageSeq)) {
+    return undefined;
+  }
   return newest + 1;
+}
+
+function pageParamSeq(pageParam: MessagesPageParam): number {
+  return typeof pageParam === "number" ? pageParam : pageParam.seq;
+}
+
+function shouldForceNewer(pageParam: MessagesPageParam): boolean {
+  return typeof pageParam !== "number" && !!pageParam.forceNewer;
+}
+
+export function isForceNewerPageParam(pageParam: unknown): boolean {
+  return (
+    typeof pageParam === "object" &&
+    pageParam !== null &&
+    "forceNewer" in pageParam &&
+    pageParam.forceNewer === true
+  );
 }
 
 export async function fetchMessagesPage(
@@ -57,9 +79,13 @@ export async function fetchMessagesPage(
 export const messagesInfiniteQueryOptions = (channel: Channel) =>
   infiniteQueryOptions({
     queryKey: messagesQueryKey(channel.channelID, channel.channelType),
-    initialPageParam: 0 as number,
+    initialPageParam: 0 as MessagesPageParam,
     queryFn: async ({ pageParam, direction }): Promise<Message[]> => {
-      return fetchMessagesPage(channel, pageParam, direction === "backward" ? "newer" : "older");
+      return fetchMessagesPage(
+        channel,
+        pageParamSeq(pageParam),
+        direction === "backward" ? "newer" : "older",
+      );
     },
     getNextPageParam: (lastPage): number | undefined => {
       if (lastPage.length < PAGE_LIMIT) return undefined;
@@ -74,10 +100,14 @@ export const messagesInfiniteQueryOptions = (channel: Channel) =>
       // oldest=0 → 无法分页;oldest=1 → 已到最早消息
       return oldest > 1 ? oldest - 1 : undefined;
     },
-    getPreviousPageParam: (firstPage): number | undefined => {
+    getPreviousPageParam: (firstPage, _allPages, firstPageParam): MessagesPageParam | undefined => {
       const latest =
         WKSDK.shared().conversationManager.findConversation(channel)?.lastMessage?.messageSeq ?? 0;
-      return getNewerMessagesPageParam(firstPage, latest);
+      const next = getNewerMessagesPageParam(firstPage, latest, {
+        forceNewer: shouldForceNewer(firstPageParam),
+      });
+      if (next === undefined) return undefined;
+      return shouldForceNewer(firstPageParam) ? { seq: next, forceNewer: true } : next;
     },
     staleTime: Number.POSITIVE_INFINITY,
     // 同 conversations:Message 是 SDK mutable 实例,getter 跨 cache 取值;

@@ -1998,6 +1998,7 @@
   "messageList.loadFailed": "Failed to load messages",
   "messageList.loading": "Loading messages…",
   "messageList.loadingEarlier": "Loading earlier messages…",
+  "messageList.loadingNewer": "Loading newer messages…",
   "messageList.pullToLoadMore": "Pull to load more",
   "messageRow.confirmDeleteContent": "Delete this message? This cannot be undone.",
   "messageRow.menu.copy": "Copy",

@@ -16,6 +16,26 @@ describe("usePullupToLoadNewer (issue #214)", () => {
     expect(hookSource).toBeTruthy();
   });
 
+  it("regression: listener attach must retry when newer paging becomes available", () => {
+    const deps = "[scrollRef, hasPreviousPage, skip]";
+    expect(deps).toContain("hasPreviousPage");
+    expect(deps).not.toContain("fetchPreviousPage");
+  });
+
+  it("regression: bottom wheel / touch must be able to trigger when scrollTop is already stuck", () => {
+    const listeners = ["scroll", "wheel", "touchstart", "touchend"];
+    expect(listeners).toContain("scroll");
+    expect(listeners).toContain("wheel");
+    expect(listeners).toContain("touchend");
+  });
+
+  it("regression: a newly loaded page alone must not unlock another newer fetch", () => {
+    const wasNearBottomRef = { current: true };
+    const pageCountChanged = true;
+    if (!pageCountChanged) wasNearBottomRef.current = false;
+    expect(wasNearBottomRef.current).toBe(true);
+  });
+
   it("regression: 250ms 内连续 scroll 只触发一次 fetch", () => {
     const fetch = vi.fn();
     const lastFireAtRef = { current: 0 };

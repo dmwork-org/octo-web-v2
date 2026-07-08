@@ -75,6 +75,23 @@ function cloneContent(src: MessageContent): MessageContent {
   return cloned;
 }
 
+/**
+ * 清空 reply 字段的 messageSeq / messageID,保留展示信息(fromName / content)
+ *
+ * issue #4:逐条转发时,原消息的 reply.messageSeq 指向**原频道**的 seq。转发到新频道后,
+ * 该 seq 在新频道中要么不存在要么指向完全无关的消息。点击 reply 块会触发
+ * `locateReplyMessage` 在新频道循环拉历史,最坏情况导致 `fetchOneMorePage` 拿到
+ * 空页(拉到顶)误判 "appended=false" 提前退出,或者 `queryFn` 抛异常被 React
+ * 吞掉后 message-list 短暂空白。直接清掉跳转相关字段,让 reply block 保留视觉
+ * 上下文但不再触发跨频道 locate。
+ */
+function stripReplyNav(content: MessageContent): void {
+  const reply = (content as { reply?: { messageSeq?: number; messageID?: string } }).reply;
+  if (!reply) return;
+  reply.messageSeq = 0;
+  reply.messageID = "";
+}
+
 function buildMergeforward(sourceMessages: Message[]): MergeforwardContent {
   const c = new MergeforwardContent();
   c.channelType = sourceMessages[0]?.channel.channelType ?? 0;
@@ -638,9 +655,14 @@ export function ForwardModal({
       } else {
         for (const target of targets) {
           for (const m of messages) {
+            const cloned = cloneContent(m.content);
+            // issue #4:清掉 reply 的 messageSeq/messageID,避免在新频道点击
+            // reply 时跨频道 locate 历史(原 seq 在新频道无意义,可能拉到空页
+            // 或异常,导致 message-list 出现空白闪烁)。
+            stripReplyNav(cloned);
             tasks.push(
               chat.send(
-                wrapSendContentForInjection(cloneContent(m.content), {
+                wrapSendContentForInjection(cloned, {
                   spaceId: target.channelType === ChannelTypePerson ? spaceId : null,
                 }),
                 target,

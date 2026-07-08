@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type Channel } from "wukongimjssdk";
+import WKSDK, { type Channel } from "wukongimjssdk";
 import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
@@ -118,6 +118,7 @@ export function GroupMdModal({ open, channel, canEdit, onClose }: GroupMdModalPr
     void qc.invalidateQueries({
       queryKey: ["chat", isThread ? "thread-md" : "group-md", channel.channelID],
     });
+    void WKSDK.shared().channelManager.fetchChannelInfo(channel);
   };
 
   const saveMu = useMutation({

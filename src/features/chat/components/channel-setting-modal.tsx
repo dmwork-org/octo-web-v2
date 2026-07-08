@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import WKSDK, {
@@ -88,6 +88,15 @@ const ROLE_OWNER = 1;
 const ROLE_MANAGER = 2;
 
 type Subpage = "avatar" | "qrcode" | "md" | "manage" | "webhook";
+
+function useRefreshChannelInfoOnOpen(open: boolean, channel: Channel): void {
+  const channelID = channel.channelID;
+  const channelType = channel.channelType;
+  useEffect(() => {
+    if (!open) return;
+    void WKSDK.shared().channelManager.fetchChannelInfo(new Channel(channelID, channelType));
+  }, [open, channelID, channelType]);
+}
 
 /**
  * 顶部成员头像 grid — 对齐老仓 `Components/Subscribers/vm.ts:13-73`:
@@ -288,6 +297,7 @@ export function ChannelSettingModal({ open, channel, onClose }: ChannelSettingMo
   const [confirmDisband, setConfirmDisband] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
+  useRefreshChannelInfoOnOpen(open, channel);
   // 会话解散态实时驱动:群/子区解散瞬间 channelInfo 变化触发重渲,
   // 让本弹窗内所有 isGroupDisbandedNow gate 即时转为只读(即便弹窗已打开)。
   useChannelInfoTick();

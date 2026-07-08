@@ -204,6 +204,23 @@ export async function personalEditSummary(
   });
 }
 
+export async function personalDraftSummary(
+  taskId: number,
+  content: string,
+): Promise<EditSummaryResponse> {
+  const response = await summaryApi.raw<EditSummaryRawBody>(`/summaries/${taskId}/personal-draft`, {
+    method: "PUT",
+    body: { content },
+    ignoreResponseError: true,
+  });
+  if (response.status >= 400) {
+    const err = new Error(extractEditSummaryError(response._data)) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
+  }
+  return unwrapEditSummary(response._data);
+}
+
 export async function cancelSummary(taskId: number): Promise<void> {
   await summaryApi(`/summaries/${taskId}/cancel`, { method: "PUT" });
 }

@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@tanstack/react-store";
 import { useQuery } from "@tanstack/react-query";
-import { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypePerson, ChannelTypeGroup } from "wukongimjssdk";
 import {
   Bot,
   ChevronDown,
@@ -15,6 +15,10 @@ import { authStore } from "@/features/base/stores/auth";
 import { bucketLetter, sortLetters } from "@/features/base/lib/pinyin-bucket";
 import { VirtualizedLetterList } from "@/components/data/virtualized-letter-list";
 import { ChannelAvatar } from "@/features/chat/components/channel-avatar";
+import { ConversationOnlineBadge } from "@/features/chat/components/conversation-online-badge";
+import { useChannelInfoTick } from "@/features/chat/hooks/use-channel-info-tick.hook";
+import { shouldShowConversationOnline } from "@/features/chat/lib/conversation-online";
+import { tryFetchChannelInfo } from "@/features/chat/lib/live-channel-title";
 import { AiBadge } from "@/features/base/components/badges/ai-badge";
 import { UserInfoModal } from "@/features/base/components/modals/user-info-modal";
 import { GroupCardModal } from "@/features/base/components/modals/group-card-modal";
@@ -38,6 +42,45 @@ const VIRTUAL_THRESHOLD = 100;
 const EMPTY_MEMBERS: SpaceMember[] = [];
 const EMPTY_BOTS: RobotBot[] = [];
 const EMPTY_GROUPS: GroupSummary[] = [];
+
+function normalizeOnlineUid(uid: string, spaceId: string | null): string {
+  if (spaceId && uid.startsWith(`s${spaceId}_`)) {
+    return uid.substring(spaceId.length + 2);
+  }
+  return uid;
+}
+
+function useFetchContactOnlineInfo(channel: Channel, enabled: boolean, hasInfo: boolean) {
+  useEffect(() => {
+    if (!enabled || hasInfo) return;
+    tryFetchChannelInfo(channel);
+  }, [channel, enabled, hasInfo]);
+}
+
+function ContactAvatar({
+  item,
+  spaceId,
+}: {
+  item: Pick<ContactItem, "uid" | "name" | "isBot">;
+  spaceId: string | null;
+}) {
+  const avatarChannel = useMemo(() => new Channel(item.uid, ChannelTypePerson), [item.uid]);
+  const onlineChannel = useMemo(
+    () => new Channel(normalizeOnlineUid(item.uid, spaceId), ChannelTypePerson),
+    [item.uid, spaceId],
+  );
+  useChannelInfoTick();
+  const onlineInfo = WKSDK.shared().channelManager.getChannelInfo(onlineChannel);
+  useFetchContactOnlineInfo(onlineChannel, item.isBot, !!onlineInfo);
+  const showOnline = item.isBot && shouldShowConversationOnline(onlineInfo);
+
+  return (
+    <span className="relative h-8 w-8 shrink-0">
+      <ChannelAvatar channel={avatarChannel} size={32} title={item.name} />
+      {showOnline ? <ConversationOnlineBadge info={onlineInfo} /> : null}
+    </span>
+  );
+}
 
 /**
  * 联合 contact 项(人/AI 在主列表里同形渲染),
@@ -130,9 +173,16 @@ function GroupTag() {
   );
 }
 
-function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void }) {
+function ContactRow({
+  item,
+  spaceId,
+  onClick,
+}: {
+  item: ContactItem;
+  spaceId: string | null;
+  onClick: () => void;
+}) {
   const t = useT();
-  const channel = useMemo(() => new Channel(item.uid, ChannelTypePerson), [item.uid]);
   const roleLabel =
     item.role === 1
       ? t("contacts.directory.roleOwner")
@@ -145,7 +195,7 @@ function ContactRow({ item, onClick }: { item: ContactItem; onClick: () => void 
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-md px-4 py-2 text-left transition-colors duration-150 ease-(--ease-emphasized) hover:bg-bg-hover"
     >
-      <ChannelAvatar channel={channel} size={32} title={item.name} />
+      <ContactAvatar item={item} spaceId={spaceId} />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate text-sm text-text-primary">{item.name}</span>
         {item.isBot ? <AiBadge /> : null}
@@ -388,7 +438,12 @@ export function ContactsDirectory() {
                     {t("contacts.directory.contactsHeader")}
                   </header>
                   {searchContacts.map((c) => (
-                    <ContactRow key={c.uid} item={c} onClick={() => handleContactClick(c)} />
+                    <ContactRow
+                      key={c.uid}
+                      item={c}
+                      spaceId={currentSpaceId}
+                      onClick={() => handleContactClick(c)}
+                    />
                   ))}
                 </section>
               ) : null}
@@ -455,6 +510,7 @@ export function ContactsDirectory() {
                       <ContactRow
                         key={b.uid}
                         item={{ uid: b.uid, name: b.name || b.uid, avatar: b.avatar, isBot: true }}
+                        spaceId={currentSpaceId}
                         onClick={() => handleContactClick({ uid: b.uid, isBot: true })}
                       />
                     ))}
@@ -492,7 +548,11 @@ export function ContactsDirectory() {
                       <VirtualizedLetterList
                         groups={grouped}
                         renderRow={(item) => (
-                          <ContactRow item={item} onClick={() => handleContactClick(item)} />
+                          <ContactRow
+                            item={item}
+                            spaceId={currentSpaceId}
+                            onClick={() => handleContactClick(item)}
+                          />
                         )}
                         rowHeight={44}
                         headerHeight={24}
@@ -510,6 +570,7 @@ export function ContactsDirectory() {
                             <ContactRow
                               key={item.uid}
                               item={item}
+                              spaceId={currentSpaceId}
                               onClick={() => handleContactClick(item)}
                             />
                           ))}

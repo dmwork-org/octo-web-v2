@@ -42,3 +42,13 @@ export function useMessagesSearchEnabled(): boolean {
   const { data } = useQuery(appConfigQueryOptions());
   return parseRemoteBool(data?.messages_search_on);
 }
+
+/**
+ * 自定义贴纸入口是否启用(对齐老仓 WKRemoteConfig.stickerCustomEnabled)。
+ *
+ * 后端未下发 `sticker_custom_enabled` 时默认关闭,避免入口早于后端能力或灰度开关暴露。
+ */
+export function useStickerCustomEnabled(): boolean {
+  const { data } = useQuery(appConfigQueryOptions());
+  return parseRemoteBool(data?.sticker_custom_enabled);
+}

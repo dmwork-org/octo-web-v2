@@ -20,6 +20,7 @@ import { useMessageContextMenu } from "@/features/chat/hooks/use-message-context
 import { locateReplyMessage } from "@/features/chat/lib/locate-reply-message";
 import { MessageDispatch } from "@/features/chat/message-renderers/dispatch";
 import { MessageStatusBadge } from "@/features/chat/components/message-status-badge";
+import { shouldShowConversationOnline } from "@/features/chat/lib/conversation-online";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReplyBlock } from "@/features/chat/components/reply-block";
 import { chatSelectionActions, chatSelectionStore } from "@/features/chat/stores/chat-selection";
@@ -301,15 +302,8 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
   const isWebhook = !!webhookFrom;
   const isBot = !isWebhook && isBotSender(senderUid);
   const isVerified = isSenderVerified(senderUid, isBot);
-
-  const showOnline = (() => {
-    const senderInfo = WKSDK.shared().channelManager.getChannelInfo(senderChannel);
-    if (!senderInfo) return false;
-    if (senderInfo.online) return true;
-    const now = Date.now() / 1000;
-    const btw = now - (senderInfo.lastOffline ?? 0);
-    return btw > 0 && btw < 60 * 60;
-  })();
+  const senderInfo = WKSDK.shared().channelManager.getChannelInfo(senderChannel);
+  const showOnline = shouldShowConversationOnline(senderInfo);
   return (
     <div
       className={wrapperClass}
@@ -335,7 +329,7 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
             <ChannelAvatar channel={senderChannel} size={36} title={senderTitle} />
           </AvatarMenuButton>
         )}
-        {showOnline ? <ConversationOnlineBadge /> : null}
+        {showOnline ? <ConversationOnlineBadge info={senderInfo} /> : null}
       </div>
       <div
         className={`relative flex min-w-0 flex-1 flex-col gap-1${selectionActive ? " pointer-events-none" : ""}`}

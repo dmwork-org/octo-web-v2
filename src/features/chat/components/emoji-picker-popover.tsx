@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Search, Smile, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { ImagePlus, Loader2, Smile, X } from "lucide-react";
 import {
   getAllEmojiItems,
   subscribeEmojiManifest,
@@ -12,6 +12,12 @@ import {
   uploadStickerFile,
   type StickerItem,
 } from "@/features/base/api/endpoints/sticker.api";
+import { useStickerCustomEnabled } from "@/features/base/queries/appconfig.query";
+import {
+  notifyStickersUpdated,
+  subscribeStickersUpdated,
+  type StickersUpdatedDetail,
+} from "@/features/chat/lib/sticker-events";
 import { message } from "@/components/ui/message";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -49,17 +55,12 @@ function useEmojiItems(): EmojiPickerItem[] {
   return items;
 }
 
-function useResetPopoverOnClose(
-  open: boolean,
-  setKeyword: (value: string) => void,
-  setTab: (value: "emoji" | "sticker") => void,
-) {
+function useResetPopoverOnClose(open: boolean, setTab: (value: "emoji" | "sticker") => void) {
   useEffect(() => {
     if (!open) {
-      setKeyword("");
       setTab("emoji");
     }
-  }, [open, setKeyword, setTab]);
+  }, [open, setTab]);
 }
 
 function useLoadStickersOnTabOpen(args: {
@@ -100,11 +101,57 @@ function useLoadStickersOnTabOpen(args: {
   ]);
 }
 
+function sameSticker(a: StickerItem, b: StickerItem): boolean {
+  if (a.path && b.path && a.path === b.path) return true;
+  const aId = a.sticker_id || a.id;
+  const bId = b.sticker_id || b.id;
+  if (aId && bId) return aId === bId;
+  return false;
+}
+
+function useRefreshLoadedStickersOnEvent(args: {
+  stickersLoaded: boolean;
+  stickerLoading: boolean;
+  setStickerLoading: (value: boolean) => void;
+  setStickers: Dispatch<SetStateAction<StickerItem[]>>;
+}) {
+  const { stickersLoaded, stickerLoading, setStickerLoading, setStickers } = args;
+  useEffect(() => {
+    return subscribeStickersUpdated((detail: StickersUpdatedDetail) => {
+      if (!stickersLoaded || stickerLoading) return;
+      if (detail.sticker) {
+        setStickers((prev) =>
+          prev.some((item) => sameSticker(item, detail.sticker!))
+            ? prev
+            : [detail.sticker!, ...prev],
+        );
+        return;
+      }
+      setStickerLoading(true);
+      void listUserStickers({ silent: true })
+        .then((list) => setStickers(list))
+        .finally(() => setStickerLoading(false));
+    });
+  }, [setStickerLoading, setStickers, stickerLoading, stickersLoaded]);
+}
+
+function useResetStickerTabWhenDisabled(
+  stickerCustomEnabled: boolean,
+  tab: "emoji" | "sticker",
+  setTab: (value: "emoji" | "sticker") => void,
+) {
+  useEffect(() => {
+    if (!stickerCustomEnabled && tab === "sticker") {
+      setTab("emoji");
+    }
+  }, [setTab, stickerCustomEnabled, tab]);
+}
+
 /**
  * Emoji 面板(对应旧 dmworkbase Components/EmojiToolbar EmojiPanel,1:1 复刻):
  *
- * - emoji 网格 + 顶部 search 框(过滤 emoji.key 子串)
- * - tab 区目前只有 emoji 一个(sticker 分类 P3+ 接 commonDataSource)
+ * - emoji 网格
+ * - 可选 sticker tab 由远端 appconfig 控制
  *
  * 资源 = EMOJI_LIST(152 unicode + 3 自家 custom token,顺序对齐旧 EmojiService.ts);
  * png = `/emoji/${name}.png`(225 个从旧 web/public/emoji/ 拷过来)。
@@ -119,14 +166,14 @@ export function EmojiPickerPopover({
   const t = useT();
   useClickOutside(containerRef, onClose, open);
   const emojiItems = useEmojiItems();
-  const [keyword, setKeyword] = useState("");
+  const stickerCustomEnabled = useStickerCustomEnabled();
   const [tab, setTab] = useState<"emoji" | "sticker">("emoji");
   const [stickers, setStickers] = useState<StickerItem[]>([]);
   const [stickersLoaded, setStickersLoaded] = useState(false);
   const [stickerLoading, setStickerLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const stickerInputRef = useRef<HTMLInputElement>(null);
-  useResetPopoverOnClose(open, setKeyword, setTab);
+  useResetPopoverOnClose(open, setTab);
   useLoadStickersOnTabOpen({
     open,
     tab,
@@ -136,12 +183,13 @@ export function EmojiPickerPopover({
     setStickersLoaded,
     setStickers,
   });
-
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    if (!kw) return emojiItems;
-    return emojiItems.filter((e) => e.key.toLowerCase().includes(kw) || e.name.includes(kw));
-  }, [emojiItems, keyword]);
+  useRefreshLoadedStickersOnEvent({
+    stickersLoaded,
+    stickerLoading,
+    setStickerLoading,
+    setStickers,
+  });
+  useResetStickerTabWhenDisabled(stickerCustomEnabled, tab, setTab);
 
   if (!open) return null;
   return (
@@ -149,107 +197,94 @@ export function EmojiPickerPopover({
       className="absolute bottom-full left-0 z-popover mb-2 flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-lg"
       style={{ width: 460, height: 372 }}
     >
-      {/* 顶部 search 框(audit-v2 §2.4 emoji 搜索) */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-bg-elevated px-3 py-2">
-        <Search size={14} className="shrink-0 text-text-tertiary" />
-        <input
-          type="text"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder={t("emojiPicker.searchPlaceholder")}
-          className="flex-1 border-0 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
-        />
-      </div>
       {tab === "emoji" ? (
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">
-              {t("emojiPicker.noMatches")}
-            </div>
-          ) : (
-            <ul
-              role="listbox"
-              aria-label={t("emojiPicker.emojiLabel")}
-              className="flex flex-wrap"
-              style={{ padding: "13px", marginLeft: "8px" }}
-            >
-              {filtered.map((emoji) => (
-                <li key={emoji.key} style={{ padding: "6px 4px" }}>
-                  <button
-                    type="button"
-                    title={emoji.key}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect(emoji.key);
-                    }}
-                    className="cursor-pointer rounded-md transition-transform hover:scale-110"
-                  >
-                    <img
-                      src={emoji.url}
-                      alt={emoji.key}
-                      width={28}
-                      height={28}
-                      style={{ width: 28, height: 28, objectFit: "contain", display: "block" }}
-                      loading="lazy"
-                      draggable={false}
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul
+            role="listbox"
+            aria-label={t("emojiPicker.emojiLabel")}
+            className="flex flex-wrap"
+            style={{ padding: "13px", marginLeft: "8px" }}
+          >
+            {emojiItems.map((emoji) => (
+              <li key={emoji.key} style={{ padding: "6px 4px" }}>
+                <button
+                  type="button"
+                  title={emoji.key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(emoji.key);
+                  }}
+                  className="cursor-pointer rounded-md transition-transform hover:scale-110"
+                >
+                  <img
+                    src={emoji.url}
+                    alt={emoji.key}
+                    width={28}
+                    height={28}
+                    style={{ width: 28, height: 28, objectFit: "contain", display: "block" }}
+                    loading="lazy"
+                    draggable={false}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 justify-end border-b border-border-subtle px-3 py-2">
-            <input
-              ref={stickerInputRef}
-              type="file"
-              accept="image/gif,image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (!file) return;
-                if (file.size > 1024 * 1024) {
-                  message.error(t("sticker.uploadTooLarge"));
-                  return;
-                }
-                setUploading(true);
-                uploadStickerFile(file)
-                  .then((uploaded) => addUserSticker(uploaded))
-                  .then((sticker) => {
-                    setStickers((prev) => [sticker, ...prev]);
-                    setStickersLoaded(true);
-                    message.success(t("sticker.uploaded"));
-                  })
-                  .catch((err: unknown) =>
-                    message.error(err instanceof Error ? err.message : t("sticker.uploadFailed")),
-                  )
-                  .finally(() => setUploading(false));
-              }}
-            />
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={() => stickerInputRef.current?.click()}
-              className="inline-flex h-7 items-center gap-1 rounded border border-border-default px-2 text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50"
-            >
-              <ImagePlus size={14} />
-              {uploading ? t("sticker.uploading") : t("sticker.upload")}
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3">
+          <input
+            ref={stickerInputRef}
+            type="file"
+            accept="image/gif,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file || !stickerCustomEnabled) return;
+              if (file.size > 1024 * 1024) {
+                message.error(t("sticker.uploadTooLarge"));
+                return;
+              }
+              setUploading(true);
+              uploadStickerFile(file)
+                .then((uploaded) => addUserSticker(uploaded))
+                .then((sticker) => {
+                  setStickers((prev) => [sticker, ...prev]);
+                  setStickersLoaded(true);
+                  notifyStickersUpdated(sticker);
+                  message.success(t("sticker.uploaded"));
+                })
+                .catch((err: unknown) =>
+                  message.error(err instanceof Error ? err.message : t("sticker.uploadFailed")),
+                )
+                .finally(() => setUploading(false));
+            }}
+          />
+          <div className="flex-1 overflow-y-auto p-[13px]">
             {stickerLoading ? (
               <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">
                 {t("base.common.loading")}
               </div>
-            ) : stickers.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-[12px] text-text-tertiary">
-                {t("sticker.empty")}
-              </div>
             ) : (
-              <ul className="grid grid-cols-5 gap-2">
+              <ul className="flex flex-wrap content-start gap-2">
+                <li>
+                  <button
+                    type="button"
+                    title={t("sticker.upload")}
+                    disabled={uploading}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!uploading) stickerInputRef.current?.click();
+                    }}
+                    className="flex h-[74px] w-[74px] items-center justify-center rounded-xl border-[1.5px] border-dashed border-border-default text-text-tertiary transition-colors hover:border-brand hover:bg-brand/6 hover:text-brand disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {uploading ? (
+                      <Loader2 size={24} className="animate-spin" />
+                    ) : (
+                      <ImagePlus size={24} />
+                    )}
+                  </button>
+                </li>
                 {stickers.map((sticker) => {
                   const id = sticker.sticker_id || sticker.id || sticker.path;
                   const src = sticker.path || sticker.url || sticker.placeholder || "";
@@ -258,12 +293,12 @@ export function EmojiPickerPopover({
                       <button
                         type="button"
                         onClick={() => onStickerSelect(sticker)}
-                        className="flex aspect-square w-full items-center justify-center rounded-md border border-border-subtle bg-bg-base p-1 hover:bg-bg-hover"
+                        className="flex h-[74px] w-[74px] items-center justify-center overflow-hidden rounded-xl bg-bg-elevated p-[7px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md"
                       >
                         <img
                           src={src}
                           alt={sticker.name || t("sticker.messageAlt")}
-                          className="max-h-full max-w-full object-contain"
+                          className="h-[60px] w-[60px] object-contain"
                           draggable={false}
                         />
                       </button>
@@ -274,17 +309,25 @@ export function EmojiPickerPopover({
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteUserSticker(sticker.sticker_id || sticker.id || "")
-                              .then(() => setStickers((prev) => prev.filter((x) => x !== sticker)))
+                              .then(() => {
+                                setStickers((prev) => prev.filter((x) => x !== sticker));
+                                notifyStickersUpdated();
+                              })
                               .catch(() => message.error(t("sticker.deleteFailed")));
                           }}
-                          className="absolute top-1 right-1 hidden h-5 w-5 items-center justify-center rounded bg-bg-surface/90 text-danger shadow group-hover:flex"
+                          className="absolute top-1 right-1 flex h-[18px] w-[18px] scale-80 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition hover:bg-danger group-hover:scale-100 group-hover:opacity-100"
                         >
-                          <Trash2 size={12} />
+                          <X size={12} />
                         </button>
                       ) : null}
                     </li>
                   );
                 })}
+                {stickers.length === 0 && !uploading ? (
+                  <li className="w-full cursor-default pt-[14px] text-center text-[13px] text-text-tertiary">
+                    {t("sticker.empty")}
+                  </li>
+                ) : null}
               </ul>
             )}
           </div>
@@ -305,16 +348,18 @@ export function EmojiPickerPopover({
         >
           <Smile size={19} />
         </button>
-        <button
-          type="button"
-          className={`flex shrink-0 items-center justify-center ${tab === "sticker" ? "bg-bg-surface" : ""}`}
-          style={{ width: 60, height: 40 }}
-          aria-label={t("sticker.tab")}
-          aria-selected={tab === "sticker"}
-          onClick={() => setTab("sticker")}
-        >
-          <ImagePlus size={19} />
-        </button>
+        {stickerCustomEnabled ? (
+          <button
+            type="button"
+            className={`flex shrink-0 items-center justify-center ${tab === "sticker" ? "bg-bg-surface" : ""}`}
+            style={{ width: 60, height: 40 }}
+            aria-label={t("sticker.tab")}
+            aria-selected={tab === "sticker"}
+            onClick={() => setTab("sticker")}
+          >
+            <ImagePlus size={19} />
+          </button>
+        ) : null}
       </div>
     </div>
   );

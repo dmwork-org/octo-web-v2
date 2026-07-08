@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
 import { message } from "@/components/ui/message";
@@ -9,8 +9,10 @@ import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   fetchMessagesPage,
+  hasForceNewerPageParam,
   messagesInfiniteQueryOptions,
   messagesQueryKey,
+  type MessagesPageParam,
 } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
@@ -287,33 +289,61 @@ function usePullupToLoadNewer(
 
   // 250ms 节流:触摸板一次滑动会触发 30+ 个 wheel event,不节流会被后端打爆。
   const lastFireAtRef = useRef(0);
+  const lastWheelAtRef = useRef(0);
   // wasNearBottom 提升到 ref,避免 useEffect 重 attach 时丢失去重状态。
   const wasNearBottomRef = useRef(false);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    wasNearBottomRef.current = isNearBottomForNewer(el);
-    let lastScrollTop = el.scrollTop;
-    const onScroll = () => {
-      const scrollingDown = el.scrollTop > lastScrollTop;
-      lastScrollTop = el.scrollTop;
+    let touchStartY = 0;
+
+    const tryFetch = () => {
       const nearBottom = isNearBottomForNewer(el);
       if (skipRef.current || !hasPrevRef.current || fetchingRef.current) return;
       if (!nearBottom) {
         wasNearBottomRef.current = false;
         return;
       }
-      if (wasNearBottomRef.current || !scrollingDown) return;
+      if (wasNearBottomRef.current) return;
       const now = performance.now();
       if (now - lastFireAtRef.current < 250) return;
       lastFireAtRef.current = now;
       wasNearBottomRef.current = true;
       fetchRef.current();
     };
+
+    const onScroll = () => {
+      if (!isNearBottomForNewer(el)) wasNearBottomRef.current = false;
+    };
+    const onWheel = (event: WheelEvent) => {
+      const now = performance.now();
+      if (event.deltaY > 0 && now - lastWheelAtRef.current > 350 && !fetchingRef.current) {
+        wasNearBottomRef.current = false;
+      }
+      lastWheelAtRef.current = now;
+      if (event.deltaY > 0) tryFetch();
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+      if (!fetchingRef.current) wasNearBottomRef.current = false;
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      const touchEndY = event.changedTouches[0]?.clientY ?? touchStartY;
+      if (touchStartY > touchEndY) tryFetch();
+    };
+
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [scrollRef]);
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [scrollRef, hasPreviousPage, skip]);
 }
 
 function highlightLocatedMessage(el: HTMLElement): void {
@@ -449,6 +479,29 @@ function useExpandLocatedFoldSession(
   }, [messageSeq, pendingLocateForChannel, renderItems, setExpandedSessions]);
 }
 
+function useClearSettledForceNewerWindow(
+  channel: Channel,
+  forceNewerWindow: boolean,
+  hasPreviousPage: boolean | undefined,
+): void {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!forceNewerWindow || hasPreviousPage) return;
+    qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(
+      messagesQueryKey(channel.channelID, channel.channelType),
+      (old) => {
+        if (!old || !hasForceNewerPageParam(old.pageParams)) return old;
+        return {
+          ...old,
+          pageParams: old.pageParams.map((pageParam) =>
+            typeof pageParam === "number" ? pageParam : pageParam.seq,
+          ),
+        };
+      },
+    );
+  }, [channel.channelID, channel.channelType, forceNewerWindow, hasPreviousPage, qc]);
+}
+
 export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
@@ -545,6 +598,8 @@ export function MessageList({ channel }: MessageListProps) {
     !!locateRequest.messageSeq &&
     locateRequest.channelId === channel.channelID &&
     locateRequest.channelType === channel.channelType;
+  const forceNewerWindow = hasForceNewerPageParam(data?.pageParams ?? []);
+  useClearSettledForceNewerWindow(channel, forceNewerWindow, hasPreviousPage);
 
   useExpandLocatedFoldSession(
     renderItems,
@@ -562,7 +617,7 @@ export function MessageList({ channel }: MessageListProps) {
     !!hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    pendingLocateForChannel,
+    pendingLocateForChannel || (forceNewerWindow && !!hasPreviousPage),
   );
   usePullupToLoadNewer(
     scrollRef,
@@ -667,6 +722,11 @@ export function MessageList({ channel }: MessageListProps) {
           );
         })}
         {typing ? <TypingIndicator info={typing} /> : null}
+        {isFetchingPreviousPage ? (
+          <div className="flex justify-center py-2 text-xs text-text-tertiary" aria-live="polite">
+            {t("messageList.loadingNewer")}
+          </div>
+        ) : null}
       </div>
       <ScrollToBottomButton
         visible={scrollBtn.visible || isJumpingToLatest}

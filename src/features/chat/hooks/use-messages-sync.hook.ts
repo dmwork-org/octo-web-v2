@@ -14,7 +14,11 @@ import WKSDK, {
 } from "wukongimjssdk";
 import { spaceStore } from "@/features/base/stores/space";
 import { isMessageOfSpace } from "@/features/base/lib/space-filter";
-import { messagesQueryKey } from "@/features/chat/queries/messages.query";
+import {
+  hasForceNewerPageParam,
+  messagesQueryKey,
+  type MessagesPageParam,
+} from "@/features/chat/queries/messages.query";
 import { TypingManager } from "@/features/chat/services/typing-manager";
 import {
   isCacheableChatMessage,
@@ -73,7 +77,7 @@ export function useMessagesSync(channel: Channel | null) {
     const key = messagesQueryKey(channel.channelID, channel.channelType);
 
     const updateInPlace = (predicate: (m: Message) => boolean, update: (m: Message) => void) => {
-      qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
+      qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(key, (prev) => {
         if (!prev) return prev;
         let touched = false;
         for (const page of prev.pages) {
@@ -108,10 +112,12 @@ export function useMessagesSync(channel: Channel | null) {
       if (TypingManager.hasTyping(message.channel)) {
         TypingManager.removeTyping(message.channel);
       }
-      qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
+      qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(key, (prev) => {
         if (!prev) {
           return { pages: [[message]], pageParams: [0] };
         }
+        // Located windows must page through the missing gap before live tail messages join cache.
+        if (hasForceNewerPageParam(prev.pageParams)) return prev;
         for (const page of prev.pages) {
           if (page.some((m) => isSameMessageIdentity(m, message))) return prev;
         }
@@ -192,7 +198,7 @@ export function useMessagesSync(channel: Channel | null) {
     //
     // **去重**(issue #216 + #222):若 conversation latest seq 已超过本地 cache,
     // 即使 30s 内也必须补差;否则才用时间窗限流,避免切走切回反复打后端。
-    const prevData = qc.getQueryData<InfiniteData<Message[], number>>(key);
+    const prevData = qc.getQueryData<InfiniteData<Message[], MessagesPageParam>>(key);
     const channelKey = `${channel.channelType}::${channel.channelID}`;
     const lastSyncAt = lastSyncByChannel.get(channelKey) ?? 0;
     const latestMessageSeq =
@@ -217,8 +223,10 @@ export function useMessagesSync(channel: Channel | null) {
             pullMode: PullMode.Down,
           });
           if (!latest || latest.length === 0) return;
-          qc.setQueryData<InfiniteData<Message[], number>>(key, (prev) => {
+          qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(key, (prev) => {
             if (!prev || prev.pages.length === 0) return prev;
+            // Same guard as messageListener: do not pollute the locate-window newer cursor.
+            if (hasForceNewerPageParam(prev.pageParams)) return prev;
             const firstPage = prev.pages[0];
             const existing = prev.pages.flat();
             const newOnes = latest

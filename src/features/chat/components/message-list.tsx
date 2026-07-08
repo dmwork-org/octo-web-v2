@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChannelTypePerson, type Channel, type Message } from "wukongimjssdk";
 import { message } from "@/components/ui/message";
@@ -9,9 +9,10 @@ import { isMessageOfSpace } from "@/features/base/lib/space-filter";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
 import {
   fetchMessagesPage,
-  isForceNewerPageParam,
+  hasForceNewerPageParam,
   messagesInfiniteQueryOptions,
   messagesQueryKey,
+  type MessagesPageParam,
 } from "@/features/chat/queries/messages.query";
 import { useMessagesSync } from "@/features/chat/hooks/use-messages-sync.hook";
 import { useClearUnreadOnEnter } from "@/features/chat/hooks/use-clear-unread.hook";
@@ -317,7 +318,7 @@ function usePullupToLoadNewer(
     };
     const onWheel = (event: WheelEvent) => {
       const now = performance.now();
-      if (now - lastWheelAtRef.current > 350 && !fetchingRef.current) {
+      if (event.deltaY > 0 && now - lastWheelAtRef.current > 350 && !fetchingRef.current) {
         wasNearBottomRef.current = false;
       }
       lastWheelAtRef.current = now;
@@ -478,6 +479,29 @@ function useExpandLocatedFoldSession(
   }, [messageSeq, pendingLocateForChannel, renderItems, setExpandedSessions]);
 }
 
+function useClearSettledForceNewerWindow(
+  channel: Channel,
+  forceNewerWindow: boolean,
+  hasPreviousPage: boolean | undefined,
+): void {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!forceNewerWindow || hasPreviousPage) return;
+    qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(
+      messagesQueryKey(channel.channelID, channel.channelType),
+      (old) => {
+        if (!old || !hasForceNewerPageParam(old.pageParams)) return old;
+        return {
+          ...old,
+          pageParams: old.pageParams.map((pageParam) =>
+            typeof pageParam === "number" ? pageParam : pageParam.seq,
+          ),
+        };
+      },
+    );
+  }, [channel.channelID, channel.channelType, forceNewerWindow, hasPreviousPage, qc]);
+}
+
 export function MessageList({ channel }: MessageListProps) {
   const t = useT();
   useMessagesSync(channel);
@@ -574,7 +598,8 @@ export function MessageList({ channel }: MessageListProps) {
     !!locateRequest.messageSeq &&
     locateRequest.channelId === channel.channelID &&
     locateRequest.channelType === channel.channelType;
-  const forceNewerWindow = (data?.pageParams ?? []).some(isForceNewerPageParam);
+  const forceNewerWindow = hasForceNewerPageParam(data?.pageParams ?? []);
+  useClearSettledForceNewerWindow(channel, forceNewerWindow, hasPreviousPage);
 
   useExpandLocatedFoldSession(
     renderItems,

@@ -39,6 +39,9 @@ export function getNewerMessagesPageParam(
     if (m.messageSeq > newest) newest = m.messageSeq;
   }
   if (newest <= 0) return undefined;
+  if (opts?.forceNewer && latestMessageSeq > 0 && newest >= latestMessageSeq) {
+    return undefined;
+  }
   if (!opts?.forceNewer && (latestMessageSeq <= 0 || newest >= latestMessageSeq)) {
     return undefined;
   }
@@ -60,6 +63,10 @@ export function isForceNewerPageParam(pageParam: unknown): boolean {
     "forceNewer" in pageParam &&
     pageParam.forceNewer === true
   );
+}
+
+export function hasForceNewerPageParam(pageParams: readonly unknown[]): boolean {
+  return pageParams.some(isForceNewerPageParam);
 }
 
 export async function fetchMessagesPage(

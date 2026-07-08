@@ -55,6 +55,15 @@ import { t } from "@/lib/i18n/instance";
 import { useMessagesSearchEnabled } from "@/features/base/queries/appconfig.query";
 import { supportsChannelSearch } from "@/features/chat/lib/channel-search";
 import { useGroupSubscribers } from "@/features/chat/hooks/use-group-subscribers.hook";
+import {
+  parseThreadTimeMs,
+  threadActiveTime,
+  threadActiveTimeMs,
+} from "@/features/chat/lib/thread-active-time";
+import {
+  refreshThreadListAfterSend,
+  threadListQueryKey,
+} from "@/features/chat/lib/thread-list-cache";
 
 interface ThreadListPanelProps {
   open: boolean;
@@ -91,7 +100,7 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
   useChannelInfoTick();
   const parentDisbanded = isChannelDisbanded(new Channel(groupNo, ChannelTypeGroup));
 
-  const queryKey = ["chat", "thread-list", groupNo];
+  const queryKey = threadListQueryKey(groupNo);
   const { data, isLoading, error } = useQuery({
     queryKey,
     // status:"all" 必传 — 默认后端只返活跃子区,thread panel 需要活跃 + 已归档两组
@@ -152,11 +161,9 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
       followedThreadChannels.has(buildThreadChannelId(groupNo, th.short_id)) || !!th.is_followed,
   }));
   // 排序口径:last_message_at(有消息时)→ updated_at → created_at(对齐老仓 threadSortTime)
-  const threadSortTime = (th: ThreadRaw): number => {
-    const raw = th.last_message_at || th.updated_at || th.created_at;
-    return raw ? new Date(raw).getTime() : 0;
-  };
-  const threads = threadsWithFollow.slice().sort((a, b) => threadSortTime(b) - threadSortTime(a));
+  const threads = threadsWithFollow
+    .slice()
+    .sort((a, b) => threadActiveTimeMs(b) - threadActiveTimeMs(a));
   const visibleThreads = threads.filter((th) => th.status !== THREAD_STATUS_DELETED);
   const activeThreads = visibleThreads.filter(
     (th) => !th.status || th.status === THREAD_STATUS_ACTIVE,
@@ -204,7 +211,6 @@ export function ThreadListPanel({ open, groupNo, onClose }: ThreadListPanelProps
           thread={activeThread}
           onBack={() => setView("list")}
           onClose={close}
-          onInvalidate={invalidate}
           onThreadUpdated={(patch) =>
             setActiveThread((prev) => (prev ? { ...prev, ...patch } : prev))
           }
@@ -363,7 +369,6 @@ function DetailView({
   thread,
   onBack,
   onClose,
-  onInvalidate,
   onThreadUpdated,
   onAfterDelete,
   parentDisbanded,
@@ -372,7 +377,6 @@ function DetailView({
   thread: ThreadRaw;
   onBack: () => void;
   onClose: () => void;
-  onInvalidate: () => void;
   onThreadUpdated?: (patch: Partial<ThreadRaw>) => void;
   onAfterDelete: () => void;
   parentDisbanded: boolean;
@@ -412,7 +416,7 @@ function DetailView({
   const renameMu = useMutation({
     mutationFn: (name: string) => updateThread(groupNo, thread.short_id, { name }),
     onSuccess: (_data, name) => {
-      onInvalidate();
+      void qc.invalidateQueries({ queryKey: threadListQueryKey(groupNo) });
       onThreadUpdated?.({ name });
       setRenameOpen(false);
       message.success(t("threadPanelLocal.toast.updated"));
@@ -443,7 +447,7 @@ function DetailView({
     },
     onSuccess: () => {
       setArchiveConfirmOpen(false);
-      onInvalidate();
+      void qc.invalidateQueries({ queryKey: threadListQueryKey(groupNo) });
       void qc.invalidateQueries({ queryKey: sidebarFollowQueryKey(spaceId) });
       const nextStatus =
         archiveAction === "archive" ? THREAD_STATUS_ARCHIVED : THREAD_STATUS_ACTIVE;
@@ -467,18 +471,13 @@ function DetailView({
   });
 
   /**
-   * 已归档子区发消息后,后端会自动 reactivate 为 Active(对齐上游 23b59a41)。
-   * Composer onMessageSent → 短 delay 后 invalidate thread query 拿权威状态。
-   * 延迟是为了等后端事务落盘,避免立即 GET 仍返 Archived。
+   * 发消息后先本地刷新子区活跃时间,让返回列表时立即重排。
+   * 600ms 后再拉权威状态,避开后端事务未落盘时的旧列表覆盖。
    */
-  const handleMessageSent = isArchived
-    ? () => {
-        setTimeout(() => {
-          onInvalidate();
-          onThreadUpdated?.({ status: THREAD_STATUS_ACTIVE });
-        }, 600);
-      }
-    : undefined;
+  const handleMessageSent = () => {
+    const result = refreshThreadListAfterSend(qc, threadChannel, { reactivate: isArchived });
+    if (result) onThreadUpdated?.(result.patch);
+  };
 
   return (
     <>
@@ -918,7 +917,7 @@ function ThreadItem({
             </button>
           ) : null}
           <span className="text-[12px] text-text-tertiary">
-            {formatRelativeTime(thread.updated_at)}
+            {formatRelativeTime(threadActiveTime(thread))}
           </span>
         </div>
       </div>
@@ -963,9 +962,11 @@ function getCreatorName(thread: ThreadRaw): string {
  */
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return "";
-  const date = new Date(dateStr);
+  const timestamp = parseThreadTimeMs(dateStr);
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = now.getTime() - timestamp;
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);

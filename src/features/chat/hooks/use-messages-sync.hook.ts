@@ -30,6 +30,8 @@ export const SYNC_DEDUP_MS = 30_000;
 const lastSyncByChannel = new Map<string, number>();
 
 interface SyncGapMessage {
+  clientMsgNo?: string | null;
+  messageID?: string | number | null;
   messageSeq?: number | null;
 }
 
@@ -44,13 +46,33 @@ function newestCachedMessageSeq(pages: SyncGapMessage[][]): number {
   return newest;
 }
 
+function hasStableMessageIdentity(message: SyncGapMessage): boolean {
+  return (
+    !!message.clientMsgNo?.trim() ||
+    !!String(message.messageID ?? "").trim() ||
+    (message.messageSeq ?? 0) > 0
+  );
+}
+
+function hasCachedMessage(pages: SyncGapMessage[][], message: SyncGapMessage): boolean {
+  return pages.some((page) => page.some((cached) => isSameMessageIdentity(cached, message)));
+}
+
 export function shouldSyncMessagesOnEnter(args: {
   pages: SyncGapMessage[][];
+  latestMessage?: SyncGapMessage | null;
   latestMessageSeq: number;
   now: number;
   lastSyncAt: number;
 }): boolean {
   if (args.pages.length === 0) return false;
+  if (
+    args.latestMessage &&
+    hasStableMessageIdentity(args.latestMessage) &&
+    !hasCachedMessage(args.pages, args.latestMessage)
+  ) {
+    return true;
+  }
   if (args.latestMessageSeq > newestCachedMessageSeq(args.pages)) return true;
   return args.now - args.lastSyncAt > SYNC_DEDUP_MS;
 }
@@ -201,13 +223,14 @@ export function useMessagesSync(channel: Channel | null) {
     const prevData = qc.getQueryData<InfiniteData<Message[], MessagesPageParam>>(key);
     const channelKey = `${channel.channelType}::${channel.channelID}`;
     const lastSyncAt = lastSyncByChannel.get(channelKey) ?? 0;
-    const latestMessageSeq =
-      WKSDK.shared().conversationManager.findConversation(channel)?.lastMessage?.messageSeq ?? 0;
+    const latestMessage = WKSDK.shared().conversationManager.findConversation(channel)?.lastMessage;
+    const latestMessageSeq = latestMessage?.messageSeq ?? 0;
     const now = Date.now();
     if (
       prevData &&
       shouldSyncMessagesOnEnter({
         pages: prevData.pages,
+        latestMessage,
         latestMessageSeq,
         now,
         lastSyncAt,

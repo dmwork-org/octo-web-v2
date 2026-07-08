@@ -39,6 +39,16 @@ export async function addUserSticker(req: {
   });
 }
 
+export async function collectUserSticker(req: {
+  path: string;
+  placeholder?: string;
+}): Promise<StickerItem> {
+  return api<StickerItem>("sticker/user/collect", {
+    method: "POST",
+    body: req,
+  });
+}
+
 export async function deleteUserSticker(stickerId: string): Promise<void> {
   await api(`sticker/user/${encodeURIComponent(stickerId)}`, { method: "DELETE" });
 }

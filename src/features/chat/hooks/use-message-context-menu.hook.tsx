@@ -18,6 +18,7 @@ import {
   Forward,
   Image as ImageIcon,
   MessageSquarePlus,
+  ImagePlus,
   RotateCcw,
   Trash2,
 } from "lucide-react";
@@ -35,9 +36,16 @@ import {
   revokeMessage,
 } from "@/features/base/api/endpoints/message.api";
 import { createThread } from "@/features/base/api/endpoints/group.api";
+import { collectUserSticker } from "@/features/base/api/endpoints/sticker.api";
+import { notifyStickersUpdated } from "@/features/chat/lib/sticker-events";
 import { isConversationDisbanded } from "@/features/chat/lib/group-disband";
 import { followThread } from "@/features/base/api/endpoints/follow.api";
+import {
+  isBitmapStickerFormat,
+  type LottieStickerContent,
+} from "@/features/base/im/lottie-sticker-content";
 import { MessageContentTypeConst } from "@/features/base/im/content-types";
+import { useStickerCustomEnabled } from "@/features/base/queries/appconfig.query";
 import {
   RichTextBlockType,
   createRichTextContent,
@@ -97,6 +105,7 @@ export function useMessageContextMenu(message: Message): {
   const qc = useQueryClient();
   const spaceId = useStore(spaceStore, (s) => s.spaceId);
   const me = useStore(authStore, (s) => s.user?.uid ?? null);
+  const stickerCustomEnabled = useStickerCustomEnabled();
   const selectionActive = useStore(chatSelectionStore, (s) => s.active);
   const selectionRootRef = useRef<Node | null>(null);
   const selectionSnapshotRef = useRef<SelectionSnapshot | null>(null);
@@ -273,6 +282,25 @@ export function useMessageContextMenu(message: Message): {
       ),
   });
 
+  const collectStickerMu = useMutation({
+    mutationFn: (content: LottieStickerContent) =>
+      collectUserSticker({
+        path: content.url,
+        placeholder: content.placeholder || undefined,
+      }),
+    onSuccess: (sticker) => {
+      notifyStickersUpdated(sticker);
+      appMessage.success(t("sticker.collectSuccess"));
+    },
+    onError: (err) => {
+      if (getApiErrorCode(err) === "err.server.sticker.quota_exceeded") {
+        appMessage.error(t("sticker.quotaExceeded"));
+        return;
+      }
+      appMessage.error(extractApiErrorMessage(err, t("sticker.collectFailed")));
+    },
+  });
+
   const imageUrl = targetImageUrl || getSingleCopyableImageUrl(message);
   const copyableImageBlocks = getCopyableImageBlocks(message);
 
@@ -332,6 +360,14 @@ export function useMessageContextMenu(message: Message): {
           .then(() => appMessage.success(t("messageRow.toast.imageCopied")))
           .catch((err: Error) => appMessage.error(err.message || t("messageRow.toast.copyFailed")));
       },
+    });
+  }
+  const collectableSticker = getCollectableStickerContent(message, stickerCustomEnabled);
+  if (collectableSticker) {
+    items.push({
+      label: t("messageRow.menu.addSticker"),
+      icon: <ImagePlus size={13} />,
+      onClick: () => collectStickerMu.mutate(collectableSticker),
     });
   }
   if (replyAllowed) {
@@ -551,4 +587,27 @@ function canCreateThread(message: Message): boolean {
   if (isConversationDisbanded(message.channel)) return false;
   // 子区里再创建子区不合理(老仓 contextmenus.createThread 限 ChannelTypeGroup)
   return true;
+}
+
+function getCollectableStickerContent(
+  message: Message,
+  stickerCustomEnabled: boolean,
+): LottieStickerContent | null {
+  if (!stickerCustomEnabled) return null;
+  if (message.contentType !== MessageContentTypeConst.lottieSticker) return null;
+  const content = message.content as LottieStickerContent;
+  if (!content.url) return null;
+  if (!isBitmapStickerFormat(content.format)) return null;
+  return content;
+}
+
+function getApiErrorCode(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  const err = error as {
+    code?: unknown;
+    data?: { code?: unknown };
+    response?: { _data?: { code?: unknown } };
+  };
+  const code = err.code ?? err.data?.code ?? err.response?._data?.code;
+  return typeof code === "string" ? code : "";
 }

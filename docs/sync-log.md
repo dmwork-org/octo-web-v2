@@ -578,3 +578,26 @@ PreToolUse hook 真触发验证通过:
   - `corepack pnpm exec vp lint` 触及文件通过。
   - `git diff --check` 通过。
   - 后续由项目负责人在远程分支上做浏览器验证。
+
+## 2026-07-08 — Batch 6 org main 增量搬运
+
+- 分支:`codex/upstream-batch-6-port`
+- 老仓对照范围:`4c4e9191..f12c0f95`
+- 本批覆盖上游 SHA:
+  - `1f5b022c` 通讯录 AI 条目显示在线状态。
+  - `2035097f` 在线 badge 离线 1 小时内显示短时间胶囊。
+  - `a8befe22` 自定义贴纸入口受 `sticker_custom_enabled` appconfig 灰度控制。
+  - `c1155f41` 位图贴纸消息右键“添加到我的贴纸”,收藏成功后同步已加载贴纸面板。
+  - `0c38da2c` 多人个人总结待提交前支持编辑个人草稿。
+- 代码变更:
+  - appconfig 契约补 `sticker_custom_enabled`,新增 `useStickerCustomEnabled()`。
+  - 表情面板隐藏搜索入口;贴纸 tab 受灰度开关控制,上传入口对齐老仓网格首格虚线加号交互。
+  - 新增 `sticker/user/collect` API 和 `chat:stickers-updated` 事件;上传 / 删除 / 右键收藏后同步已加载的贴纸列表。
+  - `ConversationOnlineBadge` 支持在线绿点与离线短胶囊;通讯录只给 AI 条目预取并展示在线态。
+  - Summary API 补 `PUT /summaries/{taskId}/personal-draft`;待提交个人总结区新增编辑态并保存草稿。
+- 暂缓:
+  - `4d595118` / `1297da9f` / `93659b58` / `459953cc` / `f12c0f95` 均属于 `@octo/docs` 文档/协同表格能力;本仓无 docs 包或路由面,记录在 `docs/upstream-batch-6-plan.md`,暂不搬代码。
+- 验证:
+  - `npx tsc -b` 通过。
+  - `pnpm check` 通过,仅剩既有 `src/features/chat/file-preview/renderers/pdf-renderer.tsx` unbound-method warning。
+  - `pnpm test -- --run src/features/chat/lib/conversation-online.test.ts src/features/summary/components/citation-text.test.tsx` 通过,2 files / 4 tests。

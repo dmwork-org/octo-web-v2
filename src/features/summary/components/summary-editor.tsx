@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/semi-bridge/button";
 import { message } from "@/components/ui/message";
-import { editSummary, personalEditSummary } from "@/features/summary/api/summary.api";
+import {
+  editSummary,
+  personalDraftSummary,
+  personalEditSummary,
+} from "@/features/summary/api/summary.api";
 import { t } from "@/lib/i18n/instance";
 import { useT } from "@/lib/i18n/use-t";
 
@@ -10,7 +14,7 @@ interface SummaryEditorProps {
   baseResultId?: number;
   initialContent: string;
   title: string;
-  mode?: "team" | "personal";
+  mode?: "team" | "personal" | "personal_draft";
   onSave: () => void;
   onCancel: () => void;
 }
@@ -81,7 +85,8 @@ export function SummaryEditor({
     }
     setSaving(true);
     try {
-      await personalEditSummary(taskId, content);
+      const savePersonal = mode === "personal_draft" ? personalDraftSummary : personalEditSummary;
+      await savePersonal(taskId, content);
       message.success(t("summary.editor.saveSuccess"));
       onSave();
     } catch (err) {

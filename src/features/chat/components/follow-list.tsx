@@ -379,7 +379,7 @@ function CompactRow({
         ) : (
           <ChannelAvatar channel={channel} size={22} title={title} />
         )}
-        {showOnline ? <ConversationOnlineBadge compact /> : null}
+        {showOnline ? <ConversationOnlineBadge compact info={channelInfo} /> : null}
         {hasUnread ? (
           <span
             aria-hidden

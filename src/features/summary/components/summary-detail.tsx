@@ -397,8 +397,11 @@ function ParticipantReportsPanel({
   personalCitations,
   showMyPendingSubmit,
   canEditPersonal,
+  canEditPersonalDraft,
   submitting,
+  editingPersonalDraft,
   onSubmitMine,
+  onEditPersonalDraftChange,
   onSaved,
 }: {
   taskId: number;
@@ -409,8 +412,11 @@ function ParticipantReportsPanel({
   personalCitations: MemberStatus["citations"];
   showMyPendingSubmit: boolean;
   canEditPersonal: boolean;
+  canEditPersonalDraft: boolean;
   submitting: boolean;
+  editingPersonalDraft: boolean;
   onSubmitMine: () => void;
+  onEditPersonalDraftChange: (editing: boolean) => void;
   onSaved: () => void;
 }) {
   const tr = useT();
@@ -528,26 +534,56 @@ function ParticipantReportsPanel({
       {submittedSorted.map(renderContent)}
       {showMyPendingSubmit ? (
         <div className="rounded-md border border-info/30 bg-info/10 p-4">
-          <div className="flex min-h-8 items-center gap-2">
-            <span className="truncate text-sm font-semibold text-text-primary">
-              {tr("summary.detail.mySubmitRowName")}
-            </span>
-            <Button
-              type="primary"
-              theme="solid"
-              size="small"
-              className="ml-auto bg-info font-semibold text-white shadow-sm hover:bg-info/90"
-              loading={submitting}
-              onClick={onSubmitMine}
-            >
-              {tr("summary.detail.submitToAll")}
-            </Button>
-          </div>
-          {personalContent.trim() ? (
+          {editingPersonalDraft ? (
             <div className="mt-3">
-              <CitationText content={personalContent} citations={personalCitations ?? []} />
+              <SummaryEditor
+                mode="personal_draft"
+                taskId={taskId}
+                initialContent={personalContent}
+                title={tr("summary.detail.mySummaryPlain")}
+                onSave={() => {
+                  onEditPersonalDraftChange(false);
+                  onSaved();
+                }}
+                onCancel={() => onEditPersonalDraftChange(false)}
+              />
             </div>
-          ) : null}
+          ) : (
+            <>
+              <div className="flex min-h-8 items-center gap-2">
+                <span className="truncate text-sm font-semibold text-text-primary">
+                  {tr("summary.detail.mySubmitRowName")}
+                </span>
+                {canEditPersonalDraft ? (
+                  <Button
+                    type="tertiary"
+                    theme="borderless"
+                    size="small"
+                    className="ml-auto"
+                    onClick={() => onEditPersonalDraftChange(true)}
+                  >
+                    <Edit3 size={13} />
+                    {tr("summary.detail.editMyReport")}
+                  </Button>
+                ) : null}
+                <Button
+                  type="primary"
+                  theme="solid"
+                  size="small"
+                  className={canEditPersonalDraft ? "" : "ml-auto"}
+                  loading={submitting}
+                  onClick={onSubmitMine}
+                >
+                  {tr("summary.detail.submitToAll")}
+                </Button>
+              </div>
+              {personalContent.trim() ? (
+                <div className="mt-3">
+                  <CitationText content={personalContent} citations={personalCitations ?? []} />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
       {pendingOthers.map((member) => (
@@ -593,6 +629,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
   const [scheduleConfigOpen, setScheduleConfigOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [editingTeamSummary, setEditingTeamSummary] = useState(false);
+  const [editingPersonalDraft, setEditingPersonalDraft] = useState(false);
   const [regenerateTopic, setRegenerateTopic] = useState("");
   const { data, isLoading, isFetching, error } = useQuery(summaryDetailQueryOptions(taskId));
   const scheduleId = data?.schedule_id && data.schedule_id > 0 ? data.schedule_id : null;
@@ -1003,7 +1040,7 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
                 <>
                   {isPersonalMode ? (
                     <>
-                      {isMultiCollab && showMyPendingSubmit ? (
+                      {isMultiCollab && showMyPendingSubmit && !editingPersonalDraft ? (
                         <div className="flex items-center gap-3 rounded-md border border-l-4 border-info/30 border-l-info bg-info/10 px-4 py-3 text-sm text-text-primary">
                           <MessageSquareText size={16} className="shrink-0 text-info" />
                           <span className="min-w-0 flex-1">
@@ -1094,8 +1131,11 @@ export function SummaryDetail({ taskId, onDeleted }: SummaryDetailProps) {
                             personalCitations={personalResult?.citations ?? []}
                             showMyPendingSubmit={showMyPendingSubmit}
                             canEditPersonal={canEditPersonal && isCompleted}
+                            canEditPersonalDraft={canEditPersonal}
                             submitting={submitPersonalMu.isPending}
+                            editingPersonalDraft={editingPersonalDraft}
                             onSubmitMine={submitMySummary}
+                            onEditPersonalDraftChange={setEditingPersonalDraft}
                             onSaved={invalidate}
                           />
                         </>

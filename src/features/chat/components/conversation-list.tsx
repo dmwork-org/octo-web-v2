@@ -245,7 +245,7 @@ function ConversationRow({
             <GroupCornerIcon size={10} />
           </span>
         ) : showOnline ? (
-          <ConversationOnlineBadge />
+          <ConversationOnlineBadge info={info} />
         ) : null}
       </div>
 

@@ -1045,6 +1045,7 @@ export function Composer({ channel, inputNotice, onMessageSent }: ComposerProps)
                 <TooltipTrigger asChild>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={onClickMention}
                     aria-label={tt("composer.mentionAria")}
                     className="flex h-6 w-6 items-center justify-center text-text-tertiary transition-colors hover:text-text-primary"

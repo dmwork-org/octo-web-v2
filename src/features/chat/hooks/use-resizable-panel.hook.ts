@@ -21,6 +21,13 @@ export interface UseResizablePanelOptions {
    * - 'left'  = splitter 在 panel 左侧(thread/file panel 类),拖左 = 变宽 → delta = startX - clientX
    */
   edge: "left" | "right";
+  /**
+   * 可选:把当前 width 实时写到 documentElement 上的 CSS 变量。
+   * 用于让 electron 顶栏拼色跟随 sidebar 拖拽同步(见 index.css 中
+   * html.octo-desktop 顶栏拼色渐变)。**只在 html.octo-desktop 时写**,
+   * 纯 web 完全不 touch document.
+   */
+  cssVarName?: string;
 }
 
 export interface ResizablePanelApi {
@@ -103,12 +110,22 @@ function useCleanupDragListeners(
 }
 
 export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePanelApi {
-  const { storageKey, defaultWidth, minWidth, getMaxWidth, edge } = opts;
+  const { storageKey, defaultWidth, minWidth, getMaxWidth, edge, cssVarName } = opts;
   const clampInit = Math.max(
     minWidth,
     Math.min(getMaxWidth(typeof window !== "undefined" ? window.innerWidth : 1920), defaultWidth),
   );
   const initial = safeReadStored(storageKey, minWidth, 99999, clampInit);
+
+  // 只在 electron 壳子里同步 CSS var,浏览器完全不 touch document.
+  const writeCssVar = useCallback(
+    (w: number) => {
+      if (!cssVarName || typeof document === "undefined") return;
+      if (!document.documentElement.classList.contains("octo-desktop")) return;
+      document.documentElement.style.setProperty(cssVarName, `${w}px`);
+    },
+    [cssVarName],
+  );
 
   const [width, setWidth] = useState<number>(initial);
   const [isDragging, setIsDragging] = useState(false);
@@ -135,12 +152,15 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // 首帧同步一次 css var(避免拖之前顶栏拼色用默认 fallback)
+    writeCssVar(lastWidthRef.current);
     const applyWidth = (next: number) => {
       const clamped = clamp(next);
       lastWidthRef.current = clamped;
       setWidth(clamped);
       const el = panelRef.current;
       if (el) el.style.width = `${clamped}px`;
+      writeCssVar(clamped);
     };
     const onPanelWidth = (event: Event) => {
       const detail = (event as CustomEvent<{ key?: string; width?: number }>).detail;
@@ -158,7 +178,7 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
       window.removeEventListener(PANEL_WIDTH_EVENT, onPanelWidth);
       window.removeEventListener("storage", onStorage);
     };
-  }, [clamp, storageKey]);
+  }, [clamp, storageKey, writeCssVar]);
 
   const onSplitterMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -177,6 +197,7 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
         lastWidthRef.current = next;
         const el = panelRef.current;
         if (el) el.style.width = `${next}px`;
+        writeCssVar(next);
       };
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
@@ -192,7 +213,7 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [clamp, edge, getMaxWidth, storageKey],
+    [clamp, edge, getMaxWidth, storageKey, writeCssVar],
   );
 
   const onSplitterDoubleClick = useCallback(() => {
@@ -203,7 +224,8 @@ export function useResizablePanel(opts: UseResizablePanelOptions): ResizablePane
     safeWriteStored(storageKey, next);
     const el = panelRef.current;
     if (el) el.style.width = `${next}px`;
-  }, [clamp, defaultWidth, getMaxWidth, storageKey]);
+    writeCssVar(next);
+  }, [clamp, defaultWidth, getMaxWidth, storageKey, writeCssVar]);
 
   return { width, isDragging, panelRef, onSplitterMouseDown, onSplitterDoubleClick };
 }

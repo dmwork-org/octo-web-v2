@@ -28,11 +28,18 @@ function extractBody(msg: Message): string {
   return safeAiServiceText(body, t("message.aiServiceUnavailable"));
 }
 
-function iconForChannel(channel: Channel, baseURL: string): string {
+function iconForChannel(channel: Channel, baseURL: string, parentGroupNo?: string): string {
   if (channel.channelType === ChannelTypePerson) {
     return `${baseURL}/users/${channel.channelID}/avatar`;
   }
-  if (channel.channelType === ChannelTypeGroup || channel.channelType === CHANNEL_TYPE_THREAD) {
+  if (channel.channelType === CHANNEL_TYPE_THREAD) {
+    // Threads don't have their own avatar. Fall back to the parent group's
+    // avatar so both electron banners and web notifications show something
+    // meaningful instead of the app's default icon (or an empty tile).
+    if (parentGroupNo) return `${baseURL}/groups/${parentGroupNo}/avatar`;
+    return "";
+  }
+  if (channel.channelType === ChannelTypeGroup) {
     return `${baseURL}/groups/${channel.channelID}/avatar`;
   }
   return "";
@@ -93,7 +100,7 @@ export function useDesktopNotifications(uid: string | null) {
         (info?.orgData as { displayName?: string } | undefined)?.displayName ||
         msg.channel.channelID;
       const body = extractBody(msg);
-      const icon = iconForChannel(msg.channel, baseURL);
+      const icon = iconForChannel(msg.channel, baseURL, parentNo);
 
       sendNotification({
         title,

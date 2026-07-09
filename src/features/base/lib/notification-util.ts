@@ -94,7 +94,16 @@ export function sendNotification(opts: SendNotificationOptions): void {
     if (opts.onClick) {
       noti.onclick = () => {
         noti.close();
-        if (typeof window !== "undefined") window.focus();
+        if (typeof window !== "undefined") {
+          window.focus();
+          // Electron: browser window.focus() is a no-op when the process is
+          // in the background. Ask the main process to raise the window and
+          // steal focus so the click actually surfaces the app.
+          const desktopFocus = (
+            window as unknown as { octoDesktop?: { focusWindow?: () => Promise<unknown> } }
+          ).octoDesktop?.focusWindow;
+          if (desktopFocus) void desktopFocus();
+        }
         opts.onClick?.();
       };
     }

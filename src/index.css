@@ -200,3 +200,47 @@ body {
 *:not(.use-native-scrollbar)::-webkit-scrollbar-thumb:hover {
   background: rgba(28, 28, 35, 0.25);
 }
+
+/*
+ * Electron desktop shell — mac hidden-inset traffic lights float over the
+ * nav rail. Keep the app at full height, reserve only the rail's top band
+ * for window controls, and let the app headers act as drag regions.
+ *
+ * Applied via html.octo-desktop set in main.tsx; browser users never see
+ * any of this.
+ */
+html.octo-desktop nav[data-app-sidebar] > :first-child {
+  padding-top: 54px;
+}
+
+html.octo-desktop nav[data-app-sidebar] {
+  border-right-color: transparent;
+  -webkit-app-region: drag;
+}
+
+html.octo-desktop nav[data-app-sidebar]::after {
+  content: "";
+  position: absolute;
+  top: 48px;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-brand-tint);
+  pointer-events: none;
+}
+
+html.octo-desktop
+  nav[data-app-sidebar]
+  :is(a, button, input, select, textarea, [role="button"], [data-desktop-no-drag]) {
+  -webkit-app-region: no-drag;
+}
+
+html.octo-desktop [data-desktop-window-drag] {
+  -webkit-app-region: drag;
+}
+
+html.octo-desktop
+  [data-desktop-window-drag]
+  :is(a, button, input, select, textarea, [role="button"], [data-desktop-no-drag]) {
+  -webkit-app-region: no-drag;
+}

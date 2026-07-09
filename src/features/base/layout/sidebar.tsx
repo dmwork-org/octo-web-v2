@@ -237,6 +237,7 @@ export function Sidebar() {
     <>
       <nav
         aria-label={t("base.sidebar.nav")}
+        data-app-sidebar
         className="relative z-10 flex h-screen w-14 flex-shrink-0 flex-col items-center overflow-visible border-r border-brand-tint bg-bg-navrail"
       >
         <div className="flex flex-shrink-0 flex-col items-center pt-4 pb-2">

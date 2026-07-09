@@ -136,6 +136,7 @@ export function ConnectionStatusBadge() {
 
   return (
     <div
+      data-desktop-no-drag
       className="relative flex items-center gap-1 px-1"
       style={{ cursor }}
       onMouseEnter={() => setHovered(true)}

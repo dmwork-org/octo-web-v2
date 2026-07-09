@@ -18,6 +18,13 @@ import { registerContentTypes } from "./features/base/im/register-content";
 import { loadEmojiManifest } from "./features/base/emoji/emoji-data";
 import "./index.css";
 
+// Mark the document when we're mounted inside the Electron shell (preload
+// exposes window.octoDesktop) so CSS can push top-left content away from
+// the mac hidden-inset traffic lights. Zero effect in a plain browser.
+if (typeof window !== "undefined" && "octoDesktop" in window) {
+  document.documentElement.classList.add("octo-desktop");
+}
+
 const PRELOAD_ERROR_RELOAD_KEY = "octo:preload-error-reload-at";
 
 window.addEventListener("vite:preloadError", (event) => {

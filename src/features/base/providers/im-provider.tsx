@@ -5,6 +5,8 @@ import { authActions, authStore } from "@/features/base/stores/auth";
 import { imConnectionActions, type ImConnectionStatus } from "@/features/base/stores/im-connection";
 import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
+import { useDesktopImHandoff } from "@/features/chat/hooks/use-desktop-im-handoff.hook";
+import { useDesktopUnreadBadge } from "@/features/chat/hooks/use-desktop-unread-badge.hook";
 import { useFaviconUnreadBadge } from "@/features/chat/hooks/use-favicon-unread-badge.hook";
 import { useCmdSync } from "@/features/chat/hooks/use-cmd-sync.hook";
 import { TypingManager } from "@/features/chat/services/typing-manager";
@@ -133,6 +135,8 @@ export function IMProvider({ children }: IMProviderProps) {
   const uid = useStore(authStore, (s) => s.user?.uid ?? null);
   useImConnection(uid, token);
   useDesktopNotifications(uid);
+  useDesktopImHandoff(uid, token);
+  useDesktopUnreadBadge(uid);
   useFaviconUnreadBadge(uid);
   useCmdSync();
   return children;

@@ -140,7 +140,10 @@ export function ConversationSidebar({ selectedChannelId, onSelect }: Conversatio
       style={{ width }}
       className="relative flex shrink-0 flex-col border-r border-border-subtle bg-bg-base"
     >
-      <header className="flex h-12 shrink-0 items-center justify-between gap-2 p-3">
+      <header
+        data-desktop-window-drag
+        className="flex h-12 shrink-0 items-center justify-between gap-2 p-3"
+      >
         {spaceTitleLoading ? (
           <span
             aria-hidden

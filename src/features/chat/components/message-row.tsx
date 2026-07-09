@@ -234,6 +234,9 @@ export function MessageRow({ message, continueWithPrev, bare }: MessageRowProps)
       const loadingId = appMessage.loading(t("messageRow.replyLoading"));
       try {
         el = await locateReplyMessage(qc, message.channel, seq);
+      } catch {
+        // queryFn 网络异常等不冒泡为 unhandled rejection(#4 补充修复)
+        el = null;
       } finally {
         appMessage.dismiss(loadingId);
       }

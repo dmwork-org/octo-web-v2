@@ -106,13 +106,19 @@ async function fetchOneMorePage(qc: QueryClient, channel: Channel): Promise<bool
   const lastParam = data.pageParams[data.pageParams.length - 1];
   const next = opts.getNextPageParam!(lastPage, data.pages, lastParam, data.pageParams);
   if (next == null) return false; // 到顶
-  const newPage = (await opts.queryFn!({
-    queryKey: opts.queryKey,
-    pageParam: next,
-    signal: new AbortController().signal,
-    meta: undefined,
-    direction: "forward",
-  } as never)) as Message[];
+  let newPage: Message[];
+  try {
+    newPage = (await opts.queryFn!({
+      queryKey: opts.queryKey,
+      pageParam: next,
+      signal: new AbortController().signal,
+      meta: undefined,
+      direction: "forward",
+    } as never)) as Message[];
+  } catch {
+    // 网络异常时不冒泡,视为到顶避免 unhandled rejection(#4 补充修复)
+    return false;
+  }
   qc.setQueryData<InfiniteData<Message[], MessagesPageParam>>(opts.queryKey, (old) => {
     if (!old) return old;
     return {

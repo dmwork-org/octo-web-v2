@@ -7,6 +7,7 @@ import { getImConnectAddrs } from "@/features/base/api/endpoints/im.api";
 import { useDesktopNotifications } from "@/features/chat/hooks/use-desktop-notifications.hook";
 import { useDesktopImHandoff } from "@/features/chat/hooks/use-desktop-im-handoff.hook";
 import { useDesktopUnreadBadge } from "@/features/chat/hooks/use-desktop-unread-badge.hook";
+import { useHotUpdateToast } from "@/features/chat/hooks/use-hot-update-toast.hook";
 import { useFaviconUnreadBadge } from "@/features/chat/hooks/use-favicon-unread-badge.hook";
 import { useCmdSync } from "@/features/chat/hooks/use-cmd-sync.hook";
 import { TypingManager } from "@/features/chat/services/typing-manager";
@@ -137,6 +138,7 @@ export function IMProvider({ children }: IMProviderProps) {
   useDesktopNotifications(uid);
   useDesktopImHandoff(uid, token);
   useDesktopUnreadBadge(uid);
+  useHotUpdateToast();
   useFaviconUnreadBadge(uid);
   useCmdSync();
   return children;
